@@ -16,7 +16,6 @@ internal sealed class CompilerLogBuilder : IDisposable
 {
     private readonly Dictionary<Guid, string> _mvidToRefNameMap = new();
     private readonly Dictionary<string, Guid> _refPathToMvidMap = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Guid> _refPathToMvidMap = new(StringComparer.Ordinal);
     private int _compilationCount;
 
     internal ZipArchive ZipArchive { get; set;  }
@@ -51,9 +50,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var commandLineFile in args.SourceFiles)
         {
-            var 
         }
-
     }
 
     private void AddReferences(StreamWriter compilationWriter, CommandLineArguments args)
