@@ -15,22 +15,27 @@ internal static class BinaryLogUtil
         build.VisitAllChildren(
             void (Task task) =>
             {
-                if (task is CscTask cscTask && TryCreateCompilerInvocation(cscTask) is { } cscInvocation)
+                if (task is CscTask cscTask)
                 {
-                    list.Add(cscInvocation);
+                    if (TryCreateCompilerInvocation(cscTask, diagnosticList) is { } cscInvocation)
+                    {
+                        list.Add(cscInvocation);
+                    }
                 }
-                else if (task is VbcTask vbcTask && TryCreateCompilerInvocation(vbcTask) is { } vbcInvocation)
+                else if (task is VbcTask vbcTask)
                 {
-                    list.Add(vbcInvocation);
+                    if (TryCreateCompilerInvocation(vbcTask, diagnosticList) is { } vbcInvocation)
+                    {
+                        list.Add(vbcInvocation);
+                    }
                 }
             });
         return list;
     }
 
-    internal static CompilerInvocation? TryCreateCompilerInvocation(CscTask task)
+    internal static CompilerInvocation? TryCreateCompilerInvocation(CscTask task, List<string> diagnosticList)
     {
-        var compileTarget = task.GetNearestParent<Target>(static t => t.Name == "CoreCompile");
-        if (compileTarget is null || compileTarget.Project.ProjectDirectory is null)
+        if (FindCompileTarget(task, diagnosticList) is not { } tuple)
         {
             return null;
         }
@@ -39,25 +44,26 @@ internal static class BinaryLogUtil
         var rawArgs = SkipCompilerExecutable(args, "csc.exe", "csc.dll").ToArray();
         if (rawArgs.Length == 0)
         {
+            diagnosticList.Add($"Task {task.Id}: bad argument list");
             return null;
         }
 
         var commandLineArgs = CSharpCommandLineParser.Default.Parse(
             rawArgs,
-            baseDirectory: compileTarget.Project.ProjectDirectory,
+            baseDirectory: tuple.Target.Project.ProjectDirectory,
             sdkDirectory: null,
             additionalReferenceDirectories: null);
         return new CompilerInvocation(
-            compileTarget.Project.ProjectFile,
+            tuple.Target.Project.ProjectFile,
             task,
+            tuple.Kind,
             commandLineArgs,
             rawArgs);
     }
 
-    internal static CompilerInvocation? TryCreateCompilerInvocation(VbcTask task)
+    internal static CompilerInvocation? TryCreateCompilerInvocation(VbcTask task, List<string> diagnosticList)
     {
-        var compileTarget = task.GetNearestParent<Target>(static t => t.Name == "CoreCompile");
-        if (compileTarget is null || compileTarget.Project.ProjectDirectory is null)
+        if (FindCompileTarget(task, diagnosticList) is not { } tuple)
         {
             return null;
         }
@@ -66,21 +72,35 @@ internal static class BinaryLogUtil
         var rawArgs = SkipCompilerExecutable(args, "vbc.exe", "vbc.dll").ToArray();
         if (rawArgs.Length == 0)
         {
+            diagnosticList.Add($"Task {task.Id}: bad argument list");
             return null;
         }
 
         var commandLineArgs = VisualBasicCommandLineParser.Default.Parse(
             rawArgs,
-            baseDirectory: compileTarget.Project.ProjectDirectory,
+            baseDirectory: tuple.Target.Project.ProjectDirectory,
             sdkDirectory: null,
             additionalReferenceDirectories: null);
         return new CompilerInvocation(
-            compileTarget.Project.ProjectFile,
+            tuple.Target.Project.ProjectFile,
             task,
+            tuple.Kind,
             commandLineArgs,
             rawArgs);
     }
 
+    private static (Target Target, CompilationKind Kind)? FindCompileTarget(Task task, List<string> diagnosticList)
+    {
+        var compileTarget = task.GetNearestParent<Target>(static t => t.Name == "CoreCompile" || t.Name == "CoreGenerateSatelliteAssemblies");
+        if (compileTarget is null || compileTarget.Project.ProjectDirectory is null)
+        {
+            diagnosticList.Add($"Task {task.Id}: cannot find CoreCompile");
+            return null;
+        }
+
+        var kind = compileTarget.Name == "CoreCompile" ? CompilationKind.Regular : CompilationKind.Sattelite;
+        return (compileTarget, kind);
+    }
 
     /// <summary>
     /// The argument list is going to include either `dotnet exec csc.dll` or `csc.exe`. Need 

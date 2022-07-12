@@ -1,14 +1,15 @@
 ﻿using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.VisualBasic;
 using Task = Microsoft.Build.Logging.StructuredLogger.Task;
 
 namespace Basic.CompilerLogger
 {
-    internal enum CompilerKind
+    internal enum CompilationKind
     {
-        CSharp,
-        VisualBasic
+        Regular,
+        Sattelite
     }
 
     internal sealed class CompilerInvocation
@@ -17,16 +18,16 @@ namespace Basic.CompilerLogger
         internal CommandLineArguments CommandLineArguments { get; }
         internal string[] RawArguments { get; }
         internal string ProjectFile { get; }
+        internal CompilationKind CompilationKind { get; }
 
-        internal CompilerKind CompilerKind =>
-            CommandLineArguments is CSharpCommandLineArguments
-            ? CompilerKind.CSharp
-            : CompilerKind.VisualBasic;
+        internal bool IsCSharp => CommandLineArguments is CSharpCommandLineArguments;
+        internal bool IsVisualBasic => CommandLineArguments is VisualBasicCommandLineArguments;
 
-        internal CompilerInvocation(string projectFile, Task task, CommandLineArguments commandLineArguments, string[] rawArguments)
+        internal CompilerInvocation(string projectFile, Task task, CompilationKind kind, CommandLineArguments commandLineArguments, string[] rawArguments)
         {
             ProjectFile = projectFile;
             Task = task;
+            CompilationKind = kind;
             CommandLineArguments = commandLineArguments;
             RawArguments = rawArguments;
         }

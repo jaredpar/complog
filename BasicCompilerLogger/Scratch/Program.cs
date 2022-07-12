@@ -2,9 +2,16 @@
 
 using Basic.CompilerLogger;
 
-using var stream = File.OpenRead(@"c:\users\jaredpar\code\temp\console\msbuild.binlog");
-BinaryLogUtil.ReadCompilationTasks(stream, null);
-Console.WriteLine("Hello, World!");
+// var filePath = @"c:\users\jaredpar\code\temp\console\msbuild.binlog";
+var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
+
+using var stream = File.OpenRead(filePath);
+var diagnosticList = new List<string>();
+BinaryLogUtil.ReadCompilationTasks(stream, diagnosticList);
+foreach (var diagnostic in diagnosticList)
+{
+    Console.WriteLine(diagnostic);
+}
 
 
 
