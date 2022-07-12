@@ -20,4 +20,9 @@ public static class CompilerLogUtil
             builder.Add(compilerInvocation);
         }
     }
+
+    public static List<CompilationData> ReadFrom(Stream compilerLogStream)
+    {
+
+    }
 }

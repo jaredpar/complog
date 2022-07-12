@@ -13,6 +13,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.Xml;
 using System.Text;
 using System.Threading.Tasks;
+using static Basic.CompilerLogger.CommonUtil;
 
 namespace Basic.CompilerLogger;
 
@@ -23,9 +24,13 @@ internal sealed class CompilerLogBuilder : IDisposable
     private readonly HashSet<string> _sourceHashMap = new(StringComparer.Ordinal);
 
     private int _compilationCount;
+    private bool _closed;
 
     internal ZipArchive ZipArchive { get; set;  }
     internal List<string> Diagnostics { get; set; }
+
+    internal bool IsOpen => !_closed;
+    internal bool IsClosed => _closed;
 
     internal CompilerLogBuilder(Stream stream, List<string> diagnostics)
     {
@@ -33,26 +38,56 @@ internal sealed class CompilerLogBuilder : IDisposable
         Diagnostics = diagnostics;
     }
 
-    internal void Add(CompilerInvocation invocation)
+    internal bool Add(CompilerInvocation invocation)
     {
         var memoryStream = new MemoryStream();
-        using var compilationWriter = new StreamWriter(memoryStream, Encoding.UTF8, leaveOpen: true);
+        using var compilationWriter = new StreamWriter(memoryStream, CommonUtil.ContentEncoding, leaveOpen: true);
         compilationWriter.WriteLine(invocation.ProjectFile);
 
-        AddReferences(compilationWriter, invocation.CommandLineArguments);
-        AddAnalyzers(compilationWriter, invocation.CommandLineArguments);
-        AddSources(compilationWriter, invocation.CommandLineArguments);
-        AddAdditionalTexts(compilationWriter, invocation.CommandLineArguments);
+        try
+        {
+            AddReferences(compilationWriter, invocation.CommandLineArguments);
+            AddAnalyzers(compilationWriter, invocation.CommandLineArguments);
+            AddSources(compilationWriter, invocation.CommandLineArguments);
+            AddAdditionalTexts(compilationWriter, invocation.CommandLineArguments);
 
-        compilationWriter.Flush();
+            compilationWriter.Flush();
 
-        var entry = ZipArchive.CreateEntry($"compilations/{_compilationCount}.txt", CompressionLevel.SmallestSize);
-        using var entryStream = entry.Open();
-        memoryStream.Position = 0;
-        memoryStream.CopyTo(entryStream);
-        entryStream.Close();
+            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), CompressionLevel.SmallestSize);
+            using var entryStream = entry.Open();
+            memoryStream.Position = 0;
+            memoryStream.CopyTo(entryStream);
+            entryStream.Close();
 
-        _compilationCount++;
+            _compilationCount++;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.Add($"Error adding {invocation.ProjectFile}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void EnsureOpen()
+    {
+        if (IsClosed)
+            throw new InvalidOperationException();
+    }
+
+    public void Close()
+    {
+        EnsureOpen();
+        WriteMetadata();
+        ZipArchive.Dispose();
+        ZipArchive = null!;
+
+        void WriteMetadata()
+        {
+            var entry = ZipArchive.CreateEntry(CommonUtil.MetadataFileName, CompressionLevel.Optimal);
+            using var writer = new StreamWriter(entry.Open(), CommonUtil.ContentEncoding, leaveOpen: false);
+            writer.WriteLine($"count:{_compilationCount}");
+        }
     }
 
     private void AddSources(StreamWriter compilationWriter, CommandLineArguments args)
@@ -71,8 +106,6 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         var sha = SHA256.Create();
 
-        // TODO: need to expose the real API for how the compiler reads source files. 
-        // move this comment to the rehydration code when we write it.
         using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var hash = sha.ComputeHash(fileStream);
         var hashText = GetHashText();
@@ -110,7 +143,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             compilationWriter.Write($"m:{mvid}:");
             compilationWriter.Write((int)reference.Properties.Kind);
             compilationWriter.Write(":");
-            compilationWriter.Write(reference.Properties.EmbedInteropTypes);
+            compilationWriter.Write(reference.Properties.EmbedInteropTypes ? '1' : '0');
             compilationWriter.Write(":");
 
             var any = false;
@@ -176,7 +209,9 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     public void Dispose()
     {
-        ZipArchive.Dispose();
-        ZipArchive = null!;
+        if (IsOpen)
+        {
+            Close();
+        }
     }
 }
