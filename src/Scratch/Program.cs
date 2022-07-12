@@ -2,8 +2,9 @@
 
 using Basic.CompilerLogger;
 
-var filePath = @"c:\users\jaredpar\code\temp\console\msbuild.binlog";
+// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
+var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 
 using var stream = File.OpenRead(filePath);
 var diagnosticList = new List<string>();
