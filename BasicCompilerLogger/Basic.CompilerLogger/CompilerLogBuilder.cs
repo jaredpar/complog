@@ -16,6 +16,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 {
     private readonly Dictionary<Guid, string> _mvidToRefNameMap = new();
     private readonly Dictionary<string, Guid> _refPathToMvidMap = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Guid> _refPathToMvidMap = new(StringComparer.Ordinal);
     private int _compilationCount;
 
     internal ZipArchive ZipArchive { get; set;  }
@@ -31,16 +32,28 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         var memoryStream = new MemoryStream();
         using var compilerWriter = new StreamWriter(memoryStream, Encoding.UTF8, leaveOpen: true);
+        compilerWriter.WriteLine(invocation.ProjectFile);
 
         AddReferences(compilerWriter, invocation.CommandLineArguments);
 
         compilerWriter.Flush();
+
         var entry = ZipArchive.CreateEntry($"compilations/{_compilationCount}.txt", CompressionLevel.SmallestSize);
         using var entryStream = entry.Open();
         memoryStream.Position = 0;
         memoryStream.CopyTo(entryStream);
         entryStream.Close();
+
         _compilationCount++;
+    }
+
+    private void AddSource(StreamWriter compilationWriter, CommandLineArguments args)
+    {
+        foreach (var commandLineFile in args.SourceFiles)
+        {
+            var 
+        }
+
     }
 
     private void AddReferences(StreamWriter compilationWriter, CommandLineArguments args)
@@ -66,7 +79,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 _refPathToMvidMap[filePath] = mvid;
             }
 
-            var entry = ZipArchive.CreateEntry($"ref/{mvid:N}", CompressionLevel.Fastest);
+            var entry = ZipArchive.CreateEntry($"ref/{mvid:N}", CompressionLevel.Optimal);
             using var entryStream = entry.Open();
             file.CopyTo(entryStream);
 
