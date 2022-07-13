@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
@@ -19,7 +20,7 @@ namespace Basic.CompilerLogger;
 
 internal sealed class CompilerLogBuilder : IDisposable
 {
-    private readonly Dictionary<Guid, string> _mvidToRefNameMap = new();
+    private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(StringComparer.Ordinal);
     private readonly HashSet<string> _sourceHashMap = new(StringComparer.Ordinal);
 
@@ -88,6 +89,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             EnsureOpen();
             WriteMetadata();
+            WriteAssemblyInfo();
             ZipArchive.Dispose();
             ZipArchive = null!;
         }
@@ -98,9 +100,19 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void WriteMetadata()
         {
-            var entry = ZipArchive.CreateEntry(CommonUtil.MetadataFileName, CompressionLevel.Optimal);
-            using var writer = new StreamWriter(entry.Open(), CommonUtil.ContentEncoding, leaveOpen: false);
+            var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Optimal);
+            using var writer = new StreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             writer.WriteLine($"count:{_compilationCount}");
+        }
+
+        void WriteAssemblyInfo()
+        {
+            var entry = ZipArchive.CreateEntry(AssemblyInfoFileName, CompressionLevel.Optimal);
+            using var writer = new StreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
+            foreach (var kvp in _mvidToRefInfoMap.OrderBy(x => x.Value.FileName).ThenBy(x => x.Key))
+            {
+                writer.WriteLine($"{kvp.Value.FileName}:{kvp.Key:N}:{kvp.Value.AssemblyName}");
+            }
         }
     }
 
@@ -196,7 +208,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         if (_assemblyPathToMvidMap.TryGetValue(filePath, out var mvid))
         {
-            Debug.Assert(_mvidToRefNameMap.ContainsKey(mvid));
+            Debug.Assert(_mvidToRefInfoMap.ContainsKey(mvid));
             return mvid;
         }
 
@@ -206,17 +218,22 @@ internal sealed class CompilerLogBuilder : IDisposable
         GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
         mvid = mdReader.GetGuid(handle);
 
-        if (_mvidToRefNameMap.TryGetValue(mvid, out var name))
+        _assemblyPathToMvidMap[filePath] = mvid;
+
+        // If the assembly was already loaded from a different path then no more
+        // work is needed here
+        if (_mvidToRefInfoMap.ContainsKey(mvid))
         {
-            _assemblyPathToMvidMap[filePath] = mvid;
+            return mvid;
         }
 
         var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Optimal);
         using var entryStream = entry.Open();
+        file.Position = 0;
         file.CopyTo(entryStream);
 
-        _mvidToRefNameMap[mvid] = Path.GetFileName(filePath);
-        _assemblyPathToMvidMap[filePath] = mvid;
+        var assemblyName = mdReader.GetAssemblyDefinition().GetAssemblyName();
+        _mvidToRefInfoMap[mvid] = (Path.GetFileName(filePath), assemblyName);
         return mvid;
     }
 

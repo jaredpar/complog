@@ -9,15 +9,18 @@ public abstract class CompilationData
 {
     public Compilation Compilation { get; }
     public CommandLineArguments CommandLineArguments { get; }
+    internal CompilerLogAssemblyLoadContext CompilerLogAssemblyLoadContext { get; }
 
     public EmitOptions EmitOptions => CommandLineArguments.EmitOptions;
 
-    protected CompilationData(
+    private protected CompilationData(
         Compilation compilation,
-        CommandLineArguments commandLineArguments)
+        CommandLineArguments commandLineArguments,
+        CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
     {
         Compilation = compilation;
         CommandLineArguments = commandLineArguments;
+        CompilerLogAssemblyLoadContext = compilerLogAssemblyLoadContext;
     }
 }
 
@@ -26,10 +29,11 @@ public abstract class CompilationData<TCompilation, TCommandLineArguments> : Com
     where TCommandLineArguments : CommandLineArguments
 
 {
-    protected CompilationData(
+    private protected CompilationData(
         TCompilation compilation,
-        TCommandLineArguments commandLineArguments)
-        :base(compilation, commandLineArguments)
+        TCommandLineArguments commandLineArguments,
+        CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
+        :base(compilation, commandLineArguments, compilerLogAssemblyLoadContext)
     {
         
     }
@@ -37,10 +41,11 @@ public abstract class CompilationData<TCompilation, TCommandLineArguments> : Com
 
 public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, CSharpCommandLineArguments>
 {
-    public CSharpCompilationData(
+    internal CSharpCompilationData(
         CSharpCompilation compilation,
-        CSharpCommandLineArguments commandLineArguments)
-        :base(compilation, commandLineArguments)
+        CSharpCommandLineArguments commandLineArguments,
+        CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
+        :base(compilation, commandLineArguments, compilerLogAssemblyLoadContext)
     {
 
     }
@@ -48,10 +53,11 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
 
 public sealed class VisualBasicCompilationData : CompilationData<VisualBasicCompilation, VisualBasicCommandLineArguments>
 {
-    public VisualBasicCompilationData(
+    internal VisualBasicCompilationData(
         VisualBasicCompilation compilation,
-        VisualBasicCommandLineArguments commandLineArguments)
-        : base(compilation, commandLineArguments)
+        VisualBasicCommandLineArguments commandLineArguments,
+        CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
+        : base(compilation, commandLineArguments, compilerLogAssemblyLoadContext)
     {
     }
 }

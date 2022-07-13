@@ -1,17 +1,11 @@
-﻿using Microsoft.Build.Tasks;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.CodeAnalysis.VisualBasic;
-using Microsoft.CodeAnalysis.VisualBasic.Syntax;
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO.Compression;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Reflection;
+using System.Runtime.Loader;
 using static Basic.CompilerLogger.CommonUtil;
 
 namespace Basic.CompilerLogger;
@@ -19,6 +13,7 @@ namespace Basic.CompilerLogger;
 internal sealed class CompilerLogReader : IDisposable
 {
     private readonly Dictionary<Guid, MetadataReference> _refMap = new Dictionary<Guid, MetadataReference>();
+    private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
 
     internal ZipArchive ZipArchive { get; set; }
     internal int CompilationCount { get; }
@@ -26,15 +21,30 @@ internal sealed class CompilerLogReader : IDisposable
     public CompilerLogReader(Stream stream)
     {
         ZipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+        CompilationCount = ReadMetadata();
+        ReadAssemblyInfo();
 
-        using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(MetadataFileName), ContentEncoding, leaveOpen: false);
-        var line = reader.ReadLine();
-        if (line is null)
-            throw new InvalidOperationException();
-        var items = line.Split(':', StringSplitOptions.RemoveEmptyEntries);
-        if (items.Length != 2 || !int.TryParse(items[1], out var count))
-            throw new InvalidOperationException();
-        CompilationCount = count;
+        int ReadMetadata()
+        {
+            using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(MetadataFileName), ContentEncoding, leaveOpen: false);
+            var line = reader.ReadLineOrThrow();
+            var items = line.Split(':', StringSplitOptions.RemoveEmptyEntries);
+            if (items.Length != 2 || !int.TryParse(items[1], out var count))
+                throw new InvalidOperationException();
+            return count;
+        }
+
+        void ReadAssemblyInfo()
+        {
+            using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(AssemblyInfoFileName), ContentEncoding, leaveOpen: false);
+            while (reader.ReadLine() is string line)
+            {
+                var items = line.Split(':', count: 3);
+                var mvid = Guid.Parse(items[1]);
+                var assemblyName = new AssemblyName(items[2]);
+                _mvidToRefInfoMap[mvid] = (items[0], assemblyName);
+            }
+        }
     }
 
     internal CompilationData ReadCompilation(int index)
@@ -47,7 +57,7 @@ internal sealed class CompilerLogReader : IDisposable
         var isCSharp = reader.ReadLineOrThrow() == "C#";
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var metadataReferenceList = new List<MetadataReference>();
-        var analyzerBuilder = ImmutableArray.CreateBuilder<AnalyzerReference>();
+        var analyzers = new List<Guid>();
         var additionalTextBuilder = ImmutableArray.CreateBuilder<AdditionalText>();
 
         var done = false;
@@ -112,33 +122,43 @@ internal sealed class CompilerLogReader : IDisposable
         void ParseSourceText(string line)
         {
             var items = line.Split(':', count: 3);
-            if (items.Length == 3)
-            {
-                var sourceText = GetSourceText(items[1]);
-                sourceTextList.Add((sourceText, items[2]));
-                return;
-            }
-
-            throw new InvalidOperationException();
+            var sourceText = GetSourceText(items[1]);
+            sourceTextList.Add((sourceText, items[2]));
         }
 
         void ParseAdditionalText(string line)
         {
             var items = line.Split(':', count: 3);
-            if (items.Length == 3)
-            {
-                var sourceText = GetSourceText(items[1]);
-                var text = new BasicAdditionalTextFile(items[2], sourceText);
-                additionalTextBuilder.Add(text);
-                return;
-            }
-
-            throw new InvalidOperationException();
+            var sourceText = GetSourceText(items[1]);
+            var text = new BasicAdditionalTextFile(items[2], sourceText);
+            additionalTextBuilder.Add(text);
         }
 
         void ParseAnalyzer(string line)
         {
-            // TODO: figure out how we want to represent this
+            var items = line.Split(':', count: 2);
+            var mvid = Guid.Parse(items[1]);
+            analyzers.Add(mvid);
+        }
+
+        CompilerLogAssemblyLoadContext CreateAssemblyLoadContext()
+        {
+            var analyzerNames = analyzers
+                .Select(x => _mvidToRefInfoMap[x].AssemblyName)
+                .ToList();
+
+            var loadContext = new CompilerLogAssemblyLoadContext(
+                projectFile,
+                analyzerNames);
+
+            foreach (var mvid in analyzers)
+            {
+                using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
+                var analyzerBytes = entryStream.ReadAllBytes();
+                loadContext.LoadFromStream(new MemoryStream(analyzerBytes.ToArray()));
+            }
+
+            return loadContext;
         }
 
         CSharpCompilationData CreateCSharp()
@@ -156,7 +176,7 @@ internal sealed class CompilerLogReader : IDisposable
                 metadataReferenceList,
                 args.CompilationOptions);
 
-            return new CSharpCompilationData(compilation, args);
+            return new CSharpCompilationData(compilation, args, CreateAssemblyLoadContext());
         }
 
         VisualBasicCompilationData CreateVisualBasic()
@@ -173,10 +193,10 @@ internal sealed class CompilerLogReader : IDisposable
         }
 
         using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
-        var bytes = entryStream.ReadAll();
+        var bytes = entryStream.ReadAllBytes();
 
-        // TODO: should we include the file path in the image?
-        metadataReference = MetadataReference.CreateFromImage(bytes);
+        // TODO: should we include the file path / name in the image?
+        metadataReference = MetadataReference.CreateFromStream(new MemoryStream(bytes.ToArray()));
         _refMap.Add(mvid, metadataReference);
         return metadataReference;
     }

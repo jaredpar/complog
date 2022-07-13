@@ -35,17 +35,17 @@ internal static class Extensions
         throw new InvalidOperationException();
     }
 
-    internal static void AddRange<T>(this ImmutableArray<T>.Builder builder, ReadOnlySpan<T> span)
+    internal static void AddRange<T>(this List<T> list, ReadOnlySpan<T> span)
     {
         foreach (var item in span)
         {
-            builder.Add(item);
+            list.Add(item);
         }
     }
 
-    internal static ImmutableArray<byte> ReadAll(this Stream stream)
+    internal static List<byte> ReadAllBytes(this Stream stream)
     {
-        var builder = ImmutableArray.CreateBuilder<byte>();
+        var list = new List<byte>();
         Span<byte> buffer = stackalloc byte[256];
         do
         {
@@ -53,9 +53,10 @@ internal static class Extensions
             if (length == 0)
                 break;
 
-            builder.AddRange(buffer);
+            list.AddRange(buffer.Slice(0, length));
         } while (true);
 
-        return builder.ToImmutable();
+        return list;
+
     }
 }
