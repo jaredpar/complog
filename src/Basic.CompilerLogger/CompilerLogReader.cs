@@ -170,7 +170,7 @@ internal sealed class CompilerLogReader : IDisposable
                 metadataReferenceList,
                 args.CompilationOptions);
 
-            return new CSharpCompilationData(compilation, args, CreateAssemblyLoadContext());
+            return new CSharpCompilationData(compilation, args, additionalTextBuilder.ToImmutable(), CreateAssemblyLoadContext());
         }
 
         VisualBasicCompilationData CreateVisualBasic()

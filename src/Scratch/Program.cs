@@ -23,8 +23,8 @@ void RoundTrip(string binlogFilePath)
 
     using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
     var reader = new CompilerLogReader(compilerLogStream);
-    var compilation = reader.ReadCompilation(0);
-    compilation.GetAnalyzers();
+    var compilationData = reader.ReadCompilation(0);
+    var compilation = compilationData.GetCompilationAfterGenerators();
 }
 
 
