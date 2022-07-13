@@ -143,13 +143,7 @@ internal sealed class CompilerLogReader : IDisposable
 
         CompilerLogAssemblyLoadContext CreateAssemblyLoadContext()
         {
-            var analyzerNames = analyzers
-                .Select(x => _mvidToRefInfoMap[x].AssemblyName)
-                .ToList();
-
-            var loadContext = new CompilerLogAssemblyLoadContext(
-                projectFile,
-                analyzerNames);
+            var loadContext = new CompilerLogAssemblyLoadContext(projectFile);
 
             foreach (var mvid in analyzers)
             {
