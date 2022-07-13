@@ -1,11 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.VisualBasic;
 
 namespace Basic.CompilerLogger;
 
@@ -13,6 +9,8 @@ public abstract class CompilationData
 {
     public Compilation Compilation { get; }
     public CommandLineArguments CommandLineArguments { get; }
+
+    public EmitOptions EmitOptions => CommandLineArguments.EmitOptions;
 
     protected CompilationData(
         Compilation compilation,
@@ -45,5 +43,15 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
         :base(compilation, commandLineArguments)
     {
 
+    }
+}
+
+public sealed class VisualBasicCompilationData : CompilationData<VisualBasicCompilation, VisualBasicCommandLineArguments>
+{
+    public VisualBasicCompilationData(
+        VisualBasicCompilation compilation,
+        VisualBasicCommandLineArguments commandLineArguments)
+        : base(compilation, commandLineArguments)
+    {
     }
 }

@@ -23,6 +23,6 @@ public static class CompilerLogUtil
 
     public static List<CompilationData> ReadFrom(Stream compilerLogStream)
     {
-
+        throw null!;
     }
 }

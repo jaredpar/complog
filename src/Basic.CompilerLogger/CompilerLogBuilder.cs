@@ -43,6 +43,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         var memoryStream = new MemoryStream();
         using var compilationWriter = new StreamWriter(memoryStream, CommonUtil.ContentEncoding, leaveOpen: true);
         compilationWriter.WriteLine(invocation.ProjectFile);
+        compilationWriter.WriteLine(invocation.IsCSharp ? "C#" : "VB");
 
         try
         {
@@ -50,6 +51,12 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddAnalyzers(compilationWriter, invocation.CommandLineArguments);
             AddSources(compilationWriter, invocation.CommandLineArguments);
             AddAdditionalTexts(compilationWriter, invocation.CommandLineArguments);
+
+            compilationWriter.WriteLine("#");
+            foreach (var arg in invocation.RawArguments)
+            {
+                compilationWriter.WriteLine(arg);
+            }
 
             compilationWriter.Flush();
 
@@ -77,10 +84,17 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     public void Close()
     {
-        EnsureOpen();
-        WriteMetadata();
-        ZipArchive.Dispose();
-        ZipArchive = null!;
+        try
+        {
+            EnsureOpen();
+            WriteMetadata();
+            ZipArchive.Dispose();
+            ZipArchive = null!;
+        }
+        finally
+        {
+            _closed = true;
+        }
 
         void WriteMetadata()
         {
@@ -110,17 +124,16 @@ internal sealed class CompilerLogBuilder : IDisposable
         var hash = sha.ComputeHash(fileStream);
         var hashText = GetHashText();
         var fileExtension = Path.GetExtension(filePath);
-        var hashFileName = $"{hashText}{fileExtension}";
 
         if (_sourceHashMap.Add(hashText))
         {
-            var entry = ZipArchive.CreateEntry($"content/{hashFileName}", CompressionLevel.Optimal);
+            var entry = ZipArchive.CreateEntry(GetContentEntryName(hashText), CompressionLevel.Optimal);
             using var entryStream = entry.Open();
             fileStream.Position = 0;
             fileStream.CopyTo(entryStream);
         }
 
-        return hashFileName;
+        return hashText;
 
         string GetHashText()
         {
@@ -198,7 +211,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             _assemblyPathToMvidMap[filePath] = mvid;
         }
 
-        var entry = ZipArchive.CreateEntry($"ref/{mvid:N}", CompressionLevel.Optimal);
+        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Optimal);
         using var entryStream = entry.Open();
         file.CopyTo(entryStream);
 

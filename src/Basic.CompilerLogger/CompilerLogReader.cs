@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Microsoft.Build.Tasks;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
@@ -17,6 +18,8 @@ namespace Basic.CompilerLogger;
 
 internal sealed class CompilerLogReader : IDisposable
 {
+    private readonly Dictionary<Guid, MetadataReference> _refMap = new Dictionary<Guid, MetadataReference>();
+
     internal ZipArchive ZipArchive { get; set; }
     internal int CompilationCount { get; }
 
@@ -40,13 +43,9 @@ internal sealed class CompilerLogReader : IDisposable
             throw new InvalidOperationException();
 
         using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
-
-        // TODO: need to encode what type of compilation this is
-        bool isCSharp = true;
-        // TODO: need these availebl, have to parse command line first
-        ParseOptions parseOptions = null!;
-
-        var syntaxTreeList = new List<SyntaxTree>();
+        var projectFile = reader.ReadLineOrThrow();
+        var isCSharp = reader.ReadLineOrThrow() == "C#";
+        var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var metadataReferenceList = new List<MetadataReference>();
         var analyzerBuilder = ImmutableArray.CreateBuilder<AnalyzerReference>();
         var additionalTextBuilder = ImmutableArray.CreateBuilder<AdditionalText>();
@@ -63,7 +62,7 @@ internal sealed class CompilerLogReader : IDisposable
                     ParseAnalyzer(line);
                     break;
                 case 's':
-                    ParseSyntaxTree(line);
+                    ParseSourceText(line);
                     break;
                 case 't':
                     ParseAdditionalText(line);
@@ -76,10 +75,15 @@ internal sealed class CompilerLogReader : IDisposable
             }
         }
 
-        var args = new List<string>();
+        var rawArgs = new List<string>();
+        while (reader.ReadLine() is string line)
+        {
+            rawArgs.Add(line);
+        }
 
-        // Got this far
-        throw null!;
+        return isCSharp
+            ? CreateCSharp()
+            : CreateVisualBasic();
 
         void ParseMetadataReference(string line)
         {
@@ -99,24 +103,20 @@ internal sealed class CompilerLogReader : IDisposable
                 }
 
                 metadataReferenceList.Add(reference);
+                return;
             }
 
             throw new InvalidOperationException();
         }
 
-        void ParseSyntaxTree(string line)
+        void ParseSourceText(string line)
         {
-            var items = line.Split(':');
+            var items = line.Split(':', count: 3);
             if (items.Length == 3)
             {
                 var sourceText = GetSourceText(items[1]);
-                SyntaxTree syntaxTree;
-                if (isCSharp)
-                    syntaxTree = CSharpSyntaxTree.ParseText(sourceText, (CSharpParseOptions)parseOptions, items[2]);
-                else
-                    syntaxTree = VisualBasicSyntaxTree.ParseText(sourceText, (VisualBasicParseOptions)parseOptions, items[2]);
-
-                syntaxTreeList.Add(syntaxTree);
+                sourceTextList.Add((sourceText, items[2]));
+                return;
             }
 
             throw new InvalidOperationException();
@@ -124,12 +124,13 @@ internal sealed class CompilerLogReader : IDisposable
 
         void ParseAdditionalText(string line)
         {
-            var items = line.Split(':');
+            var items = line.Split(':', count: 3);
             if (items.Length == 3)
             {
                 var sourceText = GetSourceText(items[1]);
                 var text = new BasicAdditionalTextFile(items[2], sourceText);
                 additionalTextBuilder.Add(text);
+                return;
             }
 
             throw new InvalidOperationException();
@@ -139,23 +140,50 @@ internal sealed class CompilerLogReader : IDisposable
         {
             // TODO: figure out how we want to represent this
         }
+
+        CSharpCompilationData CreateCSharp()
+        {
+            var args = CSharpCommandLineParser.Default.Parse(rawArgs, Path.GetDirectoryName(projectFile), sdkDirectory: null, additionalReferenceDirectories: null);
+            var parseOptions = args.ParseOptions;
+            var syntaxTrees = sourceTextList
+                .Select(t => CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path))
+                .ToArray();
+
+            // TODO: copy the code from rebuild to get the assembly name correct
+            var compilation = CSharpCompilation.Create(
+                "todo",
+                syntaxTrees,
+                metadataReferenceList,
+                args.CompilationOptions);
+
+            return new CSharpCompilationData(compilation, args);
+        }
+
+        VisualBasicCompilationData CreateVisualBasic()
+        {
+            throw null!;
+        }
     }
 
     internal MetadataReference GetMetadataReference(Guid mvid)
     {
-        // cache
-        throw null!;
+        if (_refMap.TryGetValue(mvid, out var metadataReference))
+        {
+            return metadataReference;
+        }
+
+        using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
+        var bytes = entryStream.ReadAll();
+
+        // TODO: should we include the file path in the image?
+        metadataReference = MetadataReference.CreateFromImage(bytes);
+        _refMap.Add(mvid, metadataReference);
+        return metadataReference;
     }
 
-    internal Stream GetContentStream(string contentFileName)
+    internal SourceText GetSourceText(string contentHash)
     {
-        // cache
-        throw null!;
-    }
-
-    internal SourceText GetSourceText(string contentFileName)
-    {
-        var stream = GetContentStream(contentFileName);
+        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
 
         // TODO: need to expose the real API for how the compiler reads source files. 
         // move this comment to the rehydration code when we write it.
