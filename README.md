@@ -7,6 +7,5 @@ The compiler log files are self contained. They must be created on the same mach
 1. GitHub pipelines can cleanly separate build and build analysis into different legs. The analysis can be done on a separate machine entirely independent of where the build happens.
 1. Allows for easier customer investigations by the C# / VB compiler teams. Instead of trying to re-create a customer build environment, customers can provide a compiler log file that developers can easily open with a call to the API.
 
-
 :warning: A compiler log file contains all of the information necessary to recreate a `Compilation`. That includes all source and references. That will be visible to anyone you provide a compiler log to
 
