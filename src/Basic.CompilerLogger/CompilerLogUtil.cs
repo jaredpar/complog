@@ -4,21 +4,27 @@ namespace Basic.CompilerLogger;
 
 public static class CompilerLogUtil
 {
-    public static void WriteTo(string compilerLogFilePath, string binaryLogFilePath, List<string> diagnosticList)
+    public static List<string> ConvertBinaryLog(string binaryLogFilePath, string compilerLogFilePath, Func<CompilerInvocation, bool>? predicate = null)
     {
         using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
         using var binaryLogStream = new FileStream(binaryLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        WriteTo(compilerLogStream, binaryLogStream, diagnosticList);
+        return ConvertBinaryLog(binaryLogStream, compilerLogStream);
     }
 
-    public static void WriteTo(Stream compilerLogStream, Stream binaryLogStream, List<string> diagnosticList)
+    public static List<string> ConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerInvocation, bool>? predicate = null)
     {
+        predicate ??= static _ => true;
+        var diagnosticList = new List<string>();
         var list = BinaryLogUtil.ReadCompilationTasks(binaryLogStream, diagnosticList);
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnosticList);
         foreach (var compilerInvocation in list)
         {
-            builder.Add(compilerInvocation);
+            if (predicate(compilerInvocation))
+            {
+                builder.Add(compilerInvocation);
+            }
         }
+        return diagnosticList;
     }
 
     public static List<CompilationData> ReadFrom(Stream compilerLogStream)

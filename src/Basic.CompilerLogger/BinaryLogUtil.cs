@@ -12,6 +12,8 @@ internal static class BinaryLogUtil
     {
         var list = new List<CompilerInvocation>();
         var build = BinaryLog.ReadBuild(stream);
+        BuildAnalyzer.AnalyzeBuild(build);
+
         build.VisitAllChildren(
             void (Task task) =>
             {
@@ -57,6 +59,7 @@ internal static class BinaryLogUtil
             tuple.Target.Project.ProjectFile,
             task,
             tuple.Kind,
+            tuple.Target.Project.TargetFramework,
             commandLineArgs,
             rawArgs);
     }
@@ -85,6 +88,7 @@ internal static class BinaryLogUtil
             tuple.Target.Project.ProjectFile,
             task,
             tuple.Kind,
+            tuple.Target.Project.TargetFramework,
             commandLineArgs,
             rawArgs);
     }

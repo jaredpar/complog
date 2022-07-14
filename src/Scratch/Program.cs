@@ -13,9 +13,7 @@ void RoundTrip(string binlogFilePath)
 {
     var compilerLogFilePath = @"c:\users\jaredpar\temp\compiler.zip";
     using var stream = File.OpenRead(binlogFilePath);
-    var diagnosticList = new List<string>();
-
-    CompilerLogUtil.WriteTo(compilerLogFilePath, binlogFilePath, diagnosticList);
+    var diagnosticList = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, compilerLogFilePath);
     foreach (var diagnostic in diagnosticList)
     {
         Console.WriteLine(diagnostic);

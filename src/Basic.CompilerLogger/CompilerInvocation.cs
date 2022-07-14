@@ -6,28 +6,30 @@ using Task = Microsoft.Build.Logging.StructuredLogger.Task;
 
 namespace Basic.CompilerLogger
 {
-    internal enum CompilationKind
+    public enum CompilationKind
     {
         Regular,
         Sattelite
     }
 
-    internal sealed class CompilerInvocation
+    public sealed class CompilerInvocation
     {
-        internal Task Task { get; }
-        internal CommandLineArguments CommandLineArguments { get; }
-        internal string[] RawArguments { get; }
-        internal string ProjectFile { get; }
-        internal CompilationKind CompilationKind { get; }
+        public Task Task { get; }
+        public CommandLineArguments CommandLineArguments { get; }
+        public string[] RawArguments { get; }
+        public string ProjectFile { get; }
+        public CompilationKind CompilationKind { get; }
+        public string? TargetFramework { get; }
 
-        internal bool IsCSharp => CommandLineArguments is CSharpCommandLineArguments;
-        internal bool IsVisualBasic => CommandLineArguments is VisualBasicCommandLineArguments;
+        public bool IsCSharp => CommandLineArguments is CSharpCommandLineArguments;
+        public bool IsVisualBasic => CommandLineArguments is VisualBasicCommandLineArguments;
 
-        internal CompilerInvocation(string projectFile, Task task, CompilationKind kind, CommandLineArguments commandLineArguments, string[] rawArguments)
+        internal CompilerInvocation(string projectFile, Task task, CompilationKind kind, string? targetFramework, CommandLineArguments commandLineArguments, string[] rawArguments)
         {
             ProjectFile = projectFile;
             Task = task;
             CompilationKind = kind;
+            TargetFramework = targetFramework;
             CommandLineArguments = commandLineArguments;
             RawArguments = rawArguments;
         }
