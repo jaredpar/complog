@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\Basic.CompilerLogger\Basic.CompilerLogger.csproj" />
+    <ProjectReference Include="..\Basic.CompilerLogger\Basic.CompilerLogger.csproj" />
   </ItemGroup>
 
 </Project>
