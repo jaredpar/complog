@@ -87,7 +87,6 @@ public abstract class CompilationData
 public abstract class CompilationData<TCompilation, TCommandLineArguments> : CompilationData
     where TCompilation : Compilation
     where TCommandLineArguments : CommandLineArguments
-
 {
     public new TCompilation Compilation => (TCompilation)base.Compilation;
     public new TCommandLineArguments CommandLineArguments => (TCommandLineArguments)base.CommandLineArguments;
