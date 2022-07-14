@@ -26,10 +26,12 @@ catch (Exception e)
 int RunCreate(IEnumerable<string> args)
 {
     var includeSatelliteAssemblies = false;
+    var targetFrameworks = new List<string>();
     var help = false;
     var options = new OptionSet
     {
         { "s|satellite", "include satellite assemwblies", s => { if (s != null) includeSatelliteAssemblies = true; } },
+        { "targetframework", "include only compilations for the target framework (allows multiple)", tf => targetFrameworks.Add(tf) },
         { "h|help", "print help", h => { if (h != null) help = true; } },
     };
 
@@ -51,6 +53,11 @@ int RunCreate(IEnumerable<string> args)
             c =>
             {
                 if (!includeSatelliteAssemblies && c.CompilationKind == CompilationKind.Sattelite)
+                {
+                    return false;
+                }
+
+                if (targetFrameworks.Count > 0 && !targetFrameworks.Contains(c.TargetFramework, StringComparer.OrdinalIgnoreCase))
                 {
                     return false;
                 }

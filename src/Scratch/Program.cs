@@ -8,7 +8,6 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 
 RoundTrip(filePath);
 
-
 void RoundTrip(string binlogFilePath)
 {
     var compilerLogFilePath = @"c:\users\jaredpar\temp\compiler.zip";
