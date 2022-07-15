@@ -16,6 +16,7 @@ public abstract class CompilationData
     private ImmutableArray<ISourceGenerator> _generators;
     private (Compilation, ImmutableArray<Diagnostic>)? _afterGenerators;
 
+    public CompilerCall CompilerCall { get; } 
     public Compilation Compilation { get; }
     public CommandLineArguments CommandLineArguments { get; }
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
@@ -26,11 +27,13 @@ public abstract class CompilationData
     public bool VisualBasic => !IsCSharp;
 
     private protected CompilationData(
+        CompilerCall compilerCall,
         Compilation compilation,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
     {
+        CompilerCall = compilerCall;
         Compilation = compilation;
         CommandLineArguments = commandLineArguments;
         AdditionalTexts = additionalTexts;
@@ -92,11 +95,12 @@ public abstract class CompilationData<TCompilation, TCommandLineArguments> : Com
     public new TCommandLineArguments CommandLineArguments => (TCommandLineArguments)base.CommandLineArguments;
 
     private protected CompilationData(
+        CompilerCall compilerCall,
         TCompilation compilation,
         TCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
-        :base(compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
+        :base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
     {
         
     }
@@ -105,11 +109,12 @@ public abstract class CompilationData<TCompilation, TCommandLineArguments> : Com
 public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, CSharpCommandLineArguments>
 {
     internal CSharpCompilationData(
+        CompilerCall compilerCall,
         CSharpCompilation compilation,
         CSharpCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
-        :base(compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
+        :base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
     {
 
     }
@@ -122,11 +127,12 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
 public sealed class VisualBasicCompilationData : CompilationData<VisualBasicCompilation, VisualBasicCommandLineArguments>
 {
     internal VisualBasicCompilationData(
+        CompilerCall compilerCall,
         VisualBasicCompilation compilation,
         VisualBasicCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
-        : base(compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
+        : base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
     {
     }
 

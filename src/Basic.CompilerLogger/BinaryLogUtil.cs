@@ -8,9 +8,9 @@ namespace Basic.CompilerLogger;
 
 internal static class BinaryLogUtil
 {
-    internal static List<CompilerInvocation> ReadCompilationTasks(Stream stream, List<string> diagnosticList)
+    internal static List<CompilerCall> ReadCompilationTasks(Stream stream, List<string> diagnosticList)
     {
-        var list = new List<CompilerInvocation>();
+        var list = new List<CompilerCall>();
         var build = BinaryLog.ReadBuild(stream);
         BuildAnalyzer.AnalyzeBuild(build);
 
@@ -19,23 +19,23 @@ internal static class BinaryLogUtil
             {
                 if (task is CscTask cscTask)
                 {
-                    if (TryCreateCompilerInvocation(cscTask, diagnosticList) is { } cscInvocation)
+                    if (TryCreateCompilerCall(cscTask, diagnosticList) is { } cscCall)
                     {
-                        list.Add(cscInvocation);
+                        list.Add(cscCall);
                     }
                 }
                 else if (task is VbcTask vbcTask)
                 {
-                    if (TryCreateCompilerInvocation(vbcTask, diagnosticList) is { } vbcInvocation)
+                    if (TryCreateCompilerCall(vbcTask, diagnosticList) is { } vbcCall)
                     {
-                        list.Add(vbcInvocation);
+                        list.Add(vbcCall);
                     }
                 }
             });
         return list;
     }
 
-    internal static CompilerInvocation? TryCreateCompilerInvocation(CscTask task, List<string> diagnosticList)
+    internal static CompilerCall? TryCreateCompilerCall(CscTask task, List<string> diagnosticList)
     {
         if (FindCompileTarget(task, diagnosticList) is not { } tuple)
         {
@@ -50,21 +50,15 @@ internal static class BinaryLogUtil
             return null;
         }
 
-        var commandLineArgs = CSharpCommandLineParser.Default.Parse(
-            rawArgs,
-            baseDirectory: tuple.Target.Project.ProjectDirectory,
-            sdkDirectory: null,
-            additionalReferenceDirectories: null);
-        return new CompilerInvocation(
+        return new CompilerCall(
             tuple.Target.Project.ProjectFile,
-            task,
             tuple.Kind,
             tuple.Target.Project.TargetFramework,
-            commandLineArgs,
+            isCSharp: true,
             rawArgs);
     }
 
-    internal static CompilerInvocation? TryCreateCompilerInvocation(VbcTask task, List<string> diagnosticList)
+    internal static CompilerCall? TryCreateCompilerCall(VbcTask task, List<string> diagnosticList)
     {
         if (FindCompileTarget(task, diagnosticList) is not { } tuple)
         {
@@ -79,21 +73,15 @@ internal static class BinaryLogUtil
             return null;
         }
 
-        var commandLineArgs = VisualBasicCommandLineParser.Default.Parse(
-            rawArgs,
-            baseDirectory: tuple.Target.Project.ProjectDirectory,
-            sdkDirectory: null,
-            additionalReferenceDirectories: null);
-        return new CompilerInvocation(
+        return new CompilerCall(
             tuple.Target.Project.ProjectFile,
-            task,
             tuple.Kind,
             tuple.Target.Project.TargetFramework,
-            commandLineArgs,
+            isCSharp: false,
             rawArgs);
     }
 
-    private static (Target Target, CompilationKind Kind)? FindCompileTarget(Task task, List<string> diagnosticList)
+    private static (Target Target, CompilerCallKind Kind)? FindCompileTarget(Task task, List<string> diagnosticList)
     {
         var compileTarget = task.GetNearestParent<Target>(static t => t.Name == "CoreCompile" || t.Name == "CoreGenerateSatelliteAssemblies");
         if (compileTarget is null || compileTarget.Project.ProjectDirectory is null)
@@ -102,7 +90,7 @@ internal static class BinaryLogUtil
             return null;
         }
 
-        var kind = compileTarget.Name == "CoreCompile" ? CompilationKind.Regular : CompilationKind.Sattelite;
+        var kind = compileTarget.Name == "CoreCompile" ? CompilerCallKind.Regular : CompilerCallKind.Satellite;
         return (compileTarget, kind);
     }
 

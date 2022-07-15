@@ -12,6 +12,7 @@ try
     return command switch
     {
         "create" => RunCreate(rest),
+        "print" => RunPrint(rest),
         "help" => RunHelp(),
         _ => RunHelp()
     };
@@ -30,7 +31,7 @@ int RunCreate(IEnumerable<string> args)
     var help = false;
     var options = new OptionSet
     {
-        { "s|satellite", "include satellite assemwblies", s => { if (s != null) includeSatelliteAssemblies = true; } },
+        { "s|satellite", "include satellite assewblies", s => { if (s != null) includeSatelliteAssemblies = true; } },
         { "targetframework", "include only compilations for the target framework (allows multiple)", tf => targetFrameworks.Add(tf) },
         { "h|help", "print help", h => { if (h != null) help = true; } },
     };
@@ -52,7 +53,7 @@ int RunCreate(IEnumerable<string> args)
             compilerLogFilePath,
             c =>
             {
-                if (!includeSatelliteAssemblies && c.CompilationKind == CompilationKind.Sattelite)
+                if (!includeSatelliteAssemblies && c.Kind == CompilerCallKind.Satellite)
                 {
                     return false;
                 }
@@ -81,6 +82,70 @@ int RunCreate(IEnumerable<string> args)
     void PrintUsage()
     {
         WriteLine("compilerlog create [OPTIONS] binlog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
+int RunPrint(IEnumerable<string> args)
+{
+    var targetFrameworks = new List<string>();
+    var help = false;
+    var includeSatelliteAssemblies = false;
+    var options = new OptionSet
+    {
+        { "s|satellite", "include satellite asseblies", s => { if (s != null) includeSatelliteAssemblies = true; } },
+        { "targetframework", "include only compilations for the target framework (allows multiple)", tf => targetFrameworks.Add(tf) },
+        { "h|help", "print help", h => { if (h != null) help = true; } },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (extra.Count != 1 || help)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(extra[0]);
+        var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
+            compilerLogStream,
+            c =>
+            {
+                if (!includeSatelliteAssemblies && c.Kind == CompilerCallKind.Satellite)
+                {
+                    return false;
+                }
+
+                if (targetFrameworks.Count > 0 && !targetFrameworks.Contains(c.TargetFramework, StringComparer.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                return true;
+            });
+        foreach (var compilerCall in compilerCalls)
+        {
+            Write($"{compilerCall.ProjectFile} ({compilerCall.TargetFramework})");
+            if (compilerCall.Kind == CompilerCallKind.Satellite)
+            {
+                Write(" (satellite)");
+            }
+            WriteLine();
+        }
+
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("compilerlog print [OPTIONS] compilerlog");
         options.WriteOptionDescriptions(Out);
     }
 }

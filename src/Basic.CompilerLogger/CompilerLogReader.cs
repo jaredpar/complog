@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.CodeAnalysis.VisualBasic;
 using System.Collections.Immutable;
 using System.IO.Compression;
 using System.Reflection;
@@ -20,13 +21,26 @@ internal sealed class CompilerLogReader : IDisposable
 
     public CompilerLogReader(Stream stream)
     {
-        ZipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+        try
+        {
+            ZipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+        }
+        catch (InvalidDataException)
+        {
+            // Happens when this is not a valid zip file
+            throw GetInvalidCompilerLogFileException();
+        }
+
         CompilationCount = ReadMetadata();
         ReadAssemblyInfo();
 
         int ReadMetadata()
         {
-            using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(MetadataFileName), ContentEncoding, leaveOpen: false);
+            var entry = ZipArchive.GetEntry(MetadataFileName);
+            if (entry is null)
+                throw GetInvalidCompilerLogFileException();
+
+            using var reader = new StreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
             var line = reader.ReadLineOrThrow();
             var items = line.Split(':', StringSplitOptions.RemoveEmptyEntries);
             if (items.Length != 2 || !int.TryParse(items[1], out var count))
@@ -45,6 +59,17 @@ internal sealed class CompilerLogReader : IDisposable
                 _mvidToRefInfoMap[mvid] = (items[0], assemblyName);
             }
         }
+
+        static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
+    }
+
+    internal CompilerCall ReadCompilerCall(int index)
+    {
+        if (index >= CompilationCount)
+            throw new InvalidOperationException();
+
+        using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
+        return ReadCompilerCallCore(reader);
     }
 
     internal CompilationData ReadCompilation(int index)
@@ -53,15 +78,13 @@ internal sealed class CompilerLogReader : IDisposable
             throw new InvalidOperationException();
 
         using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
-        var projectFile = reader.ReadLineOrThrow();
-        var isCSharp = reader.ReadLineOrThrow() == "C#";
+        var compilerCall = ReadCompilerCallCore(reader);
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var metadataReferenceList = new List<MetadataReference>();
         var analyzers = new List<Guid>();
         var additionalTextBuilder = ImmutableArray.CreateBuilder<AdditionalText>();
 
-        var done = false;
-        while (!done && reader.ReadLine() is string line)
+        while (reader.ReadLine() is string line)
         {
             switch (line[0])
             {
@@ -77,21 +100,12 @@ internal sealed class CompilerLogReader : IDisposable
                 case 't':
                     ParseAdditionalText(line);
                     break;
-                case '#':
-                    done = true;
-                    break;
                 default:
                     throw new InvalidOperationException($"Unrecognized line: {line}");
             }
         }
 
-        var rawArgs = new List<string>();
-        while (reader.ReadLine() is string line)
-        {
-            rawArgs.Add(line);
-        }
-
-        return isCSharp
+        return compilerCall.IsCSharp
             ? CreateCSharp()
             : CreateVisualBasic();
 
@@ -143,7 +157,7 @@ internal sealed class CompilerLogReader : IDisposable
 
         CompilerLogAssemblyLoadContext CreateAssemblyLoadContext()
         {
-            var loadContext = new CompilerLogAssemblyLoadContext(projectFile);
+            var loadContext = new CompilerLogAssemblyLoadContext(compilerCall.ProjectFile);
 
             foreach (var mvid in analyzers)
             {
@@ -157,7 +171,7 @@ internal sealed class CompilerLogReader : IDisposable
 
         CSharpCompilationData CreateCSharp()
         {
-            var args = CSharpCommandLineParser.Default.Parse(rawArgs, Path.GetDirectoryName(projectFile), sdkDirectory: null, additionalReferenceDirectories: null);
+            var args = CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null);
             var parseOptions = args.ParseOptions;
             var syntaxTrees = sourceTextList
                 .Select(t => CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path))
@@ -170,13 +184,47 @@ internal sealed class CompilerLogReader : IDisposable
                 metadataReferenceList,
                 args.CompilationOptions);
 
-            return new CSharpCompilationData(compilation, args, additionalTextBuilder.ToImmutable(), CreateAssemblyLoadContext());
+            return new CSharpCompilationData(compilerCall, compilation, args, additionalTextBuilder.ToImmutable(), CreateAssemblyLoadContext());
         }
 
         VisualBasicCompilationData CreateVisualBasic()
         {
-            throw null!;
+            var args = VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null);
+            var parseOptions = args.ParseOptions;
+            var syntaxTrees = sourceTextList
+                .Select(t => VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path))
+                .ToArray();
+
+            // TODO: copy the code from rebuild to get the assembly name correct
+            var compilation = VisualBasicCompilation.Create(
+                "todo",
+                syntaxTrees,
+                metadataReferenceList,
+                args.CompilationOptions);
+
+            return new VisualBasicCompilationData(compilerCall, compilation, args, additionalTextBuilder.ToImmutable(), CreateAssemblyLoadContext());
         }
+    }
+
+    private CompilerCall ReadCompilerCallCore(StreamReader reader)
+    {
+        var projectFile = reader.ReadLineOrThrow();
+        var isCSharp = reader.ReadLineOrThrow() == "C#";
+        var targetFramework = reader.ReadLineOrThrow();
+        if (string.IsNullOrEmpty(targetFramework))
+        {
+            targetFramework = null;
+        }
+
+        var kind = Enum.Parse<CompilerCallKind>(reader.ReadLineOrThrow());
+        var count = int.Parse(reader.ReadLineOrThrow());
+        var arguments = new string[count];
+        for (int i = 0; i < count; i++)
+        {
+            arguments[i] = reader.ReadLineOrThrow();
+        }
+
+        return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments);
     }
 
     internal MetadataReference GetMetadataReference(Guid mvid)

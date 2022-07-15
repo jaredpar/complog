@@ -1,6 +1,8 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.CodeAnalysis.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -39,25 +41,33 @@ internal sealed class CompilerLogBuilder : IDisposable
         Diagnostics = diagnostics;
     }
 
-    internal bool Add(CompilerInvocation invocation)
+    internal bool Add(CompilerCall compilerCall)
     {
         var memoryStream = new MemoryStream();
-        using var compilationWriter = new StreamWriter(memoryStream, CommonUtil.ContentEncoding, leaveOpen: true);
-        compilationWriter.WriteLine(invocation.ProjectFile);
-        compilationWriter.WriteLine(invocation.IsCSharp ? "C#" : "VB");
+        using var compilationWriter = new StreamWriter(memoryStream, ContentEncoding, leaveOpen: true);
+        compilationWriter.WriteLine(compilerCall.ProjectFile);
+        compilationWriter.WriteLine(compilerCall.IsCSharp ? "C#" : "VB");
+        compilationWriter.WriteLine(compilerCall.TargetFramework);
+        compilationWriter.WriteLine(compilerCall.Kind);
+
+        var arguments = compilerCall.Arguments;
+        compilationWriter.WriteLine(arguments.Length);
+        foreach (var arg in arguments)
+        {
+            compilationWriter.WriteLine(arg);
+        }
+
+        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFile);
+        CommandLineArguments commandLineArguments = compilerCall.IsCSharp
+            ? CSharpCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
+            : VisualBasicCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
 
         try
         {
-            AddReferences(compilationWriter, invocation.CommandLineArguments);
-            AddAnalyzers(compilationWriter, invocation.CommandLineArguments);
-            AddSources(compilationWriter, invocation.CommandLineArguments);
-            AddAdditionalTexts(compilationWriter, invocation.CommandLineArguments);
-
-            compilationWriter.WriteLine("#");
-            foreach (var arg in invocation.RawArguments)
-            {
-                compilationWriter.WriteLine(arg);
-            }
+            AddReferences(compilationWriter, commandLineArguments);
+            AddAnalyzers(compilationWriter, commandLineArguments);
+            AddSources(compilationWriter, commandLineArguments);
+            AddAdditionalTexts(compilationWriter, commandLineArguments);
 
             compilationWriter.Flush();
 
@@ -72,7 +82,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
         catch (Exception ex)
         {
-            Diagnostics.Add($"Error adding {invocation.ProjectFile}: {ex.Message}");
+            Diagnostics.Add($"Error adding {compilerCall.ProjectFile}: {ex.Message}");
             return false;
         }
     }
@@ -212,7 +222,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return mvid;
         }
 
-        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var reader = new PEReader(file);
         var mdReader = reader.GetMetadataReader();
         GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
@@ -232,7 +242,11 @@ internal sealed class CompilerLogBuilder : IDisposable
         file.Position = 0;
         file.CopyTo(entryStream);
 
-        var assemblyName = mdReader.GetAssemblyDefinition().GetAssemblyName();
+        // There are some assemblies for which MetadataReader will return an AssemblyName which 
+        // fails ToString calls which is why we use AssemblyName.GetAssemblyName here.
+        //
+        // Example: .nuget\packages\microsoft.visualstudio.interop\17.2.32505.113\lib\net472\Microsoft.VisualStudio.Interop.dll
+        var assemblyName = AssemblyName.GetAssemblyName(filePath);
         _mvidToRefInfoMap[mvid] = (Path.GetFileName(filePath), assemblyName);
         return mvid;
     }

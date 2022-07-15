@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CompilerLogger": {
+      "commandName": "Project",
+      "commandLineArgs": "print C:\\Users\\jaredpar\\code\\wt\\ros2\\artifacts\\log\\Debug\\Build.binlog"
+    }
+  }
+}
