@@ -2,7 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.VisualBasic;
 
-namespace Basic.CompilerLogger
+namespace Basic.CompilerLog.Util
 {
     public enum CompilerCallKind
     {

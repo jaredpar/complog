@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.2.32616.157
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Basic.CompilerLogger", "src\Basic.CompilerLogger\Basic.CompilerLogger.csproj", "{3E6234A8-1FD7-444C-9CE4-C0AB7E9E1031}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Basic.CompilerLog.Util", "src\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj", "{3E6234A8-1FD7-444C-9CE4-C0AB7E9E1031}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Scratch", "src\Scratch\Scratch.csproj", "{C0F2CBDC-C782-4CE7-86A5-CC8E0A172887}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CompilerLogger", "src\CompilerLogger\CompilerLogger.csproj", "{3A77B0E1-F383-4663-BA36-A1855E7624DC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Basic.CompilerLog", "src\Basic.CompilerLog\Basic.CompilerLog.csproj", "{3A77B0E1-F383-4663-BA36-A1855E7624DC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

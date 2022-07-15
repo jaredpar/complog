@@ -8,7 +8,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-namespace Basic.CompilerLogger;
+namespace Basic.CompilerLog.Util;
 
 public abstract class CompilationData
 {

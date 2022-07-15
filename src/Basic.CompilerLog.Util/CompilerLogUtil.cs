@@ -1,4 +1,4 @@
-﻿namespace Basic.CompilerLogger;
+﻿namespace Basic.CompilerLog.Util;
 
 public static class CompilerLogUtil
 {

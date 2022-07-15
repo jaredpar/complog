@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.VisualBasic;
 using Task = Microsoft.Build.Logging.StructuredLogger.Task;
 
-namespace Basic.CompilerLogger;
+namespace Basic.CompilerLog.Util;
 
 internal static class BinaryLogUtil
 {

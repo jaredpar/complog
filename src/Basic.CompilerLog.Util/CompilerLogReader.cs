@@ -7,9 +7,9 @@ using System.Collections.Immutable;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.Loader;
-using static Basic.CompilerLogger.CommonUtil;
+using static Basic.CompilerLog.Util.CommonUtil;
 
-namespace Basic.CompilerLogger;
+namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogReader : IDisposable
 {

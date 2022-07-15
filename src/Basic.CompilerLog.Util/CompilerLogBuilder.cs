@@ -16,9 +16,9 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.Xml;
 using System.Text;
 using System.Threading.Tasks;
-using static Basic.CompilerLogger.CommonUtil;
+using static Basic.CompilerLog.Util.CommonUtil;
 
-namespace Basic.CompilerLogger;
+namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogBuilder : IDisposable
 {

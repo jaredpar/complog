@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Basic.CompilerLogger;
+namespace Basic.CompilerLog.Util;
 
 internal static class CommonUtil
 {

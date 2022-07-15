@@ -6,7 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 
-namespace Basic.CompilerLogger;
+namespace Basic.CompilerLog.Util;
 
 /// <summary>
 /// This is used to load the analyzers from the compiler log file

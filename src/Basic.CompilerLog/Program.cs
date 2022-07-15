@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLogger;
+﻿using Basic.CompilerLog.Util;
 using Mono.Options;
 using static CompilerLogger.Constants;
 using static System.Console;

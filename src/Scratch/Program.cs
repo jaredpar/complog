@@ -1,6 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-using Basic.CompilerLogger;
+﻿using Basic.CompilerLog.Util;
 
 // var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
