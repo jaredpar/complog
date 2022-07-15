@@ -66,6 +66,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             AddReferences(compilationWriter, commandLineArguments);
             AddAnalyzers(compilationWriter, commandLineArguments);
+            AddAnalyzerConfigs(compilationWriter, commandLineArguments);
             AddSources(compilationWriter, commandLineArguments);
             AddAdditionalTexts(compilationWriter, commandLineArguments);
 
@@ -123,6 +124,15 @@ internal sealed class CompilerLogBuilder : IDisposable
             {
                 writer.WriteLine($"{kvp.Value.FileName}:{kvp.Key:N}:{kvp.Value.AssemblyName}");
             }
+        }
+    }
+
+    private void AddAnalyzerConfigs(StreamWriter compilationWriter, CommandLineArguments args)
+    {
+        foreach (var filePath in args.AnalyzerConfigPaths)
+        {
+            var hashFileName = AddContent(filePath);
+            compilationWriter.WriteLine($"c:{hashFileName}:{filePath}");
         }
     }
 

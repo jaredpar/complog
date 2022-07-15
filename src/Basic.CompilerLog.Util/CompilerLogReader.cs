@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
@@ -80,6 +81,7 @@ internal sealed class CompilerLogReader : IDisposable
         using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
         var compilerCall = ReadCompilerCallCore(reader);
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
+        var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var metadataReferenceList = new List<MetadataReference>();
         var analyzers = new List<Guid>();
         var additionalTextBuilder = ImmutableArray.CreateBuilder<AdditionalText>();
@@ -96,6 +98,9 @@ internal sealed class CompilerLogReader : IDisposable
                     break;
                 case 's':
                     ParseSourceText(line);
+                    break;
+                case 'c':
+                    ParseAnalyzerConfig(line);
                     break;
                 case 't':
                     ParseAdditionalText(line);
@@ -140,6 +145,13 @@ internal sealed class CompilerLogReader : IDisposable
             sourceTextList.Add((sourceText, items[2]));
         }
 
+        void ParseAnalyzerConfig(string line)
+        {
+            var items = line.Split(':', count: 3);
+            var sourceText = GetSourceText(items[1]);
+            analyzerConfigList.Add((sourceText, items[2]));
+        }
+
         void ParseAdditionalText(string line)
         {
             var items = line.Split(':', count: 3);
@@ -155,9 +167,9 @@ internal sealed class CompilerLogReader : IDisposable
             analyzers.Add(mvid);
         }
 
-        CompilerLogAssemblyLoadContext CreateAssemblyLoadContext()
+        BasicAssemblyLoadContext CreateAssemblyLoadContext()
         {
-            var loadContext = new CompilerLogAssemblyLoadContext(compilerCall.ProjectFile);
+            var loadContext = new BasicAssemblyLoadContext(compilerCall.ProjectFile);
 
             foreach (var mvid in analyzers)
             {
@@ -169,6 +181,45 @@ internal sealed class CompilerLogReader : IDisposable
             return loadContext;
         }
 
+        (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(IEnumerable<SyntaxTree> syntaxTrees, IEnumerable<AdditionalText> additionalTexts)
+        {
+            AnalyzerConfigOptionsResult globalConfigOptions = default;
+            AnalyzerConfigSet? analyzerConfigSet = null;
+            var resultList = new List<(object, AnalyzerConfigOptionsResult)>();
+
+            if (analyzerConfigList.Count > 0)
+            {
+                var list = new List<AnalyzerConfig>();
+                foreach (var tuple in analyzerConfigList)
+                {
+                    list.Add(AnalyzerConfig.Parse(tuple.SourceText, tuple.Path));
+                }
+
+                analyzerConfigSet = AnalyzerConfigSet.Create(list);
+                globalConfigOptions = analyzerConfigSet.GlobalConfigOptions;
+            }
+
+            foreach (var syntaxTree in syntaxTrees)
+            {
+                resultList.Add((syntaxTree, analyzerConfigSet?.GetOptionsForSourcePath(syntaxTree.FilePath) ?? default));
+            }
+
+            foreach (var additionalText in additionalTexts)
+            {
+                resultList.Add((additionalText, analyzerConfigSet?.GetOptionsForSourcePath(additionalText.Path) ?? default));
+            }
+
+            var syntaxOptionsProvider = new BasicSyntaxTreeOptionsProvider(
+                isConfigEmpty: analyzerConfigList.Count == 0,
+                globalConfigOptions,
+                resultList);
+            var analyzerConfigOptionsProvider = new BasicAnalyzerConfigOptionsProvider(
+                isConfigEmpty: analyzerConfigList.Count == 0,
+                globalConfigOptions,
+                resultList);
+            return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
+        }
+
         CSharpCompilationData CreateCSharp()
         {
             var args = CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null);
@@ -176,15 +227,22 @@ internal sealed class CompilerLogReader : IDisposable
             var syntaxTrees = sourceTextList
                 .Select(t => CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path))
                 .ToArray();
+            var additionalTexts = additionalTextBuilder.ToImmutable();
 
-            // TODO: copy the code from rebuild to get the assembly name correct
+            var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextBuilder);
             var compilation = CSharpCompilation.Create(
                 "todo",
                 syntaxTrees,
                 metadataReferenceList,
-                args.CompilationOptions);
+                args.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
-            return new CSharpCompilationData(compilerCall, compilation, args, additionalTextBuilder.ToImmutable(), CreateAssemblyLoadContext());
+            return new CSharpCompilationData(
+                compilerCall,
+                compilation,
+                args,
+                additionalTextBuilder.ToImmutable(),
+                CreateAssemblyLoadContext(),
+                analyzerProvider);
         }
 
         VisualBasicCompilationData CreateVisualBasic()
@@ -194,15 +252,24 @@ internal sealed class CompilerLogReader : IDisposable
             var syntaxTrees = sourceTextList
                 .Select(t => VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path))
                 .ToArray();
+            var additionalTexts = additionalTextBuilder.ToImmutable();
+
+            var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextBuilder);
 
             // TODO: copy the code from rebuild to get the assembly name correct
             var compilation = VisualBasicCompilation.Create(
                 "todo",
                 syntaxTrees,
                 metadataReferenceList,
-                args.CompilationOptions);
+                args.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
-            return new VisualBasicCompilationData(compilerCall, compilation, args, additionalTextBuilder.ToImmutable(), CreateAssemblyLoadContext());
+            return new VisualBasicCompilationData(
+                compilerCall,
+                compilation,
+                args,
+                additionalTextBuilder.ToImmutable(),
+                CreateAssemblyLoadContext(),
+                analyzerProvider);
         }
     }
 

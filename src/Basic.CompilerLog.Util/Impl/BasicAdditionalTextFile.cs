@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Basic.CompilerLog.Util;
+namespace Basic.CompilerLog.Util.Impl;
 
 internal sealed class BasicAdditionalTextFile : AdditionalText
 {

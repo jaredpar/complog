@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
@@ -7,6 +8,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.Util;
 
@@ -20,8 +22,10 @@ public abstract class CompilationData
     public Compilation Compilation { get; }
     public CommandLineArguments CommandLineArguments { get; }
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
-    internal CompilerLogAssemblyLoadContext CompilerLogAssemblyLoadContext { get; }
+    public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }
+    internal BasicAssemblyLoadContext CompilerLogAssemblyLoadContext { get; }
 
+    public AssemblyLoadContext AnalyzerAssemblyLoadContext => CompilerLogAssemblyLoadContext;
     public EmitOptions EmitOptions => CommandLineArguments.EmitOptions;
     public bool IsCSharp => Compilation is CSharpCompilation;
     public bool VisualBasic => !IsCSharp;
@@ -31,12 +35,14 @@ public abstract class CompilationData
         Compilation compilation,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
+        BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
+        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
     {
         CompilerCall = compilerCall;
         Compilation = compilation;
         CommandLineArguments = commandLineArguments;
         AdditionalTexts = additionalTexts;
+        AnalyzerConfigOptionsProvider = analyzerConfigOptionsProvider;
         CompilerLogAssemblyLoadContext = compilerLogAssemblyLoadContext;
     }
 
@@ -99,8 +105,9 @@ public abstract class CompilationData<TCompilation, TCommandLineArguments> : Com
         TCompilation compilation,
         TCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
+        BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
+        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext, analyzerConfigOptionsProvider)
     {
         
     }
@@ -113,15 +120,15 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
         CSharpCompilation compilation,
         CSharpCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
+        BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
+        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext, analyzerConfigOptionsProvider)
     {
 
     }
 
-    // TODO: need to implement the analyzer config provider
     protected override GeneratorDriver CreateGeneratorDriver() =>
-        CSharpGeneratorDriver.Create(GetGenerators(), AdditionalTexts, CommandLineArguments.ParseOptions);
+        CSharpGeneratorDriver.Create(GetGenerators(), AdditionalTexts, CommandLineArguments.ParseOptions, AnalyzerConfigOptionsProvider);
 }
 
 public sealed class VisualBasicCompilationData : CompilationData<VisualBasicCompilation, VisualBasicCommandLineArguments>
@@ -131,12 +138,13 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
         VisualBasicCompilation compilation,
         VisualBasicCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        CompilerLogAssemblyLoadContext compilerLogAssemblyLoadContext)
-        : base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext)
+        BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
+        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
+        : base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext, analyzerConfigOptionsProvider)
     {
     }
 
     // TODO: need to implement the analyzer config provider
     protected override GeneratorDriver CreateGeneratorDriver() =>
-        VisualBasicGeneratorDriver.Create(GetGenerators(), AdditionalTexts, CommandLineArguments.ParseOptions);
+        VisualBasicGeneratorDriver.Create(GetGenerators(), AdditionalTexts, CommandLineArguments.ParseOptions, AnalyzerConfigOptionsProvider);
 }

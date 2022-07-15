@@ -6,17 +6,17 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 
-namespace Basic.CompilerLog.Util;
+namespace Basic.CompilerLog.Util.Impl;
 
 /// <summary>
 /// This is used to load the analyzers from the compiler log file
 ///
 /// TODO: consider handling the nested load context scenarios
 /// </summary>
-internal sealed class CompilerLogAssemblyLoadContext : AssemblyLoadContext
+internal sealed class BasicAssemblyLoadContext : AssemblyLoadContext
 {
-    internal CompilerLogAssemblyLoadContext(string name)
-        :base(name, isCollectible: true)
+    internal BasicAssemblyLoadContext(string name)
+        : base(name, isCollectible: true)
     {
     }
 
