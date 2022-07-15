@@ -43,6 +43,7 @@ internal static class BinaryLogUtil
         }
 
         var args = CommandLineParser.SplitCommandLineIntoArguments(task.CommandLineArguments, removeHashComments: true);
+
         var rawArgs = SkipCompilerExecutable(args, "csc.exe", "csc.dll").ToArray();
         if (rawArgs.Length == 0)
         {

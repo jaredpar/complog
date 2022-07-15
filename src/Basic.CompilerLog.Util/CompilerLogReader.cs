@@ -80,6 +80,10 @@ internal sealed class CompilerLogReader : IDisposable
 
         using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
         var compilerCall = ReadCompilerCallCore(reader);
+
+        CommandLineArguments args = compilerCall.IsCSharp 
+            ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null)
+            : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null);
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var metadataReferenceList = new List<MetadataReference>();
@@ -141,21 +145,21 @@ internal sealed class CompilerLogReader : IDisposable
         void ParseSourceText(string line)
         {
             var items = line.Split(':', count: 3);
-            var sourceText = GetSourceText(items[1]);
+            var sourceText = GetSourceText(items[1], args.ChecksumAlgorithm);
             sourceTextList.Add((sourceText, items[2]));
         }
 
         void ParseAnalyzerConfig(string line)
         {
             var items = line.Split(':', count: 3);
-            var sourceText = GetSourceText(items[1]);
+            var sourceText = GetSourceText(items[1], args.ChecksumAlgorithm);
             analyzerConfigList.Add((sourceText, items[2]));
         }
 
         void ParseAdditionalText(string line)
         {
             var items = line.Split(':', count: 3);
-            var sourceText = GetSourceText(items[1]);
+            var sourceText = GetSourceText(items[1], args.ChecksumAlgorithm);
             var text = new BasicAdditionalTextFile(items[2], sourceText);
             additionalTextBuilder.Add(text);
         }
@@ -222,24 +226,31 @@ internal sealed class CompilerLogReader : IDisposable
 
         CSharpCompilationData CreateCSharp()
         {
-            var args = CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null);
-            var parseOptions = args.ParseOptions;
-            var syntaxTrees = sourceTextList
-                .Select(t => CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path))
-                .ToArray();
+            var csharpArgs = (CSharpCommandLineArguments)args;
+            var parseOptions = csharpArgs.ParseOptions;
+
+            var syntaxTrees = new SyntaxTree[sourceTextList.Count];
+            Parallel.For(
+                0,
+                sourceTextList.Count,
+                i =>
+                {
+                    var t = sourceTextList[i];
+                    syntaxTrees[i] = CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
+                });
             var additionalTexts = additionalTextBuilder.ToImmutable();
 
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextBuilder);
             var compilation = CSharpCompilation.Create(
-                "todo",
+                args.CompilationName,
                 syntaxTrees,
                 metadataReferenceList,
-                args.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                csharpArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new CSharpCompilationData(
                 compilerCall,
                 compilation,
-                args,
+                csharpArgs,
                 additionalTextBuilder.ToImmutable(),
                 CreateAssemblyLoadContext(),
                 analyzerProvider);
@@ -247,26 +258,31 @@ internal sealed class CompilerLogReader : IDisposable
 
         VisualBasicCompilationData CreateVisualBasic()
         {
-            var args = VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null);
-            var parseOptions = args.ParseOptions;
-            var syntaxTrees = sourceTextList
-                .Select(t => VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path))
-                .ToArray();
+            var basicArgs = (VisualBasicCommandLineArguments)args;
+            var parseOptions = basicArgs.ParseOptions;
+            var syntaxTrees = new SyntaxTree[sourceTextList.Count];
+            Parallel.For(
+                0,
+                sourceTextList.Count,
+                i =>
+                {
+                    var t = sourceTextList[i];
+                    syntaxTrees[i] = VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
+                });
             var additionalTexts = additionalTextBuilder.ToImmutable();
 
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextBuilder);
 
-            // TODO: copy the code from rebuild to get the assembly name correct
             var compilation = VisualBasicCompilation.Create(
-                "todo",
+                args.CompilationName,
                 syntaxTrees,
                 metadataReferenceList,
-                args.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                basicArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new VisualBasicCompilationData(
                 compilerCall,
                 compilation,
-                args,
+                basicArgs,
                 additionalTextBuilder.ToImmutable(),
                 CreateAssemblyLoadContext(),
                 analyzerProvider);
@@ -304,13 +320,13 @@ internal sealed class CompilerLogReader : IDisposable
         using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         var bytes = entryStream.ReadAllBytes();
 
-        // TODO: should we include the file path / name in the image?
-        metadataReference = MetadataReference.CreateFromStream(new MemoryStream(bytes.ToArray()));
+        var tuple = _mvidToRefInfoMap[mvid];
+        metadataReference = MetadataReference.CreateFromStream(new MemoryStream(bytes.ToArray()), filePath: tuple.FileName);
         _refMap.Add(mvid, metadataReference);
         return metadataReference;
     }
 
-    internal SourceText GetSourceText(string contentHash)
+    internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm)
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
 
@@ -319,7 +335,7 @@ internal sealed class CompilerLogReader : IDisposable
         //
         // TODO: need to use the hash algorithm from the command line arguments. Burn it
         // into this line
-        return SourceText.From(stream, checksumAlgorithm: SourceHashAlgorithm.Sha256);
+        return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm);
     }
 
     public void Dispose()
