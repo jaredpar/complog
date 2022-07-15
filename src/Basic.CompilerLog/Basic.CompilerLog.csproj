@@ -8,14 +8,20 @@
     <Nullable>enable</Nullable>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>compilerlog</ToolCommandName>
+
+    <!-- NuPkg information -->
+    <Version>0.1.0</Version>
+    <PackageProjectUrl>https://github.com/jaredpar/basic-compiler-logger</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jaredpar/basic-compiler-logger</RepositoryUrl>
+    <PackageReadmeFile>contentFiles\README.md</PackageReadmeFile>
+    <PackageLicenseFile>contentFiles\README.md</PackageLicenseFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Mono.Options" Version="6.12.0.148" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
+    <Content Include="..\..\README.md" PackagePath="contentFiles\README.md" />
+    <Content Include="..\..\LICENSE" PackagePath="contentFiles\LICENSE" />
   </ItemGroup>
 
 </Project>
