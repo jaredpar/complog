@@ -332,9 +332,6 @@ internal sealed class CompilerLogReader : IDisposable
 
         // TODO: need to expose the real API for how the compiler reads source files. 
         // move this comment to the rehydration code when we write it.
-        //
-        // TODO: need to use the hash algorithm from the command line arguments. Burn it
-        // into this line
         return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm);
     }
 
