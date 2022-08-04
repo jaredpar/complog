@@ -45,7 +45,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         var memoryStream = new MemoryStream();
         using var compilationWriter = new StreamWriter(memoryStream, ContentEncoding, leaveOpen: true);
-        compilationWriter.WriteLine(compilerCall.ProjectFile);
+        compilationWriter.WriteLine(compilerCall.ProjectFilePath);
         compilationWriter.WriteLine(compilerCall.IsCSharp ? "C#" : "VB");
         compilationWriter.WriteLine(compilerCall.TargetFramework);
         compilationWriter.WriteLine(compilerCall.Kind);
@@ -57,7 +57,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             compilationWriter.WriteLine(arg);
         }
 
-        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFile);
+        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath);
         CommandLineArguments commandLineArguments = compilerCall.IsCSharp
             ? CSharpCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
             : VisualBasicCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
@@ -83,7 +83,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
         catch (Exception ex)
         {
-            Diagnostics.Add($"Error adding {compilerCall.ProjectFile}: {ex.Message}");
+            Diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
             return false;
         }
     }

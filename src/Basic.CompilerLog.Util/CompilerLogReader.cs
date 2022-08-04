@@ -81,6 +81,38 @@ public sealed class CompilerLogReader : IDisposable
         return ReadCompilerCallCore(reader);
     }
 
+    public List<CompilerCall> ReadCompilerCalls(Func<CompilerCall, bool>? predicate = null)
+    {
+        predicate ??= static _ => true;
+        var list = new List<CompilerCall>();
+        for (int i = 0; i < CompilationCount; i++)
+        {
+            var compilerCall = ReadCompilerCall(i);
+            if (predicate(compilerCall))
+            {
+                list.Add(compilerCall);
+            }
+        }
+
+        return list;
+    }
+
+    public List<CompilationData> ReadCompilationDatas(Func<CompilerCall, bool>? predicate = null)
+    {
+        predicate ??= static _ => true;
+        var list = new List<CompilationData>();
+        for (int i = 0; i < CompilationCount; i++)
+        {
+            var compilerCall = ReadCompilerCall(i);
+            if (predicate(compilerCall))
+            {
+                list.Add(ReadCompilationData(i));
+            }
+        }
+
+        return list;
+    }
+
     public CompilationData ReadCompilationData(int index)
     {
         if (index >= CompilationCount)
@@ -90,8 +122,8 @@ public sealed class CompilerLogReader : IDisposable
         var compilerCall = ReadCompilerCallCore(reader);
 
         CommandLineArguments args = compilerCall.IsCSharp 
-            ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFile), sdkDirectory: null, additionalReferenceDirectories: null);
+            ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null)
+            : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var metadataReferenceList = new List<MetadataReference>();
@@ -181,7 +213,7 @@ public sealed class CompilerLogReader : IDisposable
 
         BasicAssemblyLoadContext CreateAssemblyLoadContext()
         {
-            var loadContext = new BasicAssemblyLoadContext(compilerCall.ProjectFile);
+            var loadContext = new BasicAssemblyLoadContext(compilerCall.ProjectFilePath);
 
             foreach (var mvid in analyzers)
             {

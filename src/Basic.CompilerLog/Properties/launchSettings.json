@@ -2,7 +2,7 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "print C:\\Users\\jaredpar\\code\\wt\\ros2\\artifacts\\log\\Debug\\Build.binlog"
+      "commandLineArgs": "diagnostics --projectName csc  c:\\Users\\jaredpar\\temp\\console\\msbuild.binlog"
     }
   }
 }

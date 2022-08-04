@@ -57,6 +57,5 @@ internal static class Extensions
         } while (true);
 
         return list;
-
     }
 }

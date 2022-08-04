@@ -57,18 +57,19 @@ public static class CompilerLogUtil
 
     public static List<CompilerCall> ReadCompilerCalls(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
     {
-        predicate ??= static _ => true;
-        var list = new List<CompilerCall>();
         using var reader = CompilerLogReader.Create(compilerLogStream);
-        for (int i = 0; i < reader.CompilationCount; i++)
-        {
-            var compilerCall = reader.ReadCompilerCall(i);
-            if (predicate(compilerCall))
-            {
-                list.Add(compilerCall);
-            }
-        }
+        return reader.ReadCompilerCalls(predicate);
+    }
 
-        return list;
+    public static List<CompilationData> ReadCompilationDatas(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
+    {
+        using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return ReadCompilationDatas(compilerLogStream, predicate);
+    }
+
+    public static List<CompilationData> ReadCompilationDatas(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
+    {
+        using var reader = CompilerLogReader.Create(compilerLogStream);
+        return reader.ReadCompilationDatas(predicate);
     }
 }

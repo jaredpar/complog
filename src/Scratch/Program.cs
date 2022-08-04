@@ -24,7 +24,7 @@ void RoundTrip(string binlogFilePath)
     for (int i = 0; i < reader.CompilationCount; i++)
     {
         var compilerCall = reader.ReadCompilerCall(i);
-        Console.WriteLine($"{compilerCall.ProjectFile} ({compilerCall.TargetFramework})");
+        Console.WriteLine($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
 
         var compilation = reader.ReadCompilationData(i);
     }

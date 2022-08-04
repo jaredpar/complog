@@ -1,4 +1,5 @@
 ﻿using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis;
 using Mono.Options;
 using static Constants;
 using static System.Console;
@@ -9,9 +10,10 @@ var (command, rest) = args.Length == 0
 
 try
 {
-    return command switch
+    return command.ToLower() switch
     {
         "create" => RunCreate(rest),
+        "diagnostics" => RunDiagnostics(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(),
         _ => RunHelp()
@@ -26,16 +28,12 @@ catch (Exception e)
 
 int RunCreate(IEnumerable<string> args)
 {
-    var help = false;
-    var options = new FilterOptionSet
-    {
-        { "h|help", "print help", h => { if (h != null) help = true; } },
-    };
+    var options = new FilterOptionSet();
 
     try
     {
         var extra = options.Parse(args);
-        if (extra.Count != 1 || help)
+        if (extra.Count != 1 || options.Help)
         {
             PrintUsage();
             return ExitFailure;
@@ -72,16 +70,12 @@ int RunCreate(IEnumerable<string> args)
 
 int RunPrint(IEnumerable<string> args)
 {
-    var help = false;
-    var options = new FilterOptionSet
-    {
-        { "h|help", "print help", h => { if (h != null) help = true; } },
-    };
+    var options = new FilterOptionSet();
 
     try
     {
         var extra = options.Parse(args);
-        if (extra.Count != 1 || help)
+        if (extra.Count != 1 || options.Help)
         {
             PrintUsage();
             return ExitFailure;
@@ -94,7 +88,7 @@ int RunPrint(IEnumerable<string> args)
 
         foreach (var compilerCall in compilerCalls)
         {
-            Write($"{compilerCall.ProjectFile} ({compilerCall.TargetFramework})");
+            Write($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
             if (compilerCall.Kind == CompilerCallKind.Satellite)
             {
                 Write(" (satellite)");
@@ -118,14 +112,67 @@ int RunPrint(IEnumerable<string> args)
     }
 }
 
+int RunDiagnostics(IEnumerable<string> args)
+{
+    var severity = DiagnosticSeverity.Warning;
+    var options = new FilterOptionSet()
+    {
+        { "severity", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (extra.Count != 1 || options.Help)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(extra[0]);
+        var compilationDatas = CompilerLogUtil.ReadCompilationDatas(
+            compilerLogStream,
+            options.FilterCompilerCalls);
+
+        foreach (var compilationData in compilationDatas)
+        {
+            var compilerCall = compilationData.CompilerCall;
+            WriteLine($"{compilerCall.ProjectFileName} ({compilerCall.TargetFramework})");
+            var compilation = compilationData.GetCompilationAfterGenerators();
+            foreach (var diagnostic in compilation.GetDiagnostics())
+            {
+                if (diagnostic.Severity >= severity)
+                {
+                    WriteLine(diagnostic.GetMessage());
+                }
+            }
+        }
+
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("compilerlog diagnostics [OPTIONS] compilerlog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
 int RunHelp()
 {
     WriteLine("""
         compilerlog [command] [args]
         Commands
-          create      Create a compilerlog file 
-          print       Print summary of entries in the log
-          help        Print help
+          create        Create a compilerlog file 
+          diagnostics   Print diagnostics for a compilation
+          print         Print summary of entries in the log
+          help          Print help
         """);
     return ExitFailure;
 }
