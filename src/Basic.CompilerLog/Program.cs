@@ -1,6 +1,6 @@
 ﻿using Basic.CompilerLog.Util;
 using Mono.Options;
-using static CompilerLogger.Constants;
+using static Constants;
 using static System.Console;
 
 var (command, rest) = args.Length == 0
@@ -26,13 +26,9 @@ catch (Exception e)
 
 int RunCreate(IEnumerable<string> args)
 {
-    var includeSatelliteAssemblies = false;
-    var targetFrameworks = new List<string>();
     var help = false;
-    var options = new OptionSet
+    var options = new FilterOptionSet
     {
-        { "s|satellite", "include satellite assewblies", s => { if (s != null) includeSatelliteAssemblies = true; } },
-        { "targetframework", "include only compilations for the target framework (allows multiple)", tf => targetFrameworks.Add(tf) },
         { "h|help", "print help", h => { if (h != null) help = true; } },
     };
 
@@ -51,20 +47,8 @@ int RunCreate(IEnumerable<string> args)
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(
             binlogFilePath,
             compilerLogFilePath,
-            c =>
-            {
-                if (!includeSatelliteAssemblies && c.Kind == CompilerCallKind.Satellite)
-                {
-                    return false;
-                }
+            options.FilterCompilerCalls);
 
-                if (targetFrameworks.Count > 0 && !targetFrameworks.Contains(c.TargetFramework, StringComparer.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                return true;
-            });
         foreach (var diagnostic in diagnosticList)
         {
            WriteLine(diagnostic);
@@ -88,13 +72,9 @@ int RunCreate(IEnumerable<string> args)
 
 int RunPrint(IEnumerable<string> args)
 {
-    var targetFrameworks = new List<string>();
     var help = false;
-    var includeSatelliteAssemblies = false;
-    var options = new OptionSet
+    var options = new FilterOptionSet
     {
-        { "s|satellite", "include satellite asseblies", s => { if (s != null) includeSatelliteAssemblies = true; } },
-        { "targetframework", "include only compilations for the target framework (allows multiple)", tf => targetFrameworks.Add(tf) },
         { "h|help", "print help", h => { if (h != null) help = true; } },
     };
 
@@ -110,20 +90,8 @@ int RunPrint(IEnumerable<string> args)
         using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(extra[0]);
         var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
             compilerLogStream,
-            c =>
-            {
-                if (!includeSatelliteAssemblies && c.Kind == CompilerCallKind.Satellite)
-                {
-                    return false;
-                }
+            options.FilterCompilerCalls);
 
-                if (targetFrameworks.Count > 0 && !targetFrameworks.Contains(c.TargetFramework, StringComparer.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                return true;
-            });
         foreach (var compilerCall in compilerCalls)
         {
             Write($"{compilerCall.ProjectFile} ({compilerCall.TargetFramework})");
