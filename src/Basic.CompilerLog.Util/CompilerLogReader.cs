@@ -73,7 +73,7 @@ internal sealed class CompilerLogReader : IDisposable
         return ReadCompilerCallCore(reader);
     }
 
-    internal CompilationData ReadCompilation(int index)
+    internal CompilationData ReadCompilationData(int index)
     {
         if (index >= CompilationCount)
             throw new InvalidOperationException();

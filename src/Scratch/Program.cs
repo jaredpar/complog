@@ -1,10 +1,11 @@
 ﻿using Basic.CompilerLog.Util;
 
-// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
-var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
+var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+// var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 
-RoundTrip(filePath);
+TestDiagnostics(filePath);
+// RoundTrip(filePath);
 
 void RoundTrip(string binlogFilePath)
 {
@@ -23,8 +24,25 @@ void RoundTrip(string binlogFilePath)
         var compilerCall = reader.ReadCompilerCall(i);
         Console.WriteLine($"{compilerCall.ProjectFile} ({compilerCall.TargetFramework})");
 
-        var compilation = reader.ReadCompilation(i);
+        var compilation = reader.ReadCompilationData(i);
     }
+}
+
+void TestDiagnostics(string binlogFilePath)
+{
+    using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath); 
+    using var reader = new CompilerLogReader(compilerLogStream);
+    for (int i = 0; i < reader.CompilationCount; i++)
+    {
+        var compilationData = reader.ReadCompilationData(i);
+        var compilation = compilationData.GetCompilationAfterGenerators();
+        var diagnostics = compilation.GetDiagnostics();
+        foreach (var d in diagnostics)
+        {
+            Console.WriteLine(d.GetMessage());
+        }
+    }
+
 }
 
 
