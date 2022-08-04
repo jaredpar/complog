@@ -1,8 +1,10 @@
 ﻿using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis;
 
-var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
+var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
 
 TestDiagnostics(filePath);
 // RoundTrip(filePath);
@@ -36,7 +38,7 @@ void TestDiagnostics(string binlogFilePath)
     {
         var compilationData = reader.ReadCompilationData(i);
         var compilation = compilationData.GetCompilationAfterGenerators();
-        var diagnostics = compilation.GetDiagnostics();
+        var diagnostics = compilation.GetDiagnostics().Where(x => x.Severity >= DiagnosticSeverity.Warning);
         foreach (var d in diagnostics)
         {
             Console.WriteLine(d.GetMessage());
