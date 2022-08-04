@@ -2,6 +2,10 @@
 
 public static class CompilerLogUtil
 {
+    /// <summary>
+    /// Opens or creates a valid compiler log stream from the provided file path. The file path
+    /// must refer to a binary or compiler log
+    /// </summary>
     public static Stream GetOrCreateCompilerLogStream(string filePath)
     {
         var ext = Path.GetExtension(filePath);
@@ -55,7 +59,7 @@ public static class CompilerLogUtil
     {
         predicate ??= static _ => true;
         var list = new List<CompilerCall>();
-        using var reader = new CompilerLogReader(compilerLogStream);
+        using var reader = CompilerLogReader.Create(compilerLogStream);
         for (int i = 0; i < reader.CompilationCount; i++)
         {
             var compilerCall = reader.ReadCompilerCall(i);

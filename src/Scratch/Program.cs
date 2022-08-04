@@ -18,7 +18,7 @@ void RoundTrip(string binlogFilePath)
     }
 
     using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-    using var reader = new CompilerLogReader(compilerLogStream);
+    using var reader = CompilerLogReader.Create(compilerLogStream);
     for (int i = 0; i < reader.CompilationCount; i++)
     {
         var compilerCall = reader.ReadCompilerCall(i);
@@ -31,7 +31,7 @@ void RoundTrip(string binlogFilePath)
 void TestDiagnostics(string binlogFilePath)
 {
     using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath); 
-    using var reader = new CompilerLogReader(compilerLogStream);
+    using var reader = CompilerLogReader.Create(compilerLogStream);
     for (int i = 0; i < reader.CompilationCount; i++)
     {
         var compilationData = reader.ReadCompilationData(i);

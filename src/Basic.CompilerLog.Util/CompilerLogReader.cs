@@ -12,7 +12,7 @@ using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
 
-internal sealed class CompilerLogReader : IDisposable
+public sealed class CompilerLogReader : IDisposable
 {
     private readonly Dictionary<Guid, MetadataReference> _refMap = new Dictionary<Guid, MetadataReference>();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
@@ -20,11 +20,11 @@ internal sealed class CompilerLogReader : IDisposable
     internal ZipArchive ZipArchive { get; set; }
     internal int CompilationCount { get; }
 
-    public CompilerLogReader(Stream stream)
+    private CompilerLogReader(Stream stream, bool leaveOpen)
     {
         try
         {
-            ZipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+            ZipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);
         }
         catch (InvalidDataException)
         {
@@ -64,7 +64,15 @@ internal sealed class CompilerLogReader : IDisposable
         static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
     }
 
-    internal CompilerCall ReadCompilerCall(int index)
+    public static CompilerLogReader Create(Stream stream) => new CompilerLogReader(stream, leaveOpen: false);
+
+    public static CompilerLogReader Create(string filePath)
+    {
+        var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
+        return new CompilerLogReader(stream, leaveOpen: false);
+    }
+
+    public CompilerCall ReadCompilerCall(int index)
     {
         if (index >= CompilationCount)
             throw new InvalidOperationException();
@@ -73,7 +81,7 @@ internal sealed class CompilerLogReader : IDisposable
         return ReadCompilerCallCore(reader);
     }
 
-    internal CompilationData ReadCompilationData(int index)
+    public CompilationData ReadCompilationData(int index)
     {
         if (index >= CompilationCount)
             throw new InvalidOperationException();

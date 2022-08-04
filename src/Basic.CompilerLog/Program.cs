@@ -156,6 +156,7 @@ int RunHelp()
         compilerlog [command] [args]
         Commands
           create      Create a compilerlog file 
+          print       Print summary of entries in the log
           help        Print help
         """);
     return ExitFailure;
