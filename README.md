@@ -16,6 +16,7 @@ This global tool can be installed via
 From there the following commands are available:
 
 - `create`: create a compilerlog file from an existing binary log
+- `diagnostics`: print diagnostics from the specified compilations
 - `print`: print the summary of a compilerlog on the command line
 
 ## Info
