@@ -1,6 +1,7 @@
 ﻿using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
+using System.Text;
 using static Constants;
 using static System.Console;
 
@@ -14,6 +15,7 @@ try
     {
         "create" => RunCreate(rest),
         "diagnostics" => RunDiagnostics(rest),
+        "rsp" => RunResponseFile(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(),
         _ => RunHelp()
@@ -21,6 +23,7 @@ try
 }
 catch (Exception e)
 {
+    RunHelp();
     WriteLine("Unexpected error");
     WriteLine(e.Message);
     return ExitFailure;
@@ -107,7 +110,85 @@ int RunPrint(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("compilerlog print [OPTIONS] compilerlog");
+        WriteLine("compilerlog print [OPTIONS] build.compilerlog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
+int RunResponseFile(IEnumerable<string> args)
+{
+    var singleLine = false;
+    var options = new FilterOptionSet()
+    {
+        { "s|singleline", "keep response file as single line",  s => singleLine = s != null },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (extra.Count != 1 || options.Help)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(extra[0]);
+        var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
+            compilerLogStream,
+            options.FilterCompilerCalls);
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            var compilerCall = compilerCalls[i];
+            var responseFileName = GetResponseFileName();
+            var responseFilePath = Path.Combine(
+                Path.GetDirectoryName(compilerCall.ProjectFilePath)!,
+                responseFileName);
+            using var writer = new StreamWriter(responseFilePath, append: false, Encoding.UTF8);
+            if (singleLine)
+            {
+                writer.WriteLine(string.Join(' ', compilerCall.Arguments));
+            }
+            else
+            {
+                foreach (var arg in compilerCall.Arguments)
+                {
+                    writer.WriteLine(arg);
+                }
+            }
+
+            string GetResponseFileName()
+            {
+                var name = compilerCall.IsCSharp ? "csc" : "vbc";
+
+                // If the project is built multiple times then need to make it unique
+                if (compilerCalls.Count(x => x.ProjectFilePath == compilerCall.ProjectFilePath) > 1)
+                {
+                    if (!string.IsNullOrEmpty(compilerCall.TargetFramework))
+                    {
+                        name += "-" + compilerCall.TargetFramework;
+                    }
+                    else
+                    {
+                        name += i.ToString();
+                    }
+                }
+
+                return name + ".rsp";
+            }
+        }
+
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("compilerlog rsp [OPTIONS] build.compilerlog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -171,6 +252,7 @@ int RunHelp()
         Commands
           create        Create a compilerlog file 
           diagnostics   Print diagnostics for a compilation
+          rsp           Generate compiler response file for selected projects
           print         Print summary of entries in the log
           help          Print help
         """);

@@ -10,7 +10,7 @@ internal sealed class FilterOptionSet : OptionSet
 
     internal FilterOptionSet()
     {
-        Add("s|satellite", "include satellite asseblies", s => { if (s != null) IncludeSatelliteAssemblies = true; });
+        Add("satellite", "include satellite asseblies", s => { if (s != null) IncludeSatelliteAssemblies = true; });
         Add("targetframework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
         Add("n|projectName=", "include only compilations with the project name", (string n) => ProjectName = n);
         Add("h|help", "print help", h => { if (h != null) Help = true; });

@@ -2,7 +2,8 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "diagnostics --projectName csc  c:\\Users\\jaredpar\\temp\\console\\msbuild.binlog"
+      "commandLineArgs": "rsp msbuild.binlog",
+      "workingDirectory": "c:\\users\\jaredpar\\temp\\console"
     }
   }
 }
