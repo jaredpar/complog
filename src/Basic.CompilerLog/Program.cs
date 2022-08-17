@@ -1,6 +1,8 @@
 ﻿using Basic.CompilerLog.Util;
+using Microsoft.Build.Tasks.Deployment.ManifestUtilities;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
+using System.Runtime.Loader;
 using System.Text;
 using static Constants;
 using static System.Console;
@@ -78,13 +80,13 @@ int RunPrint(IEnumerable<string> args)
     try
     {
         var extra = options.Parse(args);
-        if (extra.Count != 1 || options.Help)
+        if (options.Help)
         {
             PrintUsage();
             return ExitFailure;
         }
 
-        using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(extra[0]);
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
             compilerLogStream,
             options.FilterCompilerCalls);
@@ -118,31 +120,42 @@ int RunPrint(IEnumerable<string> args)
 int RunResponseFile(IEnumerable<string> args)
 {
     var singleLine = false;
+    var outputPath = "";
     var options = new FilterOptionSet()
     {
         { "s|singleline", "keep response file as single line",  s => singleLine = s != null },
+        { "o|out", "path to output rsp files (default is next to project)", o => outputPath = o },
     };
 
     try
     {
         var extra = options.Parse(args);
-        if (extra.Count != 1 || options.Help)
+        if (options.Help)
         {
             PrintUsage();
             return ExitFailure;
         }
 
-        using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(extra[0]);
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
             compilerLogStream,
             options.FilterCompilerCalls);
+
+        if (string.IsNullOrEmpty(outputPath))
+        {
+            outputPath = Path.Combine(Environment.CurrentDirectory, ".rsp");
+        }
+
+        WriteLine($"Generating response files in {outputPath}");
+        Directory.CreateDirectory(outputPath);
+
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
             var responseFileName = GetResponseFileName();
-            var responseFilePath = Path.Combine(
-                Path.GetDirectoryName(compilerCall.ProjectFilePath)!,
-                responseFileName);
+            var responseFilePath = string.IsNullOrEmpty(outputPath)
+                ? Path.Combine(Path.GetDirectoryName(compilerCall.ProjectFilePath)!, responseFileName)
+                : Path.Combine(outputPath, responseFileName);
             using var writer = new StreamWriter(responseFilePath, append: false, Encoding.UTF8);
             if (singleLine)
             {
@@ -158,7 +171,7 @@ int RunResponseFile(IEnumerable<string> args)
 
             string GetResponseFileName()
             {
-                var name = compilerCall.IsCSharp ? "csc" : "vbc";
+                var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
 
                 // If the project is built multiple times then need to make it unique
                 if (compilerCalls.Count(x => x.ProjectFilePath == compilerCall.ProjectFilePath) > 1)
@@ -204,13 +217,13 @@ int RunDiagnostics(IEnumerable<string> args)
     try
     {
         var extra = options.Parse(args);
-        if (extra.Count != 1 || options.Help)
+        if (options.Help)
         {
             PrintUsage();
             return ExitFailure;
         }
 
-        using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(extra[0]);
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         var compilationDatas = CompilerLogUtil.ReadCompilationDatas(
             compilerLogStream,
             options.FilterCompilerCalls);
@@ -258,5 +271,56 @@ int RunHelp()
         """);
     return ExitFailure;
 }
+
+Stream GetOrCreateCompilerLogStream(List<string> extra)
+{
+    if (extra.Count > 1)
+    {
+        throw CreateOptionException();
+    }
+
+    string? path;
+    if (extra.Count == 0)
+    {
+        path = GetLogFilePath(Environment.CurrentDirectory);
+        if (path is null)
+        {
+            throw CreateOptionException();
+        }
+    }
+    else
+    {
+        path = extra[0];
+    }
+
+    return CompilerLogUtil.GetOrCreateCompilerLogStream(path);
+
+    static string? GetLogFilePath(string baseDirectory)
+    {
+        // Search the directory for valid log files
+        var path = Directory
+            .EnumerateFiles(baseDirectory, "*.compilerlog")
+            .OrderBy(x => Path.GetFileName(x), StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (path is not null)
+        {
+            return path;
+        }
+
+        path = Directory
+            .EnumerateFiles(baseDirectory, "*.binlog")
+            .OrderBy(x => Path.GetFileName(x), StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (path is not null)
+        {
+            return path;
+        }
+
+        return null;
+    }
+
+    static OptionException CreateOptionException() => new("Need a path to a log file", "log");
+}
+
 
 

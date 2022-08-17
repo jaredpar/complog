@@ -2,7 +2,7 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "rsp msbuild.binlog",
+      "commandLineArgs": "rsp ",
       "workingDirectory": "c:\\users\\jaredpar\\temp\\console"
     }
   }
