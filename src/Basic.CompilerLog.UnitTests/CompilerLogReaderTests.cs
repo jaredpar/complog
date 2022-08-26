@@ -32,11 +32,16 @@ public sealed class CompilerLogReaderTests
             args.ToArray());
     }
 
-    [Fact]
-    public void ReadSourceContentHashesSimple()
+    /// <summary>
+    /// Using a theory to validate file name doesn't impact the hashing
+    /// </summary>
+    [Theory]
+    [InlineData("hello.cs")]
+    [InlineData("extra.cs.cs")]
+    public void ReadSourceContentHashesSimple(string fileName)
     {
         using var projectBuilder = new ProjectBuilder("example.csproj");
-        projectBuilder.AddSourceFile("test.cs", "hello world");
+        projectBuilder.AddSourceFile(fileName, "hello world");
         var compilerCall = CreateCSharpCall(projectBuilder);
         using var stream = new MemoryStream();
         var builder = new CompilerLogBuilder(stream, new());
@@ -47,6 +52,29 @@ public sealed class CompilerLogReaderTests
         using var reader = CompilerLogReader.Create(stream, leaveOpen: true);
         Assert.Equal(
             new[] { "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9" },
-            reader.ReadSourceContentHashes().ToArray());
+            reader.ReadSourceContentHashes());
+    }
+
+    [Fact]
+    public void ReadSourceContentHashesMultple()
+    {
+        using var projectBuilder = new ProjectBuilder("example.csproj");
+        projectBuilder.AddSourceFile("test1.cs", "hello world");
+        projectBuilder.AddSourceFile("test2.cs", "// this is a comment");
+        var compilerCall = CreateCSharpCall(projectBuilder);
+        using var stream = new MemoryStream();
+        var builder = new CompilerLogBuilder(stream, new());
+        builder.Add(compilerCall);
+        Assert.Empty(builder.Diagnostics);
+        builder.Close();
+        stream.Position = 0;
+        using var reader = CompilerLogReader.Create(stream, leaveOpen: true);
+        Assert.Equal(
+            new[]
+            {
+                "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9",
+                "E1C6C8930672417F28AFCC7F4D41E3B3D7482C5F1BEDA60202A35F067C6A0866"
+            },
+            reader.ReadSourceContentHashes());
     }
 }
