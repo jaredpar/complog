@@ -32,7 +32,6 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     internal List<string> Diagnostics { get; }
     internal ZipArchive ZipArchive { get; set;  }
-    internal IFileSystem FileSystem { get; set; } = RealFileSystem.Instance;
 
     internal bool IsOpen => !_closed;
     internal bool IsClosed => _closed;
@@ -165,7 +164,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         var sha = SHA256.Create();
 
-        using var fileStream = FileSystem.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var hash = sha.ComputeHash(fileStream);
         var hashText = GetHashText();
         var fileExtension = Path.GetExtension(filePath);
@@ -245,7 +244,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return mvid;
         }
 
-        using var file = FileSystem.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var reader = new PEReader(file);
         var mdReader = reader.GetMetadataReader();
         GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
