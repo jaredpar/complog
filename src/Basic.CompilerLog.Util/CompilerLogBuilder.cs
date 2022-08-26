@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
@@ -29,8 +30,9 @@ internal sealed class CompilerLogBuilder : IDisposable
     private int _compilationCount;
     private bool _closed;
 
+    internal List<string> Diagnostics { get; }
     internal ZipArchive ZipArchive { get; set;  }
-    internal List<string> Diagnostics { get; set; }
+    internal IFileSystem FileSystem { get; set; } = RealFileSystem.Instance;
 
     internal bool IsOpen => !_closed;
     internal bool IsClosed => _closed;
@@ -101,6 +103,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             EnsureOpen();
             WriteMetadata();
             WriteAssemblyInfo();
+            WriteSourceInfo();
             ZipArchive.Dispose();
             ZipArchive = null!;
         }
@@ -123,6 +126,16 @@ internal sealed class CompilerLogBuilder : IDisposable
             foreach (var kvp in _mvidToRefInfoMap.OrderBy(x => x.Value.FileName).ThenBy(x => x.Key))
             {
                 writer.WriteLine($"{kvp.Value.FileName}:{kvp.Key:N}:{kvp.Value.AssemblyName}");
+            }
+        }
+
+        void WriteSourceInfo()
+        {
+            var entry = ZipArchive.CreateEntry(SourceInfoFileName, CompressionLevel.Optimal);
+            using var writer = new StreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
+            foreach (var value in _sourceHashMap.OrderBy(x => x))
+            {
+                writer.WriteLine(value);
             }
         }
     }
@@ -152,7 +165,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         var sha = SHA256.Create();
 
-        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var fileStream = FileSystem.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var hash = sha.ComputeHash(fileStream);
         var hashText = GetHashText();
         var fileExtension = Path.GetExtension(filePath);
@@ -232,7 +245,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return mvid;
         }
 
-        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var file = FileSystem.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var reader = new PEReader(file);
         var mdReader = reader.GetMetadataReader();
         GuidHandle handle = mdReader.GetModuleDefinition().Mvid;

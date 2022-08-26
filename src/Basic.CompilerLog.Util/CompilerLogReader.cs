@@ -64,7 +64,7 @@ public sealed class CompilerLogReader : IDisposable
         static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
     }
 
-    public static CompilerLogReader Create(Stream stream) => new CompilerLogReader(stream, leaveOpen: false);
+    public static CompilerLogReader Create(Stream stream, bool leaveOpen = false) => new CompilerLogReader(stream, leaveOpen);
 
     public static CompilerLogReader Create(string filePath)
     {
@@ -327,6 +327,21 @@ public sealed class CompilerLogReader : IDisposable
                 CreateAssemblyLoadContext(),
                 analyzerProvider);
         }
+    }
+
+    /// <summary>
+    /// Get the content hash of all the source files in the compiler log
+    /// </summary>
+    internal List<string> ReadSourceContentHashes()
+    {
+        using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(SourceInfoFileName), ContentEncoding, leaveOpen: false);
+        var list = new List<string>();
+        while (reader.ReadLine() is string line)
+        {
+            list.Add(line);
+        }
+
+        return list;
     }
 
     private CompilerCall ReadCompilerCallCore(StreamReader reader)
