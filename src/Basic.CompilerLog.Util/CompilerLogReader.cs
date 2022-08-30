@@ -227,6 +227,9 @@ internal sealed class CompilerLogReader : IDisposable
         return entryStream.ReadAllBytes();
     }
 
+    internal BasicAssemblyLoadContext CreateAssemblyLoadContext(string name, List<Guid> analyzers) =>
+        new BasicAssemblyLoadContext(name, this, analyzers);
+
     public void Dispose()
     {
         ZipArchive.Dispose();

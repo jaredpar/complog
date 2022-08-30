@@ -97,9 +97,7 @@ public sealed class SolutionReader : IDisposable
         // TODO: should actually store this information in the log so we can rehydrate
         var projectReferences = new List<ProjectReference>();
 
-        // TODO: need to implement this, 
-        var analyzerReferences = new List<AnalyzerReference>();
-
+        var loadContext = Reader.CreateAssemblyLoadContext(compilerCall.ProjectFilePath, rawCompilationData.Analyzers);
         var projectInfo = ProjectInfo.Create(
             projectId,
             VersionStamp,
@@ -113,7 +111,7 @@ public sealed class SolutionReader : IDisposable
             documents,
             projectReferences,
             rawCompilationData.References,
-            analyzerReferences,
+            analyzerReferences: loadContext.AnalyzerReferences.ToList<AnalyzerReference>(),
             additionalDocuments,
             isSubmission: false,
             hostObjectType: null);

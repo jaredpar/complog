@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.Diagnostics;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -15,65 +16,38 @@ namespace Basic.CompilerLog.Util.Impl;
 /// </summary>
 internal sealed class BasicAssemblyLoadContext : AssemblyLoadContext
 {
-    internal BasicAssemblyLoadContext(string name)
-        : base(name, isCollectible: true)
+    internal ImmutableArray<BasicAnalyzerReference> AnalyzerReferences { get; }
+
+    internal BasicAssemblyLoadContext(string name, CompilerLogReader reader, List<Guid> analyzerMvids)
     {
+        var builder = ImmutableArray.CreateBuilder<BasicAnalyzerReference>(analyzerMvids.Count);
+        foreach (var mvid in analyzerMvids)
+        {
+            var analyzerBytes = reader.GetAssemblyBytes(mvid);
+            var assembly =  LoadFromStream(new MemoryStream(analyzerBytes.ToArray()));
+            builder.Add(new(assembly));
+        }
+
+        AnalyzerReferences = builder.ToImmutable();
     }
 
-    internal (List<DiagnosticAnalyzer> Analyzers, List<ISourceGenerator> Generators) LoadAnalyzers(string languageName)
+    internal ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string languageName)
     {
-        var analyzers = new List<DiagnosticAnalyzer>();
-        var generators = new List<ISourceGenerator>();
-
-        foreach (var assembly in Assemblies)
+        var builder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
+        foreach (var reference in AnalyzerReferences)
         {
-            Load(assembly!);
+            reference.GetAnalyzers(builder, languageName);
         }
+        return builder.ToImmutable();
+    }
 
-        return (analyzers, generators);
-
-        void Load(Assembly assembly)
+    internal ImmutableArray<ISourceGenerator> GetGenerators(string languageName)
+    {
+        var builder = ImmutableArray.CreateBuilder<ISourceGenerator>();
+        foreach (var reference in AnalyzerReferences)
         {
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
-                {
-                    foreach (var attribute in attributes)
-                    {
-                        if (attribute is DiagnosticAnalyzerAttribute d &&
-                            d.Languages.Contains(languageName))
-                        {
-                            analyzers.Add((DiagnosticAnalyzer)CreateInstance(type));
-                            break;
-                        }
-
-                        if (attribute is GeneratorAttribute g &&
-                            g.Languages.Contains(languageName))
-                        {
-                            var generator = CreateInstance(type);
-                            if (generator is ISourceGenerator sg)
-                            {
-                                generators.Add(sg);
-                            }
-                            else
-                            {
-                                IIncrementalGenerator ig = (IIncrementalGenerator)generator;
-                                generators.Add(ig.AsSourceGenerator());
-                            }
-
-                            break;
-                        }
-                    }
-                }
-            }
+            reference.GetGenerators(builder, languageName);
         }
-
-        object CreateInstance(Type type)
-        {
-            var ctor = type.GetConstructors()
-                .Where(c => c.GetParameters().Length == 0)
-                .Single();
-            return ctor.Invoke(null);
-        }
+        return builder.ToImmutable();
     }
 }

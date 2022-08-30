@@ -88,9 +88,8 @@ public abstract class CompilationData
         }
 
         var languageName = IsCSharp ? LanguageNames.CSharp : LanguageNames.VisualBasic;
-        var tuple = CompilerLogAssemblyLoadContext.LoadAnalyzers(languageName);
-        _analyzers = tuple.Analyzers.ToImmutableArray();
-        _generators = tuple.Generators.ToImmutableArray();
+        _analyzers = CompilerLogAssemblyLoadContext.GetAnalyzers(languageName);
+        _generators = CompilerLogAssemblyLoadContext.GetGenerators(languageName);
     }
 
     protected abstract GeneratorDriver CreateGeneratorDriver();

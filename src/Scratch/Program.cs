@@ -10,7 +10,7 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 
 //TestDiagnostics(filePath);
 // RoundTrip(filePath);
-SolutionScratch(filePath);
+await SolutionScratchAsync(filePath);
 
 void RoundTrip(string binlogFilePath)
 {
@@ -33,7 +33,7 @@ void RoundTrip(string binlogFilePath)
     }
 }
 
-void SolutionScratch(string binlogFilePath)
+async Task SolutionScratchAsync(string binlogFilePath)
 {
     using var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath);
     using var reader = SolutionReader.Create(stream, leaveOpen: false);
@@ -43,9 +43,10 @@ void SolutionScratch(string binlogFilePath)
 
     foreach (var project in workspace.CurrentSolution.Projects)
     {
-        foreach (var documentId in project.DocumentIds)
+        var compilation = await project.GetCompilationAsync();
+        foreach (var syntaxTree in compilation!.SyntaxTrees)
         {
-            workspace.OpenDocument(documentId);
+            Console.WriteLine(syntaxTree.ToString());
         }
     }
 }

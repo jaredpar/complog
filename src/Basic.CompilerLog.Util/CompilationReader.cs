@@ -77,14 +77,14 @@ public sealed class CompilationReader : IDisposable
         if (index >= CompilationCount)
             throw new InvalidOperationException();
 
-        var (compilerCall, rawCompilerData) = Reader.ReadRawCompilationData(index);
+        var (compilerCall, rawCompilationData) = Reader.ReadRawCompilationData(index);
 
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var metadataReferenceList = new List<MetadataReference>();
         var additionalTextList = new List<AdditionalText>();
 
-        foreach (var tuple in rawCompilerData.Contents)
+        foreach (var tuple in rawCompilationData.Contents)
         {
             switch (tuple.Kind)
             {
@@ -107,19 +107,6 @@ public sealed class CompilationReader : IDisposable
         return compilerCall.IsCSharp
             ? CreateCSharp()
             : CreateVisualBasic();
-
-        BasicAssemblyLoadContext CreateAssemblyLoadContext()
-        {
-            var loadContext = new BasicAssemblyLoadContext(compilerCall.ProjectFilePath);
-
-            foreach (var mvid in rawCompilerData.Analyzers)
-            {
-                var analyzerBytes = Reader.GetAssemblyBytes(mvid);
-                loadContext.LoadFromStream(new MemoryStream(analyzerBytes.ToArray()));
-            }
-
-            return loadContext;
-        }
 
         (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(IEnumerable<SyntaxTree> syntaxTrees, IEnumerable<AdditionalText> additionalTexts)
         {
@@ -162,7 +149,7 @@ public sealed class CompilationReader : IDisposable
 
         CSharpCompilationData CreateCSharp()
         {
-            var csharpArgs = (CSharpCommandLineArguments)rawCompilerData.Arguments;
+            var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
             var parseOptions = csharpArgs.ParseOptions;
 
             var syntaxTrees = new SyntaxTree[sourceTextList.Count];
@@ -177,7 +164,7 @@ public sealed class CompilationReader : IDisposable
 
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
             var compilation = CSharpCompilation.Create(
-                rawCompilerData.Arguments.CompilationName,
+                rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 metadataReferenceList,
                 csharpArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
@@ -187,13 +174,13 @@ public sealed class CompilationReader : IDisposable
                 compilation,
                 csharpArgs,
                 additionalTextList.ToImmutableArray(),
-                CreateAssemblyLoadContext(),
+                Reader.CreateAssemblyLoadContext(compilerCall.ProjectFilePath, rawCompilationData.Analyzers),
                 analyzerProvider);
         }
 
         VisualBasicCompilationData CreateVisualBasic()
         {
-            var basicArgs = (VisualBasicCommandLineArguments)rawCompilerData.Arguments;
+            var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
             var parseOptions = basicArgs.ParseOptions;
             var syntaxTrees = new SyntaxTree[sourceTextList.Count];
             Parallel.For(
@@ -208,7 +195,7 @@ public sealed class CompilationReader : IDisposable
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
             var compilation = VisualBasicCompilation.Create(
-                rawCompilerData.Arguments.CompilationName,
+                rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 metadataReferenceList,
                 basicArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
@@ -218,8 +205,9 @@ public sealed class CompilationReader : IDisposable
                 compilation,
                 basicArgs,
                 additionalTextList.ToImmutableArray(),
-                CreateAssemblyLoadContext(),
+                Reader.CreateAssemblyLoadContext(compilerCall.ProjectFilePath, rawCompilationData.Analyzers),
                 analyzerProvider);
         }
+
     }
 }
