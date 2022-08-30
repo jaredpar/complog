@@ -5,7 +5,7 @@ namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogTextLoader : TextLoader
 {
-    private readonly Dictionary<DocumentId, (ProjectId ProjectId, string ContentHash, string FilePath, SourceHashAlgorithm HashAlgorithm)> _idToContentMap = new();
+    private readonly Dictionary<DocumentId, (ProjectId ProjectId, string FilePath, string ContentHash, SourceHashAlgorithm HashAlgorithm)> _idToContentMap = new();
     private readonly Dictionary<(ProjectId ProjectId, string FilePath, string ContentHash, SourceHashAlgorithm HashAlgorithm), DocumentId> _contentToIdMap = new();
 
     internal CompilerLogReader Reader { get; }
@@ -24,6 +24,7 @@ internal sealed class CompilerLogTextLoader : TextLoader
         {
             id = DocumentId.CreateNewId(projectId, filePath);
             _contentToIdMap[key] = id;
+            _idToContentMap[id] = key;
         }
 
         return id;

@@ -37,10 +37,16 @@ void SolutionScratch(string binlogFilePath)
 {
     using var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath);
     using var reader = SolutionReader.Create(stream, leaveOpen: false);
+    var solution = reader.ReadSolution();
+    var workspace = new AdhocWorkspace();
+    workspace.AddSolution(solution);
 
-    for (int i = 0; i < reader.ProjectCount; i++)
+    foreach (var project in workspace.CurrentSolution.Projects)
     {
-        var projectInfo = reader.ReadProjectInfo(i);
+        foreach (var documentId in project.DocumentIds)
+        {
+            workspace.OpenDocument(documentId);
+        }
     }
 }
 
@@ -58,7 +64,6 @@ void TestDiagnostics(string binlogFilePath)
             Console.WriteLine(d.GetMessage());
         }
     }
-
 }
 
 

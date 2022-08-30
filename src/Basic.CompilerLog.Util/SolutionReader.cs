@@ -16,6 +16,7 @@ public sealed class SolutionReader : IDisposable
     internal CompilerLogReader Reader { get; }
     internal CompilerLogTextLoader TextLoader { get; }
     internal VersionStamp VersionStamp { get; }
+    internal SolutionId SolutionId { get; } = SolutionId.CreateNewId();
 
     public int ProjectCount => Reader.CompilationCount;
 
@@ -44,6 +45,17 @@ public sealed class SolutionReader : IDisposable
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
         return new(new CompilerLogReader(stream, leaveOpen: false));
+    }
+
+    public SolutionInfo ReadSolution()
+    {
+        var projectInfoList = new List<ProjectInfo>();
+        for (var i = 0; i < ProjectCount; i++)
+        {
+            projectInfoList.Add(ReadProjectInfo(i));
+        }
+
+        return SolutionInfo.Create(SolutionId, VersionStamp, projects: projectInfoList);
     }
 
     public ProjectInfo ReadProjectInfo(int index)
