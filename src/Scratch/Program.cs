@@ -9,7 +9,8 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 //var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
 
 //TestDiagnostics(filePath);
-RoundTrip(filePath);
+// RoundTrip(filePath);
+SolutionScratch(filePath);
 
 void RoundTrip(string binlogFilePath)
 {
@@ -29,6 +30,17 @@ void RoundTrip(string binlogFilePath)
         Console.WriteLine($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
 
         var compilation = reader.ReadCompilationData(i);
+    }
+}
+
+void SolutionScratch(string binlogFilePath)
+{
+    using var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath);
+    using var reader = SolutionReader.Create(stream, leaveOpen: false);
+
+    for (int i = 0; i < reader.ProjectCount; i++)
+    {
+        var projectInfo = reader.ReadProjectInfo(i);
     }
 }
 
