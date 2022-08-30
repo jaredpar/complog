@@ -3,13 +3,13 @@ using Microsoft.CodeAnalysis;
 
 #pragma warning disable 8321
 
-// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
-var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
+//var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
 
-TestDiagnostics(filePath);
-// RoundTrip(filePath);
+//TestDiagnostics(filePath);
+RoundTrip(filePath);
 
 void RoundTrip(string binlogFilePath)
 {
@@ -22,7 +22,7 @@ void RoundTrip(string binlogFilePath)
     }
 
     using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-    using var reader = CompilerLogReader.Create(compilerLogStream);
+    using var reader = CompilationReader.Create(compilerLogStream);
     for (int i = 0; i < reader.CompilationCount; i++)
     {
         var compilerCall = reader.ReadCompilerCall(i);
@@ -35,7 +35,7 @@ void RoundTrip(string binlogFilePath)
 void TestDiagnostics(string binlogFilePath)
 {
     using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath); 
-    using var reader = CompilerLogReader.Create(compilerLogStream);
+    using var reader = CompilationReader.Create(compilerLogStream);
     for (int i = 0; i < reader.CompilationCount; i++)
     {
         var compilationData = reader.ReadCompilationData(i);

@@ -49,7 +49,7 @@ public sealed class CompilerLogReaderTests
         Assert.Empty(builder.Diagnostics);
         builder.Close();
         stream.Position = 0;
-        using var reader = CompilerLogReader.Create(stream, leaveOpen: true);
+        using var reader = new CompilerLogReader(stream, leaveOpen: true);
         Assert.Equal(
             new[] { "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9" },
             reader.ReadSourceContentHashes());
@@ -68,7 +68,7 @@ public sealed class CompilerLogReaderTests
         Assert.Empty(builder.Diagnostics);
         builder.Close();
         stream.Position = 0;
-        using var reader = CompilerLogReader.Create(stream, leaveOpen: true);
+        using var reader = new CompilerLogReader(stream, leaveOpen: true);
         Assert.Equal(
             new[]
             {

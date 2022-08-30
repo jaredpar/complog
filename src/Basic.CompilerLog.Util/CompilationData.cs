@@ -20,6 +20,9 @@ public abstract class CompilationData
 
     public CompilerCall CompilerCall { get; } 
     public Compilation Compilation { get; }
+
+    // TODO: should not expose CommandLineArguments. Refers too much to the original compilation 
+    // information. Should instead store only the parts necessary to rehydrate 
     public CommandLineArguments CommandLineArguments { get; }
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }

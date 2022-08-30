@@ -248,7 +248,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         using var reader = new PEReader(file);
         var mdReader = reader.GetMetadataReader();
         GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
-        mvid = mdReader.GetGuid(handle;
+        mvid = mdReader.GetGuid(handle);
 
         _assemblyPathToMvidMap[filePath] = mvid;
 
