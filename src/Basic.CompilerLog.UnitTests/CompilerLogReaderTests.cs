@@ -1,7 +1,4 @@
 ﻿using Basic.CompilerLog.Util;
-using Basic.Reference.Assemblies;
-using Microsoft.Build.Construction;
-using System.ComponentModel;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
