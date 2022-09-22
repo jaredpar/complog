@@ -124,7 +124,7 @@ int RunResponseFile(IEnumerable<string> args)
     var options = new FilterOptionSet()
     {
         { "s|singleline", "keep response file as single line",  s => singleLine = s != null },
-        { "o|out", "path to output rsp files (default is next to project)", o => outputPath = o },
+        { "o|out=", "path to output rsp files (default is next to project)", o => outputPath = o },
     };
 
     try
@@ -136,19 +136,16 @@ int RunResponseFile(IEnumerable<string> args)
             return ExitFailure;
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
-            compilerLogStream,
-            options.FilterCompilerCalls);
-
+        var logFilePath = GetLogFilePath(extra);
         if (string.IsNullOrEmpty(outputPath))
         {
-            outputPath = Path.Combine(Environment.CurrentDirectory, ".rsp");
+            outputPath = Path.Combine(Path.GetDirectoryName(logFilePath)!, ".rsp");
         }
 
         WriteLine($"Generating response files in {outputPath}");
         Directory.CreateDirectory(outputPath);
 
+        var compilerCalls = GetCompilerCalls();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
@@ -191,6 +188,20 @@ int RunResponseFile(IEnumerable<string> args)
         }
 
         return ExitSuccess;
+
+        List<CompilerCall> GetCompilerCalls()
+        {
+            var ext = Path.GetExtension(logFilePath);
+            using var stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (ext == ".binlog")
+            {
+                return BinaryLogUtil.ReadCompilerCalls(stream, new(), options.FilterCompilerCalls);
+            }
+            else
+            {
+                return CompilerLogUtil.ReadCompilerCalls(stream, options.FilterCompilerCalls);
+            }
+        }
     }
     catch (OptionException e)
     {
@@ -274,6 +285,12 @@ int RunHelp()
 
 Stream GetOrCreateCompilerLogStream(List<string> extra)
 {
+    var logFilePath = GetLogFilePath(extra);
+    return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
+}
+
+string GetLogFilePath(List<string> extra)
+{
     if (extra.Count > 1)
     {
         throw CreateOptionException();
@@ -283,19 +300,15 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
     if (extra.Count == 0)
     {
         path = GetLogFilePath(Environment.CurrentDirectory);
-        if (path is null)
-        {
-            throw CreateOptionException();
-        }
     }
     else
     {
         path = extra[0];
     }
 
-    return CompilerLogUtil.GetOrCreateCompilerLogStream(path);
+    return path;
 
-    static string? GetLogFilePath(string baseDirectory)
+    static string GetLogFilePath(string baseDirectory)
     {
         // Search the directory for valid log files
         var path = Directory
@@ -316,11 +329,14 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
             return path;
         }
 
-        return null;
+        throw CreateOptionException();
     }
 
     static OptionException CreateOptionException() => new("Need a path to a log file", "log");
 }
+
+
+
 
 
 

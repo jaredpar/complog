@@ -2,8 +2,8 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "rsp ",
-      "workingDirectory": "c:\\users\\jaredpar\\temp\\console"
+      "commandLineArgs": "rsp -o off off.binlog",
+      "workingDirectory": "c:\\users\\jaredpar\\temp\\investigate"
     }
   }
 }

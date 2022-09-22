@@ -6,10 +6,11 @@ using Task = Microsoft.Build.Logging.StructuredLogger.Task;
 
 namespace Basic.CompilerLog.Util;
 
-internal static class BinaryLogUtil
+public static class BinaryLogUtil
 {
-    internal static List<CompilerCall> ReadCompilationTasks(Stream stream, List<string> diagnosticList)
+    public static List<CompilerCall> ReadCompilerCalls(Stream stream, List<string> diagnosticList, Func<CompilerCall, bool>? predicate = null)
     {
+        predicate ??= static _ => true;
         var list = new List<CompilerCall>();
         var build = BinaryLog.ReadBuild(stream);
         BuildAnalyzer.AnalyzeBuild(build);
@@ -19,14 +20,14 @@ internal static class BinaryLogUtil
             {
                 if (task is CscTask cscTask)
                 {
-                    if (TryCreateCompilerCall(cscTask, diagnosticList) is { } cscCall)
+                    if (TryCreateCompilerCall(cscTask, diagnosticList) is { } cscCall && predicate(cscCall))
                     {
                         list.Add(cscCall);
                     }
                 }
                 else if (task is VbcTask vbcTask)
                 {
-                    if (TryCreateCompilerCall(vbcTask, diagnosticList) is { } vbcCall)
+                    if (TryCreateCompilerCall(vbcTask, diagnosticList) is { } vbcCall && predicate(vbcCall))
                     {
                         list.Add(vbcCall);
                     }

@@ -1,4 +1,6 @@
-﻿namespace Basic.CompilerLog.Util;
+﻿using System.Text;
+
+namespace Basic.CompilerLog.Util;
 
 public static class CompilerLogUtil
 {
@@ -35,18 +37,32 @@ public static class CompilerLogUtil
 
     public static List<string> ConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
     {
+        var diagnostics = new List<string>();
+        if (!TryConvertBinaryLog(binaryLogStream, compilerLogStream, diagnostics, predicate))
+        {
+            throw CreateException("Could not convert binary log", diagnostics);
+        }
+
+        return diagnostics;
+    }
+
+    public static bool TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, List<string> diagnostics, Func<CompilerCall, bool>? predicate = null)
+    {
         predicate ??= static _ => true;
-        var diagnosticList = new List<string>();
-        var list = BinaryLogUtil.ReadCompilationTasks(binaryLogStream, diagnosticList);
-        using var builder = new CompilerLogBuilder(compilerLogStream, diagnosticList);
+        var list = BinaryLogUtil.ReadCompilerCalls(binaryLogStream, diagnostics);
+        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics);
+        var success = true;
         foreach (var compilerInvocation in list)
         {
             if (predicate(compilerInvocation))
             {
-                builder.Add(compilerInvocation);
+                if (!builder.Add(compilerInvocation))
+                {
+                    success = false;
+                }
             }
         }
-        return diagnosticList;
+        return success;
     }
 
     public static List<CompilerCall> ReadCompilerCalls(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
@@ -71,5 +87,21 @@ public static class CompilerLogUtil
     {
         using var reader = CompilationReader.Create(compilerLogStream);
         return reader.ReadCompilationDatas(predicate);
+    }
+
+    private static Exception CreateException(string message, IEnumerable<string> diagnostics)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(message);
+        if (diagnostics.Any())
+        {
+            builder.AppendLine("Diagnostics:");
+            foreach (var diagnostic in diagnostics)
+            {
+                builder.AppendLine($"\t{diagnostic}");
+            }
+        }
+
+        return new Exception(builder.ToString());
     }
 }

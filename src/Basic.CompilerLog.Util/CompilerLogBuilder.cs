@@ -164,7 +164,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         var sha = SHA256.Create();
 
-        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var fileStream = OpenFileForRead(filePath);
         var hash = sha.ComputeHash(fileStream);
         var hashText = GetHashText();
         var fileExtension = Path.GetExtension(filePath);
@@ -244,7 +244,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return mvid;
         }
 
-        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var file = OpenFileForRead(filePath);
         using var reader = new PEReader(file);
         var mdReader = reader.GetMetadataReader();
         GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
@@ -279,5 +279,15 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             Close();
         }
+    }
+
+    private static FileStream OpenFileForRead(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new Exception($"Missing file, either build did not happen on this machine or the environment has changed: {filePath}");
+        }
+
+        return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
 }
