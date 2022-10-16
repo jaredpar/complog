@@ -78,10 +78,10 @@ public sealed class CompilationReader : IDisposable
             throw new InvalidOperationException();
 
         var (compilerCall, rawCompilationData) = Reader.ReadRawCompilationData(index);
+        var referenceList = Reader.GetMetadataReferences(rawCompilationData.References);
 
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
-        var metadataReferenceList = new List<MetadataReference>();
         var additionalTextList = new List<AdditionalText>();
 
         foreach (var tuple in rawCompilationData.Contents)
@@ -166,7 +166,7 @@ public sealed class CompilationReader : IDisposable
             var compilation = CSharpCompilation.Create(
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
-                metadataReferenceList,
+                referenceList,
                 csharpArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new CSharpCompilationData(
@@ -197,7 +197,7 @@ public sealed class CompilationReader : IDisposable
             var compilation = VisualBasicCompilation.Create(
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
-                metadataReferenceList,
+                referenceList,
                 basicArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new VisualBasicCompilationData(

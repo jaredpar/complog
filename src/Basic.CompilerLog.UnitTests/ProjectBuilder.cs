@@ -1,4 +1,6 @@
-﻿using Basic.Reference.Assemblies;
+﻿using Basic.CompilerLog.Util;
+using Basic.Reference.Assemblies;
+using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,6 +20,10 @@ internal sealed class ProjectBuilder : IDisposable
     internal List<string> SourceFilePaths { get; } = new();
     internal List<string> ReferenceFilePaths { get; } = new();
 
+    internal static IEnumerable<Net60.ReferenceInfo> DefaultReferenceInfos => Net60.References.All;
+    internal static IEnumerable<PortableExecutableReference> DefaultReferences => Net60.All;
+    internal static string DefaultTargetFrameworkMoniker => "net6.0";
+
     internal ProjectBuilder(string projectFileName, bool includeReferences = true)
     {
         RootDirectory = Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString());
@@ -31,7 +37,7 @@ internal sealed class ProjectBuilder : IDisposable
 
         if (includeReferences)
         {
-            foreach (var info in Net60.References.All)
+            foreach (var info in DefaultReferenceInfos)
             {
                 AddReference(info.FileName, info.ImageBytes);
             }
@@ -59,6 +65,41 @@ internal sealed class ProjectBuilder : IDisposable
         File.WriteAllBytes(filePath, imageBytes);
         ReferenceFilePaths.Add(filePath);
         return filePath;
+    }
+
+    internal CompilerCall CreateCSharpCall()
+    {
+        var args = new List<string>();
+
+        foreach (var refPath in ReferenceFilePaths)
+        {
+            args.Add($"/r:{refPath}");
+        }
+
+        args.AddRange(SourceFilePaths);
+
+        return new CompilerCall(
+            ProjectFilePath,
+            CompilerCallKind.Regular,
+            DefaultTargetFrameworkMoniker,
+            isCSharp: true,
+            args.ToArray()); ;
+    }
+
+    internal CompilerLogReader GetCompilerLogReader()
+    {
+        var compilerCall = CreateCSharpCall();
+        var stream = new MemoryStream();
+        var builder = new CompilerLogBuilder(stream, new());
+        builder.Add(compilerCall);
+        if (builder.Diagnostics.Count > 0)
+        {
+            throw new Exception($"Diagnostics building log");
+        }
+
+        builder.Close();
+        stream.Position = 0;
+        return new CompilerLogReader(stream, leaveOpen: true);
     }
 
     public void Dispose()
