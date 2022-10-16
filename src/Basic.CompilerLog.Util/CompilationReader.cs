@@ -72,6 +72,22 @@ public sealed class CompilationReader : IDisposable
         return list;
     }
 
+    public List<(string FileName, List<byte> ImageBytes)> ReadReferenceFileInfo(int index)
+    {
+        if (index >= CompilationCount)
+            throw new InvalidOperationException();
+        var (_, rawCompilationData) = Reader.ReadRawCompilationData(index);
+        var list = new List<(string, List<byte>)>(rawCompilationData.References.Count);
+        foreach (var referenceData in rawCompilationData.References)
+        {
+            list.Add((
+                Reader.GetMetadataReferenceFileName(referenceData.Mvid),
+                Reader.GetMetadataReferenceBytes(referenceData.Mvid)));
+        }
+
+        return list;
+    }
+
     internal CompilationData ReadCompilationData(int index)
     {
         if (index >= CompilationCount)

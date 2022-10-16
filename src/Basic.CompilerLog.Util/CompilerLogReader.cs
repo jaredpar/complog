@@ -130,7 +130,6 @@ internal sealed class CompilerLogReader : IDisposable
                 Guid.TryParse(items[1], out var mvid) &&
                 int.TryParse(items[2], out var kind))
             {
-                var reference = GetMetadataReference(mvid);
                 var embedInteropTypes = items[3] == "1";
 
                 string[]? aliases = null;
@@ -203,6 +202,16 @@ internal sealed class CompilerLogReader : IDisposable
     {
         using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         return entryStream.ReadAllBytes();
+    }
+
+    internal string GetMetadataReferenceFileName(Guid mvid)
+    {
+        if (_mvidToRefInfoMap.TryGetValue(mvid, out var tuple))
+        {
+            return tuple.FileName;
+        }
+
+        throw new ArgumentException($"{mvid} is not a valid MVID");
     }
 
     internal MetadataReference GetMetadataReference(Guid mvid)
