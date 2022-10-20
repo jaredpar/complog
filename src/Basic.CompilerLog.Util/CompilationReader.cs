@@ -72,16 +72,32 @@ public sealed class CompilationReader : IDisposable
         return list;
     }
 
+    public List<(string FileName, List<byte> ImageBytes)> ReadReferenceFileInfo(int index)
+    {
+        if (index >= CompilationCount)
+            throw new InvalidOperationException();
+        var (_, rawCompilationData) = Reader.ReadRawCompilationData(index);
+        var list = new List<(string, List<byte>)>(rawCompilationData.References.Count);
+        foreach (var referenceData in rawCompilationData.References)
+        {
+            list.Add((
+                Reader.GetMetadataReferenceFileName(referenceData.Mvid),
+                Reader.GetMetadataReferenceBytes(referenceData.Mvid)));
+        }
+
+        return list;
+    }
+
     internal CompilationData ReadCompilationData(int index)
     {
         if (index >= CompilationCount)
             throw new InvalidOperationException();
 
         var (compilerCall, rawCompilationData) = Reader.ReadRawCompilationData(index);
+        var referenceList = Reader.GetMetadataReferences(rawCompilationData.References);
 
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
-        var metadataReferenceList = new List<MetadataReference>();
         var additionalTextList = new List<AdditionalText>();
 
         foreach (var tuple in rawCompilationData.Contents)
@@ -166,7 +182,7 @@ public sealed class CompilationReader : IDisposable
             var compilation = CSharpCompilation.Create(
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
-                metadataReferenceList,
+                referenceList,
                 csharpArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new CSharpCompilationData(
@@ -197,7 +213,7 @@ public sealed class CompilationReader : IDisposable
             var compilation = VisualBasicCompilation.Create(
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
-                metadataReferenceList,
+                referenceList,
                 basicArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new VisualBasicCompilationData(

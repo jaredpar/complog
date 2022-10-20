@@ -1,6 +1,7 @@
 ﻿using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
@@ -86,7 +87,7 @@ internal sealed class CompilerLogReader : IDisposable
         CommandLineArguments args = compilerCall.IsCSharp 
             ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null)
             : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
-        var references = new List<MetadataReference>();
+        var references = new List<RawReferenceData>();
         var analyzers = new List<Guid>();
         var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)>();
 
@@ -129,17 +130,18 @@ internal sealed class CompilerLogReader : IDisposable
                 Guid.TryParse(items[1], out var mvid) &&
                 int.TryParse(items[2], out var kind))
             {
-                var reference = GetMetadataReference(mvid);
-                if (items[3] == "1")
-                    reference = reference.WithEmbedInteropTypes(true);
+                var embedInteropTypes = items[3] == "1";
 
+                string[]? aliases = null;
                 if (!string.IsNullOrEmpty(items[4]))
                 {
-                    var aliases = items[4].Split(',');
-                    reference = reference.WithAliases(aliases);
+                    aliases = items[4].Split(',');
                 }
 
-                references.Add(reference);
+                references.Add(new RawReferenceData(
+                    mvid,
+                    aliases,
+                    embedInteropTypes));
                 return;
             }
 
@@ -196,6 +198,22 @@ internal sealed class CompilerLogReader : IDisposable
         return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments);
     }
 
+    internal List<byte> GetMetadataReferenceBytes(Guid mvid)
+    {
+        using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
+        return entryStream.ReadAllBytes();
+    }
+
+    internal string GetMetadataReferenceFileName(Guid mvid)
+    {
+        if (_mvidToRefInfoMap.TryGetValue(mvid, out var tuple))
+        {
+            return tuple.FileName;
+        }
+
+        throw new ArgumentException($"{mvid} is not a valid MVID");
+    }
+
     internal MetadataReference GetMetadataReference(Guid mvid)
     {
         if (_refMap.TryGetValue(mvid, out var metadataReference))
@@ -203,13 +221,37 @@ internal sealed class CompilerLogReader : IDisposable
             return metadataReference;
         }
 
-        using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
-        var bytes = entryStream.ReadAllBytes();
-
+        var bytes = GetMetadataReferenceBytes(mvid);
         var tuple = _mvidToRefInfoMap[mvid];
         metadataReference = MetadataReference.CreateFromStream(new MemoryStream(bytes.ToArray()), filePath: tuple.FileName);
         _refMap.Add(mvid, metadataReference);
         return metadataReference;
+    }
+
+    internal MetadataReference GetMetadataReference(in RawReferenceData data)
+    {
+        var reference = GetMetadataReference(data.Mvid);
+        if (data.EmbedInteropTypes)
+        {
+            reference = reference.WithEmbedInteropTypes(true);
+        }
+
+        if (data.Aliases is { Length: > 0 })
+        {
+            reference = reference.WithAliases(data.Aliases);
+        }
+
+        return reference;
+    }
+
+    internal List<MetadataReference> GetMetadataReferences(List<RawReferenceData> referenceDataList)
+    {
+        var list = new List<MetadataReference>(capacity: referenceDataList.Count);
+        foreach (var referenceData in referenceDataList)
+        {
+            list.Add(GetMetadataReference(referenceData));
+        }
+        return list;
     }
 
     internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm)

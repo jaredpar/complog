@@ -17,6 +17,7 @@ try
     {
         "create" => RunCreate(rest),
         "diagnostics" => RunDiagnostics(rest),
+        "ref" => RunReferences(rest),
         "rsp" => RunResponseFile(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(),
@@ -117,14 +118,12 @@ int RunPrint(IEnumerable<string> args)
     }
 }
 
-int RunResponseFile(IEnumerable<string> args)
+int RunReferences(IEnumerable<string> args)
 {
-    var singleLine = false;
     var outputPath = "";
     var options = new FilterOptionSet()
     {
-        { "s|singleline", "keep response file as single line",  s => singleLine = s != null },
-        { "o|out=", "path to output rsp files (default is next to project)", o => outputPath = o },
+        { "o|out", "path to output reference files", o => outputPath = o },
     };
 
     try
@@ -136,12 +135,68 @@ int RunResponseFile(IEnumerable<string> args)
             return ExitFailure;
         }
 
-        var logFilePath = GetLogFilePath(extra);
-        if (string.IsNullOrEmpty(outputPath))
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
+        using var reader = CompilationReader.Create(compilerLogStream, leaveOpen: true);
+        var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
+
+        outputPath = GetOutputPath(outputPath, "refs");
+        WriteLine($"Copying references to {outputPath}");
+        Directory.CreateDirectory(outputPath);
+
+        for (int i = 0; i < compilerCalls.Count; i++)
         {
-            outputPath = Path.Combine(Path.GetDirectoryName(logFilePath)!, ".rsp");
+            var compilerCall = compilerCalls[i];
+            var refDirPath = Path.Combine(outputPath, GetProjectUniqueName(compilerCalls, i));
+            Directory.CreateDirectory(refDirPath);
+            var referenceInfoList = reader.ReadReferenceFileInfo(i);
+            foreach (var tuple in referenceInfoList)
+            {
+                var filePath = Path.Combine(refDirPath, tuple.FileName);
+                File.WriteAllBytes(filePath, tuple.ImageBytes.ToArray());
+            }
         }
 
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("compilerlog rsp [OPTIONS] build.compilerlog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
+int RunResponseFile(IEnumerable<string> args)
+{
+    var singleLine = false;
+    var outputPath = "";
+    var options = new FilterOptionSet()
+    {
+        { "s|singleline", "keep response file as single line",  s => singleLine = s != null },
+        { "o|out=", "path to output rsp files", o => outputPath = o },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (options.Help)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
+        var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
+            compilerLogStream,
+            options.FilterCompilerCalls);
+
+        outputPath = GetOutputPath(outputPath, "rsp");
         WriteLine($"Generating response files in {outputPath}");
         Directory.CreateDirectory(outputPath);
 
@@ -149,10 +204,8 @@ int RunResponseFile(IEnumerable<string> args)
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var responseFileName = GetResponseFileName();
-            var responseFilePath = string.IsNullOrEmpty(outputPath)
-                ? Path.Combine(Path.GetDirectoryName(compilerCall.ProjectFilePath)!, responseFileName)
-                : Path.Combine(outputPath, responseFileName);
+            var responseFileName = GetProjectUniqueName(compilerCalls, i) + ".rsp";
+            var responseFilePath = Path.Combine(outputPath, responseFileName);
             using var writer = new StreamWriter(responseFilePath, append: false, Encoding.UTF8);
             if (singleLine)
             {
@@ -164,26 +217,6 @@ int RunResponseFile(IEnumerable<string> args)
                 {
                     writer.WriteLine(arg);
                 }
-            }
-
-            string GetResponseFileName()
-            {
-                var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
-
-                // If the project is built multiple times then need to make it unique
-                if (compilerCalls.Count(x => x.ProjectFilePath == compilerCall.ProjectFilePath) > 1)
-                {
-                    if (!string.IsNullOrEmpty(compilerCall.TargetFramework))
-                    {
-                        name += "-" + compilerCall.TargetFramework;
-                    }
-                    else
-                    {
-                        name += i.ToString();
-                    }
-                }
-
-                return name + ".rsp";
             }
         }
 
@@ -277,6 +310,7 @@ int RunHelp()
           create        Create a compilerlog file 
           diagnostics   Print diagnostics for a compilation
           rsp           Generate compiler response file for selected projects
+          ref           Copy all references to a single directory
           print         Print summary of entries in the log
           help          Print help
         """);
@@ -335,6 +369,36 @@ string GetLogFilePath(List<string> extra)
     static OptionException CreateOptionException() => new("Need a path to a log file", "log");
 }
 
+string GetOutputPath(string? outputPath, string directoryName)
+{
+    if (!string.IsNullOrEmpty(outputPath))
+    {
+        return outputPath;
+    }
+
+    return Path.Combine(Environment.CurrentDirectory, ".compilerlog", directoryName);
+}
+
+string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
+{
+    var compilerCall = compilerCalls[index];
+    var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
+
+    // If the project is built multiple times then need to make it unique
+    if (compilerCalls.Count(x => x.ProjectFilePath == compilerCall.ProjectFilePath) > 1)
+    {
+        if (!string.IsNullOrEmpty(compilerCall.TargetFramework))
+        {
+            name += "-" + compilerCall.TargetFramework;
+        }
+        else
+        {
+            name += index.ToString();
+        }
+    }
+
+    return name;
+}
 
 
 
