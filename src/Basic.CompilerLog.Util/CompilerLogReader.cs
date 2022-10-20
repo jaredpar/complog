@@ -9,20 +9,21 @@ using Microsoft.CodeAnalysis.VisualBasic;
 using System.Collections.Immutable;
 using System.IO.Compression;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Runtime.Loader;
 using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
 
-internal sealed class CompilerLogReader : IDisposable
+public sealed class CompilerLogReader : IDisposable
 {
     private readonly Dictionary<Guid, MetadataReference> _refMap = new Dictionary<Guid, MetadataReference>();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
 
     internal ZipArchive ZipArchive { get; set; }
-    internal int CompilationCount { get; }
+    internal int Count { get; }
 
-    internal CompilerLogReader(Stream stream, bool leaveOpen)
+    private CompilerLogReader(Stream stream, bool leaveOpen)
     {
         try
         {
@@ -34,7 +35,7 @@ internal sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
-        CompilationCount = ReadMetadata();
+        Count = ReadMetadata();
         ReadAssemblyInfo();
 
         int ReadMetadata()
@@ -66,23 +67,211 @@ internal sealed class CompilerLogReader : IDisposable
         static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
     }
 
-    // TODO: wrong layer, needs to be in CompilationLogUtil
-    internal CompilerCall ReadCompilerCall(int index)
+    public static CompilerLogReader Create(Stream stream, bool leaveOpen = false) => new CompilerLogReader(stream, leaveOpen);
+
+    public static CompilerLogReader Create(string filePath)
     {
-        if (index >= CompilationCount)
+        var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
+        return new CompilerLogReader(stream, leaveOpen: false);
+    }
+
+    public CompilerCall ReadCompilerCall(int index)
+    {
+        if (index >= Count)
             throw new InvalidOperationException();
 
         using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
-        return ReadCompilerCallCore(reader);
+        return ReadCompilerCallCore(reader, index);
+    }
+
+    public List<CompilerCall> ReadCompilerCalls(Func<CompilerCall, bool>? predicate = null)
+    {
+        predicate ??= static _ => true;
+        var list = new List<CompilerCall>();
+        for (int i = 0; i < Count; i++)
+        {
+            var compilerCall = ReadCompilerCall(i);
+            if (predicate(compilerCall))
+            {
+                list.Add(compilerCall);
+            }
+        }
+
+        return list;
+    }
+
+    public CompilationData ReadCompilationData(int index) =>
+        ReadCompilationData(ReadCompilerCall(index));
+
+    public CompilationData ReadCompilationData(CompilerCall compilerCall)
+    {
+        var rawCompilationData = ReadRawCompilationData(compilerCall);
+        var referenceList = GetMetadataReferences(rawCompilationData.References);
+
+        var sourceTextList = new List<(SourceText SourceText, string Path)>();
+        var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
+        var additionalTextList = new List<AdditionalText>();
+
+        foreach (var tuple in rawCompilationData.Contents)
+        {
+            switch (tuple.Kind)
+            {
+                case RawContentKind.SourceText:
+                    sourceTextList.Add((GetSourceText(tuple.ContentHash, tuple.HashAlgorithm), tuple.FilePath));
+                    break;
+                case RawContentKind.AnalyzerConfig:
+                    analyzerConfigList.Add((GetSourceText(tuple.ContentHash, tuple.HashAlgorithm), tuple.FilePath));
+                    break;
+                case RawContentKind.AdditionalText:
+                    additionalTextList.Add(new BasicAdditionalTextFile(
+                        tuple.FilePath,
+                        GetSourceText(tuple.ContentHash, tuple.HashAlgorithm)));
+                    break;
+                default:
+                    throw new InvalidOperationException();
+            }
+        }
+
+        return compilerCall.IsCSharp
+            ? CreateCSharp()
+            : CreateVisualBasic();
+
+        (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(IEnumerable<SyntaxTree> syntaxTrees, IEnumerable<AdditionalText> additionalTexts)
+        {
+            AnalyzerConfigOptionsResult globalConfigOptions = default;
+            AnalyzerConfigSet? analyzerConfigSet = null;
+            var resultList = new List<(object, AnalyzerConfigOptionsResult)>();
+
+            if (analyzerConfigList.Count > 0)
+            {
+                var list = new List<AnalyzerConfig>();
+                foreach (var tuple in analyzerConfigList)
+                {
+                    list.Add(AnalyzerConfig.Parse(tuple.SourceText, tuple.Path));
+                }
+
+                analyzerConfigSet = AnalyzerConfigSet.Create(list);
+                globalConfigOptions = analyzerConfigSet.GlobalConfigOptions;
+            }
+
+            foreach (var syntaxTree in syntaxTrees)
+            {
+                resultList.Add((syntaxTree, analyzerConfigSet?.GetOptionsForSourcePath(syntaxTree.FilePath) ?? default));
+            }
+
+            foreach (var additionalText in additionalTexts)
+            {
+                resultList.Add((additionalText, analyzerConfigSet?.GetOptionsForSourcePath(additionalText.Path) ?? default));
+            }
+
+            var syntaxOptionsProvider = new BasicSyntaxTreeOptionsProvider(
+                isConfigEmpty: analyzerConfigList.Count == 0,
+                globalConfigOptions,
+                resultList);
+            var analyzerConfigOptionsProvider = new BasicAnalyzerConfigOptionsProvider(
+                isConfigEmpty: analyzerConfigList.Count == 0,
+                globalConfigOptions,
+                resultList);
+            return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
+        }
+
+        CSharpCompilationData CreateCSharp()
+        {
+            var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
+            var parseOptions = csharpArgs.ParseOptions;
+
+            var syntaxTrees = new SyntaxTree[sourceTextList.Count];
+            Parallel.For(
+                0,
+                sourceTextList.Count,
+                i =>
+                {
+                    var t = sourceTextList[i];
+                    syntaxTrees[i] = CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
+                });
+
+            var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
+            var compilation = CSharpCompilation.Create(
+                rawCompilationData.Arguments.CompilationName,
+                syntaxTrees,
+                referenceList,
+                csharpArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+
+            return new CSharpCompilationData(
+                compilerCall,
+                compilation,
+                csharpArgs,
+                additionalTextList.ToImmutableArray(),
+                CreateAssemblyLoadContext(compilerCall.ProjectFilePath, rawCompilationData.Analyzers),
+                analyzerProvider);
+        }
+
+        VisualBasicCompilationData CreateVisualBasic()
+        {
+            var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
+            var parseOptions = basicArgs.ParseOptions;
+            var syntaxTrees = new SyntaxTree[sourceTextList.Count];
+            Parallel.For(
+                0,
+                sourceTextList.Count,
+                i =>
+                {
+                    var t = sourceTextList[i];
+                    syntaxTrees[i] = VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
+                });
+
+            var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
+
+            var compilation = VisualBasicCompilation.Create(
+                rawCompilationData.Arguments.CompilationName,
+                syntaxTrees,
+                referenceList,
+                basicArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+
+            return new VisualBasicCompilationData(
+                compilerCall,
+                compilation,
+                basicArgs,
+                additionalTextList.ToImmutableArray(),
+                CreateAssemblyLoadContext(compilerCall.ProjectFilePath, rawCompilationData.Analyzers),
+                analyzerProvider);
+        }
+    }
+
+    public List<CompilationData> ReadCompilationDatas(Func<CompilerCall, bool>? predicate = null)
+    {
+        var calls = ReadCompilerCalls(predicate);
+        var list = new List<CompilationData>(capacity: calls.Count);
+        foreach (var compilerCall in ReadCompilerCalls(predicate))
+        {
+            list.Add(ReadCompilationData(compilerCall));
+        }
+        return list;
     }
 
     internal (CompilerCall, RawCompilationData) ReadRawCompilationData(int index)
     {
-        if (index >= CompilationCount)
-            throw new InvalidOperationException();
+        var compilerCall = ReadCompilerCall(index);
+        return (compilerCall, ReadRawCompilationData(compilerCall));
+    }
 
+    internal int GetIndex(CompilerCall compilerCall)
+    {
+        if (compilerCall.Index is int i && i < Count)
+        {
+            return i;
+        }
+
+        throw new ArgumentException($"Invalid index");
+    }
+
+    internal RawCompilationData ReadRawCompilationData(CompilerCall compilerCall)
+    {
+        var index = GetIndex(compilerCall);
         using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
-        var compilerCall = ReadCompilerCallCore(reader);
+
+        // TODO: re-reading the call is a bit inefficient here, better to just skip 
+        _ = ReadCompilerCallCore(reader, index);
 
         CommandLineArguments args = compilerCall.IsCSharp 
             ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null)
@@ -121,7 +310,7 @@ internal sealed class CompilerLogReader : IDisposable
             analyzers,
             contents);
 
-        return (compilerCall, data);
+        return data;
 
         void ParseMetadataReference(string line)
         {
@@ -177,7 +366,23 @@ internal sealed class CompilerLogReader : IDisposable
         return list;
     }
 
-    private CompilerCall ReadCompilerCallCore(StreamReader reader)
+    public List<(string FileName, List<byte> ImageBytes)> ReadReferenceFileInfo(CompilerCall compilerCall)
+    {
+        var index = GetIndex(compilerCall);
+        var (_, rawCompilationData) = ReadRawCompilationData(index);
+        var list = new List<(string, List<byte>)>(rawCompilationData.References.Count);
+        foreach (var referenceData in rawCompilationData.References)
+        {
+            list.Add((
+                GetMetadataReferenceFileName(referenceData.Mvid),
+                GetMetadataReferenceBytes(referenceData.Mvid)));
+        }
+
+        return list;
+    }
+
+
+    private CompilerCall ReadCompilerCallCore(StreamReader reader, int index)
     {
         var projectFile = reader.ReadLineOrThrow();
         var isCSharp = reader.ReadLineOrThrow() == "C#";
@@ -195,7 +400,7 @@ internal sealed class CompilerLogReader : IDisposable
             arguments[i] = reader.ReadLineOrThrow();
         }
 
-        return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments);
+        return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments, index);
     }
 
     internal List<byte> GetMetadataReferenceBytes(Guid mvid)

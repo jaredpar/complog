@@ -18,7 +18,7 @@ public sealed class SolutionReader : IDisposable
     internal VersionStamp VersionStamp { get; }
     internal SolutionId SolutionId { get; } = SolutionId.CreateNewId();
 
-    public int ProjectCount => Reader.CompilationCount;
+    public int ProjectCount => Reader.Count;
 
     internal SolutionReader(CompilerLogReader reader, VersionStamp? versionStamp = null)
     {
@@ -26,8 +26,8 @@ public sealed class SolutionReader : IDisposable
         VersionStamp = versionStamp ?? VersionStamp.Default;
         TextLoader = new(reader, VersionStamp);
 
-        _projectIdList = new List<ProjectId>(reader.CompilationCount);
-        for (int i = 0; i < reader.CompilationCount; i++)
+        _projectIdList = new List<ProjectId>(reader.Count);
+        for (int i = 0; i < reader.Count; i++)
         {
             // TODO: consider getting the project name here
             _projectIdList.Add(ProjectId.CreateNewId(debugName: i.ToString()));
@@ -39,12 +39,12 @@ public sealed class SolutionReader : IDisposable
         Reader.Dispose();
     }
 
-    public static SolutionReader Create(Stream stream, bool leaveOpen = false) => new (new CompilerLogReader(stream, leaveOpen));
+    public static SolutionReader Create(Stream stream, bool leaveOpen = false) => new (CompilerLogReader.Create(stream, leaveOpen));
 
     public static SolutionReader Create(string filePath)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new(new CompilerLogReader(stream, leaveOpen: false));
+        return new(CompilerLogReader.Create(stream, leaveOpen: false));
     }
 
     public SolutionInfo ReadSolution()

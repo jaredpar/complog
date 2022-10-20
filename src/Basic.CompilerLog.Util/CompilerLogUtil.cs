@@ -73,7 +73,7 @@ public static class CompilerLogUtil
 
     public static List<CompilerCall> ReadCompilerCalls(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
     {
-        using var reader = CompilationReader.Create(compilerLogStream);
+        using var reader = CompilerLogReader.Create(compilerLogStream);
         return reader.ReadCompilerCalls(predicate);
     }
 
@@ -85,7 +85,7 @@ public static class CompilerLogUtil
 
     public static List<CompilationData> ReadCompilationDatas(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
     {
-        using var reader = CompilationReader.Create(compilerLogStream);
+        using var reader = CompilerLogReader.Create(compilerLogStream);
         return reader.ReadCompilationDatas(predicate);
     }
 

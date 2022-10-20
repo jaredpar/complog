@@ -57,7 +57,8 @@ public static class BinaryLogUtil
             tuple.Kind,
             tuple.Target.Project.TargetFramework,
             isCSharp: true,
-            rawArgs);
+            rawArgs,
+            index: null);
     }
 
     internal static CompilerCall? TryCreateCompilerCall(VbcTask task, List<string> diagnosticList)
@@ -80,7 +81,8 @@ public static class BinaryLogUtil
             tuple.Kind,
             tuple.Target.Project.TargetFramework,
             isCSharp: false,
-            rawArgs);
+            rawArgs,
+            index: null);
     }
 
     private static (Target Target, CompilerCallKind Kind)? FindCompileTarget(Task task, List<string> diagnosticList)
