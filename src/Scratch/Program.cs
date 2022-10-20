@@ -23,13 +23,13 @@ void RoundTrip(string binlogFilePath)
     }
 
     using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-    using var reader = CompilationReader.Create(compilerLogStream);
-    for (int i = 0; i < reader.CompilationCount; i++)
+    using var reader = CompilerLogReader.Create(compilerLogStream);
+    for (int i = 0; i < reader.Count; i++)
     {
         var compilerCall = reader.ReadCompilerCall(i);
         Console.WriteLine($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
 
-        var compilation = reader.ReadCompilationData(i);
+        var compilation = reader.ReadCompilationData(compilerCall);
     }
 }
 
@@ -54,8 +54,8 @@ async Task SolutionScratchAsync(string binlogFilePath)
 void TestDiagnostics(string binlogFilePath)
 {
     using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath); 
-    using var reader = CompilationReader.Create(compilerLogStream);
-    for (int i = 0; i < reader.CompilationCount; i++)
+    using var reader = CompilerLogReader.Create(compilerLogStream);
+    for (int i = 0; i < reader.Count; i++)
     {
         var compilationData = reader.ReadCompilationData(i);
         var compilation = compilationData.GetCompilationAfterGenerators();

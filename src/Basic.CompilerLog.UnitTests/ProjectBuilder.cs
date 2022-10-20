@@ -83,7 +83,8 @@ internal sealed class ProjectBuilder : IDisposable
             CompilerCallKind.Regular,
             DefaultTargetFrameworkMoniker,
             isCSharp: true,
-            args.ToArray()); ;
+            args.ToArray(),
+            index: null);
     }
 
     internal CompilerLogReader GetCompilerLogReader()
@@ -99,7 +100,7 @@ internal sealed class ProjectBuilder : IDisposable
 
         builder.Close();
         stream.Position = 0;
-        return new CompilerLogReader(stream, leaveOpen: true);
+        return CompilerLogReader.Create(stream, leaveOpen: true);
     }
 
     public void Dispose()

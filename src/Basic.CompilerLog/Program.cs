@@ -136,7 +136,7 @@ int RunReferences(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = CompilationReader.Create(compilerLogStream, leaveOpen: true);
+        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
 
         outputPath = GetOutputPath(outputPath, "refs");
@@ -148,7 +148,7 @@ int RunReferences(IEnumerable<string> args)
             var compilerCall = compilerCalls[i];
             var refDirPath = Path.Combine(outputPath, GetProjectUniqueName(compilerCalls, i));
             Directory.CreateDirectory(refDirPath);
-            var referenceInfoList = reader.ReadReferenceFileInfo(i);
+            var referenceInfoList = reader.ReadReferenceFileInfo(compilerCall);
             foreach (var tuple in referenceInfoList)
             {
                 var filePath = Path.Combine(refDirPath, tuple.FileName);
@@ -200,7 +200,6 @@ int RunResponseFile(IEnumerable<string> args)
         WriteLine($"Generating response files in {outputPath}");
         Directory.CreateDirectory(outputPath);
 
-        var compilerCalls = GetCompilerCalls();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
@@ -221,20 +220,6 @@ int RunResponseFile(IEnumerable<string> args)
         }
 
         return ExitSuccess;
-
-        List<CompilerCall> GetCompilerCalls()
-        {
-            var ext = Path.GetExtension(logFilePath);
-            using var stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (ext == ".binlog")
-            {
-                return BinaryLogUtil.ReadCompilerCalls(stream, new(), options.FilterCompilerCalls);
-            }
-            else
-            {
-                return CompilerLogUtil.ReadCompilerCalls(stream, options.FilterCompilerCalls);
-            }
-        }
     }
     catch (OptionException e)
     {
