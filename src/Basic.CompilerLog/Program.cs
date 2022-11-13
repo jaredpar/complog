@@ -39,13 +39,31 @@ int RunCreate(IEnumerable<string> args)
     try
     {
         var extra = options.Parse(args);
-        if (extra.Count != 1 || options.Help)
+        if (options.Help)
         {
             PrintUsage();
             return ExitFailure;
         }
 
-        var binlogFilePath = extra[0];
+        string? binlogFilePath = null;
+        if (extra.Count == 1)
+        {
+            binlogFilePath = extra[0];
+        }
+        else if (extra.Count == 0)
+        {
+            binlogFilePath = Directory
+                .EnumerateFiles(Environment.CurrentDirectory, "*.binlog")
+                .OrderBy(x => Path.GetFileName(x), StringComparer.Ordinal)
+                .FirstOrDefault();
+        }
+
+        if (binlogFilePath is null)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
         var compilerLogFileName = $"{Path.GetFileNameWithoutExtension(binlogFilePath)}.compilerlog";
         var compilerLogFilePath = Path.Combine(Path.GetDirectoryName(binlogFilePath)!, compilerLogFileName);
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(
