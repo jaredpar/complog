@@ -39,13 +39,31 @@ int RunCreate(IEnumerable<string> args)
     try
     {
         var extra = options.Parse(args);
-        if (extra.Count != 1 || options.Help)
+        if (options.Help)
         {
             PrintUsage();
             return ExitFailure;
         }
 
-        var binlogFilePath = extra[0];
+        string? binlogFilePath = null;
+        if (extra.Count == 1)
+        {
+            binlogFilePath = extra[0];
+        }
+        else if (extra.Count == 0)
+        {
+            binlogFilePath = Directory
+                .EnumerateFiles(CurrentDirectory, "*.binlog")
+                .OrderBy(x => Path.GetFileName(x), StringComparer.Ordinal)
+                .FirstOrDefault();
+        }
+
+        if (binlogFilePath is null)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
         var compilerLogFileName = $"{Path.GetFileNameWithoutExtension(binlogFilePath)}.compilerlog";
         var compilerLogFilePath = Path.Combine(Path.GetDirectoryName(binlogFilePath)!, compilerLogFileName);
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(
@@ -318,7 +336,7 @@ string GetLogFilePath(List<string> extra)
     string? path;
     if (extra.Count == 0)
     {
-        path = GetLogFilePath(Environment.CurrentDirectory);
+        path = GetLogFilePath(CurrentDirectory);
     }
     else
     {
@@ -361,7 +379,7 @@ string GetOutputPath(string? outputPath, string directoryName)
         return outputPath;
     }
 
-    return Path.Combine(Environment.CurrentDirectory, ".compilerlog", directoryName);
+    return Path.Combine(CurrentDirectory, ".compilerlog", directoryName);
 }
 
 string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
