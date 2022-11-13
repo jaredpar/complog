@@ -53,7 +53,7 @@ int RunCreate(IEnumerable<string> args)
         else if (extra.Count == 0)
         {
             binlogFilePath = Directory
-                .EnumerateFiles(Environment.CurrentDirectory, "*.binlog")
+                .EnumerateFiles(CurrentDirectory, "*.binlog")
                 .OrderBy(x => Path.GetFileName(x), StringComparer.Ordinal)
                 .FirstOrDefault();
         }
@@ -336,7 +336,7 @@ string GetLogFilePath(List<string> extra)
     string? path;
     if (extra.Count == 0)
     {
-        path = GetLogFilePath(Environment.CurrentDirectory);
+        path = GetLogFilePath(CurrentDirectory);
     }
     else
     {
@@ -379,7 +379,7 @@ string GetOutputPath(string? outputPath, string directoryName)
         return outputPath;
     }
 
-    return Path.Combine(Environment.CurrentDirectory, ".compilerlog", directoryName);
+    return Path.Combine(CurrentDirectory, ".compilerlog", directoryName);
 }
 
 string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
