@@ -229,7 +229,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         foreach (var analyzer in args.AnalyzerReferences)
         {
             var mvid = AddAssembly(analyzer.FilePath);
-            compilationWriter.WriteLine($"a:{mvid}");
+            compilationWriter.WriteLine($"a:{mvid}:{analyzer.FilePath}");
         }
     }
 

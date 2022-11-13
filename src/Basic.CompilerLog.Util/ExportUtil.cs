@@ -22,7 +22,6 @@ public sealed class ExportUtil
     public void ExportRsp(CompilerCall compilerCall, string destinationDir)
     {
         // TODO: add path map support
-        // TODO: add generator support
 
         if (!Path.IsPathRooted(destinationDir))
         {
@@ -36,7 +35,7 @@ public sealed class ExportUtil
         WriteReferences(destinationDir, compilerCall, data, commandLineList);
         WriteAnalyzers(destinationDir, compilerCall, data, commandLineList);
 
-        // TODO: analyzers
+        // TODO: analyzer configs
         // TODO: additional text
         // TODO: rewrite the RSP file
     }
@@ -52,10 +51,35 @@ public sealed class ExportUtil
             var filePath = Path.Combine(refDir, Reader.GetMetadataReferenceFileName(mvid));
 
             using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            Reader.CopyMetadataReferenceTo(mvid, fileStream);
+            Reader.CopyAssemblyBytes(mvid, fileStream);
 
             // TODO: need to support aliases here.
             var arg = $@"/reference:""{filePath}""";
+            commandLineList.Add(arg);
+        }
+    }
+
+    private void WriteAnalyzers(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
+    {
+        var analyzerDir = Path.Combine(destinationDir, "analyzers");
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var analyzer in rawCompilationData.Analyzers)
+        {
+            // Group analyzers by the directory they came from. This will ensure it mimics the 
+            // setup of the NuGet they came from as this is how the compiler groups them.
+            var dir = Path.GetDirectoryName(analyzer.FilePath)!;
+            if (!map.TryGetValue(dir, out var outDir))
+            {
+                outDir = Path.Combine(analyzerDir, $"group{map.Count}");
+                Directory.CreateDirectory(outDir);
+                map[dir] = outDir;
+            }
+
+            var filePath = Path.Combine(outDir, analyzer.FileName);
+            using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            Reader.CopyAssemblyBytes(analyzer.Mvid, fileStream);
+
+            var arg = $@"/analyzer:""{filePath}""";
             commandLineList.Add(arg);
         }
     }
