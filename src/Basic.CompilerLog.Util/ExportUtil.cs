@@ -33,6 +33,31 @@ public sealed class ExportUtil
         var data = Reader.ReadRawCompilationData(compilerCall);
         Directory.CreateDirectory(destinationDir);
         WriteContent(destinationDir, compilerCall, data, commandLineList);
+        WriteReferences(destinationDir, compilerCall, data, commandLineList);
+        WriteAnalyzers(destinationDir, compilerCall, data, commandLineList);
+
+        // TODO: analyzers
+        // TODO: additional text
+        // TODO: rewrite the RSP file
+    }
+
+    private void WriteReferences(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
+    {
+        var refDir = Path.Combine(destinationDir, "ref");
+        Directory.CreateDirectory(refDir);
+
+        foreach (var tuple in rawCompilationData.References)
+        {
+            var mvid = tuple.Mvid;
+            var filePath = Path.Combine(refDir, Reader.GetMetadataReferenceFileName(mvid));
+
+            using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            Reader.CopyMetadataReferenceTo(mvid, fileStream);
+
+            // TODO: need to support aliases here.
+            var arg = $@"/reference:""{filePath}""";
+            commandLineList.Add(arg);
+        }
     }
 
     private void WriteContent(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
@@ -60,16 +85,20 @@ public sealed class ExportUtil
             Reader.CopyContentTo(tuple.ContentHash, fileStream);
             commandLineList.Add(filePath);
         }
+    }
 
-        static string ReplacePrefix(string filePath, string oldStart, string newStart)
+    /// <summary>
+    /// Replace the <paramref name="oldStart"/> with <paramref name="newStart"/> inside of
+    /// <paramref name="filePath"/>
+    /// </summary>
+    private static string ReplacePrefix(string filePath, string oldStart, string newStart)
+    {
+        var str = filePath.Substring(oldStart.Length);
+        if (str.Length > 0 && str[0] == Path.DirectorySeparatorChar)
         {
-            var str = filePath.Substring(oldStart.Length);
-            if (str.Length > 0 && str[0] == Path.DirectorySeparatorChar)
-            {
-                str = str.Substring(1);
-            }
-
-            return Path.Combine(newStart, str);
+            str = str.Substring(1);
         }
+
+        return Path.Combine(newStart, str);
     }
 }

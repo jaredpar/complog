@@ -409,6 +409,12 @@ public sealed class CompilerLogReader : IDisposable
         return entryStream.ReadAllBytes();
     }
 
+    internal void CopyMetadataReferenceTo(Guid mvid, Stream destination)
+    {
+        using var stream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
+        stream.CopyTo(destination);
+    }
+
     internal string GetMetadataReferenceFileName(Guid mvid)
     {
         if (_mvidToRefInfoMap.TryGetValue(mvid, out var tuple))
