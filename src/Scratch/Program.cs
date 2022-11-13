@@ -10,7 +10,21 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 
 //TestDiagnostics(filePath);
 // RoundTrip(filePath);
-await SolutionScratchAsync(filePath);
+// await SolutionScratchAsync(filePath);
+ExportTest();
+
+void ExportTest()
+{
+    var dest = @"c:\users\jaredpar\temp\export";
+    if (Directory.Exists(dest))
+    {
+        Directory.Delete(dest, recursive: true);
+    }
+
+    var reader = CompilerLogReader.Create(filePath);
+    var util = new ExportUtil(reader);
+    util.ExportRsp(reader.ReadCompilerCall(0), dest);
+}
 
 void RoundTrip(string binlogFilePath)
 {

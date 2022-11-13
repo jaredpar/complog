@@ -459,6 +459,12 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
+    internal void CopyContentTo(string contentHash, Stream destination)
+    {
+        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+        stream.CopyTo(destination);
+    }
+
     internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm)
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
