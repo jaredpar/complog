@@ -79,15 +79,45 @@ public sealed class ExportUtil
                     continue;
                 }
 
+                // The round trip logic does not yet handle these type of embeds
+                // https://github.com/jaredpar/basic-compiler-logger/issues/6
+                if (span.StartsWith("embed", comparison) ||
+                    span.StartsWith("resource", comparison) ||
+                    span.StartsWith("sourcelink", comparison) ||
+                    span.StartsWith("keyfile", comparison) ||
+                    span.StartsWith("publicsign", comparison))
+                {
+                    continue;
+                }
+
                 // Need to pre-create the output directories to allow the compiler to execute
                 if (span.StartsWith("out", comparison) ||
                     span.StartsWith("refout", comparison) ||
                     span.StartsWith("doc", comparison))
                 {
                     var index = span.IndexOf(':');
-                    var tempDir = Path.Combine(destinationDir, span.Slice(index + 1).ToString());
-                    tempDir = Path.GetDirectoryName(tempDir);
-                    Directory.CreateDirectory(tempDir!);
+                    var tempDir = span.Slice(index + 1).ToString();
+
+                    // The RSP can write out full paths in some cases for these items, rewrite them to local
+                    // outside of obj 
+                    if (Path.IsPathRooted(tempDir))
+                    {
+                        var argName = span.Slice(0, index).ToString();
+                        var argPath = Path.Combine(destinationDir, "obj", argName, Path.GetFileName(tempDir));
+                        var isDir = string.IsNullOrEmpty(Path.GetExtension(tempDir));
+                        Directory.CreateDirectory(isDir
+                            ? argPath
+                            : Path.GetDirectoryName(argPath)!);
+                        commandLineList.Add($@"/{argName}:""{argPath}""");
+                        continue;
+                    }
+                    else
+                    {
+                        tempDir = Path.Combine(destinationDir, span.Slice(index + 1).ToString());
+                        tempDir = Path.GetDirectoryName(tempDir);
+                        Directory.CreateDirectory(tempDir!);
+                    }
+
                 }
 
                 lines.Add(line);
