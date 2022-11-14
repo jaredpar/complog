@@ -2,6 +2,7 @@
 using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,6 +14,7 @@ namespace Basic.CompilerLog.UnitTests;
 
 internal sealed class ProjectBuilder : IDisposable
 {
+    internal TempDir Root { get; }
     internal string RootDirectory { get; }
     internal string ReferenceDirectory { get; }
     internal string ProjectDirectory { get; }
@@ -26,7 +28,8 @@ internal sealed class ProjectBuilder : IDisposable
 
     internal ProjectBuilder(string projectFileName, bool includeReferences = true)
     {
-        RootDirectory = Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString());
+        Root = new TempDir();
+        RootDirectory = Root.DirectoryPath;
         ReferenceDirectory = CreateSubDir("reference");
         ProjectDirectory = CreateSubDir("project");
         ProjectFilePath = Path.Combine(ProjectDirectory, projectFileName);

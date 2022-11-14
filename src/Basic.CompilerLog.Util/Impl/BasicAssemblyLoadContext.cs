@@ -18,12 +18,12 @@ internal sealed class BasicAssemblyLoadContext : AssemblyLoadContext
 {
     internal ImmutableArray<BasicAnalyzerReference> AnalyzerReferences { get; }
 
-    internal BasicAssemblyLoadContext(string name, CompilerLogReader reader, List<Guid> analyzerMvids)
+    internal BasicAssemblyLoadContext(string name, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
     {
-        var builder = ImmutableArray.CreateBuilder<BasicAnalyzerReference>(analyzerMvids.Count);
-        foreach (var mvid in analyzerMvids)
+        var builder = ImmutableArray.CreateBuilder<BasicAnalyzerReference>(analyzers.Count);
+        foreach (var analyzer in analyzers)
         {
-            var analyzerBytes = reader.GetAssemblyBytes(mvid);
+            var analyzerBytes = reader.GetAssemblyBytes(analyzer.Mvid);
             var assembly =  LoadFromStream(new MemoryStream(analyzerBytes.ToArray()));
             builder.Add(new(assembly));
         }

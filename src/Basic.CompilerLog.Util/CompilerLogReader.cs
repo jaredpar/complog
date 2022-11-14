@@ -277,7 +277,7 @@ public sealed class CompilerLogReader : IDisposable
             ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null)
             : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
         var references = new List<RawReferenceData>();
-        var analyzers = new List<Guid>();
+        var analyzers = new List<RawAnalyzerData>();
         var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)>();
 
         while (reader.ReadLine() is string line)
@@ -345,9 +345,9 @@ public sealed class CompilerLogReader : IDisposable
 
         void ParseAnalyzer(string line)
         {
-            var items = line.Split(':', count: 2);
+            var items = line.Split(':', count: 3);
             var mvid = Guid.Parse(items[1]);
-            analyzers.Add(mvid);
+            analyzers.Add(new RawAnalyzerData(mvid, items[2]));
         }
     }
 
@@ -380,7 +380,6 @@ public sealed class CompilerLogReader : IDisposable
 
         return list;
     }
-
 
     private CompilerCall ReadCompilerCallCore(StreamReader reader, int index)
     {
@@ -459,6 +458,12 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
+    internal void CopyContentTo(string contentHash, Stream destination)
+    {
+        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+        stream.CopyTo(destination);
+    }
+
     internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm)
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
@@ -474,7 +479,13 @@ public sealed class CompilerLogReader : IDisposable
         return entryStream.ReadAllBytes();
     }
 
-    internal BasicAssemblyLoadContext CreateAssemblyLoadContext(string name, List<Guid> analyzers) =>
+    internal void CopyAssemblyBytes(Guid mvid, Stream destination)
+    {
+        using var stream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
+        stream.CopyTo(destination);
+    }
+
+    internal BasicAssemblyLoadContext CreateAssemblyLoadContext(string name, List<RawAnalyzerData> analyzers) =>
         new BasicAssemblyLoadContext(name, this, analyzers);
 
     public void Dispose()

@@ -1,16 +1,40 @@
-﻿using Basic.CompilerLog.Util;
+﻿using Basic.CompilerLog;
+using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 
 #pragma warning disable 8321
 
-var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 //var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
 
 //TestDiagnostics(filePath);
 // RoundTrip(filePath);
-await SolutionScratchAsync(filePath);
+// await SolutionScratchAsync(filePath);
+ExportTest();
+
+void ExportTest()
+{
+    var dest = @"c:\users\jaredpar\temp\export";
+    EmptyDirectory(dest);
+
+    var d = DotnetUtil.GetSdkDirectories();
+    var reader = CompilerLogReader.Create(filePath);
+    var util = new ExportUtil(reader);
+    util.ExportRsp(reader.ReadCompilerCall(0), dest, DotnetUtil.GetSdkDirectories());
+}
+
+void EmptyDirectory(string directory)
+{
+    if (Directory.Exists(directory))
+    {
+        var d = new DirectoryInfo(directory);
+        foreach(System.IO.FileInfo file in d.GetFiles()) file.Delete();
+        foreach(System.IO.DirectoryInfo subDirectory in d.GetDirectories()) subDirectory.Delete(true);
+    }
+}
 
 void RoundTrip(string binlogFilePath)
 {

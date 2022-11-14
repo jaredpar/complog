@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Scratch", "src\Scratch\Scra
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Basic.CompilerLog", "src\Basic.CompilerLog\Basic.CompilerLog.csproj", "{3A77B0E1-F383-4663-BA36-A1855E7624DC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Basic.CompilerLog.UnitTests", "src\Basic.CompilerLog.UnitTests\Basic.CompilerLog.UnitTests.csproj", "{FFA87128-16E5-440F-8335-28354C2EE2C1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Basic.CompilerLog.UnitTests", "src\Basic.CompilerLog.UnitTests\Basic.CompilerLog.UnitTests.csproj", "{FFA87128-16E5-440F-8335-28354C2EE2C1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
