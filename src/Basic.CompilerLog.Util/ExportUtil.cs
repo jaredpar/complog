@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
@@ -19,7 +20,7 @@ public sealed class ExportUtil
         Reader = reader;
     }
 
-    public void ExportRsp(CompilerCall compilerCall, string destinationDir)
+    public void ExportRsp(CompilerCall compilerCall, string destinationDir, IEnumerable<string> sdkDirectories)
     {
         // TODO: add path map support
 
@@ -35,9 +36,70 @@ public sealed class ExportUtil
         WriteReferences(destinationDir, compilerCall, data, commandLineList);
         WriteAnalyzers(destinationDir, compilerCall, data, commandLineList);
 
+        var rspFilePath = Path.Combine(destinationDir, "build.rsp");
+        File.WriteAllLines(rspFilePath, ProcessRsp());
+
+        // Need to create a few directories so that the builds will actually function
+
         // TODO: analyzer configs
         // TODO: additional text
-        // TODO: rewrite the RSP file
+
+        foreach (var sdkDir in sdkDirectories)
+        {
+            var execPath = Path.Combine(sdkDir, @"Roslyn\bincore");
+            execPath = compilerCall.IsCSharp
+                ? Path.Combine(execPath, "csc.dll")
+                : Path.Combine(execPath, "vbc.dll");
+
+            var cmdFileName = $"build-{Path.GetFileName(sdkDir)}.cmd";
+            File.WriteAllLines(
+                Path.Combine(destinationDir, cmdFileName),
+                new[] { $@"dotnet exec ""{execPath}"" @build.rsp" });
+        }
+
+        List<string> ProcessRsp()
+        {
+            var lines = new List<string>();
+
+            // compiler options aren't case sensitive
+            var comparison = StringComparison.OrdinalIgnoreCase;
+
+            foreach (var line in compilerCall.Arguments)
+            {
+                // The only non-options are source files and those are rewritten by this 
+                // process
+                if (!IsOption(line))
+                {
+                    continue;
+                }
+
+                var span = line.AsSpan().Slice(1);
+                if (span.StartsWith("reference", comparison) ||
+                    span.StartsWith("analyzer", comparison))
+                {
+                    continue;
+                }
+
+                // Need to pre-create the output directories to allow the compiler to execute
+                if (span.StartsWith("out", comparison) ||
+                    span.StartsWith("refout", comparison) ||
+                    span.StartsWith("doc", comparison))
+                {
+                    var index = span.IndexOf(':');
+                    var tempDir = Path.Combine(destinationDir, span.Slice(index + 1).ToString());
+                    tempDir = Path.GetDirectoryName(tempDir);
+                    Directory.CreateDirectory(tempDir!);
+                }
+
+                lines.Add(line);
+            }
+
+            lines.AddRange(commandLineList);
+            return lines;
+
+            static bool IsOption(string str) =>
+                str.Length > 0 && str[0] is '-' or '/';
+        }
     }
 
     private void WriteReferences(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
@@ -54,7 +116,7 @@ public sealed class ExportUtil
             Reader.CopyAssemblyBytes(mvid, fileStream);
 
             // TODO: need to support aliases here.
-            var arg = $@"/reference:""{filePath}""";
+            var arg = $@"/reference:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
             commandLineList.Add(arg);
         }
     }
@@ -62,7 +124,7 @@ public sealed class ExportUtil
     private void WriteAnalyzers(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
     {
         var analyzerDir = Path.Combine(destinationDir, "analyzers");
-        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        var map = new Dictionary<string, string>(PathUtil.Comparer);
         foreach (var analyzer in rawCompilationData.Analyzers)
         {
             // Group analyzers by the directory they came from. This will ensure it mimics the 
@@ -79,7 +141,7 @@ public sealed class ExportUtil
             using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             Reader.CopyAssemblyBytes(analyzer.Mvid, fileStream);
 
-            var arg = $@"/analyzer:""{filePath}""";
+            var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
             commandLineList.Add(arg);
         }
     }
@@ -97,32 +159,17 @@ public sealed class ExportUtil
                 continue;
             }
 
-            if (!tuple.FilePath.StartsWith(projectDir, StringComparison.Ordinal))
+            if (!tuple.FilePath.StartsWith(projectDir, PathUtil.Comparison))
             {
                 // TODO: handle files outside the project cone
                 throw new Exception();
             }
 
-            var filePath = ReplacePrefix(tuple.FilePath, projectDir, srcDir);
+            var filePath = PathUtil.ReplacePathStart(tuple.FilePath, projectDir, srcDir);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             Reader.CopyContentTo(tuple.ContentHash, fileStream);
-            commandLineList.Add(filePath);
+            commandLineList.Add($@"""{PathUtil.RemovePathStart(filePath, destinationDir)}""");
         }
-    }
-
-    /// <summary>
-    /// Replace the <paramref name="oldStart"/> with <paramref name="newStart"/> inside of
-    /// <paramref name="filePath"/>
-    /// </summary>
-    private static string ReplacePrefix(string filePath, string oldStart, string newStart)
-    {
-        var str = filePath.Substring(oldStart.Length);
-        if (str.Length > 0 && str[0] == Path.DirectorySeparatorChar)
-        {
-            str = str.Substring(1);
-        }
-
-        return Path.Combine(newStart, str);
     }
 }

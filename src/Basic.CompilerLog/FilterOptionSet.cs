@@ -30,7 +30,7 @@ internal sealed class FilterOptionSet : OptionSet
 
         if (!string.IsNullOrEmpty(ProjectName))
         {
-            var comparer = StringComparer.OrdinalIgnoreCase;
+            var comparer = PathUtil.Comparer;
             if (comparer.Equals(ProjectName, Path.GetFileName(compilerCall.ProjectFilePath)) ||
                 comparer.Equals(ProjectName, Path.GetFileNameWithoutExtension(compilerCall.ProjectFilePath)))
             {

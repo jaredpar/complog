@@ -1,4 +1,5 @@
-﻿using Basic.CompilerLog.Util;
+﻿using Basic.CompilerLog;
+using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 
 #pragma warning disable 8321
@@ -16,14 +17,22 @@ ExportTest();
 void ExportTest()
 {
     var dest = @"c:\users\jaredpar\temp\export";
-    if (Directory.Exists(dest))
-    {
-        Directory.Delete(dest, recursive: true);
-    }
+    EmptyDirectory(dest);
 
+    var d = DotnetUtil.GetSdkDirectories();
     var reader = CompilerLogReader.Create(filePath);
     var util = new ExportUtil(reader);
-    util.ExportRsp(reader.ReadCompilerCall(0), dest);
+    util.ExportRsp(reader.ReadCompilerCall(0), dest, DotnetUtil.GetSdkDirectories());
+}
+
+void EmptyDirectory(string directory)
+{
+    if (Directory.Exists(directory))
+    {
+        var d = new DirectoryInfo(directory);
+        foreach(System.IO.FileInfo file in d.GetFiles()) file.Delete();
+        foreach(System.IO.DirectoryInfo subDirectory in d.GetDirectories()) subDirectory.Delete(true);
+    }
 }
 
 void RoundTrip(string binlogFilePath)

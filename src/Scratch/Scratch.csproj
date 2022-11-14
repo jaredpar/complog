@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Basic.CompilerLog\DotnetUtil.cs" Link="DotnetUtil.cs" />
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 

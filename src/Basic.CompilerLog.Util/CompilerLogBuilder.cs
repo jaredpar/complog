@@ -24,8 +24,8 @@ namespace Basic.CompilerLog.Util;
 internal sealed class CompilerLogBuilder : IDisposable
 {
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _sourceHashMap = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(PathUtil.Comparer);
+    private readonly HashSet<string> _sourceHashMap = new(PathUtil.Comparer);
 
     private int _compilationCount;
     private bool _closed;

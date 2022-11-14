@@ -54,7 +54,7 @@ int RunCreate(IEnumerable<string> args)
         {
             binlogFilePath = Directory
                 .EnumerateFiles(CurrentDirectory, "*.binlog")
-                .OrderBy(x => Path.GetFileName(x), StringComparer.Ordinal)
+                .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
                 .FirstOrDefault();
         }
 
@@ -350,7 +350,7 @@ string GetLogFilePath(List<string> extra)
         // Search the directory for valid log files
         var path = Directory
             .EnumerateFiles(baseDirectory, "*.compilerlog")
-            .OrderBy(x => Path.GetFileName(x), StringComparer.Ordinal)
+            .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
             .FirstOrDefault();
         if (path is not null)
         {
@@ -359,7 +359,7 @@ string GetLogFilePath(List<string> extra)
 
         path = Directory
             .EnumerateFiles(baseDirectory, "*.binlog")
-            .OrderBy(x => Path.GetFileName(x), StringComparer.Ordinal)
+            .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
             .FirstOrDefault();
         if (path is not null)
         {

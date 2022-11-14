@@ -111,15 +111,15 @@ public static class BinaryLogUtil
         var found = false;
         while (e.MoveNext())
         {
-            if (StringComparer.OrdinalIgnoreCase.Equals(e.Current, "exec"))
+            if (PathUtil.Comparer.Equals(e.Current, "exec"))
             {
-                if (e.MoveNext() && StringComparer.OrdinalIgnoreCase.Equals(Path.GetFileName(e.Current), dllName))
+                if (e.MoveNext() && PathUtil.Comparer.Equals(Path.GetFileName(e.Current), dllName))
                 {
                     found = true;
                 }
                 break;
             }
-            else if (e.Current.EndsWith(exeName, StringComparison.OrdinalIgnoreCase))
+            else if (e.Current.EndsWith(exeName, PathUtil.Comparison))
             {
                 found = true;
                 break;
