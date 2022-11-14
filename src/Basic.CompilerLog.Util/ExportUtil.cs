@@ -41,9 +41,6 @@ public sealed class ExportUtil
 
         // Need to create a few directories so that the builds will actually function
 
-        // TODO: analyzer configs
-        // TODO: additional text
-
         foreach (var sdkDir in sdkDirectories)
         {
             var execPath = Path.Combine(sdkDir, @"Roslyn\bincore");
@@ -75,7 +72,9 @@ public sealed class ExportUtil
 
                 var span = line.AsSpan().Slice(1);
                 if (span.StartsWith("reference", comparison) ||
-                    span.StartsWith("analyzer", comparison))
+                    span.StartsWith("analyzer", comparison) ||
+                    span.StartsWith("additionalfile", comparison) ||
+                    span.StartsWith("analyzerconfig", comparison))
                 {
                     continue;
                 }
@@ -148,28 +147,48 @@ public sealed class ExportUtil
 
     private void WriteContent(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
     {
-        // TODO: add additionalText
-
         var projectDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
+
+        // For all content in the cone of the original project
         var srcDir = Path.Combine(destinationDir, "src");
+
+        // For all content outside the cone of the original project
+        var miscDir = Path.Combine(destinationDir, "misc");
+        var miscMap = new Dictionary<string, string>(PathUtil.Comparer);
+
         foreach (var tuple in rawCompilationData.Contents)
         {
-            if (tuple.Kind != RawContentKind.SourceText)
+            string filePath;
+            if (tuple.FilePath.StartsWith(projectDir, PathUtil.Comparison))
             {
-                continue;
+                filePath = PathUtil.ReplacePathStart(tuple.FilePath, projectDir, srcDir);
+            }
+            else
+            {
+                var key = Path.GetDirectoryName(tuple.FilePath)!;
+                if (!miscMap.TryGetValue(key, out var dirPath))
+                {
+                    dirPath = Path.Combine(miscDir, $"group{miscMap.Count}");
+                    Directory.CreateDirectory(dirPath);
+                    miscMap[key] = dirPath;
+                }
+
+                filePath = Path.Combine(dirPath, Path.GetFileName(tuple.FilePath));
             }
 
-            if (!tuple.FilePath.StartsWith(projectDir, PathUtil.Comparison))
-            {
-                // TODO: handle files outside the project cone
-                throw new Exception();
-            }
-
-            var filePath = PathUtil.ReplacePathStart(tuple.FilePath, projectDir, srcDir);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             Reader.CopyContentTo(tuple.ContentHash, fileStream);
-            commandLineList.Add($@"""{PathUtil.RemovePathStart(filePath, destinationDir)}""");
+
+            var prefix = tuple.Kind switch
+            {
+                RawContentKind.SourceText => "",
+                RawContentKind.AdditionalText => "/additionalfile:",
+                RawContentKind.AnalyzerConfig => "/analyzerconfig:",
+                _ => throw new Exception(),
+            };
+
+            commandLineList.Add($@"{prefix}""{PathUtil.RemovePathStart(filePath, destinationDir)}""");
         }
     }
 }
