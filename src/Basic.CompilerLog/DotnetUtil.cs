@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -9,24 +10,15 @@ namespace Basic.CompilerLog;
 
 internal static class DotnetUtil
 {
-    internal static int Dotnet(string args, string? workingDirectory = null)
-    {
-        var info = new ProcessStartInfo()
-        {
-            FileName = "dotnet",
-            Arguments = args,
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false,
-        };
+    internal static ProcessResult Dotnet(string args, string? workingDirectory = null) =>
+        ProcessUtil.Run(
+            "dotnet",
+            args,
+            workingDirectory: workingDirectory);
 
-        var process = Process.Start(info)!;
-        process.WaitForExit();
-        return process.ExitCode;
-    }
+    internal static ProcessResult New(string args, string? workingDirectory = null) => Dotnet($"new {args}", workingDirectory);
 
-    internal static int New(string args, string? workingDirectory = null) => Dotnet($"new {args}", workingDirectory);
-
-    internal static int Build(string args, string? workingDirectory = null) => Dotnet($"build {args}", workingDirectory);
+    internal static ProcessResult Build(string args, string? workingDirectory = null) => Dotnet($"build {args}", workingDirectory);
 
     internal static List<string> GetSdkDirectories()
     {

@@ -40,15 +40,25 @@ public sealed class ExportUtil
         File.WriteAllLines(rspFilePath, ProcessRsp());
 
         // Need to create a few directories so that the builds will actually function
-
         foreach (var sdkDir in sdkDirectories)
+        {
+            var cmdFileName = $"build-{Path.GetFileName(sdkDir)}.cmd";
+            WriteBuildCmd(sdkDir, cmdFileName);
+        }
+
+        string? bestSdkDir = sdkDirectories.OrderByDescending(x => x, PathUtil.Comparer).FirstOrDefault();
+        if (bestSdkDir is not null)
+        {
+            WriteBuildCmd(bestSdkDir, "build.cmd");
+        }
+
+        void WriteBuildCmd(string sdkDir, string cmdFileName)
         {
             var execPath = Path.Combine(sdkDir, @"Roslyn\bincore");
             execPath = compilerCall.IsCSharp
                 ? Path.Combine(execPath, "csc.dll")
                 : Path.Combine(execPath, "vbc.dll");
 
-            var cmdFileName = $"build-{Path.GetFileName(sdkDir)}.cmd";
             File.WriteAllLines(
                 Path.Combine(destinationDir, cmdFileName),
                 new[] { $@"dotnet exec ""{execPath}"" @build.rsp" });

@@ -1,4 +1,5 @@
-﻿using Basic.CompilerLog.Util;
+﻿using Basic.CompilerLog;
+using Basic.CompilerLog.Util;
 using Microsoft.Build.Tasks.Deployment.ManifestUtilities;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
@@ -17,6 +18,7 @@ try
     {
         "create" => RunCreate(rest),
         "diagnostics" => RunDiagnostics(rest),
+        "export" => RunExport(rest),
         "ref" => RunReferences(rest),
         "rsp" => RunResponseFile(rest),
         "print" => RunPrint(rest),
@@ -190,6 +192,57 @@ int RunReferences(IEnumerable<string> args)
     }
 }
 
+int RunExport(IEnumerable<string> args)
+{
+    var outputPath = "";
+    var options = new FilterOptionSet()
+    {
+        { "o|out=", "path to output rsp files", o => outputPath = o },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (options.Help)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
+        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
+        var exportUtil = new ExportUtil(reader);
+
+        outputPath = GetOutputPath(outputPath, "export");
+        WriteLine($"Exporting to {outputPath}");
+        Directory.CreateDirectory(outputPath);
+
+        var sdkDirs = DotnetUtil.GetSdkDirectories();
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            var compilerCall = compilerCalls[i];
+            var exportDirName = GetProjectUniqueName(compilerCalls, i);
+            var exportDir = Path.Combine(outputPath, exportDirName);
+            exportUtil.ExportRsp(compilerCall, exportDir, sdkDirs);
+        }
+
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("compilerlog export [OPTIONS] build.compilerlog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
 int RunResponseFile(IEnumerable<string> args)
 {
     var singleLine = false;
@@ -312,6 +365,7 @@ int RunHelp()
         Commands
           create        Create a compilerlog file 
           diagnostics   Print diagnostics for a compilation
+          export        Export a complete project to disk
           rsp           Generate compiler response file for selected projects
           ref           Copy all references to a single directory
           print         Print summary of entries in the log
@@ -341,6 +395,10 @@ string GetLogFilePath(List<string> extra)
     else
     {
         path = extra[0];
+        if (string.IsNullOrEmpty(Path.GetExtension(path)))
+        {
+            path = GetLogFilePath(path);
+        }
     }
 
     return path;

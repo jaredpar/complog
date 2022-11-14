@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -10,12 +11,13 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class ProgramTests : IDisposable
 {
+    internal TempDir Root { get; }
     internal string RootDirectory { get; }
 
     public ProgramTests()
     {
-        RootDirectory = Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString());
-        Directory.CreateDirectory(RootDirectory);
+        Root = new TempDir();
+        RootDirectory = Root.DirectoryPath;
     }
 
     public int Run(params string[] args) => Run(args, RootDirectory);
@@ -34,13 +36,34 @@ public sealed class ProgramTests : IDisposable
     [Fact]
     public void CreateNoArgs()
     {
-        Assert.Equal(0, DotnetUtil.New("console", RootDirectory));
-        Assert.Equal(0, DotnetUtil.Build("-bl", RootDirectory));
+        Assert.True(DotnetUtil.New("console", RootDirectory).Succeeded);
+        Assert.True(DotnetUtil.Build("-bl", RootDirectory).Succeeded);
         Assert.Equal(0, Run("create"));
+    }
+
+    [Theory]
+    [InlineData("console")]
+    [InlineData("classlib")]
+    public void ExportHelloWorld(string template)
+    {
+        using var consoleDir = new TempDir("program");
+        using var exportDir = new TempDir();
+
+        Assert.True(DotnetUtil.New(template, consoleDir.DirectoryPath).Succeeded);
+        Assert.True(DotnetUtil.Build("-bl", consoleDir.DirectoryPath).Succeeded);
+        Assert.Equal(0, Run("export", "-o", exportDir.DirectoryPath, consoleDir.DirectoryPath));
+
+        // Now run the generated build.cmd and see if it succeeds;
+        var exportPath = Path.Combine(exportDir.DirectoryPath, "program");
+        var buildResult = ProcessUtil.RunBatchFile(
+            Path.Combine(exportPath, "build.cmd"),
+            args: "",
+            workingDirectory: exportPath);
+        Assert.True(buildResult.Succeeded);
     }
 
     public void Dispose()
     {
-        Directory.Delete(RootDirectory, recursive: true);
+        Root.Dispose();
     }
 }
