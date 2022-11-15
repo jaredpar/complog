@@ -18,10 +18,15 @@ public sealed class CompilerLogReaderTests : TestBase
 
     }
 
-    [Fact]
-    public void HelloWorld()
+    /// <summary>
+    /// Ensure that we can process the contents of all the major templates
+    /// </summary>
+    [Theory]
+    [InlineData("console")]
+    [InlineData("classlib")]
+    public void ReadDifferntTemplates(string template)
     {
-        RunDotNet("new console");
+        RunDotNet($"new {template} --name example --output .");
         RunDotNet("build -bl");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
@@ -29,14 +34,19 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.True(compilerCall.IsCSharp);
 
         var compilationData = reader.ReadCompilationData(compilerCall);
-        var trees = compilationData.Compilation.SyntaxTrees.ToList();
-        Assert.Equal(4, trees.Count);
+        Assert.NotNull(compilationData);
     }
 
-    [Fact]
-    public void ContentExtraSourceFile()
+    /// <summary>
+    /// Can we process an extra file in the major templates
+    /// </summary>
+    /// <param name="template"></param>
+    [Theory]
+    [InlineData("console")]
+    [InlineData("classlib")]
+    public void ContentExtraSourceFile(string template)
     {
-        RunDotNet("new console");
+        RunDotNet($"new {template} --name example --output .");
         var content = """
             // Example content
             """;
