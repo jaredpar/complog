@@ -10,7 +10,9 @@ namespace Basic.CompilerLog.UnitTests;
 
 public abstract class TestBase : IDisposable
 {
-    internal readonly static Encoding DefaultEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+    private static readonly object Guard = new();
+
+    internal static readonly Encoding DefaultEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     internal ITestOutputHelper TestOutputHelper { get; }
     internal TempDir Root { get; }
     internal string RootDirectory => Root.DirectoryPath;
@@ -31,7 +33,18 @@ public abstract class TestBase : IDisposable
         workingDirectory ??= RootDirectory;
         TestOutputHelper.WriteLine($"Working directory: {workingDirectory}");
         TestOutputHelper.WriteLine($"Executing: dotnet {command}");
-        var result = DotnetUtil.Command(command, workingDirectory);
+
+        ProcessResult result;
+
+        // There is a bug in the 7.0 SDK that causes an exception if multiple dotnet new commands
+        // are run in parallel. This can happen with our tests. Temporarily guard against this 
+        // with a lock
+        // https://github.com/dotnet/sdk/pull/28677
+        lock (Guard)
+        {
+            result = DotnetUtil.Command(command, workingDirectory);
+        }
+
         TestOutputHelper.WriteLine(result.StandardOut);
         TestOutputHelper.WriteLine(result.StandardError);
         Assert.Equal(0, result.ExitCode);
