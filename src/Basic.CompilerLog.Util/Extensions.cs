@@ -43,7 +43,7 @@ internal static class Extensions
         }
     }
 
-    internal static List<byte> ReadAllBytes(this Stream stream)
+    internal static byte[] ReadAllBytes(this Stream stream)
     {
         var list = new List<byte>();
         Span<byte> buffer = stackalloc byte[256];
@@ -56,6 +56,6 @@ internal static class Extensions
             list.AddRange(buffer.Slice(0, length));
         } while (true);
 
-        return list;
+        return list.ToArray();
     }
 }

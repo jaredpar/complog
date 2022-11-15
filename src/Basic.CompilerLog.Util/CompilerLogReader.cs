@@ -366,11 +366,11 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
-    public List<(string FileName, List<byte> ImageBytes)> ReadReferenceFileInfo(CompilerCall compilerCall)
+    public List<(string FileName, byte[] ImageBytes)> ReadReferenceFileInfo(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);
         var (_, rawCompilationData) = ReadRawCompilationData(index);
-        var list = new List<(string, List<byte>)>(rawCompilationData.References.Count);
+        var list = new List<(string, byte[])>(rawCompilationData.References.Count);
         foreach (var referenceData in rawCompilationData.References)
         {
             list.Add((
@@ -402,7 +402,7 @@ public sealed class CompilerLogReader : IDisposable
         return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments, index);
     }
 
-    internal List<byte> GetMetadataReferenceBytes(Guid mvid)
+    internal byte[] GetMetadataReferenceBytes(Guid mvid)
     {
         using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         return entryStream.ReadAllBytes();
@@ -458,6 +458,12 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
+    internal byte[] GetContentBytes(string contentHash)
+    {
+        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+        return stream.ReadAllBytes();
+    }
+
     internal void CopyContentTo(string contentHash, Stream destination)
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
@@ -473,7 +479,7 @@ public sealed class CompilerLogReader : IDisposable
         return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm);
     }
 
-    internal List<byte> GetAssemblyBytes(Guid mvid)
+    internal byte[] GetAssemblyBytes(Guid mvid)
     {
         using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         return entryStream.ReadAllBytes();
