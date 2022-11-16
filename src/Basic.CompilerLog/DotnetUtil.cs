@@ -10,15 +10,15 @@ namespace Basic.CompilerLog;
 
 internal static class DotnetUtil
 {
-    internal static ProcessResult Dotnet(string args, string? workingDirectory = null) =>
+    internal static ProcessResult Command(string args, string? workingDirectory = null) =>
         ProcessUtil.Run(
             "dotnet",
             args,
             workingDirectory: workingDirectory);
 
-    internal static ProcessResult New(string args, string? workingDirectory = null) => Dotnet($"new {args}", workingDirectory);
+    internal static ProcessResult New(string args, string? workingDirectory = null) => Command($"new {args}", workingDirectory);
 
-    internal static ProcessResult Build(string args, string? workingDirectory = null) => Dotnet($"build {args}", workingDirectory);
+    internal static ProcessResult Build(string args, string? workingDirectory = null) => Command($"build {args}", workingDirectory);
 
     internal static List<string> GetSdkDirectories()
     {
