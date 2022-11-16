@@ -38,24 +38,26 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     /// <summary>
-    /// Can we process an extra file in the major templates
+    /// Can we process an extra file in the major templates. The file name should not impact 
+    /// the content of the file.
     /// </summary>
     /// <param name="template"></param>
     [Theory]
-    [InlineData("console")]
-    [InlineData("classlib")]
-    public void ContentExtraSourceFile(string template)
+    [InlineData("file1.cs")]
+    [InlineData("file2.cs")]
+    public void ContentExtraSourceFile(string fileName)
     {
-        RunDotNet($"new {template} --name example --output .");
+        RunDotNet($"new console --name example --output .");
         var content = """
             // Example content
             """;
-        File.WriteAllText(Path.Combine(RootDirectory, "extra.cs"), content, DefaultEncoding);
+        File.WriteAllText(Path.Combine(RootDirectory, fileName), content, DefaultEncoding);
         RunDotNet("build -bl");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
         var rawData = reader.ReadRawCompilationData(0).Item2;
-        var extraData = rawData.Contents.Single(x => Path.GetFileName(x.FilePath) == "extra.cs");
+        var extraData = rawData.Contents.Single(x => Path.GetFileName(x.FilePath) == fileName);
+        Assert.Equal("84C9FAFCF8C92F347B96D26B149295128B08B07A3C4385789FE4758A2B520FDE", extraData.ContentHash);
         var contentBytes = reader.GetContentBytes(extraData.ContentHash);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
     }
