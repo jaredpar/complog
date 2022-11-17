@@ -297,7 +297,7 @@ public sealed class ExportUtil
                 var originalFileName = d.GetFileName();
                 var resourceName = d.GetResourceName();
                 var filePath = Path.Combine(builder.EmbeddedResourceDirectory, resourceData.ContentHash, originalFileName ?? resourceName);
-                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                 File.WriteAllBytes(filePath, Reader.GetContentBytes(resourceData.ContentHash));
 
                 var accessibility = d.IsPublic() ? "public" : "private";
