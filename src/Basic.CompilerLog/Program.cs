@@ -229,7 +229,7 @@ int RunExport(IEnumerable<string> args)
 
         return ExitSuccess;
     }
-    catch (OptionException e)
+    catch (Exception e)
     {
         WriteLine(e.Message);
         PrintUsage();
