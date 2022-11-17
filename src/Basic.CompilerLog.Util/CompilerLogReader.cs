@@ -279,7 +279,7 @@ public sealed class CompilerLogReader : IDisposable
         var references = new List<RawReferenceData>();
         var analyzers = new List<RawAnalyzerData>();
         var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)>();
-        var resources = new List<ResourceDescription>();
+        var resources = new List<RawResourceData>();
 
         while (reader.ReadLine() is string line)
         {
@@ -363,7 +363,7 @@ public sealed class CompilerLogReader : IDisposable
             var d = string.IsNullOrEmpty(fileName)
                 ? new ResourceDescription(items[2], dataProvider, isPublic)
                 : new ResourceDescription(items[2], fileName, dataProvider, isPublic);
-            resources.Add(d);
+            resources.Add(new(contentHash, d));
         }
 
         void ParseAnalyzer(string line)
@@ -487,6 +487,9 @@ public sealed class CompilerLogReader : IDisposable
         return stream.ReadAllBytes();
     }
 
+    internal Stream GetContentStream(string contentHash) =>
+        ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+
     internal void CopyContentTo(string contentHash, Stream destination)
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
@@ -507,6 +510,9 @@ public sealed class CompilerLogReader : IDisposable
         using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         return entryStream.ReadAllBytes();
     }
+
+    internal Stream GetAssemblyStream(Guid mvid) =>
+        ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
 
     internal void CopyAssemblyBytes(Guid mvid, Stream destination)
     {

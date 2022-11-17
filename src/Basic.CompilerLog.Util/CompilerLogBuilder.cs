@@ -238,9 +238,9 @@ internal sealed class CompilerLogBuilder : IDisposable
         foreach (var r in args.ManifestResources)
         {
             var name = r.GetResourceName();
-            var fileName = ReflectionUtil.ReadField<string?>(r, "FileName");
-            var isPublic = ReflectionUtil.ReadField<bool>(r, "IsPublic");
-            var dataProvider = ReflectionUtil.ReadField<Func<Stream>>(r, "DataProvider");
+            var fileName = r.GetFileName();
+            var isPublic = r.IsPublic();
+            var dataProvider = r.GetDataProvider();
 
             using var stream = dataProvider();
             var contentHash = AddContent(stream);

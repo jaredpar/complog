@@ -61,4 +61,7 @@ internal static class Extensions
     }
 
     internal static string GetResourceName(this ResourceDescription d) => ReflectionUtil.ReadField<string>(d, "ResourceName");
+    internal static string? GetFileName(this ResourceDescription d) => ReflectionUtil.ReadField<string?>(d, "FileName");
+    internal static bool IsPublic(this ResourceDescription d) => ReflectionUtil.ReadField<bool>(d, "IsPublic");
+    internal static Func<Stream> GetDataProvider(this ResourceDescription d) => ReflectionUtil.ReadField<Func<Stream>>(d, "DataProvider");
 }

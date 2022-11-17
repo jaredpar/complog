@@ -44,6 +44,18 @@ internal readonly struct RawReferenceData
     }
 }
 
+internal readonly struct RawResourceData
+{
+    internal readonly string ContentHash; 
+    internal readonly ResourceDescription ResourceDescription;
+
+    internal RawResourceData(string contentHash, ResourceDescription d)
+    {
+        ContentHash = contentHash;
+        ResourceDescription = d;
+    }
+}
+
 internal sealed class RawCompilationData
 {
     // TODO: should not expose this, it's only needed to the checksum algorithm, fix that.
@@ -51,14 +63,14 @@ internal sealed class RawCompilationData
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
     internal List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)> Contents { get; }
-    internal List<ResourceDescription> Resources { get; }
+    internal List<RawResourceData> Resources { get; }
 
     internal RawCompilationData(
         CommandLineArguments arguments,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
         List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)> contents,
-        List<ResourceDescription> resources)
+        List<RawResourceData> resources)
     {
         Arguments = arguments;
         References = references;

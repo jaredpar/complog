@@ -89,6 +89,6 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var d = rawData.Resources.Single();
-        Assert.Equal("example.resource.txt", d.GetResourceName());
+        Assert.Equal("example.resource.txt", d.ResourceDescription.GetResourceName());
     }
 }
