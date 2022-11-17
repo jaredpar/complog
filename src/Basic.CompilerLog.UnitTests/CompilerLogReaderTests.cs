@@ -61,4 +61,34 @@ public sealed class CompilerLogReaderTests : TestBase
         var contentBytes = reader.GetContentBytes(extraData.ContentHash);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
     }
+
+    [Fact]
+    public void ResourceSimpleEmbedded()
+    {
+        RunDotNet($"new console --name example --output .");
+        var projectFileContent = """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net7.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+              </PropertyGroup>
+              <ItemGroup>
+                <EmbeddedResource Include="resource.txt" />
+              </ItemGroup>
+            </Project>
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
+        var resourceContent = """
+            // This is an amazing resource
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "resource.txt"), resourceContent, DefaultEncoding);
+        RunDotNet("build -bl");
+
+        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
+        var rawData = reader.ReadRawCompilationData(0).Item2;
+        var d = rawData.Resources.Single();
+        Assert.Equal("example.resource.txt", d.GetResourceName());
+    }
 }

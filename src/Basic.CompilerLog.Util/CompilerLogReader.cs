@@ -279,6 +279,7 @@ public sealed class CompilerLogReader : IDisposable
         var references = new List<RawReferenceData>();
         var analyzers = new List<RawAnalyzerData>();
         var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)>();
+        var resources = new List<ResourceDescription>();
 
         while (reader.ReadLine() is string line)
         {
@@ -299,6 +300,9 @@ public sealed class CompilerLogReader : IDisposable
                 case 't':
                     ParseContent(line, RawContentKind.AdditionalText);
                     break;
+                case 'r':
+                    ParseResource(line);
+                    break;
                 default:
                     throw new InvalidOperationException($"Unrecognized line: {line}");
             }
@@ -308,7 +312,8 @@ public sealed class CompilerLogReader : IDisposable
             args,
             references,
             analyzers,
-            contents);
+            contents,
+            resources);
 
         return data;
 
@@ -341,6 +346,24 @@ public sealed class CompilerLogReader : IDisposable
         {
             var items = line.Split(':', count: 3);
             contents.Add((items[2], items[1], kind, args.ChecksumAlgorithm));
+        }
+
+        void ParseResource(string line)
+        {
+            var items = line.Split(':', count: 5);
+            var fileName = items[4];
+            var isPublic = bool.Parse(items[3]);
+            var contentHash = items[1];
+            var dataProvider = () =>
+            {
+                var bytes = GetContentBytes(contentHash);
+                return new MemoryStream(bytes);
+            };
+
+            var d = string.IsNullOrEmpty(fileName)
+                ? new ResourceDescription(items[2], dataProvider, isPublic)
+                : new ResourceDescription(items[2], fileName, dataProvider, isPublic);
+            resources.Add(d);
         }
 
         void ParseAnalyzer(string line)

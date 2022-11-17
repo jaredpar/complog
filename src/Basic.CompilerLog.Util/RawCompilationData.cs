@@ -51,16 +51,19 @@ internal sealed class RawCompilationData
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
     internal List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)> Contents { get; }
+    internal List<ResourceDescription> Resources { get; }
 
     internal RawCompilationData(
         CommandLineArguments arguments,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
-        List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)> contents)
+        List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)> contents,
+        List<ResourceDescription> resources)
     {
         Arguments = arguments;
         References = references;
         Analyzers = analyzers;
         Contents = contents;
+        Resources = resources;
     }
 }
