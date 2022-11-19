@@ -70,6 +70,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddAnalyzerConfigs(compilationWriter, commandLineArguments);
             AddSources(compilationWriter, commandLineArguments);
             AddAdditionalTexts(compilationWriter, commandLineArguments);
+            AddResources(compilationWriter, commandLineArguments);
 
             compilationWriter.Flush();
 
@@ -158,23 +159,31 @@ internal sealed class CompilerLogBuilder : IDisposable
     }
 
     /// <summary>
-    /// Add a source file to the storage and return the stored name of the file.
+    /// Add a source file to the storage and return the stored name of the content in our 
+    /// storage. This will be a checksum of the content itself
     /// </summary>
     private string AddContent(string filePath)
     {
-        var sha = SHA256.Create();
-
         using var fileStream = OpenFileForRead(filePath);
-        var hash = sha.ComputeHash(fileStream);
+        return AddContent(fileStream);
+    }
+
+    /// <summary>
+    /// Add a source file to the storage and return the stored name of the content in our 
+    /// storage. This will be a checksum of the content itself
+    /// </summary>
+    private string AddContent(Stream stream)
+    {
+        var sha = SHA256.Create();
+        var hash = sha.ComputeHash(stream);
         var hashText = GetHashText();
-        var fileExtension = Path.GetExtension(filePath);
 
         if (_sourceHashMap.Add(hashText))
         {
             var entry = ZipArchive.CreateEntry(GetContentEntryName(hashText), CompressionLevel.Optimal);
             using var entryStream = entry.Open();
-            fileStream.Position = 0;
-            fileStream.CopyTo(entryStream);
+            stream.Position = 0;
+            stream.CopyTo(entryStream);
         }
 
         return hashText;
@@ -219,8 +228,23 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var additionalText in args.AdditionalFiles)
         {
-            var hashFilePath = AddContent(additionalText.Path);
-            compilationWriter.WriteLine($"t:{hashFilePath}:{additionalText.Path}");
+            var contentHash = AddContent(additionalText.Path);
+            compilationWriter.WriteLine($"t:{contentHash}:{additionalText.Path}");
+        }
+    }
+
+    private void AddResources(StreamWriter compilationWriter, CommandLineArguments args)
+    {
+        foreach (var r in args.ManifestResources)
+        {
+            var name = r.GetResourceName();
+            var fileName = r.GetFileName();
+            var isPublic = r.IsPublic();
+            var dataProvider = r.GetDataProvider();
+
+            using var stream = dataProvider();
+            var contentHash = AddContent(stream);
+            compilationWriter.WriteLine($"r:{contentHash}:{name}:{isPublic}:{fileName}");
         }
     }
 

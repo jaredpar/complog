@@ -17,9 +17,13 @@ From there the following commands are available:
 
 - `create`: create a compilerlog file from an existing binary log
 - `diagnostics`: print diagnostics from the specified compilations
+- `export`: export complete compilations to disk
+- `ref`: export references for a compilation to disk
 - `rsp`: generate rsp files for compilation events
 - `print`: print the summary of a compilerlog on the command line
 
 ## Info
 
-:warning: A compiler log file contains all of the information necessary to recreate a `Compilation`. That includes all source and references. That will be visible to anyone you provide a compiler log to
+:warning: A compiler log will include potentially sensitive artifacts :warning:
+
+A compiler log file contains all of the information necessary to recreate a `Compilation`. That includes all source, resources, references, strong name keys, etc .... That will be visible to anyone you provide a compiler log to.

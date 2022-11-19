@@ -1,7 +1,9 @@
 ﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.Configuration.Internal;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,6 +15,97 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed class ExportUtil
 {
+    private sealed class ContentBuilder
+    {
+        /// <summary>
+        /// Content can exist outside the cone of the original project tree. That content 
+        /// is mapped, by original directory name, to a new directory in the output. This
+        /// holds the map from the old directory to the new one.
+        /// </summary>
+        private readonly Dictionary<string, string> MiscMap = new(PathUtil.Comparer);
+
+        internal string DestinationDirectory { get; }
+        internal string SourceDirectory { get; }
+        internal string MiscDirectory { get; }
+        internal string EmbeddedResourceDirectory { get; }
+        internal string OriginalProjectFilePath { get; }
+        internal string OriginalProjectDirectory { get; }
+        internal string ProjectName { get; }
+
+        internal ContentBuilder(string destinationDirectory, string originalProjectFilePath)
+        {
+            DestinationDirectory = destinationDirectory;
+            OriginalProjectFilePath = originalProjectFilePath;
+            OriginalProjectDirectory = Path.GetDirectoryName(OriginalProjectFilePath)!;
+            ProjectName = Path.GetFileName(OriginalProjectFilePath);
+            SourceDirectory = Path.Combine(destinationDirectory, "src");
+            MiscDirectory = Path.Combine(destinationDirectory, "misc");
+            EmbeddedResourceDirectory = Path.Combine(destinationDirectory, "resources");
+            Directory.CreateDirectory(SourceDirectory);
+            Directory.CreateDirectory(MiscDirectory);
+            Directory.CreateDirectory(EmbeddedResourceDirectory);
+        }
+
+        private string GetNewFilePath(string originalFilePath)
+        {
+            string filePath;
+            if (originalFilePath.StartsWith(OriginalProjectDirectory, PathUtil.Comparison))
+            {
+                filePath = PathUtil.ReplacePathStart(originalFilePath, OriginalProjectDirectory, SourceDirectory);
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            }
+            else
+            {
+                var key = Path.GetDirectoryName(originalFilePath)!;
+                if (!MiscMap.TryGetValue(key, out var dirPath))
+                {
+                    dirPath = Path.Combine(MiscDirectory, $"group{MiscMap.Count}");
+                    Directory.CreateDirectory(dirPath);
+                    MiscMap[key] = dirPath;
+                }
+
+                filePath = Path.Combine(dirPath, Path.GetFileName(originalFilePath));
+            }
+
+            return filePath;
+        }
+
+        /// <summary>
+        /// Writes the content to the new directory structure and returns the full path of the 
+        /// file that was written.
+        /// </summary>
+        internal string WriteContent(string originalFilePath, byte[] content)
+        {
+            var newFilePath = GetNewFilePath(originalFilePath);
+            File.WriteAllBytes(newFilePath, content);
+            return newFilePath;
+        }
+
+        /// <summary>
+        /// Writes the content to the new directory structure and returns the full path of the 
+        /// file that was written.
+        /// </summary>
+        internal string WriteContent(string originalFilePath, Stream stream)
+        {
+            var newFilePath = GetNewFilePath(originalFilePath);
+            using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            stream.CopyTo(fileStream);
+            return newFilePath;
+        }
+
+        /// <summary>
+        /// Writes the content to the new directory structure and returns the full path of the 
+        /// file that was written.
+        /// </summary>
+        internal string WriteContent(string originalFilePath, Action<Stream> action)
+        {
+            var newFilePath = GetNewFilePath(originalFilePath);
+            using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            action(fileStream);
+            return newFilePath;
+        }
+    }
+
     public CompilerLogReader Reader { get; }
 
     public ExportUtil(CompilerLogReader reader)
@@ -22,19 +115,20 @@ public sealed class ExportUtil
 
     public void ExportRsp(CompilerCall compilerCall, string destinationDir, IEnumerable<string> sdkDirectories)
     {
-        // TODO: add path map support
-
         if (!Path.IsPathRooted(destinationDir))
         {
             throw new ArgumentException("Need a full path", nameof(destinationDir));
         }
 
+        var builder = new ContentBuilder(destinationDir, compilerCall.ProjectFilePath);
+
         var commandLineList = new List<string>();
         var data = Reader.ReadRawCompilationData(compilerCall);
         Directory.CreateDirectory(destinationDir);
-        WriteContent(destinationDir, compilerCall, data, commandLineList);
-        WriteReferences(destinationDir, compilerCall, data, commandLineList);
-        WriteAnalyzers(destinationDir, compilerCall, data, commandLineList);
+        WriteContent();
+        WriteAnalyzers();
+        WriteReferences();
+        WriteResources();
 
         var rspFilePath = Path.Combine(destinationDir, "build.rsp");
         File.WriteAllLines(rspFilePath, ProcessRsp());
@@ -81,10 +175,14 @@ public sealed class ExportUtil
                 }
 
                 var span = line.AsSpan().Slice(1);
+
+                // These options are all rewritten below
                 if (span.StartsWith("reference", comparison) ||
                     span.StartsWith("analyzer", comparison) ||
                     span.StartsWith("additionalfile", comparison) ||
-                    span.StartsWith("analyzerconfig", comparison))
+                    span.StartsWith("analyzerconfig", comparison) ||
+                    span.StartsWith("resource", comparison) ||
+                    span.StartsWith("linkresource", comparison))
                 {
                     continue;
                 }
@@ -92,7 +190,6 @@ public sealed class ExportUtil
                 // The round trip logic does not yet handle these type of embeds
                 // https://github.com/jaredpar/basic-compiler-logger/issues/6
                 if (span.StartsWith("embed", comparison) ||
-                    span.StartsWith("resource", comparison) ||
                     span.StartsWith("sourcelink", comparison) ||
                     span.StartsWith("keyfile", comparison) ||
                     span.StartsWith("publicsign", comparison))
@@ -139,96 +236,75 @@ public sealed class ExportUtil
             static bool IsOption(string str) =>
                 str.Length > 0 && str[0] is '-' or '/';
         }
-    }
 
-    private void WriteReferences(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
-    {
-        var refDir = Path.Combine(destinationDir, "ref");
-        Directory.CreateDirectory(refDir);
-
-        foreach (var tuple in rawCompilationData.References)
+        void WriteReferences()
         {
-            var mvid = tuple.Mvid;
-            var filePath = Path.Combine(refDir, Reader.GetMetadataReferenceFileName(mvid));
+            var refDir = Path.Combine(destinationDir, "ref");
+            Directory.CreateDirectory(refDir);
 
-            using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            Reader.CopyAssemblyBytes(mvid, fileStream);
-
-            // TODO: need to support aliases here.
-            var arg = $@"/reference:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
-            commandLineList.Add(arg);
-        }
-    }
-
-    private void WriteAnalyzers(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
-    {
-        var analyzerDir = Path.Combine(destinationDir, "analyzers");
-        var map = new Dictionary<string, string>(PathUtil.Comparer);
-        foreach (var analyzer in rawCompilationData.Analyzers)
-        {
-            // Group analyzers by the directory they came from. This will ensure it mimics the 
-            // setup of the NuGet they came from as this is how the compiler groups them.
-            var dir = Path.GetDirectoryName(analyzer.FilePath)!;
-            if (!map.TryGetValue(dir, out var outDir))
+            foreach (var tuple in data.References)
             {
-                outDir = Path.Combine(analyzerDir, $"group{map.Count}");
-                Directory.CreateDirectory(outDir);
-                map[dir] = outDir;
+                var mvid = tuple.Mvid;
+                var filePath = Path.Combine(refDir, Reader.GetMetadataReferenceFileName(mvid));
+
+                using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                Reader.CopyAssemblyBytes(mvid, fileStream);
+
+                // TODO: need to support aliases here.
+                var arg = $@"/reference:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
+                commandLineList.Add(arg);
             }
-
-            var filePath = Path.Combine(outDir, analyzer.FileName);
-            using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            Reader.CopyAssemblyBytes(analyzer.Mvid, fileStream);
-
-            var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
-            commandLineList.Add(arg);
         }
-    }
 
-    private void WriteContent(string destinationDir, CompilerCall compilerCall, RawCompilationData rawCompilationData, List<string> commandLineList)
-    {
-        var projectDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
-
-        // For all content in the cone of the original project
-        var srcDir = Path.Combine(destinationDir, "src");
-
-        // For all content outside the cone of the original project
-        var miscDir = Path.Combine(destinationDir, "misc");
-        var miscMap = new Dictionary<string, string>(PathUtil.Comparer);
-
-        foreach (var tuple in rawCompilationData.Contents)
+        void WriteAnalyzers()
         {
-            string filePath;
-            if (tuple.FilePath.StartsWith(projectDir, PathUtil.Comparison))
+            foreach (var analyzer in data.Analyzers)
             {
-                filePath = PathUtil.ReplacePathStart(tuple.FilePath, projectDir, srcDir);
+                using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
+                var filePath = builder.WriteContent(analyzer.FilePath, analyzerStream);
+
+                var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""";
+                commandLineList.Add(arg);
             }
-            else
+        }
+
+        void WriteContent()
+        {
+            foreach (var tuple in data.Contents)
             {
-                var key = Path.GetDirectoryName(tuple.FilePath)!;
-                if (!miscMap.TryGetValue(key, out var dirPath))
+                using var contentStream = Reader.GetContentStream(tuple.ContentHash);
+                var filePath = builder.WriteContent(tuple.FilePath, contentStream);
+                var prefix = tuple.Kind switch
                 {
-                    dirPath = Path.Combine(miscDir, $"group{miscMap.Count}");
-                    Directory.CreateDirectory(dirPath);
-                    miscMap[key] = dirPath;
-                }
+                    RawContentKind.SourceText => "",
+                    RawContentKind.AdditionalText => "/additionalfile:",
+                    RawContentKind.AnalyzerConfig => "/analyzerconfig:",
+                    _ => throw new Exception(),
+                };
 
-                filePath = Path.Combine(dirPath, Path.GetFileName(tuple.FilePath));
+                commandLineList.Add($@"{prefix}""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""");
             }
+        }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-            using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            Reader.CopyContentTo(tuple.ContentHash, fileStream);
-
-            var prefix = tuple.Kind switch
+        void WriteResources()
+        {
+            foreach (var resourceData in data.Resources)
             {
-                RawContentKind.SourceText => "",
-                RawContentKind.AdditionalText => "/additionalfile:",
-                RawContentKind.AnalyzerConfig => "/analyzerconfig:",
-                _ => throw new Exception(),
-            };
+                // The name of file resources isn't that important. It doesn't contribute to the compilation 
+                // output. What is important is all the other parts of the string. Just need to create a
+                // unique name inside the embedded resource folder
+                var d = resourceData.ResourceDescription;
+                var originalFileName = d.GetFileName();
+                var resourceName = d.GetResourceName();
+                var filePath = Path.Combine(builder.EmbeddedResourceDirectory, resourceData.ContentHash, originalFileName ?? resourceName);
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+                File.WriteAllBytes(filePath, Reader.GetContentBytes(resourceData.ContentHash));
 
-            commandLineList.Add($@"{prefix}""{PathUtil.RemovePathStart(filePath, destinationDir)}""");
+                var accessibility = d.IsPublic() ? "public" : "private";
+                var kind = originalFileName is null ? "/resource:" : "/linkresource";
+                var arg = $"{kind}{filePath},{resourceName},{accessibility}";
+                commandLineList.Add(arg);
+            }
         }
     }
 }
