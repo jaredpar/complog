@@ -108,6 +108,7 @@ public sealed class CompilerLogReader : IDisposable
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = GetMetadataReferences(rawCompilationData.References);
 
+        var hashAlgorithm = rawCompilationData.Arguments.ChecksumAlgorithm;
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var additionalTextList = new List<AdditionalText>();
@@ -117,15 +118,15 @@ public sealed class CompilerLogReader : IDisposable
             switch (tuple.Kind)
             {
                 case RawContentKind.SourceText:
-                    sourceTextList.Add((GetSourceText(tuple.ContentHash, tuple.HashAlgorithm), tuple.FilePath));
+                    sourceTextList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    analyzerConfigList.Add((GetSourceText(tuple.ContentHash, tuple.HashAlgorithm), tuple.FilePath));
+                    analyzerConfigList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
                     break;
                 case RawContentKind.AdditionalText:
                     additionalTextList.Add(new BasicAdditionalTextFile(
                         tuple.FilePath,
-                        GetSourceText(tuple.ContentHash, tuple.HashAlgorithm)));
+                        GetSourceText(tuple.ContentHash, hashAlgorithm)));
                     break;
                 // Not exposed yet but could be if needed
                 case RawContentKind.Embed:
@@ -281,7 +282,7 @@ public sealed class CompilerLogReader : IDisposable
             : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
         var references = new List<RawReferenceData>();
         var analyzers = new List<RawAnalyzerData>();
-        var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)>();
+        var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind)>();
         var resources = new List<RawResourceData>();
 
         while (reader.ReadLine() is string line)
@@ -351,7 +352,7 @@ public sealed class CompilerLogReader : IDisposable
         void ParseContent(string line, RawContentKind kind)
         {
             var items = line.Split(':', count: 3);
-            contents.Add((items[2], items[1], kind, args.ChecksumAlgorithm));
+            contents.Add((items[2], items[1], kind));
         }
 
         void ParseResource(string line)
