@@ -14,6 +14,7 @@ internal enum RawContentKind
     SourceText,
     AdditionalText,
     AnalyzerConfig,
+    Embed,
 }
 
 internal readonly struct RawAnalyzerData
@@ -62,6 +63,9 @@ internal sealed class RawCompilationData
     internal CommandLineArguments Arguments { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
+
+    // TODO: the HashAlgorithm should not be here. It is specific to source files only. It should be 
+    // grabbed from the arguments at the poitn the files are created.
     internal List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)> Contents { get; }
     internal List<RawResourceData> Resources { get; }
 

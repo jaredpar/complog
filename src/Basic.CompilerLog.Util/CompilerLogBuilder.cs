@@ -71,6 +71,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddSources(compilationWriter, commandLineArguments);
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
+            AddedEmbeds(compilationWriter, commandLineArguments);
 
             compilationWriter.Flush();
 
@@ -140,12 +141,17 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
+    private void AddContentCore(StreamWriter compilationWriter, char c, string filePath)
+    {
+        var contentHash = AddContent(filePath);
+        compilationWriter.WriteLine($"{c}:{contentHash}:{filePath}");
+    }
+
     private void AddAnalyzerConfigs(StreamWriter compilationWriter, CommandLineArguments args)
     {
         foreach (var filePath in args.AnalyzerConfigPaths)
         {
-            var hashFileName = AddContent(filePath);
-            compilationWriter.WriteLine($"c:{hashFileName}:{filePath}");
+            AddContentCore(compilationWriter, 'c', filePath);
         }
     }
 
@@ -153,8 +159,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var commandLineFile in args.SourceFiles)
         {
-            var hashFileName = AddContent(commandLineFile.Path);
-            compilationWriter.WriteLine($"s:{hashFileName}:{commandLineFile.Path}");
+            AddContentCore(compilationWriter, 's', commandLineFile.Path);
         }
     }
 
@@ -228,8 +233,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var additionalText in args.AdditionalFiles)
         {
-            var contentHash = AddContent(additionalText.Path);
-            compilationWriter.WriteLine($"t:{contentHash}:{additionalText.Path}");
+            AddContentCore(compilationWriter, 't', additionalText.Path);
         }
     }
 
@@ -245,6 +249,14 @@ internal sealed class CompilerLogBuilder : IDisposable
             using var stream = dataProvider();
             var contentHash = AddContent(stream);
             compilationWriter.WriteLine($"r:{contentHash}:{name}:{isPublic}:{fileName}");
+        }
+    }
+
+    private void AddedEmbeds(StreamWriter compilationWriter, CommandLineArguments args)
+    {
+        foreach (var e in args.EmbeddedFiles)
+        {
+            AddContentCore(compilationWriter, 'e', e.Path);
         }
     }
 

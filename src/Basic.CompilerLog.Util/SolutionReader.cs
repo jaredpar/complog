@@ -79,6 +79,9 @@ public sealed class SolutionReader : IDisposable
                 case RawContentKind.AnalyzerConfig:
                     Add(analyzerConfigDocuments);
                     break;
+                case RawContentKind.Embed:
+                    // Not exposed yet
+                    break;
                 default:
                     throw new InvalidOperationException();
             }

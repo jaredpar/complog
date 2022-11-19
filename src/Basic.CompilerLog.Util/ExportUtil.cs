@@ -181,6 +181,7 @@ public sealed class ExportUtil
                     span.StartsWith("analyzer", comparison) ||
                     span.StartsWith("additionalfile", comparison) ||
                     span.StartsWith("analyzerconfig", comparison) ||
+                    span.StartsWith("embed", comparison) ||
                     span.StartsWith("resource", comparison) ||
                     span.StartsWith("linkresource", comparison))
                 {
@@ -189,8 +190,7 @@ public sealed class ExportUtil
 
                 // The round trip logic does not yet handle these type of embeds
                 // https://github.com/jaredpar/basic-compiler-logger/issues/6
-                if (span.StartsWith("embed", comparison) ||
-                    span.StartsWith("sourcelink", comparison) ||
+                if (span.StartsWith("sourcelink", comparison) ||
                     span.StartsWith("keyfile", comparison) ||
                     span.StartsWith("publicsign", comparison))
                 {
@@ -279,6 +279,7 @@ public sealed class ExportUtil
                     RawContentKind.SourceText => "",
                     RawContentKind.AdditionalText => "/additionalfile:",
                     RawContentKind.AnalyzerConfig => "/analyzerconfig:",
+                    RawContentKind.Embed => "/embed:",
                     _ => throw new Exception(),
                 };
 

@@ -127,6 +127,9 @@ public sealed class CompilerLogReader : IDisposable
                         tuple.FilePath,
                         GetSourceText(tuple.ContentHash, tuple.HashAlgorithm)));
                     break;
+                // Not exposed yet but could be if needed
+                case RawContentKind.Embed:
+                    break;
                 default:
                     throw new InvalidOperationException();
             }
@@ -299,6 +302,9 @@ public sealed class CompilerLogReader : IDisposable
                     break;
                 case 't':
                     ParseContent(line, RawContentKind.AdditionalText);
+                    break;
+                case 'e':
+                    ParseContent(line, RawContentKind.Embed);
                     break;
                 case 'r':
                     ParseResource(line);
