@@ -183,7 +183,8 @@ public sealed class ExportUtil
                     span.StartsWith("analyzerconfig", comparison) ||
                     span.StartsWith("embed", comparison) ||
                     span.StartsWith("resource", comparison) ||
-                    span.StartsWith("linkresource", comparison))
+                    span.StartsWith("linkresource", comparison) ||
+                    span.StartsWith("keyfile", comparison))
                 {
                     continue;
                 }

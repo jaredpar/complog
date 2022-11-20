@@ -21,10 +21,15 @@ public sealed class ExportUtilTests : TestBase
 
     private void TestExport(int expectedCount)
     {
+        using var scratchDir = new TempDir();
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
-        var compilerLogFilePath = Path.Combine(RootDirectory, "build.compilerlog");
+        var compilerLogFilePath = Path.Combine(scratchDir.DirectoryPath, "build.compilerlog");
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, compilerLogFilePath);
         Assert.Empty(diagnosticList);
+
+        // Now that we've converted to a compiler log delete all the original project code. This 
+        // ensures our builds below don't succeed because old files are being referenced
+        Root.EmptyDirectory();
 
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
         var sdkDirs = DotnetUtil.GetSdkDirectories();
