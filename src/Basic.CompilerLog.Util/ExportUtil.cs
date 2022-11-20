@@ -188,15 +188,6 @@ public sealed class ExportUtil
                     continue;
                 }
 
-                // The round trip logic does not yet handle these type of embeds
-                // https://github.com/jaredpar/basic-compiler-logger/issues/6
-                if (span.StartsWith("sourcelink", comparison) ||
-                    span.StartsWith("keyfile", comparison) ||
-                    span.StartsWith("publicsign", comparison))
-                {
-                    continue;
-                }
-
                 // Need to pre-create the output directories to allow the compiler to execute
                 if (span.StartsWith("out", comparison) ||
                     span.StartsWith("refout", comparison) ||
@@ -280,6 +271,12 @@ public sealed class ExportUtil
                     RawContentKind.AdditionalText => "/additionalfile:",
                     RawContentKind.AnalyzerConfig => "/analyzerconfig:",
                     RawContentKind.Embed => "/embed:",
+                    RawContentKind.SourceLink => "/sourcelink:",
+                    RawContentKind.RuleSet => "/ruleset:",
+                    RawContentKind.AppConfig => "/appconfig:",
+                    RawContentKind.Win32Manifest => "/win32manifest",
+                    RawContentKind.Win32Resource => "/win32res",
+                    RawContentKind.Win32Icon => "/win32icon",
                     _ => throw new Exception(),
                 };
 

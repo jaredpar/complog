@@ -31,7 +31,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     private bool _closed;
 
     internal List<string> Diagnostics { get; }
-    internal ZipArchive ZipArchive { get; set;  }
+    internal ZipArchive ZipArchive { get; set; }
 
     internal bool IsOpen => !_closed;
     internal bool IsClosed => _closed;
@@ -72,6 +72,13 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
             AddedEmbeds(compilationWriter, commandLineArguments);
+            AddContentIf(compilationWriter, "link", commandLineArguments.SourceLink);
+            AddContentIf(compilationWriter, "ruleset", commandLineArguments.RuleSetPath);
+            AddContentIf(compilationWriter, "appconfig", commandLineArguments.AppConfigPath);
+            AddContentIf(compilationWriter, "win32resource", commandLineArguments.Win32ResourceFile);
+            AddContentIf(compilationWriter, "win32icon", commandLineArguments.Win32Icon);
+            AddContentIf(compilationWriter, "win32manifest", commandLineArguments.Win32Manifest);
+            AddContentIf(compilationWriter, "cryptokeyfile", commandLineArguments.CompilationOptions.CryptoKeyFile);
 
             compilationWriter.Flush();
 
@@ -141,17 +148,25 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddContentCore(StreamWriter compilationWriter, char c, string filePath)
+    private void AddContentIf(StreamWriter compilationWriter, string key, string? filePath)
+    {
+        if (filePath is not null)
+        {
+            AddContentCore(compilationWriter, key, filePath);
+        }
+    }
+
+    private void AddContentCore(StreamWriter compilationWriter, string key, string filePath)
     {
         var contentHash = AddContent(filePath);
-        compilationWriter.WriteLine($"{c}:{contentHash}:{filePath}");
+        compilationWriter.WriteLine($"{key}:{contentHash}:{filePath}");
     }
 
     private void AddAnalyzerConfigs(StreamWriter compilationWriter, CommandLineArguments args)
     {
         foreach (var filePath in args.AnalyzerConfigPaths)
         {
-            AddContentCore(compilationWriter, 'c', filePath);
+            AddContentCore(compilationWriter, "config", filePath);
         }
     }
 
@@ -159,7 +174,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var commandLineFile in args.SourceFiles)
         {
-            AddContentCore(compilationWriter, 's', commandLineFile.Path);
+            AddContentCore(compilationWriter, "source", commandLineFile.Path);
         }
     }
 
@@ -233,7 +248,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var additionalText in args.AdditionalFiles)
         {
-            AddContentCore(compilationWriter, 't', additionalText.Path);
+            AddContentCore(compilationWriter, "text", additionalText.Path);
         }
     }
 
@@ -256,7 +271,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var e in args.EmbeddedFiles)
         {
-            AddContentCore(compilationWriter, 'e', e.Path);
+            AddContentCore(compilationWriter, "embed", e.Path);
         }
     }
 

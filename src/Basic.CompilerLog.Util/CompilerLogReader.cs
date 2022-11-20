@@ -128,8 +128,20 @@ public sealed class CompilerLogReader : IDisposable
                         tuple.FilePath,
                         GetSourceText(tuple.ContentHash, hashAlgorithm)));
                     break;
+                case RawContentKind.CryptoKeyFile:
+                    // TODO: ... how do we expose this since it need to be writen to disk to be used???? But
+                    // it is part of the compilation options. May need to push this through the public 
+                    // API to get a place exposed to write it.
+                    break;
+
                 // Not exposed yet but could be if needed
                 case RawContentKind.Embed:
+                case RawContentKind.SourceLink:
+                case RawContentKind.RuleSet:
+                case RawContentKind.AppConfig:
+                case RawContentKind.Win32Manifest:
+                case RawContentKind.Win32Resource:
+                case RawContentKind.Win32Icon:
                     break;
                 default:
                     throw new InvalidOperationException();
@@ -287,27 +299,46 @@ public sealed class CompilerLogReader : IDisposable
 
         while (reader.ReadLine() is string line)
         {
-            switch (line[0])
+            var colonIndex = line.IndexOf(':');
+            switch (line.AsSpan().Slice(colonIndex))
             {
-                case 'm':
+                case "m":
                     ParseMetadataReference(line);
                     break;
-                case 'a':
+                case "a":
                     ParseAnalyzer(line);
                     break;
-                case 's':
+                case "source":
                     ParseContent(line, RawContentKind.SourceText);
                     break;
-                case 'c':
+                case "config":
                     ParseContent(line, RawContentKind.AnalyzerConfig);
                     break;
-                case 't':
+                case "text":
                     ParseContent(line, RawContentKind.AdditionalText);
                     break;
-                case 'e':
+                case "embed":
                     ParseContent(line, RawContentKind.Embed);
                     break;
-                case 'r':
+                case "link":
+                    ParseContent(line, RawContentKind.SourceLink);
+                    break;
+                case "ruleset":
+                    ParseContent(line, RawContentKind.RuleSet);
+                    break;
+                case "appconfig":
+                    ParseContent(line, RawContentKind.AppConfig);
+                    break;
+                case "win32manifest":
+                    ParseContent(line, RawContentKind.Win32Manifest);
+                    break;
+                case "win32resource":
+                    ParseContent(line, RawContentKind.Win32Resource);
+                    break;
+                case "cryptokeyfile":
+                    ParseContent(line, RawContentKind.CryptoKeyFile);
+                    break;
+                case "r":
                     ParseResource(line);
                     break;
                 default:

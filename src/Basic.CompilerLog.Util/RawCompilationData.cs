@@ -15,6 +15,13 @@ internal enum RawContentKind
     AdditionalText,
     AnalyzerConfig,
     Embed,
+    SourceLink,
+    RuleSet,
+    AppConfig,
+    Win32Manifest,
+    Win32Resource,
+    Win32Icon,
+    CryptoKeyFile,
 }
 
 internal readonly struct RawAnalyzerData
