@@ -91,4 +91,45 @@ public sealed class CompilerLogReaderTests : TestBase
         var d = rawData.Resources.Single();
         Assert.Equal("example.resource.txt", d.ResourceDescription.GetResourceName());
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void KeyFile(bool redirect)
+    {
+        RunDotNet($"new console --name example --output .");
+        var projectFileContent = """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net7.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <PublicSign>true</PublicSign>
+                <KeyOriginatorFile>key.snk</KeyOriginatorFile>
+              </PropertyGroup>
+            </Project>
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
+
+        var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
+        File.WriteAllBytes(Path.Combine(RootDirectory, "key.snk"), keyBytes);
+        RunDotNet("build -bl");
+
+        using var cryptoDir = new TempDir("cryptodir");
+        using var reader = GetReader(cryptoKeyFileDirectory: redirect ? cryptoDir.DirectoryPath : null);
+        var data = reader.ReadCompilationData(0);
+
+        if (redirect)
+        {
+            Assert.Equal(cryptoDir.DirectoryPath, Path.GetDirectoryName(data.CompilationOptions.CryptoKeyFile));
+            Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile!)));
+        }
+        else
+        {
+            Assert.Equal(RootDirectory, Path.GetDirectoryName(data.CompilationOptions.CryptoKeyFile));
+            Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
+            Assert.Empty(Directory.EnumerateFiles(cryptoDir.DirectoryPath));
+        }
+    }
 }

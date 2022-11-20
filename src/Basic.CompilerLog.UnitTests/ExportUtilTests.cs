@@ -124,4 +124,27 @@ public sealed class ExportUtilTests : TestBase
         RunDotNet("build -bl");
         TestExport(1);
     }
+
+    [Fact]
+    public void StrongNameKey()
+    {
+        RunDotNet($"new console --name example --output .");
+        var projectFileContent = """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net7.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <PublicSign>true</PublicSign>
+                <KeyOriginatorFile>key.snk</KeyOriginatorFile>
+              </PropertyGroup>
+            </Project>
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
+        var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
+        File.WriteAllBytes(Path.Combine(RootDirectory, "key.snk"), keyBytes);
+        RunDotNet("build -bl");
+        TestExport(1);
+    }
 }

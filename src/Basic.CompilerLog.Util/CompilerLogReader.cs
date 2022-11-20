@@ -23,7 +23,14 @@ public sealed class CompilerLogReader : IDisposable
     internal ZipArchive ZipArchive { get; set; }
     internal int Count { get; }
 
-    private CompilerLogReader(Stream stream, bool leaveOpen)
+    /// <summary>
+    /// The compiler only supports strong name keys that exist on disk when emitting binaries. When this 
+    /// value is set the reader will ensure strong name keys are written to disk here as <see cref="Compilation"/>
+    /// are read and they will be redirected to look there. Otherwise it will not take any action.
+    /// </summary>
+    public string? CryptoKeyFileDirectory { get; set; }
+
+    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory)
     {
         try
         {
@@ -35,6 +42,7 @@ public sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
+        CryptoKeyFileDirectory = cryptoKeyFileDirectory;
         Count = ReadMetadata();
         ReadAssemblyInfo();
 
@@ -67,12 +75,12 @@ public sealed class CompilerLogReader : IDisposable
         static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
     }
 
-    public static CompilerLogReader Create(Stream stream, bool leaveOpen = false) => new CompilerLogReader(stream, leaveOpen);
+    public static CompilerLogReader Create(Stream stream, bool leaveOpen = false, string? cryptoKeyFileDirectory = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory);
 
-    public static CompilerLogReader Create(string filePath)
+    public static CompilerLogReader Create(string filePath, string? cryptoKeyFileDirectory = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new CompilerLogReader(stream, leaveOpen: false);
+        return new CompilerLogReader(stream, leaveOpen: false, cryptoKeyFileDirectory);
     }
 
     public CompilerCall ReadCompilerCall(int index)
@@ -107,6 +115,7 @@ public sealed class CompilerLogReader : IDisposable
     {
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = GetMetadataReferences(rawCompilationData.References);
+        var compilationOptions = rawCompilationData.Arguments.CompilationOptions;
 
         var hashAlgorithm = rawCompilationData.Arguments.ChecksumAlgorithm;
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
@@ -129,9 +138,7 @@ public sealed class CompilerLogReader : IDisposable
                         GetSourceText(tuple.ContentHash, hashAlgorithm)));
                     break;
                 case RawContentKind.CryptoKeyFile:
-                    // TODO: ... how do we expose this since it need to be writen to disk to be used???? But
-                    // it is part of the compilation options. May need to push this through the public 
-                    // API to get a place exposed to write it.
+                    HandleCryptoKeyFile(tuple.ContentHash);
                     break;
 
                 // Not exposed yet but could be if needed
@@ -151,6 +158,18 @@ public sealed class CompilerLogReader : IDisposable
         return compilerCall.IsCSharp
             ? CreateCSharp()
             : CreateVisualBasic();
+
+        void HandleCryptoKeyFile(string contentHash)
+        {
+            if (CryptoKeyFileDirectory is null)
+            {
+                return;
+            }
+
+            var filePath = Path.Combine(CryptoKeyFileDirectory, $"{contentHash}.snk");
+            File.WriteAllBytes(filePath, GetContentBytes(contentHash));
+            compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
+        }
 
         (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(IEnumerable<SyntaxTree> syntaxTrees, IEnumerable<AdditionalText> additionalTexts)
         {
@@ -194,6 +213,7 @@ public sealed class CompilerLogReader : IDisposable
         CSharpCompilationData CreateCSharp()
         {
             var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
+            var csharpOptions = (CSharpCompilationOptions)compilationOptions;
             var parseOptions = csharpArgs.ParseOptions;
 
             var syntaxTrees = new SyntaxTree[sourceTextList.Count];
@@ -211,7 +231,7 @@ public sealed class CompilerLogReader : IDisposable
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 referenceList,
-                csharpArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                csharpOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new CSharpCompilationData(
                 compilerCall,
@@ -225,6 +245,7 @@ public sealed class CompilerLogReader : IDisposable
         VisualBasicCompilationData CreateVisualBasic()
         {
             var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
+            var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
             var parseOptions = basicArgs.ParseOptions;
             var syntaxTrees = new SyntaxTree[sourceTextList.Count];
             Parallel.For(
@@ -242,7 +263,7 @@ public sealed class CompilerLogReader : IDisposable
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 referenceList,
-                basicArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                basicOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new VisualBasicCompilationData(
                 compilerCall,

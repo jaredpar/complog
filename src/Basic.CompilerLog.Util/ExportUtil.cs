@@ -277,6 +277,7 @@ public sealed class ExportUtil
                     RawContentKind.Win32Manifest => "/win32manifest:",
                     RawContentKind.Win32Resource => "/win32res:",
                     RawContentKind.Win32Icon => "/win32icon:",
+                    RawContentKind.CryptoKeyFile => "/keyfile:",
                     _ => throw new Exception(),
                 };
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Basic.CompilerLog.Util;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -48,5 +49,16 @@ public abstract class TestBase : IDisposable
         TestOutputHelper.WriteLine(result.StandardOut);
         TestOutputHelper.WriteLine(result.StandardError);
         Assert.Equal(0, result.ExitCode);
+    }
+
+    protected CompilerLogReader GetReader(bool emptyDirectory = true, string? cryptoKeyFileDirectory = null)
+    {
+        var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"), cryptoKeyFileDirectory);
+        if (emptyDirectory)
+        {
+            Root.EmptyDirectory();
+        }
+
+        return reader;
     }
 }

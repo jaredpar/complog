@@ -25,4 +25,11 @@ internal sealed class TempDir : IDisposable
     {
         Directory.Delete(DirectoryPath, recursive: true);
     }
+
+    public void EmptyDirectory()
+    {
+        var d = new DirectoryInfo(DirectoryPath);
+        foreach(System.IO.FileInfo file in d.GetFiles()) file.Delete();
+        foreach(System.IO.DirectoryInfo subDirectory in d.GetDirectories()) subDirectory.Delete(true);
+    }
 }
