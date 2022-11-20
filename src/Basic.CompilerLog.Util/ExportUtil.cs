@@ -274,9 +274,9 @@ public sealed class ExportUtil
                     RawContentKind.SourceLink => "/sourcelink:",
                     RawContentKind.RuleSet => "/ruleset:",
                     RawContentKind.AppConfig => "/appconfig:",
-                    RawContentKind.Win32Manifest => "/win32manifest",
-                    RawContentKind.Win32Resource => "/win32res",
-                    RawContentKind.Win32Icon => "/win32icon",
+                    RawContentKind.Win32Manifest => "/win32manifest:",
+                    RawContentKind.Win32Resource => "/win32res:",
+                    RawContentKind.Win32Icon => "/win32icon:",
                     _ => throw new Exception(),
                 };
 

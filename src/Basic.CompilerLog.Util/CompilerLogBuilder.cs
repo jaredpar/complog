@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
@@ -72,13 +73,13 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
             AddedEmbeds(compilationWriter, commandLineArguments);
-            AddContentIf(compilationWriter, "link", commandLineArguments.SourceLink);
-            AddContentIf(compilationWriter, "ruleset", commandLineArguments.RuleSetPath);
-            AddContentIf(compilationWriter, "appconfig", commandLineArguments.AppConfigPath);
-            AddContentIf(compilationWriter, "win32resource", commandLineArguments.Win32ResourceFile);
-            AddContentIf(compilationWriter, "win32icon", commandLineArguments.Win32Icon);
-            AddContentIf(compilationWriter, "win32manifest", commandLineArguments.Win32Manifest);
-            AddContentIf(compilationWriter, "cryptokeyfile", commandLineArguments.CompilationOptions.CryptoKeyFile);
+            AddContentIf("link", commandLineArguments.SourceLink);
+            AddContentIf("ruleset", commandLineArguments.RuleSetPath);
+            AddContentIf("appconfig", commandLineArguments.AppConfigPath);
+            AddContentIf("win32resource", commandLineArguments.Win32ResourceFile);
+            AddContentIf("win32icon", commandLineArguments.Win32Icon);
+            AddContentIf("win32manifest", commandLineArguments.Win32Manifest);
+            AddContentIf("cryptokeyfile", commandLineArguments.CompilationOptions.CryptoKeyFile);
 
             compilationWriter.Flush();
 
@@ -95,6 +96,35 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             Diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
             return false;
+        }
+
+        void AddContentIf(string key, string? filePath)
+        {
+            if (TryResolve(filePath) is { } resolvedFilePath)
+            {
+                AddContentCore(compilationWriter, key, resolvedFilePath);
+            }
+        }
+
+        string? TryResolve(string? filePath)
+        {
+            if (filePath is null)
+            {
+                return null;
+            }
+
+            if (Path.IsPathRooted(filePath))
+            {
+                return filePath;
+            }
+
+            var resolved = Path.Combine(compilerCall.ProjectDirectory, filePath);
+            if (File.Exists(resolved))
+            {
+                return resolved;
+            }
+
+            return null;
         }
     }
 
@@ -145,14 +175,6 @@ internal sealed class CompilerLogBuilder : IDisposable
             {
                 writer.WriteLine(value);
             }
-        }
-    }
-
-    private void AddContentIf(StreamWriter compilationWriter, string key, string? filePath)
-    {
-        if (filePath is not null)
-        {
-            AddContentCore(compilationWriter, key, filePath);
         }
     }
 

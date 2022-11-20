@@ -17,6 +17,7 @@ public sealed class CompilerCall
 
     public bool IsVisualBasic => !IsCSharp;
     public string ProjectFileName => Path.GetFileName(ProjectFilePath);
+    public string ProjectDirectory => Path.GetDirectoryName(ProjectFilePath)!;
 
     internal CompilerCall(string projectFilePath, CompilerCallKind kind, string? targetFramework, bool isCSharp, string[] arguments, int? index)
     {

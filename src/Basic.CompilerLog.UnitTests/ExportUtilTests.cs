@@ -42,6 +42,8 @@ public sealed class ExportUtilTests : TestBase
                 Path.Combine(tempDir.DirectoryPath, "build.cmd"),
                 args: "",
                 workingDirectory: tempDir.DirectoryPath);
+            TestOutputHelper.WriteLine(buildResult.StandardOut);
+            TestOutputHelper.WriteLine(buildResult.StandardError);
             Assert.True(buildResult.Succeeded);
         }
         Assert.Equal(expectedCount, count);
@@ -91,6 +93,29 @@ public sealed class ExportUtilTests : TestBase
               <ItemGroup>
                 <EmbeddedResource Include="resource.txt" />
               </ItemGroup>
+            </Project>
+            """);
+        File.WriteAllText(Path.Combine(RootDirectory, "resource.txt"), """
+            This is an awesome resource
+            """);
+        RunDotNet("build -bl");
+        TestExport(1);
+    }
+
+    [Fact]
+    public void ContentWin32Elements()
+    {
+        RunDotNet($"new console --name example --output .");
+        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"),
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net7.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <Win32Manifest>resource.txt</Win32Manifest>
+              </PropertyGroup>
             </Project>
             """);
         File.WriteAllText(Path.Combine(RootDirectory, "resource.txt"), """

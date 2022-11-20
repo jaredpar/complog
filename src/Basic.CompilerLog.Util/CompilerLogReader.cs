@@ -300,7 +300,7 @@ public sealed class CompilerLogReader : IDisposable
         while (reader.ReadLine() is string line)
         {
             var colonIndex = line.IndexOf(':');
-            switch (line.AsSpan().Slice(colonIndex))
+            switch (line.AsSpan().Slice(0, colonIndex))
             {
                 case "m":
                     ParseMetadataReference(line);
