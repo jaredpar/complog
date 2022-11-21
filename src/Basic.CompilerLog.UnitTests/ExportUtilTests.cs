@@ -50,6 +50,13 @@ public sealed class ExportUtilTests : TestBase
             TestOutputHelper.WriteLine(buildResult.StandardOut);
             TestOutputHelper.WriteLine(buildResult.StandardError);
             Assert.True(buildResult.Succeeded);
+
+            // Ensure that full paths aren't getting written out to the RSP file. That makes the 
+            // build non-xcopyable. 
+            foreach (var line in File.ReadAllLines(Path.Combine(tempDir.DirectoryPath, "build.rsp")))
+            {
+                Assert.False(line.Contains(tempDir.DirectoryPath, StringComparison.OrdinalIgnoreCase), $"Has full path: {line}");
+            }
         }
         Assert.Equal(expectedCount, count);
     }
@@ -58,6 +65,14 @@ public sealed class ExportUtilTests : TestBase
     public void Console()
     {
         RunDotNet($"new console --name example --output .");
+        RunDotNet("build -bl");
+        TestExport(1);
+    }
+
+    [Fact]
+    public void ClassLib()
+    {
+        RunDotNet($"new classlib --name example --output .");
         RunDotNet("build -bl");
         TestExport(1);
     }
