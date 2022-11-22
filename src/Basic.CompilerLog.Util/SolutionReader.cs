@@ -79,13 +79,16 @@ public sealed class SolutionReader : IDisposable
                 case RawContentKind.AnalyzerConfig:
                     Add(analyzerConfigDocuments);
                     break;
+                case RawContentKind.Embed:
+                    // Not exposed yet
+                    break;
                 default:
                     throw new InvalidOperationException();
             }
 
             void Add(List<DocumentInfo> list)
             {
-                var documentId = TextLoader.GetDocumentId(projectId, filePath: tuple.FilePath, contentHash: tuple.ContentHash, tuple.HashAlgorithm);
+                var documentId = TextLoader.GetDocumentId(projectId, filePath: tuple.FilePath, contentHash: tuple.ContentHash, rawCompilationData.Arguments.ChecksumAlgorithm);
                 list.Add(DocumentInfo.Create(
                     documentId,
                     Path.GetFileName(tuple.FilePath),

@@ -23,7 +23,14 @@ public sealed class CompilerLogReader : IDisposable
     internal ZipArchive ZipArchive { get; set; }
     internal int Count { get; }
 
-    private CompilerLogReader(Stream stream, bool leaveOpen)
+    /// <summary>
+    /// The compiler only supports strong name keys that exist on disk when emitting binaries. When this 
+    /// value is set the reader will ensure strong name keys are written to disk here as <see cref="Compilation"/>
+    /// are read and they will be redirected to look there. Otherwise it will not take any action.
+    /// </summary>
+    public string? CryptoKeyFileDirectory { get; set; }
+
+    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory)
     {
         try
         {
@@ -35,6 +42,7 @@ public sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
+        CryptoKeyFileDirectory = cryptoKeyFileDirectory;
         Count = ReadMetadata();
         ReadAssemblyInfo();
 
@@ -67,12 +75,12 @@ public sealed class CompilerLogReader : IDisposable
         static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
     }
 
-    public static CompilerLogReader Create(Stream stream, bool leaveOpen = false) => new CompilerLogReader(stream, leaveOpen);
+    public static CompilerLogReader Create(Stream stream, bool leaveOpen = false, string? cryptoKeyFileDirectory = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory);
 
-    public static CompilerLogReader Create(string filePath)
+    public static CompilerLogReader Create(string filePath, string? cryptoKeyFileDirectory = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new CompilerLogReader(stream, leaveOpen: false);
+        return new CompilerLogReader(stream, leaveOpen: false, cryptoKeyFileDirectory);
     }
 
     public CompilerCall ReadCompilerCall(int index)
@@ -107,7 +115,9 @@ public sealed class CompilerLogReader : IDisposable
     {
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = GetMetadataReferences(rawCompilationData.References);
+        var compilationOptions = rawCompilationData.Arguments.CompilationOptions;
 
+        var hashAlgorithm = rawCompilationData.Arguments.ChecksumAlgorithm;
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var additionalTextList = new List<AdditionalText>();
@@ -117,15 +127,28 @@ public sealed class CompilerLogReader : IDisposable
             switch (tuple.Kind)
             {
                 case RawContentKind.SourceText:
-                    sourceTextList.Add((GetSourceText(tuple.ContentHash, tuple.HashAlgorithm), tuple.FilePath));
+                    sourceTextList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    analyzerConfigList.Add((GetSourceText(tuple.ContentHash, tuple.HashAlgorithm), tuple.FilePath));
+                    analyzerConfigList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
                     break;
                 case RawContentKind.AdditionalText:
                     additionalTextList.Add(new BasicAdditionalTextFile(
                         tuple.FilePath,
-                        GetSourceText(tuple.ContentHash, tuple.HashAlgorithm)));
+                        GetSourceText(tuple.ContentHash, hashAlgorithm)));
+                    break;
+                case RawContentKind.CryptoKeyFile:
+                    HandleCryptoKeyFile(tuple.ContentHash);
+                    break;
+
+                // Not exposed yet but could be if needed
+                case RawContentKind.Embed:
+                case RawContentKind.SourceLink:
+                case RawContentKind.RuleSet:
+                case RawContentKind.AppConfig:
+                case RawContentKind.Win32Manifest:
+                case RawContentKind.Win32Resource:
+                case RawContentKind.Win32Icon:
                     break;
                 default:
                     throw new InvalidOperationException();
@@ -135,6 +158,18 @@ public sealed class CompilerLogReader : IDisposable
         return compilerCall.IsCSharp
             ? CreateCSharp()
             : CreateVisualBasic();
+
+        void HandleCryptoKeyFile(string contentHash)
+        {
+            if (CryptoKeyFileDirectory is null)
+            {
+                return;
+            }
+
+            var filePath = Path.Combine(CryptoKeyFileDirectory, $"{contentHash}.snk");
+            File.WriteAllBytes(filePath, GetContentBytes(contentHash));
+            compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
+        }
 
         (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(IEnumerable<SyntaxTree> syntaxTrees, IEnumerable<AdditionalText> additionalTexts)
         {
@@ -178,6 +213,7 @@ public sealed class CompilerLogReader : IDisposable
         CSharpCompilationData CreateCSharp()
         {
             var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
+            var csharpOptions = (CSharpCompilationOptions)compilationOptions;
             var parseOptions = csharpArgs.ParseOptions;
 
             var syntaxTrees = new SyntaxTree[sourceTextList.Count];
@@ -195,7 +231,7 @@ public sealed class CompilerLogReader : IDisposable
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 referenceList,
-                csharpArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                csharpOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new CSharpCompilationData(
                 compilerCall,
@@ -209,6 +245,7 @@ public sealed class CompilerLogReader : IDisposable
         VisualBasicCompilationData CreateVisualBasic()
         {
             var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
+            var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
             var parseOptions = basicArgs.ParseOptions;
             var syntaxTrees = new SyntaxTree[sourceTextList.Count];
             Parallel.For(
@@ -226,7 +263,7 @@ public sealed class CompilerLogReader : IDisposable
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 referenceList,
-                basicArgs.CompilationOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                basicOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
 
             return new VisualBasicCompilationData(
                 compilerCall,
@@ -278,29 +315,51 @@ public sealed class CompilerLogReader : IDisposable
             : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
         var references = new List<RawReferenceData>();
         var analyzers = new List<RawAnalyzerData>();
-        var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)>();
+        var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind)>();
         var resources = new List<RawResourceData>();
 
         while (reader.ReadLine() is string line)
         {
-            switch (line[0])
+            var colonIndex = line.IndexOf(':');
+            switch (line.AsSpan().Slice(0, colonIndex))
             {
-                case 'm':
+                case "m":
                     ParseMetadataReference(line);
                     break;
-                case 'a':
+                case "a":
                     ParseAnalyzer(line);
                     break;
-                case 's':
+                case "source":
                     ParseContent(line, RawContentKind.SourceText);
                     break;
-                case 'c':
+                case "config":
                     ParseContent(line, RawContentKind.AnalyzerConfig);
                     break;
-                case 't':
+                case "text":
                     ParseContent(line, RawContentKind.AdditionalText);
                     break;
-                case 'r':
+                case "embed":
+                    ParseContent(line, RawContentKind.Embed);
+                    break;
+                case "link":
+                    ParseContent(line, RawContentKind.SourceLink);
+                    break;
+                case "ruleset":
+                    ParseContent(line, RawContentKind.RuleSet);
+                    break;
+                case "appconfig":
+                    ParseContent(line, RawContentKind.AppConfig);
+                    break;
+                case "win32manifest":
+                    ParseContent(line, RawContentKind.Win32Manifest);
+                    break;
+                case "win32resource":
+                    ParseContent(line, RawContentKind.Win32Resource);
+                    break;
+                case "cryptokeyfile":
+                    ParseContent(line, RawContentKind.CryptoKeyFile);
+                    break;
+                case "r":
                     ParseResource(line);
                     break;
                 default:
@@ -345,7 +404,7 @@ public sealed class CompilerLogReader : IDisposable
         void ParseContent(string line, RawContentKind kind)
         {
             var items = line.Split(':', count: 3);
-            contents.Add((items[2], items[1], kind, args.ChecksumAlgorithm));
+            contents.Add((items[2], items[1], kind));
         }
 
         void ParseResource(string line)

@@ -14,6 +14,14 @@ internal enum RawContentKind
     SourceText,
     AdditionalText,
     AnalyzerConfig,
+    Embed,
+    SourceLink,
+    RuleSet,
+    AppConfig,
+    Win32Manifest,
+    Win32Resource,
+    Win32Icon,
+    CryptoKeyFile,
 }
 
 internal readonly struct RawAnalyzerData
@@ -62,14 +70,14 @@ internal sealed class RawCompilationData
     internal CommandLineArguments Arguments { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
-    internal List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)> Contents { get; }
+    internal List<(string FilePath, string ContentHash, RawContentKind Kind)> Contents { get; }
     internal List<RawResourceData> Resources { get; }
 
     internal RawCompilationData(
         CommandLineArguments arguments,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
-        List<(string FilePath, string ContentHash, RawContentKind Kind, SourceHashAlgorithm HashAlgorithm)> contents,
+        List<(string FilePath, string ContentHash, RawContentKind Kind)> contents,
         List<RawResourceData> resources)
     {
         Arguments = arguments;

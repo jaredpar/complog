@@ -181,18 +181,10 @@ public sealed class ExportUtil
                     span.StartsWith("analyzer", comparison) ||
                     span.StartsWith("additionalfile", comparison) ||
                     span.StartsWith("analyzerconfig", comparison) ||
+                    span.StartsWith("embed", comparison) ||
                     span.StartsWith("resource", comparison) ||
-                    span.StartsWith("linkresource", comparison))
-                {
-                    continue;
-                }
-
-                // The round trip logic does not yet handle these type of embeds
-                // https://github.com/jaredpar/basic-compiler-logger/issues/6
-                if (span.StartsWith("embed", comparison) ||
-                    span.StartsWith("sourcelink", comparison) ||
-                    span.StartsWith("keyfile", comparison) ||
-                    span.StartsWith("publicsign", comparison))
+                    span.StartsWith("linkresource", comparison) ||
+                    span.StartsWith("keyfile", comparison))
                 {
                     continue;
                 }
@@ -210,11 +202,12 @@ public sealed class ExportUtil
                     if (Path.IsPathRooted(tempDir))
                     {
                         var argName = span.Slice(0, index).ToString();
-                        var argPath = Path.Combine(destinationDir, "obj", argName, Path.GetFileName(tempDir));
+                        var argPath = Path.Combine("obj", argName, Path.GetFileName(tempDir));
+                        var argFullPath = Path.Combine(destinationDir, argPath);
                         var isDir = string.IsNullOrEmpty(Path.GetExtension(tempDir));
                         Directory.CreateDirectory(isDir
-                            ? argPath
-                            : Path.GetDirectoryName(argPath)!);
+                            ? argFullPath
+                            : Path.GetDirectoryName(argFullPath)!);
                         commandLineList.Add($@"/{argName}:""{argPath}""");
                         continue;
                     }
@@ -279,6 +272,14 @@ public sealed class ExportUtil
                     RawContentKind.SourceText => "",
                     RawContentKind.AdditionalText => "/additionalfile:",
                     RawContentKind.AnalyzerConfig => "/analyzerconfig:",
+                    RawContentKind.Embed => "/embed:",
+                    RawContentKind.SourceLink => "/sourcelink:",
+                    RawContentKind.RuleSet => "/ruleset:",
+                    RawContentKind.AppConfig => "/appconfig:",
+                    RawContentKind.Win32Manifest => "/win32manifest:",
+                    RawContentKind.Win32Resource => "/win32res:",
+                    RawContentKind.Win32Icon => "/win32icon:",
+                    RawContentKind.CryptoKeyFile => "/keyfile:",
                     _ => throw new Exception(),
                 };
 
@@ -302,7 +303,7 @@ public sealed class ExportUtil
 
                 var accessibility = d.IsPublic() ? "public" : "private";
                 var kind = originalFileName is null ? "/resource:" : "/linkresource";
-                var arg = $"{kind}{filePath},{resourceName},{accessibility}";
+                var arg = $"{kind}{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)},{resourceName},{accessibility}";
                 commandLineList.Add(arg);
             }
         }

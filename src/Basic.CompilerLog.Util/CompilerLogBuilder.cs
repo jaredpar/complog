@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
@@ -31,7 +32,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     private bool _closed;
 
     internal List<string> Diagnostics { get; }
-    internal ZipArchive ZipArchive { get; set;  }
+    internal ZipArchive ZipArchive { get; set; }
 
     internal bool IsOpen => !_closed;
     internal bool IsClosed => _closed;
@@ -71,6 +72,14 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddSources(compilationWriter, commandLineArguments);
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
+            AddedEmbeds(compilationWriter, commandLineArguments);
+            AddContentIf("link", commandLineArguments.SourceLink);
+            AddContentIf("ruleset", commandLineArguments.RuleSetPath);
+            AddContentIf("appconfig", commandLineArguments.AppConfigPath);
+            AddContentIf("win32resource", commandLineArguments.Win32ResourceFile);
+            AddContentIf("win32icon", commandLineArguments.Win32Icon);
+            AddContentIf("win32manifest", commandLineArguments.Win32Manifest);
+            AddContentIf("cryptokeyfile", commandLineArguments.CompilationOptions.CryptoKeyFile);
 
             compilationWriter.Flush();
 
@@ -87,6 +96,35 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             Diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
             return false;
+        }
+
+        void AddContentIf(string key, string? filePath)
+        {
+            if (TryResolve(filePath) is { } resolvedFilePath)
+            {
+                AddContentCore(compilationWriter, key, resolvedFilePath);
+            }
+        }
+
+        string? TryResolve(string? filePath)
+        {
+            if (filePath is null)
+            {
+                return null;
+            }
+
+            if (Path.IsPathRooted(filePath))
+            {
+                return filePath;
+            }
+
+            var resolved = Path.Combine(compilerCall.ProjectDirectory, filePath);
+            if (File.Exists(resolved))
+            {
+                return resolved;
+            }
+
+            return null;
         }
     }
 
@@ -140,12 +178,17 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
+    private void AddContentCore(StreamWriter compilationWriter, string key, string filePath)
+    {
+        var contentHash = AddContent(filePath);
+        compilationWriter.WriteLine($"{key}:{contentHash}:{filePath}");
+    }
+
     private void AddAnalyzerConfigs(StreamWriter compilationWriter, CommandLineArguments args)
     {
         foreach (var filePath in args.AnalyzerConfigPaths)
         {
-            var hashFileName = AddContent(filePath);
-            compilationWriter.WriteLine($"c:{hashFileName}:{filePath}");
+            AddContentCore(compilationWriter, "config", filePath);
         }
     }
 
@@ -153,8 +196,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var commandLineFile in args.SourceFiles)
         {
-            var hashFileName = AddContent(commandLineFile.Path);
-            compilationWriter.WriteLine($"s:{hashFileName}:{commandLineFile.Path}");
+            AddContentCore(compilationWriter, "source", commandLineFile.Path);
         }
     }
 
@@ -228,8 +270,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var additionalText in args.AdditionalFiles)
         {
-            var contentHash = AddContent(additionalText.Path);
-            compilationWriter.WriteLine($"t:{contentHash}:{additionalText.Path}");
+            AddContentCore(compilationWriter, "text", additionalText.Path);
         }
     }
 
@@ -245,6 +286,14 @@ internal sealed class CompilerLogBuilder : IDisposable
             using var stream = dataProvider();
             var contentHash = AddContent(stream);
             compilationWriter.WriteLine($"r:{contentHash}:{name}:{isPublic}:{fileName}");
+        }
+    }
+
+    private void AddedEmbeds(StreamWriter compilationWriter, CommandLineArguments args)
+    {
+        foreach (var e in args.EmbeddedFiles)
+        {
+            AddContentCore(compilationWriter, "embed", e.Path);
         }
     }
 

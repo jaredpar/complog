@@ -25,9 +25,11 @@ public abstract class CompilationData
     // information. Should instead store only the parts necessary to rehydrate 
     public CommandLineArguments CommandLineArguments { get; }
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
+
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }
     internal BasicAssemblyLoadContext CompilerLogAssemblyLoadContext { get; }
 
+    public CompilationOptions CompilationOptions => Compilation.Options;
     public AssemblyLoadContext AnalyzerAssemblyLoadContext => CompilerLogAssemblyLoadContext;
     public EmitOptions EmitOptions => CommandLineArguments.EmitOptions;
     public bool IsCSharp => Compilation is CSharpCompilation;

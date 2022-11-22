@@ -18,4 +18,10 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Key.snk">
+        <LogicalName>Key.snk</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>
