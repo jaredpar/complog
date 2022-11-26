@@ -66,7 +66,6 @@ internal readonly struct RawResourceData
 
 internal sealed class RawCompilationData
 {
-    // TODO: should not expose this, it's only needed to the checksum algorithm, fix that.
     internal CommandLineArguments Arguments { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }

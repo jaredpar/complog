@@ -145,7 +145,6 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
     {
     }
 
-    // TODO: need to implement the analyzer config provider
     protected override GeneratorDriver CreateGeneratorDriver() =>
         VisualBasicGeneratorDriver.Create(GetGenerators(), AdditionalTexts, ParseOptions, AnalyzerConfigOptionsProvider);
 }
