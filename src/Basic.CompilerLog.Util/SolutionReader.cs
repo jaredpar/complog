@@ -29,7 +29,6 @@ public sealed class SolutionReader : IDisposable
         _projectIdList = new List<ProjectId>(reader.Count);
         for (int i = 0; i < reader.Count; i++)
         {
-            // TODO: consider getting the project name here
             _projectIdList.Add(ProjectId.CreateNewId(debugName: i.ToString()));
         }
     }

@@ -17,21 +17,18 @@ public abstract class CompilationData
     private ImmutableArray<DiagnosticAnalyzer> _analyzers;
     private ImmutableArray<ISourceGenerator> _generators;
     private (Compilation, ImmutableArray<Diagnostic>)? _afterGenerators;
+    private readonly CommandLineArguments _commandLineArguments;
 
     public CompilerCall CompilerCall { get; } 
     public Compilation Compilation { get; }
-
-    // TODO: should not expose CommandLineArguments. Refers too much to the original compilation 
-    // information. Should instead store only the parts necessary to rehydrate 
-    public CommandLineArguments CommandLineArguments { get; }
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
-
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }
     internal BasicAssemblyLoadContext CompilerLogAssemblyLoadContext { get; }
 
     public CompilationOptions CompilationOptions => Compilation.Options;
     public AssemblyLoadContext AnalyzerAssemblyLoadContext => CompilerLogAssemblyLoadContext;
-    public EmitOptions EmitOptions => CommandLineArguments.EmitOptions;
+    public EmitOptions EmitOptions => _commandLineArguments.EmitOptions;
+    public ParseOptions ParseOptions => _commandLineArguments.ParseOptions;
     public bool IsCSharp => Compilation is CSharpCompilation;
     public bool VisualBasic => !IsCSharp;
 
@@ -45,7 +42,7 @@ public abstract class CompilationData
     {
         CompilerCall = compilerCall;
         Compilation = compilation;
-        CommandLineArguments = commandLineArguments;
+        _commandLineArguments = commandLineArguments;
         AdditionalTexts = additionalTexts;
         AnalyzerConfigOptionsProvider = analyzerConfigOptionsProvider;
         CompilerLogAssemblyLoadContext = compilerLogAssemblyLoadContext;
@@ -97,17 +94,17 @@ public abstract class CompilationData
     protected abstract GeneratorDriver CreateGeneratorDriver();
 }
 
-public abstract class CompilationData<TCompilation, TCommandLineArguments> : CompilationData
+public abstract class CompilationData<TCompilation, TParseOptions> : CompilationData
     where TCompilation : Compilation
-    where TCommandLineArguments : CommandLineArguments
+    where TParseOptions : ParseOptions
 {
     public new TCompilation Compilation => (TCompilation)base.Compilation;
-    public new TCommandLineArguments CommandLineArguments => (TCommandLineArguments)base.CommandLineArguments;
+    public new TParseOptions ParseOptions => (TParseOptions)base.ParseOptions;
 
     private protected CompilationData(
         CompilerCall compilerCall,
         TCompilation compilation,
-        TCommandLineArguments commandLineArguments,
+        CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
@@ -117,7 +114,7 @@ public abstract class CompilationData<TCompilation, TCommandLineArguments> : Com
     }
 }
 
-public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, CSharpCommandLineArguments>
+public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, CSharpParseOptions>
 {
     internal CSharpCompilationData(
         CompilerCall compilerCall,
@@ -132,10 +129,10 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
     }
 
     protected override GeneratorDriver CreateGeneratorDriver() =>
-        CSharpGeneratorDriver.Create(GetGenerators(), AdditionalTexts, CommandLineArguments.ParseOptions, AnalyzerConfigOptionsProvider);
+        CSharpGeneratorDriver.Create(GetGenerators(), AdditionalTexts, ParseOptions, AnalyzerConfigOptionsProvider);
 }
 
-public sealed class VisualBasicCompilationData : CompilationData<VisualBasicCompilation, VisualBasicCommandLineArguments>
+public sealed class VisualBasicCompilationData : CompilationData<VisualBasicCompilation, VisualBasicParseOptions>
 {
     internal VisualBasicCompilationData(
         CompilerCall compilerCall,
@@ -148,7 +145,6 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
     {
     }
 
-    // TODO: need to implement the analyzer config provider
     protected override GeneratorDriver CreateGeneratorDriver() =>
-        VisualBasicGeneratorDriver.Create(GetGenerators(), AdditionalTexts, CommandLineArguments.ParseOptions, AnalyzerConfigOptionsProvider);
+        VisualBasicGeneratorDriver.Create(GetGenerators(), AdditionalTexts, ParseOptions, AnalyzerConfigOptionsProvider);
 }
