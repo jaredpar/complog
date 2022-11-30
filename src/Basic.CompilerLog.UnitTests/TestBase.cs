@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -61,4 +62,12 @@ public abstract class TestBase : IDisposable
 
         return reader;
     }
+
+    /// <summary>
+    /// Run the build.cmd / .sh generated from an export command
+    /// </summary>
+    internal static ProcessResult RunBuildCmd(string directory) =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+         ? ProcessUtil.Run("cmd", args: "/c build.cmd", workingDirectory: directory)
+         : ProcessUtil.Run(Path.Combine(directory, "build.sh"), args: "", workingDirectory: directory);
 }

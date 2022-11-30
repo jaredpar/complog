@@ -38,7 +38,7 @@ internal static class DotnetUtil
         var sdks = new List<string>();
         foreach (var dir in Directory.EnumerateDirectories(sdk))
         {
-            var sdkDir = Path.Combine(dir, @"Roslyn\bincore");
+            var sdkDir = Path.Combine(dir, "Roslyn", "bincore");
             if (Directory.Exists(sdkDir))
             {
                 sdks.Add(dir);

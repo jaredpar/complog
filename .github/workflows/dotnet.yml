@@ -1,7 +1,7 @@
 # This workflow will build a .NET project
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
 
-name: .NET
+name: Build and Test
 
 on:
   push:
@@ -11,8 +11,12 @@ on:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
 
-    runs-on: windows-latest
+    name: Build and Test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v3
