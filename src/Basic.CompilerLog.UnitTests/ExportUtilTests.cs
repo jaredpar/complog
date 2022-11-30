@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -43,10 +44,7 @@ public sealed class ExportUtilTests : TestBase
             exportUtil.ExportRsp(compilerCall, tempDir.DirectoryPath, sdkDirs);
 
             // Now run the generated build.cmd and see if it succeeds;
-            var buildResult = ProcessUtil.RunBatchFile(
-                Path.Combine(tempDir.DirectoryPath, "build.cmd"),
-                args: "",
-                workingDirectory: tempDir.DirectoryPath);
+            var buildResult = RunBuildCmd(tempDir.DirectoryPath);
             TestOutputHelper.WriteLine(buildResult.StandardOut);
             TestOutputHelper.WriteLine(buildResult.StandardError);
             Assert.True(buildResult.Succeeded);

@@ -50,13 +50,4 @@ internal static class ProcessUtil
             standardOut,
             standardError);
     }
-
-    internal static ProcessResult RunBatchFile(
-        string fileName,
-        string args,
-        string? workingDirectory = null)
-    {
-        args = $"/c {fileName} {args}";
-        return Run("cmd", args, workingDirectory);
-    }
 }

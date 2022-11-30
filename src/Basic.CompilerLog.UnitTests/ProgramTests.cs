@@ -52,10 +52,7 @@ public sealed class ProgramTests : TestBase
 
         // Now run the generated build.cmd and see if it succeeds;
         var exportPath = Path.Combine(exportDir.DirectoryPath, "example");
-        var buildResult = ProcessUtil.RunBatchFile(
-            Path.Combine(exportPath, "build.cmd"),
-            args: "",
-            workingDirectory: exportPath);
+        var buildResult = RunBuildCmd(exportPath);
         Assert.True(buildResult.Succeeded);
     }
 }
