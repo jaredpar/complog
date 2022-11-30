@@ -3,8 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.Configuration.Internal;
 using System.Linq;
+using System.IO;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -136,26 +138,44 @@ public sealed class ExportUtil
         // Need to create a few directories so that the builds will actually function
         foreach (var sdkDir in sdkDirectories)
         {
-            var cmdFileName = $"build-{Path.GetFileName(sdkDir)}.cmd";
+            var cmdFileName = $"build-{Path.GetFileName(sdkDir)}";
             WriteBuildCmd(sdkDir, cmdFileName);
         }
 
         string? bestSdkDir = sdkDirectories.OrderByDescending(x => x, PathUtil.Comparer).FirstOrDefault();
         if (bestSdkDir is not null)
         {
-            WriteBuildCmd(bestSdkDir, "build.cmd");
+            WriteBuildCmd(bestSdkDir, "build");
         }
 
         void WriteBuildCmd(string sdkDir, string cmdFileName)
         {
-            var execPath = Path.Combine(sdkDir, @"Roslyn\bincore");
+            var lines = new List<string>();
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                cmdFileName += ".cmd";
+            }
+            else
+            {
+                cmdFileName += ".sh";
+                lines.Add(@"#!/bin/sh");
+            }
+
+            var execPath = Path.Combine(sdkDir, "Roslyn", "bincore");
             execPath = compilerCall.IsCSharp
                 ? Path.Combine(execPath, "csc.dll")
                 : Path.Combine(execPath, "vbc.dll");
 
-            File.WriteAllLines(
-                Path.Combine(destinationDir, cmdFileName),
-                new[] { $@"dotnet exec ""{execPath}"" @build.rsp" });
+            lines.Add($@"dotnet exec ""{execPath}"" @build.rsp");
+            var cmdFilePath = Path.Combine(destinationDir, cmdFileName);
+            File.WriteAllLines(cmdFilePath, lines);
+
+            Console.WriteLine($"Writing {cmdFilePath}");
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var info = new FileInfo(cmdFilePath);
+                info.UnixFileMode |= UnixFileMode.UserExecute;
+            }
         }
 
         List<string> ProcessRsp()
