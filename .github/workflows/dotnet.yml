@@ -11,12 +11,12 @@ on:
 
 jobs:
   build:
-    name: Build and Test $${ matrix.os }
-    runs-on: $${ matrix.os }
-
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
+
+    name: Build and Test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v3
