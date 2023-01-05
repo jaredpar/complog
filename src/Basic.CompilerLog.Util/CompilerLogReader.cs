@@ -457,7 +457,22 @@ public sealed class CompilerLogReader : IDisposable
         {
             list.Add((
                 GetMetadataReferenceFileName(referenceData.Mvid),
-                GetMetadataReferenceBytes(referenceData.Mvid)));
+                GetAssemblyBytes(referenceData.Mvid)));
+        }
+
+        return list;
+    }
+
+    public List<(string FilePath, byte[] ImageBytes)> ReadAnalyzerFileInfo(CompilerCall compilerCall)
+    {
+        var index = GetIndex(compilerCall);
+        var (_, rawCompilationData) = ReadRawCompilationData(index);
+        var list = new List<(string, byte[])>(rawCompilationData.Analyzers.Count);
+        foreach (var analyzerData in rawCompilationData.Analyzers)
+        {
+            list.Add((
+                analyzerData.FilePath,
+                GetAssemblyBytes(analyzerData.Mvid)));
         }
 
         return list;
@@ -484,12 +499,6 @@ public sealed class CompilerLogReader : IDisposable
         return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments, index);
     }
 
-    internal byte[] GetMetadataReferenceBytes(Guid mvid)
-    {
-        using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
-        return entryStream.ReadAllBytes();
-    }
-
     internal string GetMetadataReferenceFileName(Guid mvid)
     {
         if (_mvidToRefInfoMap.TryGetValue(mvid, out var tuple))
@@ -507,7 +516,7 @@ public sealed class CompilerLogReader : IDisposable
             return metadataReference;
         }
 
-        var bytes = GetMetadataReferenceBytes(mvid);
+        var bytes = GetAssemblyBytes(mvid);
         var tuple = _mvidToRefInfoMap[mvid];
         metadataReference = MetadataReference.CreateFromStream(new MemoryStream(bytes.ToArray()), filePath: tuple.FileName);
         _refMap.Add(mvid, metadataReference);
