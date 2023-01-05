@@ -140,10 +140,10 @@ int RunPrint(IEnumerable<string> args)
 
 int RunReferences(IEnumerable<string> args)
 {
-    var outputPath = "";
+    var baseOutputPath = "";
     var options = new FilterOptionSet()
     {
-        { "o|out", "path to output reference files", o => outputPath = o },
+        { "o|out", "path to output reference files", o => baseOutputPath = o },
     };
 
     try
@@ -159,20 +159,50 @@ int RunReferences(IEnumerable<string> args)
         using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
 
-        outputPath = GetOutputPath(outputPath, "refs");
-        WriteLine($"Copying references to {outputPath}");
-        Directory.CreateDirectory(outputPath);
+        baseOutputPath = GetBaseOutputPath(baseOutputPath);
+        WriteLine($"Copying references to {baseOutputPath}");
+        Directory.CreateDirectory(baseOutputPath);
 
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var refDirPath = Path.Combine(outputPath, GetProjectUniqueName(compilerCalls, i));
+            var refDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "refs");
             Directory.CreateDirectory(refDirPath);
-            var referenceInfoList = reader.ReadReferenceFileInfo(compilerCall);
-            foreach (var tuple in referenceInfoList)
+            foreach (var tuple in reader.ReadReferenceFileInfo(compilerCall))
             {
                 var filePath = Path.Combine(refDirPath, tuple.FileName);
-                File.WriteAllBytes(filePath, tuple.ImageBytes.ToArray());
+                File.WriteAllBytes(filePath, tuple.ImageBytes);
+            }
+
+            var analyzerDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "analyzers");
+            var groupMap = new Dictionary<string, string>(PathUtil.Comparer);
+            foreach (var tuple in reader.ReadAnalyzerFileInfo(compilerCall))
+            {
+                var groupDir = GetGroupDirectoryPath();
+                var filePath = Path.Combine(groupDir, Path.GetFileName(tuple.FilePath));
+                File.WriteAllBytes(filePath, tuple.ImageBytes);
+
+                string GetGroupDirectoryPath()
+                {
+                    var key = Path.GetDirectoryName(tuple.FilePath)!;
+                    var first = false;
+                    if (!groupMap.TryGetValue(key, out var groupName))
+                    {
+                        groupName = $"group{groupMap.Count}";
+                        groupMap[key] = groupName;
+                        first = true;
+                    }
+
+                    var groupDir = Path.Combine(analyzerDirPath, groupName);
+
+                    if (first)
+                    {
+                        Directory.CreateDirectory(groupDir);
+                        File.WriteAllText(Path.Combine(groupDir, "info.txt"), key);
+                    }
+
+                    return groupDir;
+                }
             }
         }
 
@@ -194,10 +224,10 @@ int RunReferences(IEnumerable<string> args)
 
 int RunExport(IEnumerable<string> args)
 {
-    var outputPath = "";
+    var baseOutputPath = "";
     var options = new FilterOptionSet()
     {
-        { "o|out=", "path to output rsp files", o => outputPath = o },
+        { "o|out=", "path to output rsp files", o => baseOutputPath = o },
     };
 
     try
@@ -214,16 +244,15 @@ int RunExport(IEnumerable<string> args)
         var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader);
 
-        outputPath = GetOutputPath(outputPath, "export");
-        WriteLine($"Exporting to {outputPath}");
-        Directory.CreateDirectory(outputPath);
+        baseOutputPath = GetBaseOutputPath(baseOutputPath);
+        WriteLine($"Exporting to {baseOutputPath}");
+        Directory.CreateDirectory(baseOutputPath);
 
         var sdkDirs = DotnetUtil.GetSdkDirectories();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var exportDirName = GetProjectUniqueName(compilerCalls, i);
-            var exportDir = Path.Combine(outputPath, exportDirName);
+            var exportDir = GetOutputPath(baseOutputPath, compilerCalls, i, "export");
             exportUtil.ExportRsp(compilerCall, exportDir, sdkDirs);
         }
 
@@ -246,11 +275,11 @@ int RunExport(IEnumerable<string> args)
 int RunResponseFile(IEnumerable<string> args)
 {
     var singleLine = false;
-    var outputPath = "";
+    var baseOutputPath = "";
     var options = new FilterOptionSet()
     {
         { "s|singleline", "keep response file as single line",  s => singleLine = s != null },
-        { "o|out=", "path to output rsp files", o => outputPath = o },
+        { "o|out=", "path to output rsp files", o => baseOutputPath = o },
     };
 
     try
@@ -267,16 +296,17 @@ int RunResponseFile(IEnumerable<string> args)
             compilerLogStream,
             options.FilterCompilerCalls);
 
-        outputPath = GetOutputPath(outputPath, "rsp");
-        WriteLine($"Generating response files in {outputPath}");
-        Directory.CreateDirectory(outputPath);
+        baseOutputPath = GetBaseOutputPath(baseOutputPath);
+        WriteLine($"Generating response files in {baseOutputPath}");
+        Directory.CreateDirectory(baseOutputPath);
 
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var responseFileName = GetProjectUniqueName(compilerCalls, i) + ".rsp";
-            var responseFilePath = Path.Combine(outputPath, responseFileName);
-            using var writer = new StreamWriter(responseFilePath, append: false, Encoding.UTF8);
+            var rspDirPath = GetOutputPath(baseOutputPath, compilerCalls, i);
+            Directory.CreateDirectory(rspDirPath);
+            var rspFilePath = Path.Combine(rspDirPath, "build.rsp");
+            using var writer = new StreamWriter(rspFilePath, append: false, Encoding.UTF8);
             if (singleLine)
             {
                 writer.WriteLine(string.Join(' ', compilerCall.Arguments));
@@ -430,14 +460,27 @@ string GetLogFilePath(List<string> extra)
     static OptionException CreateOptionException() => new("Need a path to a log file", "log");
 }
 
-string GetOutputPath(string? outputPath, string directoryName)
+string GetBaseOutputPath(string? baseOutputPath)
 {
-    if (!string.IsNullOrEmpty(outputPath))
+    if (string.IsNullOrEmpty(baseOutputPath))
     {
-        return outputPath;
+        baseOutputPath = ".compilerlog";
     }
 
-    return Path.Combine(CurrentDirectory, ".compilerlog", directoryName);
+    if (!Path.IsPathRooted(baseOutputPath))
+    {
+        baseOutputPath = Path.Combine(CurrentDirectory, baseOutputPath);
+    }
+
+    return baseOutputPath;
+}
+
+string GetOutputPath(string baseOutputPath, List<CompilerCall> compilerCalls, int index, string? directoryName = null)
+{
+    var projectName = GetProjectUniqueName(compilerCalls, index);
+    return string.IsNullOrEmpty(directoryName)
+        ? Path.Combine(baseOutputPath, projectName)
+        : Path.Combine(baseOutputPath, projectName, directoryName);
 }
 
 string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
