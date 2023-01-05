@@ -51,7 +51,7 @@ public sealed class ProgramTests : TestBase
         Assert.Equal(0, RunCompLog("export", "-o", exportDir.DirectoryPath, RootDirectory));
 
         // Now run the generated build.cmd and see if it succeeds;
-        var exportPath = Path.Combine(exportDir.DirectoryPath, "example");
+        var exportPath = Path.Combine(exportDir.DirectoryPath, "example", "export");
         var buildResult = RunBuildCmd(exportPath);
         Assert.True(buildResult.Succeeded);
     }
