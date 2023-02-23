@@ -1,44 +1,28 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using System.Web;
 
 namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogTextLoader : TextLoader
 {
-    private readonly Dictionary<DocumentId, (ProjectId ProjectId, string FilePath, string ContentHash, SourceHashAlgorithm HashAlgorithm)> _idToContentMap = new();
-    private readonly Dictionary<(ProjectId ProjectId, string FilePath, string ContentHash, SourceHashAlgorithm HashAlgorithm), DocumentId> _contentToIdMap = new();
-
     internal CompilerLogReader Reader { get; }
     internal VersionStamp VersionStamp { get; }
+    internal string ContentHash { get; }
+    internal string FilePath { get; }
 
-    internal CompilerLogTextLoader(CompilerLogReader reader, VersionStamp versionStamp)
+    internal CompilerLogTextLoader(CompilerLogReader reader, VersionStamp versionStamp, string contentHash, string filePath)
     {
         Reader = reader;
         VersionStamp = versionStamp;
+        ContentHash = contentHash;
+        FilePath = filePath;
     }
 
-    internal DocumentId GetDocumentId(ProjectId projectId, string filePath, string contentHash, SourceHashAlgorithm hashAlgorithm)
+    public override Task<TextAndVersion> LoadTextAndVersionAsync(LoadTextOptions options, CancellationToken cancellationToken)
     {
-        var key = (projectId, filePath, contentHash, hashAlgorithm);
-        if (!_contentToIdMap.TryGetValue(key, out var id))
-        {
-            id = DocumentId.CreateNewId(projectId, filePath);
-            _contentToIdMap[key] = id;
-            _idToContentMap[id] = key;
-        }
-
-        return id;
-    }
-
-    public override Task<TextAndVersion> LoadTextAndVersionAsync(Workspace workspace, DocumentId documentId, CancellationToken cancellationToken)
-    {
-        if (!_idToContentMap.TryGetValue(documentId, out var tuple))
-        {
-            throw new InvalidOperationException();
-        }
-
-        var sourceText = Reader.GetSourceText(tuple.ContentHash, tuple.HashAlgorithm);
-        var textAndVersion = TextAndVersion.Create(sourceText, VersionStamp, tuple.FilePath);
+        var sourceText = Reader.GetSourceText(ContentHash, options.ChecksumAlgorithm);
+        var textAndVersion = TextAndVersion.Create(sourceText, VersionStamp, FilePath);
         return Task.FromResult(textAndVersion);
     }
 }

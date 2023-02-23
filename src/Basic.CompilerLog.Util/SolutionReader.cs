@@ -14,7 +14,6 @@ public sealed class SolutionReader : IDisposable
     private List<ProjectId> _projectIdList;
 
     internal CompilerLogReader Reader { get; }
-    internal CompilerLogTextLoader TextLoader { get; }
     internal VersionStamp VersionStamp { get; }
     internal SolutionId SolutionId { get; } = SolutionId.CreateNewId();
 
@@ -24,7 +23,6 @@ public sealed class SolutionReader : IDisposable
     {
         Reader = reader;
         VersionStamp = versionStamp ?? VersionStamp.Default;
-        TextLoader = new(reader, VersionStamp);
 
         _projectIdList = new List<ProjectId>(reader.Count);
         for (int i = 0; i < reader.Count; i++)
@@ -87,11 +85,11 @@ public sealed class SolutionReader : IDisposable
 
             void Add(List<DocumentInfo> list)
             {
-                var documentId = TextLoader.GetDocumentId(projectId, filePath: tuple.FilePath, contentHash: tuple.ContentHash, rawCompilationData.Arguments.ChecksumAlgorithm);
+                var documentId = DocumentId.CreateNewId(projectId, debugName: Path.GetFileName(tuple.FilePath));
                 list.Add(DocumentInfo.Create(
                     documentId,
                     Path.GetFileName(tuple.FilePath),
-                    loader: TextLoader,
+                    loader: new CompilerLogTextLoader(Reader, VersionStamp, tuple.ContentHash, tuple.FilePath), 
                     filePath: tuple.FilePath));
             }
         }

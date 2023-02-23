@@ -1,6 +1,5 @@
 ﻿using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
-using Microsoft.Build.Tasks.Deployment.ManifestUtilities;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
 using System.Runtime.Loader;
