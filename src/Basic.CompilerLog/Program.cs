@@ -20,6 +20,7 @@ try
         "export" => RunExport(rest),
         "ref" => RunReferences(rest),
         "rsp" => RunResponseFile(rest),
+        "analyzers" => RunAnalyzers(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(),
         _ => RunHelp()
@@ -89,6 +90,48 @@ int RunCreate(IEnumerable<string> args)
     void PrintUsage()
     {
         WriteLine("compilerlog create [OPTIONS] binlog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
+int RunAnalyzers(IEnumerable<string> args)
+{ 
+    var options = new FilterOptionSet();
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (options.Help)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
+        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
+
+        foreach (var compilerCall in compilerCalls)
+        {
+            WriteLine($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
+            foreach (var tuple in reader.ReadAnalyzerFileInfo(compilerCall))
+            {
+                WriteLine($"\t{tuple.FilePath}");
+            }
+        }
+
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("compilerlog analyzers [OPTIONS] build.compilerlog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -396,7 +439,8 @@ int RunHelp()
           diagnostics   Print diagnostics for a compilation
           export        Export a complete project to disk
           rsp           Generate compiler response file for selected projects
-          ref           Copy all references to a single directory
+          ref           Copy all references and analyzers to a single directory
+          analyzers     Print analyzers used by a compilation
           print         Print summary of entries in the log
           help          Print help
         """);
