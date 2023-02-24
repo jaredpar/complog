@@ -24,7 +24,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var scratchDir = new TempDir();
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
-        var compilerLogFilePath = Path.Combine(scratchDir.DirectoryPath, "build.compilerlog");
+        var compilerLogFilePath = Path.Combine(scratchDir.DirectoryPath, "build.complog");
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, compilerLogFilePath);
         Assert.Empty(diagnosticList);
 

@@ -20,7 +20,7 @@ public static class CompilerLogUtil
             return memoryStream;
         }
 
-        if (ext is ".compilerlog")
+        if (ext is ".complog")
         {
             return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
