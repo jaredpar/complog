@@ -57,7 +57,7 @@ void ExportTest()
     EmptyDirectory(dest);
 
     var d = DotnetUtil.GetSdkDirectories();
-    var reader = CompilerLogReader.Create(filePath);
+    var reader = CompilerLogReader.Create(filePath!);
     var util = new ExportUtil(reader);
     util.ExportRsp(reader.ReadCompilerCall(0), dest, DotnetUtil.GetSdkDirectories());
 }
