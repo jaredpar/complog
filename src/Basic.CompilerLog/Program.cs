@@ -333,11 +333,7 @@ int RunResponseFile(IEnumerable<string> args)
             return ExitFailure;
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
-            compilerLogStream,
-            options.FilterCompilerCalls);
-
+        var compilerCalls = GetCompilerCalls(extra, options.FilterCompilerCalls);
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Generating response files in {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
@@ -445,6 +441,22 @@ int RunHelp()
           help          Print help
         """);
     return ExitFailure;
+}
+
+List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>? predicate)
+{
+    var logFilePath = GetLogFilePath(extra);
+    using var stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+    var ext = Path.GetExtension(logFilePath);
+    switch (ext)
+    {
+        case ".binlog":
+            return BinaryLogUtil.ReadCompilerCalls(stream, new(), predicate);
+        case ".compilerlog":
+            return CompilerLogUtil.ReadCompilerCalls(stream, predicate);
+        default:
+            throw new Exception($"Unrecognized file extension: {ext}");
+    }
 }
 
 Stream GetOrCreateCompilerLogStream(List<string> extra)
