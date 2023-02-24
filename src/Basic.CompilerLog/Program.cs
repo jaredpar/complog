@@ -66,7 +66,7 @@ int RunCreate(IEnumerable<string> args)
             return ExitFailure;
         }
 
-        var compilerLogFileName = $"{Path.GetFileNameWithoutExtension(binlogFilePath)}.compilerlog";
+        var compilerLogFileName = $"{Path.GetFileNameWithoutExtension(binlogFilePath)}.complog";
         var compilerLogFilePath = Path.Combine(Path.GetDirectoryName(binlogFilePath)!, compilerLogFileName);
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(
             binlogFilePath,
@@ -89,7 +89,7 @@ int RunCreate(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("compilerlog create [OPTIONS] binlog");
+        WriteLine("complog create [OPTIONS] binlog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -131,7 +131,7 @@ int RunAnalyzers(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("compilerlog analyzers [OPTIONS] build.compilerlog");
+        WriteLine("complog analyzers [OPTIONS] build.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -175,7 +175,7 @@ int RunPrint(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("compilerlog print [OPTIONS] build.compilerlog");
+        WriteLine("complog print [OPTIONS] build.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -259,7 +259,7 @@ int RunReferences(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("compilerlog rsp [OPTIONS] build.compilerlog");
+        WriteLine("complog rsp [OPTIONS] build.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -309,7 +309,7 @@ int RunExport(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("compilerlog export [OPTIONS] build.compilerlog");
+        WriteLine("complog export [OPTIONS] build.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -333,11 +333,7 @@ int RunResponseFile(IEnumerable<string> args)
             return ExitFailure;
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
-            compilerLogStream,
-            options.FilterCompilerCalls);
-
+        var compilerCalls = GetCompilerCalls(extra, options.FilterCompilerCalls);
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Generating response files in {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
@@ -373,7 +369,7 @@ int RunResponseFile(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("compilerlog rsp [OPTIONS] build.compilerlog");
+        WriteLine("complog rsp [OPTIONS] build.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -425,7 +421,7 @@ int RunDiagnostics(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("compilerlog diagnostics [OPTIONS] compilerlog");
+        WriteLine("complog diagnostics [OPTIONS] compilerlog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -433,7 +429,7 @@ int RunDiagnostics(IEnumerable<string> args)
 int RunHelp()
 {
     WriteLine("""
-        compilerlog [command] [args]
+        complog [command] [args]
         Commands
           create        Create a compilerlog file 
           diagnostics   Print diagnostics for a compilation
@@ -445,6 +441,22 @@ int RunHelp()
           help          Print help
         """);
     return ExitFailure;
+}
+
+List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>? predicate)
+{
+    var logFilePath = GetLogFilePath(extra);
+    using var stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+    var ext = Path.GetExtension(logFilePath);
+    switch (ext)
+    {
+        case ".binlog":
+            return BinaryLogUtil.ReadCompilerCalls(stream, new(), predicate);
+        case ".complog":
+            return CompilerLogUtil.ReadCompilerCalls(stream, predicate);
+        default:
+            throw new Exception($"Unrecognized file extension: {ext}");
+    }
 }
 
 Stream GetOrCreateCompilerLogStream(List<string> extra)
@@ -480,7 +492,7 @@ string GetLogFilePath(List<string> extra)
     {
         // Search the directory for valid log files
         var path = Directory
-            .EnumerateFiles(baseDirectory, "*.compilerlog")
+            .EnumerateFiles(baseDirectory, "*.complog")
             .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
             .FirstOrDefault();
         if (path is not null)
@@ -507,7 +519,7 @@ string GetBaseOutputPath(string? baseOutputPath)
 {
     if (string.IsNullOrEmpty(baseOutputPath))
     {
-        baseOutputPath = ".compilerlog";
+        baseOutputPath = ".complog";
     }
 
     if (!Path.IsPathRooted(baseOutputPath))
