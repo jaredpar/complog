@@ -1,6 +1,9 @@
 ﻿using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 #pragma warning disable 8321
 
@@ -12,8 +15,41 @@ var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbui
 
 //TestDiagnostics(filePath);
 // RoundTrip(filePath);
+
+
 // await SolutionScratchAsync(filePath);
-ExportTest();
+
+Scratch();
+
+void Scratch()
+{
+    var code = """
+        using System.Reflection;
+        class C
+        {
+           static void C(Assembly assembly) { }
+        }
+        """;
+
+    var syntaxTree = CSharpSyntaxTree.ParseText(code);
+    var compilation = CSharpCompilation.Create(
+        "scratch",
+        new[] { syntaxTree },
+        Basic.Reference.Assemblies.Net60.All);
+
+    var context = compilation.GetSemanticModel(syntaxTree);
+    var node = syntaxTree.GetRoot().DescendantNodes().OfType<ParameterSyntax>().Single();
+    var format = SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted);
+    if (context.GetDeclaredSymbol(node) is IParameterSymbol { Type: var type })
+    {
+        Console.WriteLine(type.ToDisplayString(format));
+    }
+    else
+    {
+        // error resolving parameter, possible errors in the compilation
+    }
+}
+
 
 void ExportTest()
 {
