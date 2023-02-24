@@ -20,7 +20,7 @@ try
         "export" => RunExport(rest),
         "ref" => RunReferences(rest),
         "rsp" => RunResponseFile(rest),
-        "analyzers" => RunAnalyzers(rest),
+        "analyzers" => RunAnalyzers2(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(),
         _ => RunHelp()
@@ -94,7 +94,7 @@ int RunCreate(IEnumerable<string> args)
     }
 }
 
-int RunAnalyzers(IEnumerable<string> args)
+int RunAnalyzers2(IEnumerable<string> args)
 { 
     var options = new FilterOptionSet();
 
