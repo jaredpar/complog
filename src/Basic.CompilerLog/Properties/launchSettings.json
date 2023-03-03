@@ -2,8 +2,8 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "rsp InnerManagedTestBuild.1.binlog",
-      "workingDirectory": "c:\\users\\jaredpar\\Downloads"
+      "commandLineArgs": "rsp --debug-sdk msbuild.binlog",
+      "workingDirectory": "c:\\users\\jaredpar\\temp\\console"
     }
   }
 }

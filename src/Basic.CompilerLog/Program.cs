@@ -26,6 +26,11 @@ try
         _ => RunHelp()
     };
 }
+catch (LogException e)
+{
+    WriteLine(e.Message);
+    return ExitFailure;
+}
 catch (Exception e)
 {
     RunHelp();
@@ -80,7 +85,7 @@ int RunCreate(IEnumerable<string> args)
 
         return ExitSuccess;
     }
-    catch (OptionException e)
+    catch (Exception e) when (e is OptionException or LogException)
     {
         WriteLine(e.Message);
         PrintUsage();
@@ -122,7 +127,7 @@ int RunAnalyzers(IEnumerable<string> args)
 
         return ExitSuccess;
     }
-    catch (OptionException e)
+    catch (Exception e) when (e is OptionException or LogException)
     {
         WriteLine(e.Message);
         PrintUsage();
@@ -166,7 +171,7 @@ int RunPrint(IEnumerable<string> args)
 
         return ExitSuccess;
     }
-    catch (OptionException e)
+    catch (Exception e) when (e is OptionException or LogException)
     {
         WriteLine(e.Message);
         PrintUsage();
@@ -250,7 +255,7 @@ int RunReferences(IEnumerable<string> args)
 
         return ExitSuccess;
     }
-    catch (OptionException e)
+    catch (Exception e) when (e is OptionException or LogException)
     {
         WriteLine(e.Message);
         PrintUsage();
@@ -300,7 +305,7 @@ int RunExport(IEnumerable<string> args)
 
         return ExitSuccess;
     }
-    catch (Exception e)
+    catch (Exception e) when (e is OptionException or LogException)
     {
         WriteLine(e.Message);
         PrintUsage();
@@ -318,9 +323,11 @@ int RunResponseFile(IEnumerable<string> args)
 {
     var singleLine = false;
     var baseOutputPath = "";
+    var debugSdk = false;
     var options = new FilterOptionSet()
     {
         { "s|singleline", "keep response file as single line",  s => singleLine = s != null },
+        { "debug-sdk", "generate sln files to debug rsp with the sdk", d => debugSdk = d != null },
         { "o|out=", "path to output rsp files", o => baseOutputPath = o },
     };
 
@@ -337,6 +344,13 @@ int RunResponseFile(IEnumerable<string> args)
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Generating response files in {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
+        string? dotnetExePath = null;
+        List<string>? sdkDirectories = null;
+
+        if (debugSdk)
+        {
+            (dotnetExePath, sdkDirectories) = GetDotnetInfo();
+        }
 
         for (int i = 0; i < compilerCalls.Count; i++)
         {
@@ -356,11 +370,30 @@ int RunResponseFile(IEnumerable<string> args)
                     writer.WriteLine(arg);
                 }
             }
+
+            // Emit the debug-7.0.200.sln style files if requested to make for easy 
+            // debugging
+            if (debugSdk)
+            {
+                var compilerDll = DotnetUtil.GetCompilerDll(compilerCall.IsCSharp);
+
+                foreach (var sdkDir in sdkDirectories!)
+                {
+                    var compilerPath = Path.Combine(sdkDir, "Roslyn", "bincore", compilerDll);
+                    var slnName = $"debug-{Path.GetFileName(sdkDir)}.sln";
+                    var content = DotnetUtil.GetDebugSolutionFileContent(
+                        Path.GetFileNameWithoutExtension(slnName),
+                        dotnetExePath!,
+                        compilerCall.ProjectDirectory,
+                        $@"exec ""{compilerPath}"" ""{rspFilePath}""");
+                    File.WriteAllText(Path.Combine(rspDirPath, slnName), content);
+                }
+            }
         }
 
         return ExitSuccess;
     }
-    catch (OptionException e)
+    catch (Exception e) when (e is OptionException or LogException)
     {
         WriteLine(e.Message);
         PrintUsage();
@@ -412,7 +445,7 @@ int RunDiagnostics(IEnumerable<string> args)
 
         return ExitSuccess;
     }
-    catch (OptionException e)
+    catch (Exception e) when (e is OptionException or LogException)
     {
         WriteLine(e.Message);
         PrintUsage();
@@ -465,11 +498,28 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
     return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
 }
 
+(string DotnetExePath, List<string> SdkDirectories) GetDotnetInfo()
+{
+    var dotnetExePath = DotnetUtil.GetDotnetExecutable();
+    if (dotnetExePath is null)
+    {
+        throw new LogException("Cannot find dotnet");
+    }
+
+    var sdkDirectories = DotnetUtil.GetSdkDirectories();
+    if (sdkDirectories.Count == 0)
+    {
+        throw new LogException("Cannot find sdk directories");
+    }
+
+    return (dotnetExePath, sdkDirectories);
+}
+
 string GetLogFilePath(List<string> extra)
 {
     if (extra.Count > 1)
     {
-        throw CreateOptionException();
+        throw CreateLogException();
     }
 
     string? path;
@@ -509,10 +559,10 @@ string GetLogFilePath(List<string> extra)
             return path;
         }
 
-        throw CreateOptionException();
+        throw CreateLogException();
     }
 
-    static OptionException CreateOptionException() => new("Need a path to a log file", "log");
+    static LogException CreateLogException() => new("Need a path to a log file");
 }
 
 string GetBaseOutputPath(string? baseOutputPath)
@@ -559,7 +609,10 @@ string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
     return name;
 }
 
-
-
-
-
+internal sealed class LogException : Exception
+{
+    internal LogException(string message) 
+        : base(message)
+    {
+    }
+}
