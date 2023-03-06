@@ -108,10 +108,16 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
-    public CompilationData ReadCompilationData(int index) =>
-        ReadCompilationData(ReadCompilerCall(index));
+    public CompilationData ReadCompilationData(
+        int index,
+        BasicAnalyzersOptions options = BasicAnalyzersOptions.InMemory,
+        AssemblyLoadContext? compilerLoadContext = null) =>
+        ReadCompilationData(ReadCompilerCall(index), options, compilerLoadContext);
 
-    public CompilationData ReadCompilationData(CompilerCall compilerCall)
+    public CompilationData ReadCompilationData(
+        CompilerCall compilerCall,
+        BasicAnalyzersOptions options = BasicAnalyzersOptions.InMemory, 
+        AssemblyLoadContext? compilerLoadContext = null)
     {
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = GetMetadataReferences(rawCompilationData.References);
@@ -238,7 +244,7 @@ public sealed class CompilerLogReader : IDisposable
                 compilation,
                 csharpArgs,
                 additionalTextList.ToImmutableArray(),
-                CreateAssemblyLoadContext(compilerCall.ProjectFilePath, rawCompilationData.Analyzers),
+                ReadBasicAnalyzers(rawCompilationData.Analyzers, options, compilerLoadContext),
                 analyzerProvider);
         }
 
@@ -270,7 +276,7 @@ public sealed class CompilerLogReader : IDisposable
                 compilation,
                 basicArgs,
                 additionalTextList.ToImmutableArray(),
-                CreateAssemblyLoadContext(compilerCall.ProjectFilePath, rawCompilationData.Analyzers),
+                ReadBasicAnalyzers(rawCompilationData.Analyzers, options, compilerLoadContext),
                 analyzerProvider);
         }
     }
@@ -588,8 +594,16 @@ public sealed class CompilerLogReader : IDisposable
         stream.CopyTo(destination);
     }
 
-    internal BasicAssemblyLoadContext CreateAssemblyLoadContext(string name, List<RawAnalyzerData> analyzers) =>
-        new BasicAssemblyLoadContext(name, this, analyzers);
+    internal BasicAnalyzers ReadBasicAnalyzers(
+        List<RawAnalyzerData> analyzers,
+        BasicAnalyzersOptions options,
+        AssemblyLoadContext? compilerLoadContext = null) =>
+        options switch
+        {
+            BasicAnalyzersOptions.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, compilerLoadContext),
+            BasicAnalyzersOptions.OnDisk => BasicAnalyzersOnDisk.Create(this, analyzers, compilerLoadContext),
+            _ => throw new InvalidOperationException()
+        };
 
     public void Dispose()
     {
