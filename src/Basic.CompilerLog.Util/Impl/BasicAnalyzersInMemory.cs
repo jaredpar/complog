@@ -74,7 +74,7 @@ file sealed class InMemoryLoader : AssemblyLoadContext
         // Prefer registered dependencies in the same directory first.
         if (_map.TryGetValue(assemblyName.Name!, out var bytes))
         {
-            return LoadFromStream(new MemoryStream(bytes));
+            return LoadFromStream(bytes.AsSimpleMemoryStream());
         }
 
         return null;

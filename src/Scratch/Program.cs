@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using Scratch;
+using TraceReloggerLib;
 
 #pragma warning disable 8321
 
@@ -20,9 +21,32 @@ var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbui
 
 // await SolutionScratchAsync(filePath);
 
-new CompilerBenchmark().GenerateLog();
+/*
+var b = new CompilerBenchmark()
+{
+    Options = BasicAnalyzersOptions.InMemory
+};
+b.GenerateLog();
+b.LoadAnalyzers();
+*/
 _ = BenchmarkDotNet.Running.BenchmarkRunner.Run<CompilerBenchmark>();
 
+/*
+var binlogPath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var complogPath = Path.Combine(Path.GetDirectoryName(binlogPath)!, "msbuild.complog");
+if (File.Exists(complogPath))
+{
+    File.Delete(complogPath);
+}
+CompilerLogUtil.ConvertBinaryLog(binlogPath, complogPath);
+var reader = CompilerLogReader.Create(complogPath);
+var analyzers = reader.ReadBasicAnalyzers(reader.ReadRawCompilationData(0).Item2.Analyzers, BasicAnalyzersOptions.InMemory);
+foreach (var analyzer in analyzers.AnalyzerReferences)
+{
+    _ = analyzer.GetAnalyzersForAllLanguages();
+    _ = analyzer.GetGeneratorsForAllLanguages();
+}
+*/
 
 void Scratch()
 {

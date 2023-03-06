@@ -1,6 +1,7 @@
 ﻿using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Diagnostics.Windows.Configs;
 using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
@@ -13,7 +14,8 @@ using System.Threading.Tasks;
 
 namespace Scratch;
 
-public  class CompilerBenchmark
+[MemoryDiagnoser]
+public class CompilerBenchmark
 {
     public string TempDirectory { get; set; }
     public CompilerLogReader Reader { get; set; }
@@ -38,6 +40,7 @@ public  class CompilerBenchmark
     [ParamsAllValues]
     public BasicAnalyzersOptions Options { get; set; }
 
+    /*
     [Benchmark]
     public void Emit()
     {
@@ -52,5 +55,18 @@ public  class CompilerBenchmark
             throw new Exception("compilation failed");
         }
         data.BasicAnalyzers.Dispose();
+    }
+    */
+
+    [Benchmark]
+    public void LoadAnalyzers()
+    {
+        var analyzers = Reader.ReadBasicAnalyzers(Reader.ReadRawCompilationData(0).Item2.Analyzers, Options);
+        foreach (var analyzer in analyzers.AnalyzerReferences)
+        {
+            _ = analyzer.GetAnalyzersForAllLanguages();
+            _ = analyzer.GetGeneratorsForAllLanguages();
+        }
+        analyzers.Dispose();
     }
 }

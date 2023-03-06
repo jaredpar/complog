@@ -555,11 +555,8 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
-    internal byte[] GetContentBytes(string contentHash)
-    {
-        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
-        return stream.ReadAllBytes();
-    }
+    internal byte[] GetContentBytes(string contentHash) =>
+        ZipArchive.ReadAllBytes(GetContentEntryName(contentHash));
 
     internal Stream GetContentStream(string contentHash) =>
         ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
@@ -579,11 +576,8 @@ public sealed class CompilerLogReader : IDisposable
         return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm);
     }
 
-    internal byte[] GetAssemblyBytes(Guid mvid)
-    {
-        using var entryStream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
-        return entryStream.ReadAllBytes();
-    }
+    internal byte[] GetAssemblyBytes(Guid mvid) =>
+        ZipArchive.ReadAllBytes(GetAssemblyEntryName(mvid));
 
     internal Stream GetAssemblyStream(Guid mvid) =>
         ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
