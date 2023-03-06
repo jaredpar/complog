@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using Scratch;
 
 #pragma warning disable 8321
 
@@ -19,7 +20,9 @@ var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbui
 
 // await SolutionScratchAsync(filePath);
 
-Scratch();
+new CompilerBenchmark().GenerateLog();
+_ = BenchmarkDotNet.Running.BenchmarkRunner.Run<CompilerBenchmark>();
+
 
 void Scratch()
 {
