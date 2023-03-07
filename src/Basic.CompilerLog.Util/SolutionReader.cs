@@ -55,7 +55,7 @@ public sealed class SolutionReader : IDisposable
         return SolutionInfo.Create(SolutionId, VersionStamp, projects: projectInfoList);
     }
 
-    public ProjectInfo ReadProjectInfo(int index, BasicAnalyzersOptions options = BasicAnalyzersOptions.InMemory)
+    public ProjectInfo ReadProjectInfo(int index)
     {
         var (compilerCall, rawCompilationData) = Reader.ReadRawCompilationData(index);
         var projectId = _projectIdList[index];
@@ -98,7 +98,7 @@ public sealed class SolutionReader : IDisposable
         var projectReferences = new List<ProjectReference>();
 
         var referenceList = Reader.GetMetadataReferences(rawCompilationData.References);
-        var analyzers = Reader.ReadBasicAnalyzers(rawCompilationData.Analyzers, options);
+        var analyzers = Reader.ReadAnalyzers(rawCompilationData.Analyzers);
         var projectInfo = ProjectInfo.Create(
             projectId,
             VersionStamp,

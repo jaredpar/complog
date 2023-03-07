@@ -11,12 +11,15 @@ using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 
+[Collection(CompilerLogCollection.Name)]
 public sealed class CompilerLogReaderTests : TestBase
 {
-    public CompilerLogReaderTests(ITestOutputHelper testOutputHelper)
+    public CompilerLogFixture Fixture { get; }
+
+    public CompilerLogReaderTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
         : base(testOutputHelper, nameof(CompilerLogReader))
     {
-
+        Fixture = fixture;
     }
 
     /// <summary>
@@ -137,37 +140,11 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void AnalyzerLoadOptions()
     {
-        RunDotNet($"new console --name example --output .");
-        var projectFileContent = """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net7.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-              </PropertyGroup>
-            </Project>
-            """;
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
-        var program = """
-            using System;
-            using System.Text.RegularExpressions;
-            // This is an amazing resource
-            var r = Util.GetRegex();
-            Console.WriteLine(r);
-
-            partial class Util {
-                [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
-                internal static partial Regex GetRegex();
-            }
-            """;
-        File.WriteAllText(Path.Combine(RootDirectory, "Program.cs"), program, DefaultEncoding);
-        RunDotNet("build -bl");
-
-        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
-        foreach (var option in Enum.GetValues<BasicAnalyzersOptions>())
+        foreach (var kind in Enum.GetValues<BasicAnalyzersKind>())
         {
-            var data = reader.ReadCompilationData(0, option);
+            var options = new BasicAnalyzersOptions(kind);
+            using var reader = CompilerLogReader.Create(Fixture.ConsolePath, options: options);
+            var data = reader.ReadCompilationData(0);
             var compilation = data.GetCompilationAfterGenerators();
             var found = false;
             foreach (var tree in compilation.SyntaxTrees)
@@ -181,5 +158,25 @@ public sealed class CompilerLogReaderTests : TestBase
             Assert.True(found);
             data.BasicAnalyzers.Dispose();
         }
+    }
+
+    [Theory]
+    [InlineData(BasicAnalyzersKind.InMemory)]
+    [InlineData(BasicAnalyzersKind.OnDisk)]
+    public void AnalyzerLoadCaching(BasicAnalyzersKind kind)
+    {
+        var options = new BasicAnalyzersOptions(kind, cacheable: true);
+        using var reader = CompilerLogReader.Create(Fixture.ConsolePath, options: options);
+        var key = reader.ReadRawCompilationData(0).Item2.Analyzers;
+
+        var analyzers1 = reader.ReadAnalyzers(key);
+        var analyzers2 = reader.ReadAnalyzers(key);
+        Assert.Same(analyzers1, analyzers2);
+        analyzers1.Dispose();
+        Assert.False(analyzers1.IsDisposed);
+        Assert.False(analyzers2.IsDisposed);
+        analyzers2.Dispose();
+        Assert.True(analyzers1.IsDisposed);
+        Assert.True(analyzers2.IsDisposed);
     }
 }

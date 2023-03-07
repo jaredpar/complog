@@ -18,7 +18,7 @@ namespace Scratch;
 public class CompilerBenchmark
 {
     public string TempDirectory { get; set; }
-    public CompilerLogReader Reader { get; set; }
+    public string CompilerLogPath { get; set; }
 
     [GlobalSetup]
     public void GenerateLog()
@@ -27,18 +27,18 @@ public class CompilerBenchmark
         Directory.CreateDirectory(TempDirectory);
         DotnetUtil.Command($"new console --name example --output .", TempDirectory);
         DotnetUtil.Command($"build -bl", TempDirectory);
-        Reader = CompilerLogReader.Create(Path.Combine(TempDirectory, "msbuild.binlog"));
+        CompilerLogPath = Path.Combine(TempDirectory, "build.complog");
+        CompilerLogUtil.ConvertBinaryLog(Path.Combine(TempDirectory, "msbuild.binlog"), CompilerLogPath);
     }
 
     [GlobalCleanup]
     public void Cleanup()
     {
-        Reader.Dispose();
         Directory.Delete(TempDirectory, recursive: true);
     }
 
     [ParamsAllValues]
-    public BasicAnalyzersOptions Options { get; set; }
+    public BasicAnalyzersKind Kind { get; set; }
 
     /*
     [Benchmark]
@@ -61,7 +61,8 @@ public class CompilerBenchmark
     [Benchmark]
     public void LoadAnalyzers()
     {
-        var analyzers = Reader.ReadBasicAnalyzers(Reader.ReadRawCompilationData(0).Item2.Analyzers, Options);
+        using var reader = CompilerLogReader.Create(CompilerLogPath, options: new BasicAnalyzersOptions(Kind));
+        var analyzers = reader.ReadAnalyzers(reader.ReadRawCompilationData(0).Item2.Analyzers);
         foreach (var analyzer in analyzers.AnalyzerReferences)
         {
             _ = analyzer.GetAnalyzersForAllLanguages();

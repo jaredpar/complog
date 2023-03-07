@@ -26,7 +26,7 @@ internal sealed class BasicAnalyzersOnDisk : BasicAnalyzers
         AssemblyLoadContext loader,
         ImmutableArray<AnalyzerFileReference> analyzerReferences,
         string analyzerDirectory)
-        : base(BasicAnalyzersOptions.OnDisk, loader, ImmutableArray<AnalyzerReference>.CastUp(analyzerReferences))
+        : base(BasicAnalyzersKind.OnDisk, loader, ImmutableArray<AnalyzerReference>.CastUp(analyzerReferences))
     {
         _loader = loader;
         AnalyzerDirectory = analyzerDirectory;

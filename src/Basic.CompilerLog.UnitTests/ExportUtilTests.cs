@@ -11,12 +11,15 @@ using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 
+[Collection(CompilerLogCollection.Name)]
 public sealed class ExportUtilTests : TestBase
 {
-    public ExportUtilTests(ITestOutputHelper testOutputHelper)
+    public CompilerLogFixture Fixture { get; }
+
+    public ExportUtilTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
         : base(testOutputHelper, nameof(ExportUtilTests))
     {
-
+        Fixture = fixture;
     }
 
     private void TestExport(int expectedCount)
@@ -31,6 +34,11 @@ public sealed class ExportUtilTests : TestBase
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
 
+        TestExport(compilerLogFilePath, expectedCount);
+    }
+
+    private void TestExport(string compilerLogFilePath, int expectedCount)
+    {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
         var sdkDirs = DotnetUtil.GetSdkDirectories();
         var exportUtil = new ExportUtil(reader);
@@ -61,17 +69,13 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void Console()
     {
-        RunDotNet($"new console --name example --output .");
-        RunDotNet("build -bl");
-        TestExport(1);
+        TestExport(Fixture.ConsolePath, 1);
     }
 
     [Fact]
     public void ClassLib()
     {
-        RunDotNet($"new classlib --name example --output .");
-        RunDotNet("build -bl");
-        TestExport(1);
+        TestExport(Fixture.ClassLibPath, 1);
     }
 
     [Fact]

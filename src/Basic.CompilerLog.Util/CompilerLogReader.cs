@@ -11,6 +11,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Runtime.Loader;
+using System.Text;
 using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
@@ -19,7 +20,9 @@ public sealed class CompilerLogReader : IDisposable
 {
     private readonly Dictionary<Guid, MetadataReference> _refMap = new Dictionary<Guid, MetadataReference>();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
+    private readonly Dictionary<string, BasicAnalyzers> _analyzersMap = new Dictionary<string, BasicAnalyzers>();
 
+    public BasicAnalyzersOptions BasicAnalyzersOptions { get; }
     internal ZipArchive ZipArchive { get; set; }
     internal int Count { get; }
 
@@ -30,7 +33,7 @@ public sealed class CompilerLogReader : IDisposable
     /// </summary>
     public string? CryptoKeyFileDirectory { get; set; }
 
-    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory)
+    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory, BasicAnalyzersOptions? basicAnalyzersOptions = null)
     {
         try
         {
@@ -42,6 +45,7 @@ public sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
+        BasicAnalyzersOptions = basicAnalyzersOptions ?? BasicAnalyzersOptions.Default;
         CryptoKeyFileDirectory = cryptoKeyFileDirectory;
         Count = ReadMetadata();
         ReadAssemblyInfo();
@@ -75,12 +79,19 @@ public sealed class CompilerLogReader : IDisposable
         static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
     }
 
-    public static CompilerLogReader Create(Stream stream, bool leaveOpen = false, string? cryptoKeyFileDirectory = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory);
+    public static CompilerLogReader Create(
+        Stream stream,
+        bool leaveOpen = false,
+        string? cryptoKeyFileDirectory = null,
+        BasicAnalyzersOptions? options = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory, options);
 
-    public static CompilerLogReader Create(string filePath, string? cryptoKeyFileDirectory = null)
+    public static CompilerLogReader Create(
+        string filePath,
+        string? cryptoKeyFileDirectory = null,
+        BasicAnalyzersOptions? options = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new CompilerLogReader(stream, leaveOpen: false, cryptoKeyFileDirectory);
+        return new CompilerLogReader(stream, leaveOpen: false, cryptoKeyFileDirectory, options);
     }
 
     public CompilerCall ReadCompilerCall(int index)
@@ -108,16 +119,10 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
-    public CompilationData ReadCompilationData(
-        int index,
-        BasicAnalyzersOptions options = BasicAnalyzersOptions.InMemory,
-        AssemblyLoadContext? compilerLoadContext = null) =>
-        ReadCompilationData(ReadCompilerCall(index), options, compilerLoadContext);
+    public CompilationData ReadCompilationData(int index) =>
+        ReadCompilationData(ReadCompilerCall(index));
 
-    public CompilationData ReadCompilationData(
-        CompilerCall compilerCall,
-        BasicAnalyzersOptions options = BasicAnalyzersOptions.InMemory, 
-        AssemblyLoadContext? compilerLoadContext = null)
+    public CompilationData ReadCompilationData(CompilerCall compilerCall)
     {
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = GetMetadataReferences(rawCompilationData.References);
@@ -244,7 +249,7 @@ public sealed class CompilerLogReader : IDisposable
                 compilation,
                 csharpArgs,
                 additionalTextList.ToImmutableArray(),
-                ReadBasicAnalyzers(rawCompilationData.Analyzers, options, compilerLoadContext),
+                ReadAnalyzers(rawCompilationData.Analyzers),
                 analyzerProvider);
         }
 
@@ -276,7 +281,7 @@ public sealed class CompilerLogReader : IDisposable
                 compilation,
                 basicArgs,
                 additionalTextList.ToImmutableArray(),
-                ReadBasicAnalyzers(rawCompilationData.Analyzers, options, compilerLoadContext),
+                ReadAnalyzers(rawCompilationData.Analyzers),
                 analyzerProvider);
         }
     }
@@ -484,6 +489,45 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
+    internal BasicAnalyzers ReadAnalyzers(List<RawAnalyzerData> analyzers)
+    {
+        string? key = null;
+        BasicAnalyzers? basicAnalyzers;
+        if (BasicAnalyzersOptions.Cachable)
+        {
+            key = GetKey();
+            if (_analyzersMap.TryGetValue(key, out basicAnalyzers) && !basicAnalyzers.IsDisposed)
+            {
+                basicAnalyzers.Increment();
+                return basicAnalyzers;
+            }
+        }
+
+        basicAnalyzers = BasicAnalyzersOptions.Kind switch
+        {
+            BasicAnalyzersKind.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, BasicAnalyzersOptions.CompilerLoadContext),
+            BasicAnalyzersKind.OnDisk => BasicAnalyzersOnDisk.Create(this, analyzers, BasicAnalyzersOptions.CompilerLoadContext),
+            _ => throw new InvalidOperationException()
+        };
+
+        if (BasicAnalyzersOptions.Cachable)
+        {
+            _analyzersMap[key!] = basicAnalyzers;
+        }
+
+        return basicAnalyzers;
+
+        string GetKey()
+        {
+            var builder = new StringBuilder();
+            foreach (var analyzer in analyzers.OrderBy(x => x.Mvid))
+            {
+                builder.AppendLine($"{analyzer.Mvid}");
+            }
+            return builder.ToString();
+        }
+    }
+
     private CompilerCall ReadCompilerCallCore(StreamReader reader, int index)
     {
         var projectFile = reader.ReadLineOrThrow();
@@ -587,17 +631,6 @@ public sealed class CompilerLogReader : IDisposable
         using var stream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         stream.CopyTo(destination);
     }
-
-    internal BasicAnalyzers ReadBasicAnalyzers(
-        List<RawAnalyzerData> analyzers,
-        BasicAnalyzersOptions options,
-        AssemblyLoadContext? compilerLoadContext = null) =>
-        options switch
-        {
-            BasicAnalyzersOptions.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, compilerLoadContext),
-            BasicAnalyzersOptions.OnDisk => BasicAnalyzersOnDisk.Create(this, analyzers, compilerLoadContext),
-            _ => throw new InvalidOperationException()
-        };
 
     public void Dispose()
     {

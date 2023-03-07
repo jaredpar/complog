@@ -17,7 +17,7 @@ internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
     private BasicAnalyzersInMemory(
         AssemblyLoadContext loadContext,
         ImmutableArray<AnalyzerReference> analyzerReferences)
-        : base(BasicAnalyzersOptions.InMemory, loadContext, analyzerReferences)
+        : base(BasicAnalyzersKind.InMemory, loadContext, analyzerReferences)
     {
 
     }
