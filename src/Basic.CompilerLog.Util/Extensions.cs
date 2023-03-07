@@ -26,6 +26,15 @@ internal static class Extensions
         return entry.Open();
     }
 
+    internal static byte[] ReadAllBytes(this ZipArchive zipArchive, string name)
+    {
+        var entry = GetEntryOrThrow(zipArchive, name);
+        using var stream = entry.Open();
+        var bytes = new byte[checked((int)entry.Length)];
+        stream.ReadExactly(bytes.AsSpan());
+        return bytes;
+    }
+
     internal static string ReadLineOrThrow(this StreamReader reader)
     {
         if (reader.ReadLine() is { } line)
@@ -44,21 +53,13 @@ internal static class Extensions
         }
     }
 
-    internal static byte[] ReadAllBytes(this Stream stream)
-    {
-        var list = new List<byte>();
-        Span<byte> buffer = stackalloc byte[256];
-        do
-        {
-            var length = stream.Read(buffer);
-            if (length == 0)
-                break;
-
-            list.AddRange(buffer.Slice(0, length));
-        } while (true);
-
-        return list.ToArray();
-    }
+    /// <summary>
+    /// Creates a <see cref="MemoryStream"/> that is a simple wrapper around the array. The intent
+    /// is for consumers to be able to access the underlying array via <see cref="MemoryStream.TryGetBuffer(out ArraySegment{byte})"/>
+    /// and similar methods.
+    /// </summary>
+    internal static MemoryStream AsSimpleMemoryStream(this byte[] array) =>
+        new MemoryStream(array, 0, count: array.Length, writable: true, publiclyVisible: true);
 
     internal static string GetResourceName(this ResourceDescription d) => ReflectionUtil.ReadField<string>(d, "ResourceName");
     internal static string? GetFileName(this ResourceDescription d) => ReflectionUtil.ReadField<string?>(d, "FileName");

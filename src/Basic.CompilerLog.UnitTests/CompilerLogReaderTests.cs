@@ -1,4 +1,5 @@
 ﻿using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
@@ -130,6 +131,55 @@ public sealed class CompilerLogReaderTests : TestBase
             Assert.Equal(RootDirectory, Path.GetDirectoryName(data.CompilationOptions.CryptoKeyFile));
             Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
             Assert.Empty(Directory.EnumerateFiles(cryptoDir.DirectoryPath));
+        }
+    }
+
+    [Fact]
+    public void AnalyzerLoadOptions()
+    {
+        RunDotNet($"new console --name example --output .");
+        var projectFileContent = """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net7.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+              </PropertyGroup>
+            </Project>
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
+        var program = """
+            using System;
+            using System.Text.RegularExpressions;
+            // This is an amazing resource
+            var r = Util.GetRegex();
+            Console.WriteLine(r);
+
+            partial class Util {
+                [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
+                internal static partial Regex GetRegex();
+            }
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "Program.cs"), program, DefaultEncoding);
+        RunDotNet("build -bl");
+
+        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
+        foreach (var option in Enum.GetValues<BasicAnalyzersOptions>())
+        {
+            var data = reader.ReadCompilationData(0, option);
+            var compilation = data.GetCompilationAfterGenerators();
+            var found = false;
+            foreach (var tree in compilation.SyntaxTrees)
+            {
+                if (tree.ToString().Contains("REGEX_DEFAULT_MATCH_TIMEOUT"))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            Assert.True(found);
+            data.BasicAnalyzers.Dispose();
         }
     }
 }

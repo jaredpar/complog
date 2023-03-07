@@ -5,21 +5,93 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
+using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.Util.Impl;
 
-internal sealed class BasicAnalyzerReference : AnalyzerReference
+/// <summary>
+/// Loads analyzers in memory
+/// </summary>
+internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
 {
-    internal Assembly Assembly { get; }
+    private BasicAnalyzersInMemory(
+        AssemblyLoadContext loadContext,
+        ImmutableArray<AnalyzerReference> analyzerReferences)
+        : base(BasicAnalyzersOptions.InMemory, loadContext, analyzerReferences)
+    {
+
+    }
+
+    internal static BasicAnalyzersInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, AssemblyLoadContext? compilerLoadContext = null)
+    {
+        var name = $"{nameof(BasicAnalyzersInMemory)} - {Guid.NewGuid().ToString("N")}";
+        var loader = new InMemoryLoader(name, CommonUtil.GetAssemblyLoadContext(compilerLoadContext), reader, analyzers);
+        return new BasicAnalyzersInMemory(loader, loader.AnalyzerReferences);
+    }
+
+    public override void DisposeCore()
+    {
+        // Nothing to do here, base disposes the context
+    }
+}
+
+file sealed class InMemoryLoader : AssemblyLoadContext
+{
+    private readonly Dictionary<string, byte[]> _map = new();
+    internal AssemblyLoadContext CompilerLoadContext { get; }
+    internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
+
+    internal InMemoryLoader(string name, AssemblyLoadContext compilerLoadContext, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+        : base(name, isCollectible: true)
+    {
+        CompilerLoadContext = compilerLoadContext;
+        var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
+        foreach (var analyzer in analyzers)
+        {
+            var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
+            _map[simpleName] = reader.GetAssemblyBytes(analyzer.Mvid);
+            builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), this));
+        }
+
+        AnalyzerReferences = builder.MoveToImmutable();
+    }
+
+    protected override Assembly? Load(AssemblyName assemblyName)
+    {
+        try
+        {
+            if (CompilerLoadContext.LoadFromAssemblyName(assemblyName) is { } compilerAssembly)
+            {
+                return compilerAssembly;
+            }
+        }
+        catch
+        {
+            // Expected to happen when the assembly cannot be resolved in the compiler / host
+            // AssemblyLoadContext.
+        }
+
+        // Prefer registered dependencies in the same directory first.
+        if (_map.TryGetValue(assemblyName.Name!, out var bytes))
+        {
+            return LoadFromStream(bytes.AsSimpleMemoryStream());
+        }
+
+        return null;
+    }
+}
+
+file sealed class BasicAnalyzerReference : AnalyzerReference
+{
+    internal AssemblyName AssemblyName { get; }
+    internal AssemblyLoadContext LoadContext { get; }
     public override object Id { get; } = Guid.NewGuid();
     public override string? FullPath => null;
 
-    internal BasicAnalyzerReference(Assembly assembly)
+    internal BasicAnalyzerReference(AssemblyName assemblyName, AssemblyLoadContext loadContext)
     {
-        Assembly = assembly;
+        AssemblyName = assemblyName;
+        LoadContext = loadContext;
     }
 
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language)
@@ -52,7 +124,8 @@ internal sealed class BasicAnalyzerReference : AnalyzerReference
 
     internal void GetAnalyzers(ImmutableArray<DiagnosticAnalyzer>.Builder builder, string? languageName)
     {
-        foreach (var type in Assembly.GetTypes())
+        var assembly = LoadContext.LoadFromAssemblyName(AssemblyName);
+        foreach (var type in assembly.GetTypes())
         {
             if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
             {
@@ -74,7 +147,8 @@ internal sealed class BasicAnalyzerReference : AnalyzerReference
 
     internal void GetGenerators(ImmutableArray<ISourceGenerator>.Builder builder, string? languageName)
     {
-        foreach (var type in Assembly.GetTypes())
+        var assembly = LoadContext.LoadFromAssemblyName(AssemblyName);
+        foreach (var type in assembly.GetTypes())
         {
             if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
             {
@@ -112,3 +186,4 @@ internal sealed class BasicAnalyzerReference : AnalyzerReference
         return ctor.Invoke(null);
     }
 }
+

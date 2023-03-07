@@ -21,12 +21,12 @@ public abstract class CompilationData
 
     public CompilerCall CompilerCall { get; } 
     public Compilation Compilation { get; }
+    public BasicAnalyzers BasicAnalyzers { get; }
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
+    public ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }
-    internal BasicAssemblyLoadContext CompilerLogAssemblyLoadContext { get; }
 
     public CompilationOptions CompilationOptions => Compilation.Options;
-    public AssemblyLoadContext AnalyzerAssemblyLoadContext => CompilerLogAssemblyLoadContext;
     public EmitOptions EmitOptions => _commandLineArguments.EmitOptions;
     public ParseOptions ParseOptions => _commandLineArguments.ParseOptions;
     public bool IsCSharp => Compilation is CSharpCompilation;
@@ -37,15 +37,16 @@ public abstract class CompilationData
         Compilation compilation,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
+        BasicAnalyzers analyzers,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
     {
         CompilerCall = compilerCall;
         Compilation = compilation;
         _commandLineArguments = commandLineArguments;
         AdditionalTexts = additionalTexts;
+        BasicAnalyzers = analyzers;
+        AnalyzerReferences = analyzers.AnalyzerReferences;
         AnalyzerConfigOptionsProvider = analyzerConfigOptionsProvider;
-        CompilerLogAssemblyLoadContext = compilerLogAssemblyLoadContext;
     }
 
     public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers()
@@ -87,8 +88,16 @@ public abstract class CompilationData
         }
 
         var languageName = IsCSharp ? LanguageNames.CSharp : LanguageNames.VisualBasic;
-        _analyzers = CompilerLogAssemblyLoadContext.GetAnalyzers(languageName);
-        _generators = CompilerLogAssemblyLoadContext.GetGenerators(languageName);
+        var analyzerBuilder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
+        var generatorBuilder = ImmutableArray.CreateBuilder<ISourceGenerator>();
+        foreach (var analyzerReference in AnalyzerReferences)
+        {
+            analyzerBuilder.AddRange(analyzerReference.GetAnalyzers(languageName));
+            generatorBuilder.AddRange(analyzerReference.GetGenerators(languageName));
+        }
+
+        _analyzers = analyzerBuilder.ToImmutableArray();
+        _generators = generatorBuilder.ToImmutableArray();
     }
 
     protected abstract GeneratorDriver CreateGeneratorDriver();
@@ -106,9 +115,9 @@ public abstract class CompilationData<TCompilation, TParseOptions> : Compilation
         TCompilation compilation,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
+        BasicAnalyzers analyzers,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, commandLineArguments, additionalTexts, analyzers, analyzerConfigOptionsProvider)
     {
         
     }
@@ -121,9 +130,9 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
         CSharpCompilation compilation,
         CSharpCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
+        BasicAnalyzers analyzers,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, commandLineArguments, additionalTexts, analyzers, analyzerConfigOptionsProvider)
     {
 
     }
@@ -139,9 +148,9 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
         VisualBasicCompilation compilation,
         VisualBasicCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        BasicAssemblyLoadContext compilerLogAssemblyLoadContext,
+        BasicAnalyzers analyzers,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        : base(compilerCall, compilation, commandLineArguments, additionalTexts, compilerLogAssemblyLoadContext, analyzerConfigOptionsProvider)
+        : base(compilerCall, compilation, commandLineArguments, additionalTexts, analyzers, analyzerConfigOptionsProvider)
     {
     }
 

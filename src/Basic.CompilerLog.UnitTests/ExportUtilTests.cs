@@ -17,7 +17,6 @@ public sealed class ExportUtilTests : TestBase
         : base(testOutputHelper, nameof(ExportUtilTests))
     {
 
-
     }
 
     private void TestExport(int expectedCount)

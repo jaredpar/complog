@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Loader;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,4 +17,19 @@ internal static class CommonUtil
     internal static string GetCompilerEntryName(int index) => $"compilations/{index}.txt";
     internal static string GetAssemblyEntryName(Guid mvid) => $"assembly/{mvid:N}";
     internal static string GetContentEntryName(string contentHash) => $"content/{contentHash}";
+
+    internal static AssemblyLoadContext GetAssemblyLoadContext(AssemblyLoadContext? context)
+    {
+        if (context is { })
+        {
+            return context;
+        }
+
+        if (AssemblyLoadContext.GetLoadContext(typeof(CommonUtil).Assembly) is { } current)
+        {
+            return current;
+        }
+
+        return AssemblyLoadContext.Default;
+    }
 }
