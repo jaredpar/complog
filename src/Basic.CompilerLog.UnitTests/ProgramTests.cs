@@ -31,12 +31,17 @@ public sealed class ProgramTests : TestBase
         return (int)ret!;
     }
 
-    [Fact]
-    public void CreateNoArgs()
+    [Theory]
+    [InlineData("", "msbuild.complog")]
+    [InlineData("--out custom.complog", "custom.complog")]
+    [InlineData("-o custom.complog", "custom.complog")]
+    public void Create(string extra, string fileName)
     {
         RunDotNet("new console");
         RunDotNet("build -bl");
-        Assert.Equal(0, RunCompLog("create"));
+        Assert.Equal(0, RunCompLog(("create " + extra).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToArray()));
+        var complogPath = Path.Combine(RootDirectory, fileName);
+        Assert.True(File.Exists(complogPath));
     }
 
     [Theory]
