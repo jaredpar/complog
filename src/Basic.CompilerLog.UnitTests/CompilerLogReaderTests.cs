@@ -143,7 +143,7 @@ public sealed class CompilerLogReaderTests : TestBase
         foreach (var kind in Enum.GetValues<BasicAnalyzersKind>())
         {
             var options = new BasicAnalyzersOptions(kind);
-            using var reader = CompilerLogReader.Create(Fixture.ConsolePath, options: options);
+            using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
             var data = reader.ReadCompilationData(0);
             var compilation = data.GetCompilationAfterGenerators();
             var found = false;
@@ -166,7 +166,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void AnalyzerLoadCaching(BasicAnalyzersKind kind)
     {
         var options = new BasicAnalyzersOptions(kind, cacheable: true);
-        using var reader = CompilerLogReader.Create(Fixture.ConsolePath, options: options);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
         var key = reader.ReadRawCompilationData(0).Item2.Analyzers;
 
         var analyzers1 = reader.ReadAnalyzers(key);

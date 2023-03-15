@@ -197,7 +197,7 @@ int RunReferences(IEnumerable<string> args)
     var baseOutputPath = "";
     var options = new FilterOptionSet()
     {
-        { "o|out", "path to output reference files", o => baseOutputPath = o },
+        { "o|out=", "path to output reference files", o => baseOutputPath = o },
     };
 
     try
