@@ -36,7 +36,11 @@ catch (Exception e)
 
 int RunCreate(IEnumerable<string> args)
 {
-    var options = new FilterOptionSet();
+    string? complogFilePath = null;
+    var options = new FilterOptionSet()
+    {
+        { "o|out=", "path to output reference files", o => complogFilePath = o },
+    };
 
     try
     {
@@ -66,11 +70,19 @@ int RunCreate(IEnumerable<string> args)
             return ExitFailure;
         }
 
-        var compilerLogFileName = $"{Path.GetFileNameWithoutExtension(binlogFilePath)}.complog";
-        var compilerLogFilePath = Path.Combine(Path.GetDirectoryName(binlogFilePath)!, compilerLogFileName);
+        if (complogFilePath is null)
+        {
+            complogFilePath = Path.ChangeExtension(binlogFilePath, ".complog");
+        }
+
+        if (!Path.IsPathRooted(complogFilePath))
+        {
+            complogFilePath = Path.Combine(CurrentDirectory, complogFilePath);
+        }
+
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(
             binlogFilePath,
-            compilerLogFilePath,
+            complogFilePath,
             options.FilterCompilerCalls);
 
         foreach (var diagnostic in diagnosticList)
@@ -185,7 +197,7 @@ int RunReferences(IEnumerable<string> args)
     var baseOutputPath = "";
     var options = new FilterOptionSet()
     {
-        { "o|out", "path to output reference files", o => baseOutputPath = o },
+        { "o|out=", "path to output reference files", o => baseOutputPath = o },
     };
 
     try

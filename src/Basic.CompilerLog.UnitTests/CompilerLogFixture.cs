@@ -1,10 +1,12 @@
 ﻿using Basic.CompilerLog.Util;
+using Microsoft.Build.Framework;
 using Microsoft.VisualStudio.TestPlatform.Common.DataCollection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Web;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -12,29 +14,31 @@ namespace Basic.CompilerLog.UnitTests;
 public sealed class CompilerLogFixture : IDisposable
 {
     internal string StorageDirectory { get; }
-    internal string BuildDirectory { get; }
-    internal string CompilerLogDirectory { get; }
+    
+    /// <summary>
+    /// Directory that holds the log files
+    /// </summary>
+    internal string ComplogDirectory { get; }
 
-    internal string ConsolePath { get; }
-    internal string ClassLibPath { get; }
+    internal string ConsoleComplogPath { get; }
 
-    internal IEnumerable<string> AllCompilerLogs => new[]
+    internal string ClassLibComplogPath { get; }
+
+    internal IEnumerable<string> AllComplogs => new[]
     {
-        ConsolePath,
-        ClassLibPath
+        ConsoleComplogPath,
+        ClassLibComplogPath,
     };
 
     public CompilerLogFixture()
     {
         StorageDirectory = Path.Combine(Path.GetTempPath(), nameof(CompilerLogFixture), Guid.NewGuid().ToString("N"));
-        BuildDirectory = Path.Combine(StorageDirectory, "build");
-        CompilerLogDirectory = Path.Combine(StorageDirectory, "compiler-logs");
-        Directory.CreateDirectory(BuildDirectory);
-        Directory.CreateDirectory(CompilerLogDirectory);
+        ComplogDirectory = Path.Combine(StorageDirectory, "logs");
+        Directory.CreateDirectory(ComplogDirectory);
 
-        ConsolePath = WithBuild("console.complog", () =>
+        ConsoleComplogPath = WithBuild("console.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new console --name example --output .", BuildDirectory);
+            DotnetUtil.Command($"new console --name example --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -45,7 +49,7 @@ public sealed class CompilerLogFixture : IDisposable
                   </PropertyGroup>
                 </Project>
                 """;
-            File.WriteAllText(Path.Combine(BuildDirectory, "example.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "example.csproj"), projectFileContent, TestBase.DefaultEncoding);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -58,13 +62,14 @@ public sealed class CompilerLogFixture : IDisposable
                     internal static partial Regex GetRegex();
                 }
                 """;
-            File.WriteAllText(Path.Combine(BuildDirectory, "Program.cs"), program, TestBase.DefaultEncoding);
-            DotnetUtil.Command("build -bl", BuildDirectory);
+            File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
+            DotnetUtil.Command("build -bl", scratchPath);
+            return Path.Combine(scratchPath, "msbuild.binlog");
         });
         
-        ClassLibPath = WithBuild("classlib.complog", () =>
+        ClassLibComplogPath = WithBuild("classlib.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new classlib --name example --output .", BuildDirectory);
+            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -74,7 +79,7 @@ public sealed class CompilerLogFixture : IDisposable
                   </PropertyGroup>
                 </Project>
                 """;
-            File.WriteAllText(Path.Combine(BuildDirectory, "example.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "example.csproj"), projectFileContent, TestBase.DefaultEncoding);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -84,19 +89,21 @@ public sealed class CompilerLogFixture : IDisposable
                     internal static partial Regex GetRegex();
                 }
                 """;
-            File.WriteAllText(Path.Combine(BuildDirectory, "Class1.cs"), program, TestBase.DefaultEncoding);
-            DotnetUtil.Command("build -bl", BuildDirectory);
+            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
+            DotnetUtil.Command("build -bl", scratchPath);
+            return Path.Combine(scratchPath, "msbuild.binlog");
         });
 
-        string WithBuild(string name, Action action)
+        string WithBuild(string name, Func<string, string> action)
         {
-            action();
-            var filePath = Path.Combine(CompilerLogDirectory, name);
-            var diagnostics = CompilerLogUtil.ConvertBinaryLog(Path.Combine(BuildDirectory, "msbuild.binlog"), filePath);
+            var scratchPath = Path.Combine(StorageDirectory, "scratch");
+            Directory.CreateDirectory(scratchPath);
+            var binlogFilePath = action(scratchPath);
+            var complogFilePath = Path.Combine(ComplogDirectory, name);
+            var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
             Assert.Empty(diagnostics);
-            Directory.Delete(BuildDirectory, recursive: true);
-            Directory.CreateDirectory(BuildDirectory);
-            return filePath;
+            Directory.Delete(scratchPath, recursive: true);
+            return complogFilePath;
         }
     }
 

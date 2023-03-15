@@ -69,13 +69,13 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void Console()
     {
-        TestExport(Fixture.ConsolePath, 1);
+        TestExport(Fixture.ConsoleComplogPath, 1);
     }
 
     [Fact]
     public void ClassLib()
     {
-        TestExport(Fixture.ClassLibPath, 1);
+        TestExport(Fixture.ClassLibComplogPath, 1);
     }
 
     [Fact]
