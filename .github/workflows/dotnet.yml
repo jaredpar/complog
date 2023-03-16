@@ -27,6 +27,13 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet build --no-restore
+      run: dotnet build --no-restore -bl
     - name: Test
       run: dotnet test --no-build --verbosity normal
+    - name: Create Compiler Log
+      run: dotnet run src/Basic.CompilerLog/Basic.CompilerLog.csproj msbuild.binlog
+    - name: Publish Compiler Log
+      uses: actions/upload-artifact@v3
+      with:
+        name: build.complog
+        path: msbuild.complog
