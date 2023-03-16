@@ -36,7 +36,7 @@ jobs:
     - name: Test
       run: dotnet test --no-build --verbosity normal
     - name: Create Compiler Log
-      run: dotnet run --project src/Basic.CompilerLog/Basic.CompilerLog.csproj msbuild.binlog
+      run: dotnet run --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
     - name: Publish Compiler Log
       uses: actions/upload-artifact@v3
       with:
