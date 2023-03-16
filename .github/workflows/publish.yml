@@ -1,0 +1,47 @@
+name: Publish NuGet Packages
+on: 
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package Version'     
+        required: true
+        default: ''
+
+jobs:
+  publish:
+    name: Publish NuGet 
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 7.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build 
+        run: dotnet build -c Release 
+
+      - name: Pack Basic.CompilerLog.Util
+        run: dotnet pack --no-build -p:IncludeSymbols=false -p:RepositoryCommit=${GITHUB_SHA} -p:PackageVersion="${{ github.event.inputs.version }}" -c Release src/Basic.CompilerLog.Util/Basic.CompilerLog.Util.csproj
+      
+      - name: Pack Basic.CompilerLog
+        run: dotnet pack --no-build -p:IncludeSymbols=false -p:RepositoryCommit=${GITHUB_SHA} -p:PackageVersion="${{ github.event.inputs.version }}" -c Release src/Basic.CompilerLog/Basic.CompilerLog.csproj
+
+      - name: Publish NuPkg Files
+        run: dotnet nuget push "*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json 
+
+      - name: Create Tag and Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          release_name: Release v${{ github.event.inputs.version }}
+          body: |
+            Create release ${{ github.event.inputs.version }}
+          draft: false
+          prerelease: false
