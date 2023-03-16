@@ -14,6 +14,11 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            artifact: windows.complog
+          - os: ubuntu-latest
+            artifact: ubuntu.complog
 
     name: Build and Test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -27,6 +32,13 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet build --no-restore
+      run: dotnet build --no-restore -bl
     - name: Test
       run: dotnet test --no-build --verbosity normal
+    - name: Create Compiler Log
+      run: dotnet run --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
+    - name: Publish Compiler Log
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact }}
+        path: msbuild.complog

@@ -170,7 +170,6 @@ public sealed class ExportUtil
             var cmdFilePath = Path.Combine(destinationDir, cmdFileName);
             File.WriteAllLines(cmdFilePath, lines);
 
-            Console.WriteLine($"Writing {cmdFilePath}");
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 var info = new FileInfo(cmdFilePath);
