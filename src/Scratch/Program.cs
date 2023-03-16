@@ -125,7 +125,7 @@ async Task SolutionScratchAsync(string binlogFilePath)
 {
     using var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath);
     using var reader = SolutionReader.Create(stream, leaveOpen: false);
-    var solution = reader.ReadSolution();
+    var solution = reader.ReadSolutionInfo();
     var workspace = new AdhocWorkspace();
     workspace.AddSolution(solution);
 

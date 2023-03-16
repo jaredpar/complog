@@ -21,7 +21,16 @@ internal sealed class CompilerLogTextLoader : TextLoader
 
     public override Task<TextAndVersion> LoadTextAndVersionAsync(LoadTextOptions options, CancellationToken cancellationToken)
     {
-        var sourceText = Reader.GetSourceText(ContentHash, options.ChecksumAlgorithm);
+        SourceText sourceText;
+
+        // The loader can operate on multiple threads due to the nature of solutions and 
+        // workspaces. Need to guard access here as the underlying data structures in the
+        // reader are not safe for paralell reads.
+        lock (Reader)
+        {
+            sourceText = Reader.GetSourceText(ContentHash, options.ChecksumAlgorithm);
+        }
+
         var textAndVersion = TextAndVersion.Create(sourceText, VersionStamp, FilePath);
         return Task.FromResult(textAndVersion);
     }
