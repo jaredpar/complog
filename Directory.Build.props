@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
     <LangVersion>11.0</LangVersion>
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 </Project>
