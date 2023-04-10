@@ -77,8 +77,15 @@ public sealed class SolutionReader : IDisposable
                 case RawContentKind.AnalyzerConfig:
                     Add(analyzerConfigDocuments);
                     break;
+                case RawContentKind.SourceLink:
+                case RawContentKind.RuleSet:
+                case RawContentKind.AppConfig:
+                case RawContentKind.Win32Manifest:
+                case RawContentKind.Win32Resource:
+                case RawContentKind.Win32Icon:
+                case RawContentKind.CryptoKeyFile:
                 case RawContentKind.Embed:
-                    // Not exposed yet
+                    // Not exposed via the workspace APIs yet
                     break;
                 default:
                     throw new InvalidOperationException();
@@ -98,7 +105,7 @@ public sealed class SolutionReader : IDisposable
         // TODO: should actually store this information in the log so we can rehydrate
         var projectReferences = new List<ProjectReference>();
 
-        var referenceList = Reader.GetMetadataReferences(rawCompilationData.References);
+        var referenceList = Reader.GetMetadataReferences(FilterToUnique(rawCompilationData.References));
         var analyzers = Reader.ReadAnalyzers(rawCompilationData.Analyzers);
         var projectInfo = ProjectInfo.Create(
             projectId,
@@ -119,5 +126,23 @@ public sealed class SolutionReader : IDisposable
             hostObjectType: null);
 
         return projectInfo.WithAnalyzerConfigDocuments(analyzerConfigDocuments);
+
+        // The command line compiler supports having the same reference added multiple times. It's actually
+        // not uncommon for Microsoft.VisualBasic.dll to be passed twice when working on Visual Basic projects. 
+        // The workspaces layer though cannot handle duplicates hence we need to run a de-dupe pass here.
+        static List<RawReferenceData> FilterToUnique(List<RawReferenceData> referenceList)
+        {
+            var hashSet = new HashSet<Guid>();
+            var list = new List<RawReferenceData>(capacity: referenceList.Count);
+            foreach (var data in referenceList)
+            {
+                if (hashSet.Add(data.Mvid))
+                {
+                    list.Add(data);
+                }
+            }
+
+            return list;
+        }
     }
 }

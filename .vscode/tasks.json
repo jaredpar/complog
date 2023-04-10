@@ -7,7 +7,7 @@
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/src/Basic.CompilerLog/Basic.CompilerLog.csproj",
+                "${workspaceFolder}/BasicCompilerLogger.sln",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary"
             ],

@@ -4,13 +4,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.Diagnostics.Tracing.Parsers.JScript;
 using Scratch;
 using TraceReloggerLib;
 
 #pragma warning disable 8321
 
 // var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
-var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
+// var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
+var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 //var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
@@ -21,6 +23,13 @@ var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbui
 
 // await SolutionScratchAsync(filePath);
 
+
+var reader = SolutionReader.Create(filePath);
+var info = reader.ReadSolutionInfo();
+var workspace = new AdhocWorkspace();
+workspace.AddSolution(info);
+
+
 /*
 var b = new CompilerBenchmark()
 {
@@ -29,7 +38,7 @@ var b = new CompilerBenchmark()
 b.GenerateLog();
 b.LoadAnalyzers();
 */
-_ = BenchmarkDotNet.Running.BenchmarkRunner.Run<CompilerBenchmark>();
+//_ = BenchmarkDotNet.Running.BenchmarkRunner.Run<CompilerBenchmark>();
 
 /*
 var binlogPath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
@@ -48,11 +57,11 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
 }
 */
 
-void Scratch()
+void RoslynScratch()
 {
     var code = """
         using System.Reflection;
-        class C
+        sealed class C
         {
            static void C(Assembly assembly) { }
         }
@@ -65,6 +74,14 @@ void Scratch()
         Basic.Reference.Assemblies.Net60.All);
 
     var context = compilation.GetSemanticModel(syntaxTree);
+    var node = syntaxTree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
+    var cType = context.GetDeclaredSymbol(node);
+    var enumerableType = compilation.GetSpecialType(SpecialType.System_Collections_IEnumerable);
+    var conversion = compilation.ClassifyConversion(cType, enumerableType);
+    Console.WriteLine(conversion.Exists);
+
+
+    /*
     var node = syntaxTree.GetRoot().DescendantNodes().OfType<ParameterSyntax>().Single();
     var format = SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.Omitted);
     if (context.GetDeclaredSymbol(node) is IParameterSymbol { Type: var type })
@@ -75,6 +92,7 @@ void Scratch()
     {
         // error resolving parameter, possible errors in the compilation
     }
+    */
 
 }
 
