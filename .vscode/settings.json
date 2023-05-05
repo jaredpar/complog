@@ -2,6 +2,7 @@
     "dotnet-test-explorer.testProjectPath": "**/*UnitTests.csproj",
     "dotnet.defaultSolution": "BasicCompilerLogger.sln",
     "cSpell.words": [
+        "appconfig",
         "binlog",
         "cacheable",
         "classlib",
@@ -9,10 +10,12 @@
         "complog",
         "Complogs",
         "cryptodir",
+        "cryptokeyfile",
         "jaredpar",
         "msbuild",
         "Mvid",
         "Relogger",
+        "ruleset",
         "Xunit"
     ]
 }

@@ -28,7 +28,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Theory]
     [InlineData("console")]
     [InlineData("classlib")]
-    public void ReadDifferntTemplates(string template)
+    public void ReadDifferentTemplates(string template)
     {
         RunDotNet($"new {template} --name example --output .");
         RunDotNet("build -bl");
@@ -184,7 +184,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void ProjectSingleTarget()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath);
-        var list = reader.ReadCompilationDatas();
+        var list = reader.ReadAllCompilationData();
         Assert.Single(list);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
     }
@@ -193,7 +193,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void ProjectMultiTarget()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath);
-        var list = reader.ReadCompilationDatas();
+        var list = reader.ReadAllCompilationData();
         Assert.Equal(2, list.Count);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));

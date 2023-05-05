@@ -40,7 +40,7 @@ public static class BinaryLogUtil
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
     }
 
-    public static List<CompilerCall> ReadCompilerCalls(Stream stream, List<string> diagnosticList, Func<CompilerCall, bool>? predicate = null)
+    public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, List<string> diagnosticList, Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
         var list = new List<CompilerCall>();

@@ -18,9 +18,9 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class CompilerLogReader : IDisposable
 {
-    private readonly Dictionary<Guid, MetadataReference> _refMap = new Dictionary<Guid, MetadataReference>();
+    private readonly Dictionary<Guid, MetadataReference> _refMap = new ();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, BasicAnalyzers> _analyzersMap = new Dictionary<string, BasicAnalyzers>();
+    private readonly Dictionary<string, BasicAnalyzers> _analyzersMap = new ();
 
     public BasicAnalyzersOptions BasicAnalyzersOptions { get; }
     internal ZipArchive ZipArchive { get; set; }
@@ -52,10 +52,7 @@ public sealed class CompilerLogReader : IDisposable
 
         int ReadMetadata()
         {
-            var entry = ZipArchive.GetEntry(MetadataFileName);
-            if (entry is null)
-                throw GetInvalidCompilerLogFileException();
-
+            var entry = ZipArchive.GetEntry(MetadataFileName) ?? throw GetInvalidCompilerLogFileException();
             using var reader = new StreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
             var line = reader.ReadLineOrThrow();
             var items = line.Split(':', StringSplitOptions.RemoveEmptyEntries);
@@ -103,7 +100,7 @@ public sealed class CompilerLogReader : IDisposable
         return ReadCompilerCallCore(reader, index);
     }
 
-    public List<CompilerCall> ReadCompilerCalls(Func<CompilerCall, bool>? predicate = null)
+    public List<CompilerCall> ReadAllCompilerCalls(Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
         var list = new List<CompilerCall>();
@@ -286,11 +283,11 @@ public sealed class CompilerLogReader : IDisposable
         }
     }
 
-    public List<CompilationData> ReadCompilationDatas(Func<CompilerCall, bool>? predicate = null)
+    public List<CompilationData> ReadAllCompilationData(Func<CompilerCall, bool>? predicate = null)
     {
-        var calls = ReadCompilerCalls(predicate);
+        var calls = ReadAllCompilerCalls(predicate);
         var list = new List<CompilationData>(capacity: calls.Count);
-        foreach (var compilerCall in ReadCompilerCalls(predicate))
+        foreach (var compilerCall in ReadAllCompilerCalls(predicate))
         {
             list.Add(ReadCompilationData(compilerCall));
         }
@@ -493,7 +490,7 @@ public sealed class CompilerLogReader : IDisposable
     {
         string? key = null;
         BasicAnalyzers? basicAnalyzers;
-        if (BasicAnalyzersOptions.Cachable)
+        if (BasicAnalyzersOptions.Cacheable)
         {
             key = GetKey();
             if (_analyzersMap.TryGetValue(key, out basicAnalyzers) && !basicAnalyzers.IsDisposed)
@@ -510,7 +507,7 @@ public sealed class CompilerLogReader : IDisposable
             _ => throw new InvalidOperationException()
         };
 
-        if (BasicAnalyzersOptions.Cachable)
+        if (BasicAnalyzersOptions.Cacheable)
         {
             _analyzersMap[key!] = basicAnalyzers;
         }
@@ -528,7 +525,7 @@ public sealed class CompilerLogReader : IDisposable
         }
     }
 
-    private CompilerCall ReadCompilerCallCore(StreamReader reader, int index)
+    private static CompilerCall ReadCompilerCallCore(StreamReader reader, int index)
     {
         var projectFile = reader.ReadLineOrThrow();
         var isCSharp = reader.ReadLineOrThrow() == "C#";
