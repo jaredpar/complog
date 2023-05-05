@@ -10,9 +10,9 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
-var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
+// var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 //var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
@@ -23,11 +23,14 @@ var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
 
 // await SolutionScratchAsync(filePath);
 
+_ = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
 
+/*
 var reader = SolutionReader.Create(filePath);
 var info = reader.ReadSolutionInfo();
 var workspace = new AdhocWorkspace();
 workspace.AddSolution(info);
+*/
 
 
 /*
@@ -77,7 +80,7 @@ void RoslynScratch()
     var node = syntaxTree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
     var cType = context.GetDeclaredSymbol(node);
     var enumerableType = compilation.GetSpecialType(SpecialType.System_Collections_IEnumerable);
-    var conversion = compilation.ClassifyConversion(cType, enumerableType);
+    var conversion = compilation.ClassifyConversion(cType!, enumerableType);
     Console.WriteLine(conversion.Exists);
 
 

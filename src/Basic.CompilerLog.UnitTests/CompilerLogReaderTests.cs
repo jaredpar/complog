@@ -179,4 +179,23 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.True(analyzers1.IsDisposed);
         Assert.True(analyzers2.IsDisposed);
     }
+
+    [Fact]
+    public void ProjectSingleTarget()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath);
+        var list = reader.ReadCompilationDatas();
+        Assert.Single(list);
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
+    }
+
+    [Fact]
+    public void ProjectMultiTarget()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath);
+        var list = reader.ReadCompilationDatas();
+        Assert.Equal(2, list.Count);
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
+    }
 }

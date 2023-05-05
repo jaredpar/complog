@@ -24,10 +24,16 @@ public sealed class CompilerLogFixture : IDisposable
 
     internal string ClassLibComplogPath { get; }
 
+    /// <summary>
+    /// A multi-targeted class library
+    /// </summary>
+    internal string ClassLibMultiComplogPath { get; }
+
     internal IEnumerable<string> AllComplogs => new[]
     {
         ConsoleComplogPath,
         ClassLibComplogPath,
+        ClassLibMultiComplogPath,
     };
 
     public CompilerLogFixture()
@@ -93,6 +99,34 @@ public sealed class CompilerLogFixture : IDisposable
             DotnetUtil.Command("build -bl", scratchPath);
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
+
+        ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", static string (string scratchPath) =>
+        {
+            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
+            var projectFileContent = """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                  </PropertyGroup>
+                </Project>
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "example.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            var program = """
+                using System;
+                using System.Text.RegularExpressions;
+
+                partial class Util {
+                    [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
+                    internal static partial Regex GetRegex();
+                }
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
+            DotnetUtil.Command("build -bl", scratchPath);
+            return Path.Combine(scratchPath, "msbuild.binlog");
+        });
+
 
         string WithBuild(string name, Func<string, string> action)
         {
