@@ -43,7 +43,7 @@ public sealed class ExportUtilTests : TestBase
         var sdkDirs = DotnetUtil.GetSdkDirectories();
         var exportUtil = new ExportUtil(reader);
         var count = 0;
-        foreach (var compilerCall in reader.ReadCompilerCalls())
+        foreach (var compilerCall in reader.ReadAllCompilerCalls())
         {
             count++;
             TestOutputHelper.WriteLine($"Testing export for {compilerCall.ProjectFileName} - {compilerCall.TargetFramework}");

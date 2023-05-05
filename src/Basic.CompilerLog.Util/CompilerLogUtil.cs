@@ -32,7 +32,7 @@ public static class CompilerLogUtil
     {
         using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
         using var binaryLogStream = new FileStream(binaryLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return ConvertBinaryLog(binaryLogStream, compilerLogStream);
+        return ConvertBinaryLog(binaryLogStream, compilerLogStream, predicate);
     }
 
     public static List<string> ConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
@@ -49,7 +49,7 @@ public static class CompilerLogUtil
     public static bool TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, List<string> diagnostics, Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
-        var list = BinaryLogUtil.ReadCompilerCalls(binaryLogStream, diagnostics);
+        var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, diagnostics);
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics);
         var success = true;
         foreach (var compilerInvocation in list)
@@ -65,28 +65,28 @@ public static class CompilerLogUtil
         return success;
     }
 
-    public static List<CompilerCall> ReadCompilerCalls(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
+    public static List<CompilerCall> ReadAllCompilerCalls(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
     {
         using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return ReadCompilerCalls(compilerLogStream, predicate);
+        return ReadAllCompilerCalls(compilerLogStream, predicate);
     }
 
-    public static List<CompilerCall> ReadCompilerCalls(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
+    public static List<CompilerCall> ReadAllCompilerCalls(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogStream);
-        return reader.ReadCompilerCalls(predicate);
+        return reader.ReadAllCompilerCalls(predicate);
     }
 
-    public static List<CompilationData> ReadCompilationDatas(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
+    public static List<CompilationData> ReadAllCompilationData(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
     {
         using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return ReadCompilationDatas(compilerLogStream, predicate);
+        return ReadAllCompilationData(compilerLogStream, predicate);
     }
 
-    public static List<CompilationData> ReadCompilationDatas(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
+    public static List<CompilationData> ReadAllCompilationData(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogStream);
-        return reader.ReadCompilationDatas(predicate);
+        return reader.ReadAllCompilationData(predicate);
     }
 
     private static Exception CreateException(string message, IEnumerable<string> diagnostics)

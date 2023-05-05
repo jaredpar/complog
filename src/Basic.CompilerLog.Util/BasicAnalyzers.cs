@@ -23,7 +23,7 @@ public readonly struct BasicAnalyzersOptions
     /// When true requests for the exact same set of analyzers will return 
     /// the same <see cref="BasicAnalyzers"/> instance.
     /// </summary>
-    public bool Cachable { get; }
+    public bool Cacheable { get; }
 
     public BasicAnalyzersOptions(
         BasicAnalyzersKind kind,
@@ -32,7 +32,7 @@ public readonly struct BasicAnalyzersOptions
     {
         Kind = kind;
         CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(compilerLoadContext);
-        Cachable = cacheable;
+        Cacheable = cacheable;
     }
 }
 

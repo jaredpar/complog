@@ -10,9 +10,9 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
-var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
+// var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 //var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
@@ -23,11 +23,14 @@ var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
 
 // await SolutionScratchAsync(filePath);
 
+_ = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
 
+/*
 var reader = SolutionReader.Create(filePath);
 var info = reader.ReadSolutionInfo();
 var workspace = new AdhocWorkspace();
 workspace.AddSolution(info);
+*/
 
 
 /*
@@ -57,7 +60,7 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
 }
 */
 
-void RoslynScratch()
+static void RoslynScratch()
 {
     var code = """
         using System.Reflection;
@@ -77,7 +80,7 @@ void RoslynScratch()
     var node = syntaxTree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
     var cType = context.GetDeclaredSymbol(node);
     var enumerableType = compilation.GetSpecialType(SpecialType.System_Collections_IEnumerable);
-    var conversion = compilation.ClassifyConversion(cType, enumerableType);
+    var conversion = compilation.ClassifyConversion(cType!, enumerableType);
     Console.WriteLine(conversion.Exists);
 
 
@@ -108,7 +111,7 @@ void ExportTest()
     util.ExportRsp(reader.ReadCompilerCall(0), dest, DotnetUtil.GetSdkDirectories());
 }
 
-void EmptyDirectory(string directory)
+static void EmptyDirectory(string directory)
 {
     if (Directory.Exists(directory))
     {
@@ -118,7 +121,7 @@ void EmptyDirectory(string directory)
     }
 }
 
-void RoundTrip(string binlogFilePath)
+static void RoundTrip(string binlogFilePath)
 {
     var compilerLogFilePath = @"c:\users\jaredpar\temp\compiler.zip";
     using var stream = File.OpenRead(binlogFilePath);
@@ -139,7 +142,7 @@ void RoundTrip(string binlogFilePath)
     }
 }
 
-async Task SolutionScratchAsync(string binlogFilePath)
+static async Task SolutionScratchAsync(string binlogFilePath)
 {
     using var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath);
     using var reader = SolutionReader.Create(stream, leaveOpen: false);
@@ -157,7 +160,7 @@ async Task SolutionScratchAsync(string binlogFilePath)
     }
 }
 
-void TestDiagnostics(string binlogFilePath)
+static void TestDiagnostics(string binlogFilePath)
 {
     using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath); 
     using var reader = CompilerLogReader.Create(compilerLogStream);

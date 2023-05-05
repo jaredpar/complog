@@ -121,7 +121,7 @@ int RunAnalyzers(IEnumerable<string> args)
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
-        var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         foreach (var compilerCall in compilerCalls)
         {
@@ -162,7 +162,7 @@ int RunPrint(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        var compilerCalls = CompilerLogUtil.ReadCompilerCalls(
+        var compilerCalls = CompilerLogUtil.ReadAllCompilerCalls(
             compilerLogStream,
             options.FilterCompilerCalls);
 
@@ -211,7 +211,7 @@ int RunReferences(IEnumerable<string> args)
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
-        var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Copying references to {baseOutputPath}");
@@ -295,7 +295,7 @@ int RunExport(IEnumerable<string> args)
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
-        var compilerCalls = reader.ReadCompilerCalls(options.FilterCompilerCalls);
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
@@ -404,7 +404,7 @@ int RunDiagnostics(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        var compilationDatas = CompilerLogUtil.ReadCompilationDatas(
+        var compilationDatas = CompilerLogUtil.ReadAllCompilationData(
             compilerLogStream,
             options.FilterCompilerCalls);
 
@@ -463,9 +463,9 @@ List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>
     switch (ext)
     {
         case ".binlog":
-            return BinaryLogUtil.ReadCompilerCalls(stream, new(), predicate);
+            return BinaryLogUtil.ReadAllCompilerCalls(stream, new(), predicate);
         case ".complog":
-            return CompilerLogUtil.ReadCompilerCalls(stream, predicate);
+            return CompilerLogUtil.ReadAllCompilerCalls(stream, predicate);
         default:
             throw new Exception($"Unrecognized file extension: {ext}");
     }
