@@ -50,18 +50,23 @@ public static class BinaryLogUtil
 
         foreach (var record in records)
         {
+            if (record.Args.BuildEventContext is not { } context)
+            {
+                continue;
+            }
+
             switch (record.Args)
             {
-                case ProjectStartedEventArgs e:
+                case ProjectStartedEventArgs { ProjectFile: not null } e:
                 {
-                    var data = GetOrCreateData(e.BuildEventContext, e.ProjectFile);
+                    var data = GetOrCreateData(context, e.ProjectFile);
                     data.EvaluationId = GetEvaluationId(e);
                     SetTargetFramework(ref data.TargetFramework, e.Properties);
                     break;
                 }
                 case ProjectFinishedEventArgs e:
                 {
-                    if (contextMap.TryGetValue(e.BuildEventContext.ProjectContextId, out var data))
+                    if (contextMap.TryGetValue(context.ProjectContextId, out var data))
                     {
                         if (string.IsNullOrEmpty(data.TargetFramework) && 
                             data.EvaluationId is { } evaluationId &&
@@ -79,15 +84,15 @@ public static class BinaryLogUtil
                     }
                     break;
                 }
-                case ProjectEvaluationStartedEventArgs e:
+                case ProjectEvaluationStartedEventArgs { ProjectFile: not null } e:
                 {
                     var data = new MSBuildEvaluationData(e.ProjectFile);
-                    evaluationMap[e.BuildEventContext.EvaluationId] = data;
+                    evaluationMap[context.EvaluationId] = data;
                     break;
                 }
                 case ProjectEvaluationFinishedEventArgs e:
                 {
-                    if (evaluationMap.TryGetValue(e.BuildEventContext.EvaluationId, out var data))
+                    if (evaluationMap.TryGetValue(context.EvaluationId, out var data))
                     {
                         SetTargetFramework(ref data.TargetFramework, e.Properties);
                     }
@@ -103,7 +108,7 @@ public static class BinaryLogUtil
                     };
 
                     if (callKind is { } ck &&
-                        contextMap.TryGetValue(e.BuildEventContext.ProjectContextId, out var data))
+                        contextMap.TryGetValue(context.ProjectContextId, out var data))
                     {
                         data.Kind = ck;
                     }
@@ -114,9 +119,9 @@ public static class BinaryLogUtil
                 {
                     if (e.TaskName == "Csc" || e.TaskName == "Vbc")
                     {
-                        if (contextMap.TryGetValue(e.BuildEventContext.ProjectContextId, out var data))
+                        if (contextMap.TryGetValue(context.ProjectContextId, out var data))
                         {
-                            data.CompileTaskId = e.BuildEventContext.TaskId;
+                            data.CompileTaskId = context.TaskId;
                             data.IsCSharp = e.TaskName == "Csc";
                         }
                     }
@@ -124,7 +129,7 @@ public static class BinaryLogUtil
                 }
                 case TaskCommandLineEventArgs e:
                 {
-                    if (contextMap.TryGetValue(e.BuildEventContext.ProjectContextId, out var data))
+                    if (contextMap.TryGetValue(context.ProjectContextId, out var data))
                     {
                         data.CommandLineArguments = e.CommandLine;
                     }
