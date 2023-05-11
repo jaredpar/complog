@@ -47,6 +47,16 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void CreateFullPath()
+    {
+        using var exportDir = new TempDir();
+
+        RunDotNet($"new console --name example --output .");
+        RunDotNet("build -bl");
+        Assert.Equal(0, RunCompLog($"create {GetBinaryLogFullPath()}", RootDirectory));
+    }
+
+    [Fact]
     public void References()
     {
         Assert.Equal(0, RunCompLog($"ref -o {RootDirectory} {Fixture.ComplogDirectory}"));
