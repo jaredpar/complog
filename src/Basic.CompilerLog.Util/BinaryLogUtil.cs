@@ -50,7 +50,7 @@ public static class BinaryLogUtil
 
         foreach (var record in records)
         {
-            if (record.Args.BuildEventContext is not { } context)
+            if (record.Args is not { BuildEventContext: { } context })
             {
                 continue;
             }
