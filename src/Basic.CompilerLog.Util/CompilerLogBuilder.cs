@@ -46,7 +46,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     internal bool Add(CompilerCall compilerCall)
     {
         var memoryStream = new MemoryStream();
-        using var compilationWriter = new StreamWriter(memoryStream, ContentEncoding, leaveOpen: true);
+        using var compilationWriter = Polyfill.NewStreamWriter(memoryStream, ContentEncoding, leaveOpen: true);
         compilationWriter.WriteLine(compilerCall.ProjectFilePath);
         compilationWriter.WriteLine(compilerCall.IsCSharp ? "C#" : "VB");
         compilationWriter.WriteLine(compilerCall.TargetFramework);
@@ -83,7 +83,13 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             compilationWriter.Flush();
 
-            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), CompressionLevel.SmallestSize);
+            CompressionLevel level;
+#if NETCOREAPP
+            level = CompressionLevel.SmallestSize;
+#else
+            level = CompressionLevel.Optimal;
+#endif
+            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), level);
             using var entryStream = entry.Open();
             memoryStream.Position = 0;
             memoryStream.CopyTo(entryStream);
@@ -153,14 +159,14 @@ internal sealed class CompilerLogBuilder : IDisposable
         void WriteMetadata()
         {
             var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Optimal);
-            using var writer = new StreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
+            using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             writer.WriteLine($"count:{_compilationCount}");
         }
 
         void WriteAssemblyInfo()
         {
             var entry = ZipArchive.CreateEntry(AssemblyInfoFileName, CompressionLevel.Optimal);
-            using var writer = new StreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
+            using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             foreach (var kvp in _mvidToRefInfoMap.OrderBy(x => x.Value.FileName).ThenBy(x => x.Key))
             {
                 writer.WriteLine($"{kvp.Value.FileName}:{kvp.Key:N}:{kvp.Value.AssemblyName}");
@@ -170,7 +176,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         void WriteSourceInfo()
         {
             var entry = ZipArchive.CreateEntry(SourceInfoFileName, CompressionLevel.Optimal);
-            using var writer = new StreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
+            using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             foreach (var value in _sourceHashMap.OrderBy(x => x))
             {
                 writer.WriteLine(value);

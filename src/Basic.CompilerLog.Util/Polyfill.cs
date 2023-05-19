@@ -6,10 +6,62 @@ using System.Threading.Tasks;
 
 namespace Basic.CompilerLog.Util
 {
-    public static class PolyFill
+    internal static class Polyfill
     {
-        public static StreamReader NewStreamReader() => null;
+        internal static StreamReader NewStreamReader(Stream stream, Encoding? encoding = null, bool detectEncodingFromByteOrderMarks = true, int bufferSize = -1, bool leaveOpen = false)
+        {
+#if !NETCOREAPP
+            if (bufferSize < 0)
+            {
+                bufferSize = 1024;
+            }
+#endif
+            return new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks, bufferSize, leaveOpen);
+        }
+
+        internal static StreamWriter NewStreamWriter(Stream stream, Encoding? encoding = null, int bufferSize = -1, bool leaveOpen = false)
+        {
+#if !NETCOREAPP
+            if (bufferSize < 0)
+            {
+                bufferSize = 1024;
+            }
+#endif
+            return new StreamWriter(stream, encoding, bufferSize, leaveOpen);
+        }
     }
+
+#if !NETCOREAPP
+
+    internal static class PolyfillExtensions
+    {
+        internal static string[] Split(this string @this, char separator, StringSplitOptions options = StringSplitOptions.None) =>
+            @this.Split(new char[] { separator }, options);
+
+        internal static string[] Split(this string @this, char separator, int count, StringSplitOptions options = StringSplitOptions.None) =>
+            @this.Split(new char[] { separator }, count, options);
+
+        internal static bool StartsWith(this ReadOnlySpan<char> @this, string value, StringComparison comparisonType) =>
+            @this.StartsWith(value.AsSpan(), comparisonType);
+
+        internal static void ReadExactly(this Stream @this, Span<byte> buffer)
+        {
+            var bytes = new byte[1024];
+            while (buffer.Length > 0)
+            {
+                var read = @this.Read(bytes, 0, Math.Min(bytes.Length, buffer.Length));
+                if (read == 0)
+                {
+                    throw new EndOfStreamException();
+                }
+
+                bytes.AsSpan(0, read).CopyTo(buffer);
+                buffer = buffer.Slice(read);
+            }
+        }
+    }
+
+#endif
 }
 
 #if !NETCOREAPP

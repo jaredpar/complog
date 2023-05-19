@@ -28,10 +28,10 @@ internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
         Loader = loader;
     }
 
-    internal static BasicAnalyzersInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, AssemblyLoadContext? compilerLoadContext = null)
+    internal static BasicAnalyzersInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, BasicAnalyzersOptions options) 
     {
         var name = $"{nameof(BasicAnalyzersInMemory)} - {Guid.NewGuid().ToString("N")}";
-        var loader = new InMemoryLoader(name, CommonUtil.GetAssemblyLoadContext(compilerLoadContext), reader, analyzers);
+        var loader = new InMemoryLoader(name, options, reader, analyzers);
         return new BasicAnalyzersInMemory(loader, loader.AnalyzerReferences);
     }
 
@@ -71,10 +71,10 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
     internal AssemblyLoadContext CompilerLoadContext { get; }
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
-    internal InMemoryLoader(string name, AssemblyLoadContext compilerLoadContext, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
         : base(name, isCollectible: true)
     {
-        CompilerLoadContext = compilerLoadContext;
+        CompilerLoadContext = options.CompilerLoadContext;
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
