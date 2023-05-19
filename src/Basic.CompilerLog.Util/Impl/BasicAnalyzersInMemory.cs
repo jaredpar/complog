@@ -5,7 +5,10 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
+
+#if NETCOREAPP
 using System.Runtime.Loader;
+#endif
 
 namespace Basic.CompilerLog.Util.Impl;
 
@@ -14,12 +17,15 @@ namespace Basic.CompilerLog.Util.Impl;
 /// </summary>
 internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
 {
-    private BasicAnalyzersInMemory(
-        AssemblyLoadContext loadContext,
-        ImmutableArray<AnalyzerReference> analyzerReferences)
-        : base(BasicAnalyzersKind.InMemory, loadContext, analyzerReferences)
-    {
+#if NETCOREAPP
+    internal InMemoryLoader Loader { get; }
 
+    private BasicAnalyzersInMemory(
+        InMemoryLoader loader,
+        ImmutableArray<AnalyzerReference> analyzerReferences)
+        : base(BasicAnalyzersKind.InMemory, analyzerReferences)
+    {
+        Loader = loader;
     }
 
     internal static BasicAnalyzersInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, AssemblyLoadContext? compilerLoadContext = null)
@@ -31,11 +37,35 @@ internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
 
     public override void DisposeCore()
     {
-        // Nothing to do here, base disposes the context
+        Loader.Unload();
     }
+
+#else
+
+    private BasicAnalyzersInMemory() 
+        : base(BasicAnalyzersKind.InMemory, ImmutableArray<AnalyzerReference>.Empty)
+    {
+    }
+
+    internal static BasicAnalyzersOnDisk Create(
+        CompilerLogReader reader,
+        List<RawAnalyzerData> analyzers,
+        BasicAnalyzersOptions options)
+    {
+        throw new PlatformNotSupportedException();
+    }
+
+    public override void DisposeCore()
+    {
+        throw new NotImplementedException();
+    }
+
+#endif
 }
 
-file sealed class InMemoryLoader : AssemblyLoadContext
+#if NETCOREAPP
+
+internal sealed class InMemoryLoader : AssemblyLoadContext
 {
     private readonly Dictionary<string, byte[]> _map = new();
     internal AssemblyLoadContext CompilerLoadContext { get; }
@@ -186,4 +216,6 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         return ctor.Invoke(null);
     }
 }
+
+#endif
 

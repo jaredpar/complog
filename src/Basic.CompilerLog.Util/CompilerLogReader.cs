@@ -10,7 +10,6 @@ using System.Collections.Immutable;
 using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
-using System.Runtime.Loader;
 using System.Text;
 using static Basic.CompilerLog.Util.CommonUtil;
 
@@ -502,8 +501,8 @@ public sealed class CompilerLogReader : IDisposable
 
         basicAnalyzers = BasicAnalyzersOptions.Kind switch
         {
-            BasicAnalyzersKind.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, BasicAnalyzersOptions.CompilerLoadContext),
-            BasicAnalyzersKind.OnDisk => BasicAnalyzersOnDisk.Create(this, analyzers, BasicAnalyzersOptions.CompilerLoadContext),
+            BasicAnalyzersKind.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, BasicAnalyzersOptions),
+            BasicAnalyzersKind.OnDisk => BasicAnalyzersOnDisk.Create(this, analyzers, BasicAnalyzersOptions),
             _ => throw new InvalidOperationException()
         };
 

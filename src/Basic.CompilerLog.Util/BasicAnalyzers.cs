@@ -5,9 +5,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Runtime.Loader;
 using System.Text;
 using System.Threading.Tasks;
+
+#if NETCOREAPP
+using System.Runtime.Loader;
+#endif
 
 namespace Basic.CompilerLog.Util;
 
@@ -17,7 +20,11 @@ public readonly struct BasicAnalyzersOptions
 
     public BasicAnalyzersKind Kind { get; }
 
-    public AssemblyLoadContext CompilerLoadContext { get; }
+    /// <summary>
+    /// In the case analyzers are realized on disk for evaluation this is the base directory they should 
+    /// be in.
+    /// </summary>
+    public string? AnalyzerDirectory { get; }
 
     /// <summary>
     /// When true requests for the exact same set of analyzers will return 
@@ -25,14 +32,42 @@ public readonly struct BasicAnalyzersOptions
     /// </summary>
     public bool Cacheable { get; }
 
+#if NETCOREAPP
+
+    public AssemblyLoadContext CompilerLoadContext { get; }
+
     public BasicAnalyzersOptions(
+        AssemblyLoadContext compilerLoadContext,
         BasicAnalyzersKind kind,
-        bool cacheable = true,
-        AssemblyLoadContext? compilerLoadContext = null)
+        string? analyzerDirectory = null,
+        bool cacheable = true)
     {
         Kind = kind;
-        CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(compilerLoadContext);
+        AnalyzerDirectory = analyzerDirectory;
+        CompilerLoadContext = compilerLoadContext;
         Cacheable = cacheable;
+    }
+
+#endif
+
+    public BasicAnalyzersOptions(
+        BasicAnalyzersKind kind,
+        string? analyzerDirectory = null,
+        bool cacheable = true)
+    {
+        Kind = kind;
+        AnalyzerDirectory = analyzerDirectory;
+        Cacheable = cacheable;
+
+#if NETCOREAPP
+        CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(null);
+#endif
+    }
+
+    public string GetAnalyzerDirectory(string name)
+    {
+        var basePath = AnalyzerDirectory ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog");
+        return Path.Combine(basePath, name);
     }
 }
 
@@ -62,18 +97,15 @@ public abstract class BasicAnalyzers : IDisposable
     private int _refCount;
 
     public BasicAnalyzersKind Kind { get; }
-    public AssemblyLoadContext AssemblyLoadContext { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
     public bool IsDisposed => _refCount <= 0;
 
     protected BasicAnalyzers(
         BasicAnalyzersKind kind,
-        AssemblyLoadContext loadContext,
         ImmutableArray<AnalyzerReference> analyzerReferences)
     {
         Kind = kind;
-        AssemblyLoadContext = loadContext;
         AnalyzerReferences = analyzerReferences;
         _refCount = 1;
     }
@@ -98,10 +130,10 @@ public abstract class BasicAnalyzers : IDisposable
         _refCount--;
         if (_refCount == 0)
         {
-            AssemblyLoadContext.Unload();
             DisposeCore();
         }
     }
 
     public abstract void DisposeCore();
 }
+

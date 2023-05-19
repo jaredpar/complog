@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Loader;
 using System.Text;
 using System.Threading.Tasks;
+#if NETCOREAPP
+using System.Runtime.Loader;
+#endif
 
 namespace Basic.CompilerLog.Util;
 
@@ -17,6 +19,8 @@ internal static class CommonUtil
     internal static string GetCompilerEntryName(int index) => $"compilations/{index}.txt";
     internal static string GetAssemblyEntryName(Guid mvid) => $"assembly/{mvid:N}";
     internal static string GetContentEntryName(string contentHash) => $"content/{contentHash}";
+
+#if NETCOREAPP
 
     internal static AssemblyLoadContext GetAssemblyLoadContext(AssemblyLoadContext? context)
     {
@@ -32,4 +36,6 @@ internal static class CommonUtil
 
         return AssemblyLoadContext.Default;
     }
+
+#endif
 }
