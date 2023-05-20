@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if NETCOREAPP
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -81,3 +82,4 @@ public sealed class ProgramTests : TestBase
         Assert.True(buildResult.Succeeded);
     }
 }
+#endif

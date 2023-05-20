@@ -140,7 +140,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void AnalyzerLoadOptions()
     {
-        foreach (var kind in Enum.GetValues<BasicAnalyzersKind>())
+        foreach (BasicAnalyzersKind kind in Enum.GetValues(typeof(BasicAnalyzersKind)))
         {
             var options = new BasicAnalyzersOptions(kind);
             using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);

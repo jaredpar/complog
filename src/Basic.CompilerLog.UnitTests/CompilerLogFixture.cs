@@ -1,6 +1,5 @@
 ﻿using Basic.CompilerLog.Util;
 using Microsoft.Build.Framework;
-using Microsoft.VisualStudio.TestPlatform.Common.DataCollection;
 using System;
 using System.Collections.Generic;
 using System.Linq;

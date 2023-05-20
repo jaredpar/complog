@@ -44,6 +44,9 @@ namespace Basic.CompilerLog.Util
         internal static bool StartsWith(this ReadOnlySpan<char> @this, string value, StringComparison comparisonType) =>
             @this.StartsWith(value.AsSpan(), comparisonType);
 
+        internal static bool Contains(this string @this, string value, StringComparison comparisonType) =>
+            @this.IndexOf(value, comparisonType) >= 0;
+
         internal static void ReadExactly(this Stream @this, Span<byte> buffer)
         {
             var bytes = new byte[1024];
