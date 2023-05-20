@@ -17,7 +17,6 @@ namespace Basic.CompilerLog.Util.Impl;
 /// </summary>
 internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
 {
-#if NETCOREAPP
     internal InMemoryLoader Loader { get; }
 
     private BasicAnalyzersInMemory(
@@ -37,44 +36,28 @@ internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
 
     public override void DisposeCore()
     {
+#if NETCOREAPP
         Loader.Unload();
-    }
-
-#else
-
-    private BasicAnalyzersInMemory() 
-        : base(BasicAnalyzersKind.InMemory, ImmutableArray<AnalyzerReference>.Empty)
-    {
-    }
-
-    internal static BasicAnalyzersOnDisk Create(
-        CompilerLogReader reader,
-        List<RawAnalyzerData> analyzers,
-        BasicAnalyzersOptions options)
-    {
-        throw new PlatformNotSupportedException();
-    }
-
-    public override void DisposeCore()
-    {
-        throw new NotImplementedException();
-    }
-
 #endif
+    }
 }
 
+internal sealed class InMemoryLoader
 #if NETCOREAPP
-
-internal sealed class InMemoryLoader : AssemblyLoadContext
+    : AssemblyLoadContext
+#endif
 {
     private readonly Dictionary<string, byte[]> _map = new();
-    internal AssemblyLoadContext CompilerLoadContext { get; }
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
     internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+#if NETCOREAPP
         : base(name, isCollectible: true)
+#endif
     {
+#if NETCOREAPP
         CompilerLoadContext = options.CompilerLoadContext;
+#endif
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
@@ -85,6 +68,10 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
 
         AnalyzerReferences = builder.MoveToImmutable();
     }
+
+#if NETCOREAPP
+
+    internal AssemblyLoadContext CompilerLoadContext { get; }
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
@@ -109,19 +96,29 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
 
         return null;
     }
+
+#else
+
+    public Assembly LoadFromAssemblyName(AssemblyName assemblyName)
+    {
+        var bytes = _map[assemblyName.Name];
+        return Assembly.Load(bytes);
+    }
+
+#endif
 }
 
 file sealed class BasicAnalyzerReference : AnalyzerReference
 {
     internal AssemblyName AssemblyName { get; }
-    internal AssemblyLoadContext LoadContext { get; }
+    internal InMemoryLoader Loader { get; }
     public override object Id { get; } = Guid.NewGuid();
     public override string? FullPath => null;
 
-    internal BasicAnalyzerReference(AssemblyName assemblyName, AssemblyLoadContext loadContext)
+    internal BasicAnalyzerReference(AssemblyName assemblyName, InMemoryLoader loader)
     {
         AssemblyName = assemblyName;
-        LoadContext = loadContext;
+        Loader = loader;
     }
 
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language)
@@ -154,7 +151,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
 
     internal void GetAnalyzers(ImmutableArray<DiagnosticAnalyzer>.Builder builder, string? languageName)
     {
-        var assembly = LoadContext.LoadFromAssemblyName(AssemblyName);
+        var assembly = Loader.LoadFromAssemblyName(AssemblyName);
         foreach (var type in assembly.GetTypes())
         {
             if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
@@ -177,7 +174,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
 
     internal void GetGenerators(ImmutableArray<ISourceGenerator>.Builder builder, string? languageName)
     {
-        var assembly = LoadContext.LoadFromAssemblyName(AssemblyName);
+        var assembly = Loader.LoadFromAssemblyName(AssemblyName);
         foreach (var type in assembly.GetTypes())
         {
             if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
@@ -216,6 +213,4 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         return ctor.Invoke(null);
     }
 }
-
-#endif
 
