@@ -49,6 +49,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
     internal AssemblyLoadContext CompilerLoadContext { get; }
 
     internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+        :base(name, isCollectible: true)
     {
         CompilerLoadContext = options.CompilerLoadContext;
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
