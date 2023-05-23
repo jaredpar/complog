@@ -36,28 +36,21 @@ internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
 
     public override void DisposeCore()
     {
-#if NETCOREAPP
-        Loader.Unload();
-#endif
+        Loader.Dispose();
     }
 }
 
-internal sealed class InMemoryLoader
 #if NETCOREAPP
-    : AssemblyLoadContext
-#endif
+
+internal sealed class InMemoryLoader : AssemblyLoadContext
 {
     private readonly Dictionary<string, byte[]> _map = new();
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
+    internal AssemblyLoadContext CompilerLoadContext { get; }
 
     internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
-#if NETCOREAPP
-        : base(name, isCollectible: true)
-#endif
     {
-#if NETCOREAPP
         CompilerLoadContext = options.CompilerLoadContext;
-#endif
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
@@ -68,10 +61,6 @@ internal sealed class InMemoryLoader
 
         AnalyzerReferences = builder.MoveToImmutable();
     }
-
-#if NETCOREAPP
-
-    internal AssemblyLoadContext CompilerLoadContext { get; }
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
@@ -97,16 +86,116 @@ internal sealed class InMemoryLoader
         return null;
     }
 
+    public void Dispose()
+    {
+        Unload();
+    }
+}    
+
 #else
+
+internal sealed class InMemoryLoader
+{
+    internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
+
+    internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    {
+        throw new PlatformNotSupportedException();
+    }
 
     public Assembly LoadFromAssemblyName(AssemblyName assemblyName)
     {
-        var bytes = _map[assemblyName.Name];
-        return Assembly.Load(bytes);
+        throw new PlatformNotSupportedException();
     }
 
-#endif
+    public void Dispose()
+    {
+    }
+
+    /*
+     * 
+        rough sketch of how this could work
+        private readonly Dictionary<string, (byte[], Assembly?)> _map = new();
+        internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
+
+        internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+        {
+            AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;    
+            var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
+            foreach (var analyzer in analyzers)
+            {
+                var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
+                _map[simpleName] = (reader.GetAssemblyBytes(analyzer.Mvid), null);
+                builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), this));
+            }
+
+            AnalyzerReferences = builder.MoveToImmutable();
+        }
+
+
+        private readonly HashSet<string> _loadingSet = new();
+
+        private Assembly? LoadCore(string assemblyName)
+        {
+            lock (_map)
+            {
+                if (!_map.TryGetValue(assemblyName, out var value))
+                {
+                    return null;
+                }
+
+                var (bytes, assembly) = value;
+                if (assembly is null)
+                {
+                    assembly = Assembly.Load(bytes);
+                    _map[assemblyName] = (bytes, assembly);
+                }
+
+                return assembly;
+            }
+        }
+
+        private Assembly? OnAssemblyResolve(object sender, ResolveEventArgs e)
+        {
+            var name = new AssemblyName(e.Name);
+            if (LoadCore(name.Name) is { } assembly)
+            {
+                return assembly;
+            }
+
+            lock (_loadingSet)
+            {
+                if (!_loadingSet.Add(e.Name))
+                {
+                    return null;
+                }
+            }
+
+            try
+            {
+                return AppDomain.CurrentDomain.Load(name);
+            }
+            finally
+            {
+                lock (_loadingSet)
+                {
+                    _loadingSet.Remove(e.Name);
+                }
+            }
+        }
+
+        public Assembly LoadFromAssemblyName(AssemblyName assemblyName) =>
+            LoadCore(assemblyName.Name) ?? throw new Exception($"Cannot find assembly with name {assemblyName.Name}");
+
+        public void Dispose()
+        {
+            AppDomain.CurrentDomain.AssemblyResolve -= OnAssemblyResolve;    
+        }
+
+        */
 }
+
+#endif
 
 file sealed class BasicAnalyzerReference : AnalyzerReference
 {

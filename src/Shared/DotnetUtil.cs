@@ -24,7 +24,7 @@ internal static class DotnetUtil
     {
         // TODO: has to be a better way to find the runtime directory but this works for the moment
         var path = Path.GetDirectoryName(typeof(object).Assembly.Location);
-        while (Path.GetFileName(path) != "dotnet")
+        while (path is not null && Path.GetFileName(path) != "dotnet")
         {
             path = Path.GetDirectoryName(path);
         }

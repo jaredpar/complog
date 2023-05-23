@@ -140,12 +140,20 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void AnalyzerLoadOptions()
     {
+        var any = false;
         foreach (BasicAnalyzersKind kind in Enum.GetValues(typeof(BasicAnalyzersKind)))
         {
+            if (!BasicAnalyzers.IsSupported(kind))
+            {
+                continue;
+            }
+            any = true;
+
             var options = new BasicAnalyzersOptions(kind);
             using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
             var data = reader.ReadCompilationData(0);
-            var compilation = data.GetCompilationAfterGenerators();
+            var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
+            Assert.Empty(diagnostics);
             var found = false;
             foreach (var tree in compilation.SyntaxTrees)
             {
@@ -158,6 +166,8 @@ public sealed class CompilerLogReaderTests : TestBase
             Assert.True(found);
             data.BasicAnalyzers.Dispose();
         }
+
+        Assert.True(any);
     }
 
     [Theory]

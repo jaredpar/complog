@@ -84,7 +84,6 @@ public enum BasicAnalyzersKind
     /// <summary>
     /// Analyzers are written to disk and loaded from there. This will produce as a 
     /// side effect <see cref="AnalyzerFileReference"/> instances. 
-    /// TODO: can we have a cached version of this?
     /// </summary>
     OnDisk = 1,
 }
@@ -135,5 +134,14 @@ public abstract class BasicAnalyzers : IDisposable
     }
 
     public abstract void DisposeCore();
+
+    public static bool IsSupported(BasicAnalyzersKind kind)
+    {
+#if NETCOREAPP
+        return true;
+#else
+        return kind == BasicAnalyzersKind.OnDisk;
+#endif
+    }
 }
 
