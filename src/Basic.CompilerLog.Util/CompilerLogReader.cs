@@ -499,10 +499,10 @@ public sealed class CompilerLogReader : IDisposable
             }
         }
 
-        basicAnalyzers = BasicAnalyzersOptions.Kind switch
+        basicAnalyzers = BasicAnalyzersOptions.ResolvedKind switch
         {
-            BasicAnalyzersKind.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, BasicAnalyzersOptions),
             BasicAnalyzersKind.OnDisk => BasicAnalyzersOnDisk.Create(this, analyzers, BasicAnalyzersOptions),
+            BasicAnalyzersKind.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, BasicAnalyzersOptions),
             _ => throw new InvalidOperationException()
         };
 

@@ -175,6 +175,11 @@ public sealed class CompilerLogReaderTests : TestBase
     [InlineData(BasicAnalyzersKind.OnDisk)]
     public void AnalyzerLoadCaching(BasicAnalyzersKind kind)
     {
+        if (!BasicAnalyzers.IsSupported(kind))
+        {
+            return;
+        }
+
         var options = new BasicAnalyzersOptions(kind, cacheable: true);
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
         var key = reader.ReadRawCompilationData(0).Item2.Analyzers;

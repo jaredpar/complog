@@ -7,6 +7,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 
 #if NETCOREAPP
 using System.Runtime.Loader;
@@ -16,7 +17,21 @@ namespace Basic.CompilerLog.Util;
 
 public readonly struct BasicAnalyzersOptions
 {
-    public static BasicAnalyzersOptions Default { get; } = new BasicAnalyzersOptions(BasicAnalyzersKind.InMemory, cacheable: true);
+    public static BasicAnalyzersOptions Default { get; } = new BasicAnalyzersOptions(BasicAnalyzersKind.Default, cacheable: true);
+
+    public static BasicAnalyzersKind RuntimeDefaultKind
+    {
+        get
+        {
+#if NETCOREAPP
+            return BasicAnalyzersKind.InMemory;
+#else
+            return BasicAnalyzersKind.OnDisk;
+#endif
+        }
+
+    }
+
 
     public BasicAnalyzersKind Kind { get; }
 
@@ -31,6 +46,12 @@ public readonly struct BasicAnalyzersOptions
     /// the same <see cref="BasicAnalyzers"/> instance.
     /// </summary>
     public bool Cacheable { get; }
+
+    internal BasicAnalyzersKind ResolvedKind => Kind switch
+    {
+        BasicAnalyzersKind.Default => RuntimeDefaultKind,
+        _ => Kind
+    };
 
 #if NETCOREAPP
 
@@ -77,15 +98,20 @@ public readonly struct BasicAnalyzersOptions
 public enum BasicAnalyzersKind
 {
     /// <summary>
+    /// Default for the current runtime
+    /// </summary>
+    Default = 0,
+
+    /// <summary>
     /// Analyzers are loaded in memory and disk is not used. 
     /// </summary>
-    InMemory = 0,
+    InMemory = 1,
 
     /// <summary>
     /// Analyzers are written to disk and loaded from there. This will produce as a 
     /// side effect <see cref="AnalyzerFileReference"/> instances. 
     /// </summary>
-    OnDisk = 1,
+    OnDisk = 2,
 }
 
 /// <summary>
@@ -140,7 +166,7 @@ public abstract class BasicAnalyzers : IDisposable
 #if NETCOREAPP
         return true;
 #else
-        return kind == BasicAnalyzersKind.OnDisk;
+        return kind is BasicAnalyzersKind.OnDisk or BasicAnalyzersKind.Default;
 #endif
     }
 }
