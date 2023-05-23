@@ -15,23 +15,23 @@ namespace Basic.CompilerLog.Util.Impl;
 /// <summary>
 /// Loads analyzers in memory
 /// </summary>
-internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
+internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
 {
     internal InMemoryLoader Loader { get; }
 
-    private BasicAnalyzersInMemory(
+    private BasicAnalyzerHostInMemory(
         InMemoryLoader loader,
         ImmutableArray<AnalyzerReference> analyzerReferences)
-        : base(BasicAnalyzersKind.InMemory, analyzerReferences)
+        : base(BasicAnalyzerKind.InMemory, analyzerReferences)
     {
         Loader = loader;
     }
 
-    internal static BasicAnalyzersInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, BasicAnalyzersOptions options) 
+    internal static BasicAnalyzerHostInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, BasicAnalyzerHostOptions options) 
     {
-        var name = $"{nameof(BasicAnalyzersInMemory)} - {Guid.NewGuid().ToString("N")}";
+        var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
         var loader = new InMemoryLoader(name, options, reader, analyzers);
-        return new BasicAnalyzersInMemory(loader, loader.AnalyzerReferences);
+        return new BasicAnalyzerHostInMemory(loader, loader.AnalyzerReferences);
     }
 
     public override void DisposeCore()
@@ -48,7 +48,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     internal AssemblyLoadContext CompilerLoadContext { get; }
 
-    internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
     {
         CompilerLoadContext = options.CompilerLoadContext;
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
@@ -98,7 +98,7 @@ internal sealed class InMemoryLoader
 {
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
-    internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
     {
         throw new PlatformNotSupportedException();
     }

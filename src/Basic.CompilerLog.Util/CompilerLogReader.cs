@@ -19,9 +19,9 @@ public sealed class CompilerLogReader : IDisposable
 {
     private readonly Dictionary<Guid, MetadataReference> _refMap = new ();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, BasicAnalyzers> _analyzersMap = new ();
+    private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new ();
 
-    public BasicAnalyzersOptions BasicAnalyzersOptions { get; }
+    public BasicAnalyzerHostOptions BasicAnalyzersOptions { get; }
     internal ZipArchive ZipArchive { get; set; }
     internal int Count { get; }
 
@@ -32,7 +32,7 @@ public sealed class CompilerLogReader : IDisposable
     /// </summary>
     public string? CryptoKeyFileDirectory { get; set; }
 
-    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory, BasicAnalyzersOptions? basicAnalyzersOptions = null)
+    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory, BasicAnalyzerHostOptions? basicAnalyzersOptions = null)
     {
         try
         {
@@ -44,7 +44,7 @@ public sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
-        BasicAnalyzersOptions = basicAnalyzersOptions ?? BasicAnalyzersOptions.Default;
+        BasicAnalyzersOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
         CryptoKeyFileDirectory = cryptoKeyFileDirectory;
         Count = ReadMetadata();
         ReadAssemblyInfo();
@@ -79,12 +79,12 @@ public sealed class CompilerLogReader : IDisposable
         Stream stream,
         bool leaveOpen = false,
         string? cryptoKeyFileDirectory = null,
-        BasicAnalyzersOptions? options = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory, options);
+        BasicAnalyzerHostOptions? options = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory, options);
 
     public static CompilerLogReader Create(
         string filePath,
         string? cryptoKeyFileDirectory = null,
-        BasicAnalyzersOptions? options = null)
+        BasicAnalyzerHostOptions? options = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
         return new CompilerLogReader(stream, leaveOpen: false, cryptoKeyFileDirectory, options);
@@ -485,10 +485,10 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
-    internal BasicAnalyzers ReadAnalyzers(List<RawAnalyzerData> analyzers)
+    internal BasicAnalyzerHost ReadAnalyzers(List<RawAnalyzerData> analyzers)
     {
         string? key = null;
-        BasicAnalyzers? basicAnalyzers;
+        BasicAnalyzerHost? basicAnalyzers;
         if (BasicAnalyzersOptions.Cacheable)
         {
             key = GetKey();
@@ -501,8 +501,8 @@ public sealed class CompilerLogReader : IDisposable
 
         basicAnalyzers = BasicAnalyzersOptions.ResolvedKind switch
         {
-            BasicAnalyzersKind.OnDisk => BasicAnalyzersOnDisk.Create(this, analyzers, BasicAnalyzersOptions),
-            BasicAnalyzersKind.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, BasicAnalyzersOptions),
+            BasicAnalyzerKind.OnDisk => BasicAnalyzerHostOnDisk.Create(this, analyzers, BasicAnalyzersOptions),
+            BasicAnalyzerKind.InMemory => BasicAnalyzerHostInMemory.Create(this, analyzers, BasicAnalyzersOptions),
             _ => throw new InvalidOperationException()
         };
 

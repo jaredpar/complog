@@ -18,28 +18,28 @@ namespace Basic.CompilerLog.Util.Impl;
 /// This is a per-compilation analyzer assembly loader that can be used to produce 
 /// <see cref="AnalyzerFileReference"/> instances
 /// </summary>
-internal sealed class BasicAnalyzersOnDisk : BasicAnalyzers
+internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 {
     internal OnDiskLoader Loader { get; }
     internal new ImmutableArray<AnalyzerFileReference> AnalyzerReferences { get; }
 
     internal string AnalyzerDirectory => Loader.AnalyzerDirectory;
 
-    private BasicAnalyzersOnDisk(
+    private BasicAnalyzerHostOnDisk(
         OnDiskLoader loader,
         ImmutableArray<AnalyzerFileReference> analyzerReferences)
-        : base(BasicAnalyzersKind.OnDisk, ImmutableArray<AnalyzerReference>.CastUp(analyzerReferences))
+        : base(BasicAnalyzerKind.OnDisk, ImmutableArray<AnalyzerReference>.CastUp(analyzerReferences))
     {
         Loader = loader;
         AnalyzerReferences = analyzerReferences;
     }
 
-    internal static BasicAnalyzersOnDisk Create(
+    internal static BasicAnalyzerHostOnDisk Create(
         CompilerLogReader reader,
         List<RawAnalyzerData> analyzers,
-        BasicAnalyzersOptions options)
+        BasicAnalyzerHostOptions options)
     {
-        var name =  $"{nameof(BasicAnalyzersOnDisk)} {Guid.NewGuid():N}";
+        var name =  $"{nameof(BasicAnalyzerHostOnDisk)} {Guid.NewGuid():N}";
         var loader = new OnDiskLoader(name, options);
         Directory.CreateDirectory(loader.AnalyzerDirectory);
 
@@ -56,7 +56,7 @@ internal sealed class BasicAnalyzersOnDisk : BasicAnalyzers
             builder.Add(new AnalyzerFileReference(path, loader));
         }
 
-        return new BasicAnalyzersOnDisk(loader, builder.MoveToImmutable());
+        return new BasicAnalyzerHostOnDisk(loader, builder.MoveToImmutable());
     }
 
     public override void DisposeCore()
@@ -80,7 +80,7 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
     internal string AnalyzerDirectory { get; }
 
-    internal OnDiskLoader(string name, BasicAnalyzersOptions options)
+    internal OnDiskLoader(string name, BasicAnalyzerHostOptions options)
         : base(name, isCollectible: true)
     {
         CompilerLoadContext = options.CompilerLoadContext;
@@ -137,7 +137,7 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
     internal string Name { get; }
     internal string AnalyzerDirectory { get; }
 
-    internal OnDiskLoader(string name, BasicAnalyzersOptions options)
+    internal OnDiskLoader(string name, BasicAnalyzerHostOptions options)
     {
         Name = name;
         AnalyzerDirectory = options.GetAnalyzerDirectory(name);

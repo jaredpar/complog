@@ -141,15 +141,15 @@ public sealed class CompilerLogReaderTests : TestBase
     public void AnalyzerLoadOptions()
     {
         var any = false;
-        foreach (BasicAnalyzersKind kind in Enum.GetValues(typeof(BasicAnalyzersKind)))
+        foreach (BasicAnalyzerKind kind in Enum.GetValues(typeof(BasicAnalyzerKind)))
         {
-            if (!BasicAnalyzers.IsSupported(kind))
+            if (!BasicAnalyzerHost.IsSupported(kind))
             {
                 continue;
             }
             any = true;
 
-            var options = new BasicAnalyzersOptions(kind);
+            var options = new BasicAnalyzerHostOptions(kind);
             using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
             var data = reader.ReadCompilationData(0);
             var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
@@ -164,23 +164,23 @@ public sealed class CompilerLogReaderTests : TestBase
                 }
             }
             Assert.True(found);
-            data.BasicAnalyzers.Dispose();
+            data.BasicAnalyzerHost.Dispose();
         }
 
         Assert.True(any);
     }
 
     [Theory]
-    [InlineData(BasicAnalyzersKind.InMemory)]
-    [InlineData(BasicAnalyzersKind.OnDisk)]
-    public void AnalyzerLoadCaching(BasicAnalyzersKind kind)
+    [InlineData(BasicAnalyzerKind.InMemory)]
+    [InlineData(BasicAnalyzerKind.OnDisk)]
+    public void AnalyzerLoadCaching(BasicAnalyzerKind kind)
     {
-        if (!BasicAnalyzers.IsSupported(kind))
+        if (!BasicAnalyzerHost.IsSupported(kind))
         {
             return;
         }
 
-        var options = new BasicAnalyzersOptions(kind, cacheable: true);
+        var options = new BasicAnalyzerHostOptions(kind, cacheable: true);
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
         var key = reader.ReadRawCompilationData(0).Item2.Analyzers;
 

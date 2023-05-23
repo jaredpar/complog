@@ -38,7 +38,7 @@ public class CompilerBenchmark
     }
 
     [ParamsAllValues]
-    public BasicAnalyzersKind Kind { get; set; }
+    public BasicAnalyzerKind Kind { get; set; }
 
     /*
     [Benchmark]
@@ -61,7 +61,7 @@ public class CompilerBenchmark
     [Benchmark]
     public void LoadAnalyzers()
     {
-        using var reader = CompilerLogReader.Create(CompilerLogPath, options: new BasicAnalyzersOptions(Kind));
+        using var reader = CompilerLogReader.Create(CompilerLogPath, options: new BasicAnalyzerHostOptions(Kind));
         var analyzers = reader.ReadAnalyzers(reader.ReadRawCompilationData(0).Item2.Analyzers);
         foreach (var analyzer in analyzers.AnalyzerReferences)
         {
