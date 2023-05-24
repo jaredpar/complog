@@ -2,8 +2,8 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "rsp InnerManagedTestBuild.1.binlog",
-      "workingDirectory": "c:\\users\\jaredpar\\Downloads"
+      "commandLineArgs": "print -satellite",
+      "workingDirectory": "C:\\Users\\jaredpar\\code\\roslyn\\src\\Compilers\\Core\\Portable"
     }
   }
 }
