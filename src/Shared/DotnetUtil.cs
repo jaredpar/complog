@@ -24,7 +24,7 @@ internal static class DotnetUtil
     {
         // TODO: has to be a better way to find the runtime directory but this works for the moment
         var path = Path.GetDirectoryName(typeof(object).Assembly.Location);
-        while (Path.GetFileName(path) != "dotnet")
+        while (path is not null && Path.GetFileName(path) != "dotnet")
         {
             path = Path.GetDirectoryName(path);
         }
@@ -34,7 +34,12 @@ internal static class DotnetUtil
             throw new Exception("Could not find dotnet directory");
         }
 
-        var sdk = Path.Combine(path, "sdk");
+        return GetSdkDirectories(path);
+    }
+
+    internal static List<string> GetSdkDirectories(string dotnetDirectory)
+    {
+        var sdk = Path.Combine(dotnetDirectory, "sdk");
         var sdks = new List<string>();
         foreach (var dir in Directory.EnumerateDirectories(sdk))
         {

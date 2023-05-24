@@ -1,4 +1,6 @@
 ﻿using System.Collections;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
@@ -12,20 +14,107 @@ public static class BinaryLogUtil
 {
     private sealed class MSBuildProjectData
     {
-        public string ProjectFile;
+        private readonly Dictionary<int, CompilationTaskData> _targetMap = new();
+        public readonly string ProjectFile;
         public string? TargetFramework;
-        public string? CommandLineArguments;
-        public CompilerCallKind? Kind;
-        public int? CompileTaskId;
         public int? EvaluationId;
-        public bool IsCSharp;
 
         public MSBuildProjectData(string projectFile)
         {
             ProjectFile = projectFile;
         }
 
+        public bool TryGetTaskData(int targetId, [NotNullWhen(true)] out CompilationTaskData? data) =>
+            _targetMap.TryGetValue(targetId, out data);
+
+        public CompilationTaskData GetOrCreateTaskData(int targetId)
+        {
+            if (!_targetMap.TryGetValue(targetId, out var data))
+            {
+                data = new CompilationTaskData(this, targetId);
+                _targetMap[targetId] = data;
+            }
+
+            return data;
+        }
+
+        public List<CompilerCall> GetAllCompilerCalls(List<string> diagnostics)
+        {
+            var list = new List<CompilerCall>();
+
+            foreach (var data in _targetMap.Values)
+            {
+                if (data.TryCreateCompilerCall(diagnostics) is { } compilerCall)
+                {
+                    if (compilerCall.Kind == CompilerCallKind.Regular)
+                    {
+                        list.Insert(0, compilerCall);
+                    }
+                    else
+                    {
+                        list.Add(compilerCall);
+                    }
+                }
+            }
+
+            return list;
+        }
+
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
+    }
+
+    private sealed class CompilationTaskData
+    {
+        public readonly MSBuildProjectData ProjectData;
+        public int TargetId;
+        public string? CommandLineArguments;
+        public CompilerCallKind? Kind;
+        public int? CompileTaskId;
+        public bool IsCSharp;
+
+        public string ProjectFile => ProjectData.ProjectFile;
+        public string? TargetFramework => ProjectData.TargetFramework;
+
+        public CompilationTaskData(MSBuildProjectData projectData, int targetId)
+        {
+            ProjectData = projectData;
+            TargetId = targetId;
+        }
+
+        public override string ToString() => $"{ProjectData} {TargetId}";
+
+        internal CompilerCall? TryCreateCompilerCall(List<string> diagnosticList)
+        {
+            if (CommandLineArguments is null)
+            {
+                // An evaluation of the project that wasn't actually a compilation
+                return null;
+            }
+
+            if (Kind is not { } kind)
+            {
+                diagnosticList.Add($"Project {ProjectFile} ({TargetFramework}): cannot find CoreCompile");
+                return null;
+            }
+
+            var args = CommandLineParser.SplitCommandLineIntoArguments(CommandLineArguments, removeHashComments: true);
+            var rawArgs = IsCSharp
+                ? SkipCompilerExecutable(args, "csc.exe", "csc.dll").ToArray()
+                : SkipCompilerExecutable(args, "vbc.exe", "vbc.dll").ToArray();
+            if (rawArgs.Length == 0)
+            {
+                diagnosticList.Add($"Project {ProjectFile} ({TargetFramework}): bad argument list");
+                return null;
+            }
+
+            return new CompilerCall(
+                ProjectFile,
+                kind,
+                TargetFramework,
+                isCSharp: IsCSharp,
+                rawArgs,
+                index: null);
+        }
     }
 
     private sealed class MSBuildEvaluationData
@@ -68,7 +157,7 @@ public static class BinaryLogUtil
                 {
                     if (contextMap.TryGetValue(context.ProjectContextId, out var data))
                     {
-                        if (string.IsNullOrEmpty(data.TargetFramework) && 
+                        if (string.IsNullOrEmpty(data.TargetFramework) &&
                             data.EvaluationId is { } evaluationId &&
                             evaluationMap.TryGetValue(evaluationId, out var evaluationData) &&
                             !string.IsNullOrEmpty(evaluationData.TargetFramework))
@@ -76,10 +165,12 @@ public static class BinaryLogUtil
                             data.TargetFramework = evaluationData.TargetFramework;
                         }
 
-                        if (TryCreateCompilerCall(data, diagnosticList) is { } compilerCall &&
-                            predicate(compilerCall))
+                        foreach (var compilerCall in data.GetAllCompilerCalls(diagnosticList))
                         {
-                            list.Add(compilerCall);
+                            if (predicate(compilerCall))
+                            {
+                                list.Add(compilerCall);
+                            }
                         }
                     }
                     break;
@@ -107,31 +198,34 @@ public static class BinaryLogUtil
                         _ => (CompilerCallKind?)null
                     };
 
-                    if (callKind is { } ck &&
+                    if (callKind is { } ck && 
+                        context.TargetId != BuildEventContext.InvalidTargetId &&
                         contextMap.TryGetValue(context.ProjectContextId, out var data))
                     {
-                        data.Kind = ck;
+                        data.GetOrCreateTaskData(context.TargetId).Kind = ck;
                     }
 
                     break;
                 }
                 case TaskStartedEventArgs e:
                 {
-                    if (e.TaskName == "Csc" || e.TaskName == "Vbc")
+                    if ((e.TaskName == "Csc" || e.TaskName == "Vbc") &&
+                        context.TargetId != BuildEventContext.InvalidTargetId &&
+                        contextMap.TryGetValue(context.ProjectContextId, out var data))
                     {
-                        if (contextMap.TryGetValue(context.ProjectContextId, out var data))
-                        {
-                            data.CompileTaskId = context.TaskId;
-                            data.IsCSharp = e.TaskName == "Csc";
-                        }
+                        var taskData = data.GetOrCreateTaskData(context.TargetId);
+                        taskData.IsCSharp = e.TaskName == "Csc";
+                        taskData.CompileTaskId = context.TaskId;
                     }
                     break;
                 }
                 case TaskCommandLineEventArgs e:
                 {
-                    if (contextMap.TryGetValue(context.ProjectContextId, out var data))
+                    if (context.TargetId != BuildEventContext.InvalidTargetId &&
+                        contextMap.TryGetValue(context.ProjectContextId, out var data) &&
+                        data.TryGetTaskData(context.TargetId, out var taskData))
                     {
-                        data.CommandLineArguments = e.CommandLine;
+                        taskData.CommandLineArguments = e.CommandLine;
                     }
 
                     break;
@@ -143,12 +237,12 @@ public static class BinaryLogUtil
 
         static int? GetEvaluationId(ProjectStartedEventArgs e)
         {
-            if (e.BuildEventContext is { EvaluationId: > BuildEventContext.InvalidEvaluationId})
+            if (e.BuildEventContext is { EvaluationId: > BuildEventContext.InvalidEvaluationId })
             {
                 return e.BuildEventContext.EvaluationId;
             }
 
-            if (e.ParentProjectBuildEventContext is { EvaluationId: > BuildEventContext.InvalidEvaluationId})
+            if (e.ParentProjectBuildEventContext is { EvaluationId: > BuildEventContext.InvalidEvaluationId })
             {
                 return e.ParentProjectBuildEventContext.EvaluationId;
             }
@@ -189,39 +283,6 @@ public static class BinaryLogUtil
                         break;
                 }
             }
-        }
-
-        static CompilerCall? TryCreateCompilerCall(MSBuildProjectData data, List<string> diagnosticList)
-        {
-            if (data.CommandLineArguments is null)
-            {
-                // An evaluation of the project that wasn't actually a compilation
-                return null;
-            }
-
-            if (data.Kind is not {} kind)
-            {
-                diagnosticList.Add($"Project {data.ProjectFile} ({data.TargetFramework}): cannot find CoreCompile");
-                return null;
-            }
-
-            var args = CommandLineParser.SplitCommandLineIntoArguments(data.CommandLineArguments, removeHashComments: true);
-            var rawArgs = data.IsCSharp 
-                ? SkipCompilerExecutable(args, "csc.exe", "csc.dll").ToArray()
-                : SkipCompilerExecutable(args, "vbc.exe", "vbc.dll").ToArray();
-            if (rawArgs.Length == 0)
-            {
-                diagnosticList.Add($"Project {data.ProjectFile} ({data.TargetFramework}): bad argument list");
-                return null;
-            }
-
-            return new CompilerCall(
-                data.ProjectFile,
-                kind,
-                data.TargetFramework,
-                isCSharp: data.IsCSharp,
-                rawArgs,
-                index: null);
         }
     }
 

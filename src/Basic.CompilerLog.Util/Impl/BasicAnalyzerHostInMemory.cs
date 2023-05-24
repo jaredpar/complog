@@ -5,46 +5,53 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
+
+#if NETCOREAPP
 using System.Runtime.Loader;
+#endif
 
 namespace Basic.CompilerLog.Util.Impl;
 
 /// <summary>
 /// Loads analyzers in memory
 /// </summary>
-internal sealed class BasicAnalyzersInMemory : BasicAnalyzers
+internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
 {
-    private BasicAnalyzersInMemory(
-        AssemblyLoadContext loadContext,
-        ImmutableArray<AnalyzerReference> analyzerReferences)
-        : base(BasicAnalyzersKind.InMemory, loadContext, analyzerReferences)
-    {
+    internal InMemoryLoader Loader { get; }
 
+    private BasicAnalyzerHostInMemory(
+        InMemoryLoader loader,
+        ImmutableArray<AnalyzerReference> analyzerReferences)
+        : base(BasicAnalyzerKind.InMemory, analyzerReferences)
+    {
+        Loader = loader;
     }
 
-    internal static BasicAnalyzersInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, AssemblyLoadContext? compilerLoadContext = null)
+    internal static BasicAnalyzerHostInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, BasicAnalyzerHostOptions options) 
     {
-        var name = $"{nameof(BasicAnalyzersInMemory)} - {Guid.NewGuid().ToString("N")}";
-        var loader = new InMemoryLoader(name, CommonUtil.GetAssemblyLoadContext(compilerLoadContext), reader, analyzers);
-        return new BasicAnalyzersInMemory(loader, loader.AnalyzerReferences);
+        var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
+        var loader = new InMemoryLoader(name, options, reader, analyzers);
+        return new BasicAnalyzerHostInMemory(loader, loader.AnalyzerReferences);
     }
 
     public override void DisposeCore()
     {
-        // Nothing to do here, base disposes the context
+        Loader.Dispose();
     }
 }
 
-file sealed class InMemoryLoader : AssemblyLoadContext
+#if NETCOREAPP
+
+internal sealed class InMemoryLoader : AssemblyLoadContext
 {
     private readonly Dictionary<string, byte[]> _map = new();
-    internal AssemblyLoadContext CompilerLoadContext { get; }
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
+    internal AssemblyLoadContext CompilerLoadContext { get; }
 
-    internal InMemoryLoader(string name, AssemblyLoadContext compilerLoadContext, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
-        : base(name, isCollectible: true)
+    internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+        :base(name, isCollectible: true)
     {
-        CompilerLoadContext = compilerLoadContext;
+        CompilerLoadContext = options.CompilerLoadContext;
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
@@ -79,19 +86,129 @@ file sealed class InMemoryLoader : AssemblyLoadContext
 
         return null;
     }
+
+    public void Dispose()
+    {
+        Unload();
+    }
+}    
+
+#else
+
+internal sealed class InMemoryLoader
+{
+    internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
+
+    internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    {
+        throw new PlatformNotSupportedException();
+    }
+
+    public Assembly LoadFromAssemblyName(AssemblyName assemblyName)
+    {
+        throw new PlatformNotSupportedException();
+    }
+
+    public void Dispose()
+    {
+    }
+
+    /*
+     * 
+        rough sketch of how this could work
+        private readonly Dictionary<string, (byte[], Assembly?)> _map = new();
+        internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
+
+        internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+        {
+            AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;    
+            var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
+            foreach (var analyzer in analyzers)
+            {
+                var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
+                _map[simpleName] = (reader.GetAssemblyBytes(analyzer.Mvid), null);
+                builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), this));
+            }
+
+            AnalyzerReferences = builder.MoveToImmutable();
+        }
+
+
+        private readonly HashSet<string> _loadingSet = new();
+
+        private Assembly? LoadCore(string assemblyName)
+        {
+            lock (_map)
+            {
+                if (!_map.TryGetValue(assemblyName, out var value))
+                {
+                    return null;
+                }
+
+                var (bytes, assembly) = value;
+                if (assembly is null)
+                {
+                    assembly = Assembly.Load(bytes);
+                    _map[assemblyName] = (bytes, assembly);
+                }
+
+                return assembly;
+            }
+        }
+
+        private Assembly? OnAssemblyResolve(object sender, ResolveEventArgs e)
+        {
+            var name = new AssemblyName(e.Name);
+            if (LoadCore(name.Name) is { } assembly)
+            {
+                return assembly;
+            }
+
+            lock (_loadingSet)
+            {
+                if (!_loadingSet.Add(e.Name))
+                {
+                    return null;
+                }
+            }
+
+            try
+            {
+                return AppDomain.CurrentDomain.Load(name);
+            }
+            finally
+            {
+                lock (_loadingSet)
+                {
+                    _loadingSet.Remove(e.Name);
+                }
+            }
+        }
+
+        public Assembly LoadFromAssemblyName(AssemblyName assemblyName) =>
+            LoadCore(assemblyName.Name) ?? throw new Exception($"Cannot find assembly with name {assemblyName.Name}");
+
+        public void Dispose()
+        {
+            AppDomain.CurrentDomain.AssemblyResolve -= OnAssemblyResolve;    
+        }
+
+        */
 }
+
+#endif
 
 file sealed class BasicAnalyzerReference : AnalyzerReference
 {
     internal AssemblyName AssemblyName { get; }
-    internal AssemblyLoadContext LoadContext { get; }
+    internal InMemoryLoader Loader { get; }
     public override object Id { get; } = Guid.NewGuid();
     public override string? FullPath => null;
 
-    internal BasicAnalyzerReference(AssemblyName assemblyName, AssemblyLoadContext loadContext)
+    internal BasicAnalyzerReference(AssemblyName assemblyName, InMemoryLoader loader)
     {
         AssemblyName = assemblyName;
-        LoadContext = loadContext;
+        Loader = loader;
     }
 
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language)
@@ -124,7 +241,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
 
     internal void GetAnalyzers(ImmutableArray<DiagnosticAnalyzer>.Builder builder, string? languageName)
     {
-        var assembly = LoadContext.LoadFromAssemblyName(AssemblyName);
+        var assembly = Loader.LoadFromAssemblyName(AssemblyName);
         foreach (var type in assembly.GetTypes())
         {
             if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
@@ -147,7 +264,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
 
     internal void GetGenerators(ImmutableArray<ISourceGenerator>.Builder builder, string? languageName)
     {
-        var assembly = LoadContext.LoadFromAssemblyName(AssemblyName);
+        var assembly = Loader.LoadFromAssemblyName(AssemblyName);
         foreach (var type in assembly.GetTypes())
         {
             if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)

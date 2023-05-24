@@ -10,7 +10,6 @@ using System.Collections.Immutable;
 using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
-using System.Runtime.Loader;
 using System.Text;
 using static Basic.CompilerLog.Util.CommonUtil;
 
@@ -20,9 +19,9 @@ public sealed class CompilerLogReader : IDisposable
 {
     private readonly Dictionary<Guid, MetadataReference> _refMap = new ();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, BasicAnalyzers> _analyzersMap = new ();
+    private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new ();
 
-    public BasicAnalyzersOptions BasicAnalyzersOptions { get; }
+    public BasicAnalyzerHostOptions BasicAnalyzersOptions { get; }
     internal ZipArchive ZipArchive { get; set; }
     internal int Count { get; }
 
@@ -33,7 +32,7 @@ public sealed class CompilerLogReader : IDisposable
     /// </summary>
     public string? CryptoKeyFileDirectory { get; set; }
 
-    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory, BasicAnalyzersOptions? basicAnalyzersOptions = null)
+    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory, BasicAnalyzerHostOptions? basicAnalyzersOptions = null)
     {
         try
         {
@@ -45,7 +44,7 @@ public sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
-        BasicAnalyzersOptions = basicAnalyzersOptions ?? BasicAnalyzersOptions.Default;
+        BasicAnalyzersOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
         CryptoKeyFileDirectory = cryptoKeyFileDirectory;
         Count = ReadMetadata();
         ReadAssemblyInfo();
@@ -53,7 +52,7 @@ public sealed class CompilerLogReader : IDisposable
         int ReadMetadata()
         {
             var entry = ZipArchive.GetEntry(MetadataFileName) ?? throw GetInvalidCompilerLogFileException();
-            using var reader = new StreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
+            using var reader = Polyfill.NewStreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
             var line = reader.ReadLineOrThrow();
             var items = line.Split(':', StringSplitOptions.RemoveEmptyEntries);
             if (items.Length != 2 || !int.TryParse(items[1], out var count))
@@ -63,7 +62,7 @@ public sealed class CompilerLogReader : IDisposable
 
         void ReadAssemblyInfo()
         {
-            using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(AssemblyInfoFileName), ContentEncoding, leaveOpen: false);
+            using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(AssemblyInfoFileName), ContentEncoding, leaveOpen: false);
             while (reader.ReadLine() is string line)
             {
                 var items = line.Split(':', count: 3);
@@ -80,12 +79,12 @@ public sealed class CompilerLogReader : IDisposable
         Stream stream,
         bool leaveOpen = false,
         string? cryptoKeyFileDirectory = null,
-        BasicAnalyzersOptions? options = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory, options);
+        BasicAnalyzerHostOptions? options = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory, options);
 
     public static CompilerLogReader Create(
         string filePath,
         string? cryptoKeyFileDirectory = null,
-        BasicAnalyzersOptions? options = null)
+        BasicAnalyzerHostOptions? options = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
         return new CompilerLogReader(stream, leaveOpen: false, cryptoKeyFileDirectory, options);
@@ -96,7 +95,7 @@ public sealed class CompilerLogReader : IDisposable
         if (index >= Count)
             throw new InvalidOperationException();
 
-        using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
+        using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
         return ReadCompilerCallCore(reader, index);
     }
 
@@ -313,7 +312,7 @@ public sealed class CompilerLogReader : IDisposable
     internal RawCompilationData ReadRawCompilationData(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);
-        using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
+        using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
 
         // TODO: re-reading the call is a bit inefficient here, better to just skip 
         _ = ReadCompilerCallCore(reader, index);
@@ -446,7 +445,7 @@ public sealed class CompilerLogReader : IDisposable
     /// </summary>
     internal List<string> ReadSourceContentHashes()
     {
-        using var reader = new StreamReader(ZipArchive.OpenEntryOrThrow(SourceInfoFileName), ContentEncoding, leaveOpen: false);
+        using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(SourceInfoFileName), ContentEncoding, leaveOpen: false);
         var list = new List<string>();
         while (reader.ReadLine() is string line)
         {
@@ -486,10 +485,10 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
-    internal BasicAnalyzers ReadAnalyzers(List<RawAnalyzerData> analyzers)
+    internal BasicAnalyzerHost ReadAnalyzers(List<RawAnalyzerData> analyzers)
     {
         string? key = null;
-        BasicAnalyzers? basicAnalyzers;
+        BasicAnalyzerHost? basicAnalyzers;
         if (BasicAnalyzersOptions.Cacheable)
         {
             key = GetKey();
@@ -500,10 +499,10 @@ public sealed class CompilerLogReader : IDisposable
             }
         }
 
-        basicAnalyzers = BasicAnalyzersOptions.Kind switch
+        basicAnalyzers = BasicAnalyzersOptions.ResolvedKind switch
         {
-            BasicAnalyzersKind.InMemory => BasicAnalyzersInMemory.Create(this, analyzers, BasicAnalyzersOptions.CompilerLoadContext),
-            BasicAnalyzersKind.OnDisk => BasicAnalyzersOnDisk.Create(this, analyzers, BasicAnalyzersOptions.CompilerLoadContext),
+            BasicAnalyzerKind.OnDisk => BasicAnalyzerHostOnDisk.Create(this, analyzers, BasicAnalyzersOptions),
+            BasicAnalyzerKind.InMemory => BasicAnalyzerHostInMemory.Create(this, analyzers, BasicAnalyzersOptions),
             _ => throw new InvalidOperationException()
         };
 
@@ -535,7 +534,7 @@ public sealed class CompilerLogReader : IDisposable
             targetFramework = null;
         }
 
-        var kind = Enum.Parse<CompilerCallKind>(reader.ReadLineOrThrow());
+        var kind = (CompilerCallKind)Enum.Parse(typeof(CompilerCallKind), reader.ReadLineOrThrow());
         var count = int.Parse(reader.ReadLineOrThrow());
         var arguments = new string[count];
         for (int i = 0; i < count; i++)

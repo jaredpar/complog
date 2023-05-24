@@ -170,11 +170,15 @@ public sealed class ExportUtil
             var cmdFilePath = Path.Combine(destinationDir, cmdFileName);
             File.WriteAllLines(cmdFilePath, lines);
 
+#if NETCOREAPP
+
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 var info = new FileInfo(cmdFilePath);
                 info.UnixFileMode |= UnixFileMode.UserExecute;
             }
+
+#endif
         }
 
         List<string> ProcessRsp()

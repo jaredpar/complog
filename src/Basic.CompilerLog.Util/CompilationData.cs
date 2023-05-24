@@ -8,7 +8,6 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.Util;
 
@@ -21,7 +20,7 @@ public abstract class CompilationData
 
     public CompilerCall CompilerCall { get; } 
     public Compilation Compilation { get; }
-    public BasicAnalyzers BasicAnalyzers { get; }
+    public BasicAnalyzerHost BasicAnalyzerHost { get; }
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }
@@ -37,15 +36,15 @@ public abstract class CompilationData
         Compilation compilation,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        BasicAnalyzers analyzers,
+        BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
     {
         CompilerCall = compilerCall;
         Compilation = compilation;
         _commandLineArguments = commandLineArguments;
         AdditionalTexts = additionalTexts;
-        BasicAnalyzers = analyzers;
-        AnalyzerReferences = analyzers.AnalyzerReferences;
+        BasicAnalyzerHost = basicAnalyzerHost;
+        AnalyzerReferences = basicAnalyzerHost.AnalyzerReferences;
         AnalyzerConfigOptionsProvider = analyzerConfigOptionsProvider;
     }
 
@@ -115,9 +114,9 @@ public abstract class CompilationData<TCompilation, TParseOptions> : Compilation
         TCompilation compilation,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        BasicAnalyzers analyzers,
+        BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, analyzers, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
         
     }
@@ -130,9 +129,9 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
         CSharpCompilation compilation,
         CSharpCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        BasicAnalyzers analyzers,
+        BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, analyzers, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
 
     }
@@ -148,9 +147,9 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
         VisualBasicCompilation compilation,
         VisualBasicCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
-        BasicAnalyzers analyzers,
+        BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        : base(compilerCall, compilation, commandLineArguments, additionalTexts, analyzers, analyzerConfigOptionsProvider)
+        : base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
     }
 

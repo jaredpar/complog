@@ -140,12 +140,20 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void AnalyzerLoadOptions()
     {
-        foreach (var kind in Enum.GetValues<BasicAnalyzersKind>())
+        var any = false;
+        foreach (BasicAnalyzerKind kind in Enum.GetValues(typeof(BasicAnalyzerKind)))
         {
-            var options = new BasicAnalyzersOptions(kind);
+            if (!BasicAnalyzerHost.IsSupported(kind))
+            {
+                continue;
+            }
+            any = true;
+
+            var options = new BasicAnalyzerHostOptions(kind);
             using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
             var data = reader.ReadCompilationData(0);
-            var compilation = data.GetCompilationAfterGenerators();
+            var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
+            Assert.Empty(diagnostics);
             var found = false;
             foreach (var tree in compilation.SyntaxTrees)
             {
@@ -156,16 +164,23 @@ public sealed class CompilerLogReaderTests : TestBase
                 }
             }
             Assert.True(found);
-            data.BasicAnalyzers.Dispose();
+            data.BasicAnalyzerHost.Dispose();
         }
+
+        Assert.True(any);
     }
 
     [Theory]
-    [InlineData(BasicAnalyzersKind.InMemory)]
-    [InlineData(BasicAnalyzersKind.OnDisk)]
-    public void AnalyzerLoadCaching(BasicAnalyzersKind kind)
+    [InlineData(BasicAnalyzerKind.InMemory)]
+    [InlineData(BasicAnalyzerKind.OnDisk)]
+    public void AnalyzerLoadCaching(BasicAnalyzerKind kind)
     {
-        var options = new BasicAnalyzersOptions(kind, cacheable: true);
+        if (!BasicAnalyzerHost.IsSupported(kind))
+        {
+            return;
+        }
+
+        var options = new BasicAnalyzerHostOptions(kind, cacheable: true);
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
         var key = reader.ReadRawCompilationData(0).Item2.Analyzers;
 
