@@ -23,6 +23,8 @@ public sealed class CompilerLogFixture : IDisposable
 
     internal string ClassLibComplogPath { get; }
 
+    internal string ClassLibSignedComplogPath { get; }
+
     /// <summary>
     /// A multi-targeted class library
     /// </summary>
@@ -85,6 +87,36 @@ public sealed class CompilerLogFixture : IDisposable
                 </Project>
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "example.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            var program = """
+                using System;
+                using System.Text.RegularExpressions;
+
+                partial class Util {
+                    [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
+                    internal static partial Regex GetRegex();
+                }
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
+            DotnetUtil.Command("build -bl", scratchPath);
+            return Path.Combine(scratchPath, "msbuild.binlog");
+        });
+
+        ClassLibSignedComplogPath = WithBuild("classlibsigned.complog", static string (string scratchPath) =>
+        {
+            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
+            var keyFilePath = Path.Combine(scratchPath, "Key.snk");
+            var projectFileContent = $"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net7.0</TargetFramework>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                    <KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>
+                  </PropertyGroup>
+                </Project>
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "example.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            File.WriteAllBytes(keyFilePath, ResourceLoader.GetResourceBlob("Key.snk"));
             var program = """
                 using System;
                 using System.Text.RegularExpressions;

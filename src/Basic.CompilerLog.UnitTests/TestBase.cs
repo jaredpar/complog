@@ -55,9 +55,9 @@ public abstract class TestBase : IDisposable
     protected string GetBinaryLogFullPath(string? workingDirectory = null) =>
         Path.Combine(workingDirectory ?? RootDirectory, "msbuild.binlog");
 
-    protected CompilerLogReader GetReader(bool emptyDirectory = true, string? cryptoKeyFileDirectory = null)
+    protected CompilerLogReader GetReader(bool emptyDirectory = true )
     {
-        var reader = CompilerLogReader.Create(GetBinaryLogFullPath(), cryptoKeyFileDirectory);
+        var reader = CompilerLogReader.Create(GetBinaryLogFullPath());
         if (emptyDirectory)
         {
             Root.EmptyDirectory();

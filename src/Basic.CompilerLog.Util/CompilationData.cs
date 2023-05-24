@@ -20,7 +20,17 @@ public abstract class CompilationData
 
     public CompilerCall CompilerCall { get; } 
     public Compilation Compilation { get; }
+
+    /// <summary>
+    /// The <see cref="BasicAnalyzerHost"/> for the analyzers and generators.
+    /// </summary>
+    /// <remarks>
+    /// This is *not* owned by this instance and should not be disposed from here. The creator
+    /// of this <see cref="CompilationData"/> is responsible for managing the lifetime of this
+    /// instance.
+    /// </remarks>
     public BasicAnalyzerHost BasicAnalyzerHost { get; }
+
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }

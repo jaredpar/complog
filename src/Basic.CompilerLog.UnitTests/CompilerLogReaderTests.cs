@@ -96,46 +96,43 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Equal("example.resource.txt", d.ResourceDescription.GetResourceName());
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void KeyFile(bool redirect)
+    [Fact]
+    public void KeyFileDefault()
     {
-        RunDotNet($"new console --name example --output .");
-        var projectFileContent = """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net7.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-                <PublicSign>true</PublicSign>
-                <KeyOriginatorFile>key.snk</KeyOriginatorFile>
-              </PropertyGroup>
-            </Project>
-            """;
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
-
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        File.WriteAllBytes(Path.Combine(RootDirectory, "key.snk"), keyBytes);
-        RunDotNet("build -bl");
-
-        using var cryptoDir = new TempDir("cryptodir");
-        using var reader = GetReader(cryptoKeyFileDirectory: redirect ? cryptoDir.DirectoryPath : null);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibSignedComplogPath);
         var data = reader.ReadCompilationData(0);
 
-        if (redirect)
-        {
-            Assert.Equal(cryptoDir.DirectoryPath, Path.GetDirectoryName(data.CompilationOptions.CryptoKeyFile));
-            Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile!)));
-        }
-        else
-        {
-            Assert.Equal(RootDirectory, Path.GetDirectoryName(data.CompilationOptions.CryptoKeyFile));
-            Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
-            Assert.Empty(Directory.EnumerateFiles(cryptoDir.DirectoryPath));
-        }
+        Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
+        Assert.StartsWith(reader.CompilerLogState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
+        Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile)));
+        reader.Dispose();
+        Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
     }
+
+    [Fact]
+    public void KeyFileCustomState()
+    {
+        using var tempDir = new TempDir("keyfiledir");
+        using var state = new CompilerLogState(tempDir.DirectoryPath);
+
+        var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibSignedComplogPath, state: state);
+        var data = reader.ReadCompilationData(0);
+
+        Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
+        Assert.StartsWith(reader.CompilerLogState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
+        Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile)));
+
+        // Reader does not own the state now and it should not clean up resources
+        reader.Dispose();
+        Assert.True(File.Exists(data.CompilationOptions.CryptoKeyFile));
+
+        // State does own and it should cleanup
+        state.Dispose();
+        Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
+    }
+
 
     [Fact]
     public void AnalyzerLoadOptions()
@@ -184,15 +181,30 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
         var key = reader.ReadRawCompilationData(0).Item2.Analyzers;
 
-        var analyzers1 = reader.ReadAnalyzers(key);
-        var analyzers2 = reader.ReadAnalyzers(key);
-        Assert.Same(analyzers1, analyzers2);
-        analyzers1.Dispose();
-        Assert.False(analyzers1.IsDisposed);
-        Assert.False(analyzers2.IsDisposed);
-        analyzers2.Dispose();
-        Assert.True(analyzers1.IsDisposed);
-        Assert.True(analyzers2.IsDisposed);
+        var host1 = reader.ReadAnalyzers(key);
+        var host2 = reader.ReadAnalyzers(key);
+        Assert.Same(host1, host2);
+        host1.Dispose();
+        Assert.True(host1.IsDisposed);
+        Assert.True(host2.IsDisposed);
+    }
+
+    [Theory]
+    [InlineData(BasicAnalyzerKind.InMemory)]
+    [InlineData(BasicAnalyzerKind.OnDisk)]
+    public void AnalyzerLoadDispose(BasicAnalyzerKind kind)
+    {
+        if (!BasicAnalyzerHost.IsSupported(kind))
+        {
+            return;
+        }
+
+        var options = new BasicAnalyzerHostOptions(kind, cacheable: true);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
+        var data = reader.ReadCompilationData(0);
+        Assert.False(data.BasicAnalyzerHost.IsDisposed);
+        reader.Dispose();
+        Assert.True(data.BasicAnalyzerHost.IsDisposed);
     }
 
     [Fact]

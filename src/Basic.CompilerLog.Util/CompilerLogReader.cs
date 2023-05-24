@@ -20,23 +20,20 @@ public sealed class CompilerLogReader : IDisposable
     private readonly Dictionary<Guid, MetadataReference> _refMap = new ();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new ();
+    private readonly bool _ownsCompilerLogState;
 
     public BasicAnalyzerHostOptions BasicAnalyzersOptions { get; }
+    internal CompilerLogState CompilerLogState { get; }
     internal ZipArchive ZipArchive { get; set; }
     internal int Count { get; }
 
-    /// <summary>
-    /// The compiler only supports strong name keys that exist on disk when emitting binaries. When this 
-    /// value is set the reader will ensure strong name keys are written to disk here as <see cref="Compilation"/>
-    /// are read and they will be redirected to look there. Otherwise it will not take any action.
-    /// </summary>
-    public string? CryptoKeyFileDirectory { get; set; }
-
-    private CompilerLogReader(Stream stream, bool leaveOpen, string? cryptoKeyFileDirectory, BasicAnalyzerHostOptions? basicAnalyzersOptions = null)
+    private CompilerLogReader(Stream stream, bool leaveOpen, BasicAnalyzerHostOptions? basicAnalyzersOptions = null, CompilerLogState? state = null)
     {
         try
         {
             ZipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);
+            CompilerLogState = state ?? new CompilerLogState();
+            _ownsCompilerLogState = state is null;
         }
         catch (InvalidDataException)
         {
@@ -45,7 +42,6 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         BasicAnalyzersOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
-        CryptoKeyFileDirectory = cryptoKeyFileDirectory;
         Count = ReadMetadata();
         ReadAssemblyInfo();
 
@@ -78,16 +74,16 @@ public sealed class CompilerLogReader : IDisposable
     public static CompilerLogReader Create(
         Stream stream,
         bool leaveOpen = false,
-        string? cryptoKeyFileDirectory = null,
-        BasicAnalyzerHostOptions? options = null) => new CompilerLogReader(stream, leaveOpen, cryptoKeyFileDirectory, options);
+        BasicAnalyzerHostOptions? options = null,
+        CompilerLogState? state = null) => new CompilerLogReader(stream, leaveOpen, options, state);
 
     public static CompilerLogReader Create(
         string filePath,
-        string? cryptoKeyFileDirectory = null,
-        BasicAnalyzerHostOptions? options = null)
+        BasicAnalyzerHostOptions? options = null,
+        CompilerLogState? state = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new CompilerLogReader(stream, leaveOpen: false, cryptoKeyFileDirectory, options);
+        return new CompilerLogReader(stream, leaveOpen: false, options, state);
     }
 
     public CompilerCall ReadCompilerCall(int index)
@@ -168,12 +164,9 @@ public sealed class CompilerLogReader : IDisposable
 
         void HandleCryptoKeyFile(string contentHash)
         {
-            if (CryptoKeyFileDirectory is null)
-            {
-                return;
-            }
-
-            var filePath = Path.Combine(CryptoKeyFileDirectory, $"{contentHash}.snk");
+            var dir = Path.Combine(CompilerLogState.CryptoKeyFileDirectory, GetIndex(compilerCall).ToString());
+            Directory.CreateDirectory(dir);
+            var filePath = Path.Combine(dir, $"{contentHash}.snk");
             File.WriteAllBytes(filePath, GetContentBytes(contentHash));
             compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
         }
@@ -488,30 +481,31 @@ public sealed class CompilerLogReader : IDisposable
     internal BasicAnalyzerHost ReadAnalyzers(List<RawAnalyzerData> analyzers)
     {
         string? key = null;
-        BasicAnalyzerHost? basicAnalyzers;
+        BasicAnalyzerHost? basicAnalyzerHost;
         if (BasicAnalyzersOptions.Cacheable)
         {
             key = GetKey();
-            if (_analyzersMap.TryGetValue(key, out basicAnalyzers) && !basicAnalyzers.IsDisposed)
+            if (_analyzersMap.TryGetValue(key, out basicAnalyzerHost) && !basicAnalyzerHost.IsDisposed)
             {
-                basicAnalyzers.Increment();
-                return basicAnalyzers;
+                return basicAnalyzerHost;
             }
         }
 
-        basicAnalyzers = BasicAnalyzersOptions.ResolvedKind switch
+        basicAnalyzerHost = BasicAnalyzersOptions.ResolvedKind switch
         {
             BasicAnalyzerKind.OnDisk => BasicAnalyzerHostOnDisk.Create(this, analyzers, BasicAnalyzersOptions),
             BasicAnalyzerKind.InMemory => BasicAnalyzerHostInMemory.Create(this, analyzers, BasicAnalyzersOptions),
             _ => throw new InvalidOperationException()
         };
 
+        CompilerLogState.BasicAnalyzerHosts.Add(basicAnalyzerHost);
+
         if (BasicAnalyzersOptions.Cacheable)
         {
-            _analyzersMap[key!] = basicAnalyzers;
+            _analyzersMap[key!] = basicAnalyzerHost;
         }
 
-        return basicAnalyzers;
+        return basicAnalyzerHost;
 
         string GetKey()
         {
@@ -630,7 +624,17 @@ public sealed class CompilerLogReader : IDisposable
 
     public void Dispose()
     {
+        if (ZipArchive is null)
+        {
+            return;
+        }
+
         ZipArchive.Dispose();
         ZipArchive = null!;
+
+        if (_ownsCompilerLogState)
+        {
+            CompilerLogState.Dispose();
+        }
     }
 }

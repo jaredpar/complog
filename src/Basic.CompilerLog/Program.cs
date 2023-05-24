@@ -404,9 +404,8 @@ int RunDiagnostics(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        var compilationDatas = CompilerLogUtil.ReadAllCompilationData(
-            compilerLogStream,
-            options.FilterCompilerCalls);
+        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        var compilationDatas = reader.ReadAllCompilationData(options.FilterCompilerCalls);
 
         foreach (var compilationData in compilationDatas)
         {

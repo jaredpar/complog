@@ -8,6 +8,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.ComponentModel;
 
 #if NETCOREAPP
 using System.Runtime.Loader;
@@ -119,30 +121,27 @@ public enum BasicAnalyzerKind
 /// </summary>
 public abstract class BasicAnalyzerHost : IDisposable
 {
-    private int _refCount;
+    private readonly BasicAnalyzerKind _kind;
+    private readonly ImmutableArray<AnalyzerReference> _analyzerReferences;
 
-    public BasicAnalyzerKind Kind { get; }
-    public ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
+    public BasicAnalyzerKind Kind => _kind;
+    public ImmutableArray<AnalyzerReference> AnalyzerReferences
+    {
+        get
+        {
+            CheckDisposed();
+            return _analyzerReferences;
+        }
+    }
 
-    public bool IsDisposed => _refCount <= 0;
+    public bool IsDisposed { get; private set; }
 
     protected BasicAnalyzerHost(
         BasicAnalyzerKind kind,
         ImmutableArray<AnalyzerReference> analyzerReferences)
     {
-        Kind = kind;
-        AnalyzerReferences = analyzerReferences;
-        _refCount = 1;
-    }
-
-    internal void Increment()
-    {
-        if (IsDisposed)
-        {
-            throw new ObjectDisposedException(nameof(BasicAnalyzerHost));
-        }
-
-        _refCount++;
+        _kind = kind;
+        _analyzerReferences = analyzerReferences;
     }
 
     public void Dispose()
@@ -152,14 +151,25 @@ public abstract class BasicAnalyzerHost : IDisposable
             return;
         }
 
-        _refCount--;
-        if (_refCount == 0)
+        try
         {
             DisposeCore();
+        }
+        finally
+        {
+            IsDisposed = true;
         }
     }
 
     public abstract void DisposeCore();
+
+    protected void CheckDisposed()
+    {
+        if (IsDisposed)
+        {
+            throw new ObjectDisposedException(nameof(BasicAnalyzerHost));
+        }
+    }
 
     public static bool IsSupported(BasicAnalyzerKind kind)
     {
