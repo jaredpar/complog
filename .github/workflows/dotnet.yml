@@ -35,6 +35,11 @@ jobs:
       run: dotnet build --no-restore -bl
     - name: Test
       run: dotnet test --no-build --verbosity normal
+      run: dotnet test --no-build --verbosity normal --framework net7.0
+      if: matrix.os == 'ubuntu-latest'
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+      if: matrix.os == 'windows-latest'
     - name: Create Compiler Log
       run: dotnet run --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
     - name: Publish Compiler Log
