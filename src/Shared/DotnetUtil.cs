@@ -22,8 +22,13 @@ internal static class DotnetUtil
 
     internal static List<string> GetSdkDirectories()
     {
+#if NETCOREAPP
         // TODO: has to be a better way to find the runtime directory but this works for the moment
         var path = Path.GetDirectoryName(typeof(object).Assembly.Location);
+#else
+        var path = @"C:\Program Files\dotnet";
+#endif
+
         while (path is not null && Path.GetFileName(path) != "dotnet")
         {
             path = Path.GetDirectoryName(path);
