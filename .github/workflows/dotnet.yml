@@ -34,7 +34,6 @@ jobs:
     - name: Build
       run: dotnet build --no-restore -bl
     - name: Test
-      run: dotnet test --no-build --verbosity normal
       run: dotnet test --no-build --verbosity normal --framework net7.0
       if: matrix.os == 'ubuntu-latest'
     - name: Test
