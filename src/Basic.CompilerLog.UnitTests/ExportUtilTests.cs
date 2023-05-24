@@ -40,7 +40,11 @@ public sealed class ExportUtilTests : TestBase
     private void TestExport(string compilerLogFilePath, int expectedCount)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
+#if NETCOREAPP
         var sdkDirs = DotnetUtil.GetSdkDirectories();
+#else
+        var sdkDirs = DotnetUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
+#endif
         var exportUtil = new ExportUtil(reader);
         var count = 0;
         foreach (var compilerCall in reader.ReadAllCompilerCalls())
