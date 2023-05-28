@@ -77,18 +77,6 @@ public static class CompilerLogUtil
         return reader.ReadAllCompilerCalls(predicate);
     }
 
-    public static List<CompilationData> ReadAllCompilationData(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
-    {
-        using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return ReadAllCompilationData(compilerLogStream, predicate);
-    }
-
-    public static List<CompilationData> ReadAllCompilationData(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
-    {
-        using var reader = CompilerLogReader.Create(compilerLogStream);
-        return reader.ReadAllCompilationData(predicate);
-    }
-
     private static Exception CreateException(string message, IEnumerable<string> diagnostics)
     {
         var builder = new StringBuilder();
