@@ -118,7 +118,11 @@ public abstract class CompilationData
     public EmitResult Emit(string directory)
     {
         var compilation = GetCompilationAfterGenerators();
-        compilation.Emit()
+        compilation.Emit();
+        _commandLineArguments.get   
+
+
+        ResourceDescription d;
 
 
         // pdbStream allowed except embedded PDB or EmitMetadataOnly

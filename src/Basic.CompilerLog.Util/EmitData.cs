@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,17 +13,19 @@ namespace Basic.CompilerLog.Util;
 public sealed class EmitData
 {
     public Stream? Win32ResourceStream { get; }
-    public Stream? Win32IconStream { get; }
     public Stream? SourceLinkStream { get; }
+    public IEnumerable<ResourceDescription>? Resources { get; }
+    public IEnumerable<EmbeddedText>? EmbeddedTexts { get; }
 
     public EmitData(
         Stream? win32ResourceStream,
-        Stream? win32IconStream,
-        Stream? sourceLinkStream
-        )
+        Stream? sourceLinkStream,
+        IEnumerable<ResourceDescription>? resources,
+        IEnumerable<EmbeddedText>? embeddedTexts)
     {
         Win32ResourceStream = win32ResourceStream;
-        Win32IconStream = win32IconStream;
         SourceLinkStream = sourceLinkStream;
+        Resources = resources;
+        EmbeddedTexts = embeddedTexts;
     }
 }

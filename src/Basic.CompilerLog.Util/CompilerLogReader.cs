@@ -126,8 +126,11 @@ public sealed class CompilerLogReader : IDisposable
         var additionalTextList = new List<AdditionalText>();
 
         Stream? win32ResourceStream = null;
-        Stream? win32IconStream = null;
         Stream? sourceLinkStream = null;
+        List<ResourceDescription>? resources = rawCompilationData.Resources.Count == 0
+            ? null
+            : rawCompilationData.Resources.Select(x => x.ResourceDescription).ToList();
+        List<EmbeddedText>? embeddedTexts = null;
 
         foreach (var tuple in rawCompilationData.Contents)
         {
@@ -147,22 +150,30 @@ public sealed class CompilerLogReader : IDisposable
                 case RawContentKind.CryptoKeyFile:
                     HandleCryptoKeyFile(tuple.ContentHash);
                     break;
-
-                // Not exposed yet but could be if needed
-                case RawContentKind.Embed:
                 case RawContentKind.SourceLink:
                     sourceLinkStream = GetStateAwareContentStream(tuple.ContentHash);
-                    break;
-                case RawContentKind.RuleSet:
-                case RawContentKind.AppConfig:
-                case RawContentKind.Win32Manifest:
                     break;
                 case RawContentKind.Win32Resource:
                     win32ResourceStream = GetStateAwareContentStream(tuple.ContentHash);
                     break;
-                case RawContentKind.Win32Icon:
-                    win32IconStream = GetStateAwareContentStream(tuple.ContentHash);
+                case RawContentKind.Embed:
+                {
+                    if (embeddedTexts is null)
+                    {
+                        embeddedTexts = new List<EmbeddedText>();
+                    }
+
+                    using var stream = GetContentStream(tuple.ContentHash);
+                    var embeddedText = EmbeddedText.FromStream(tuple.FilePath, stream, hashAlgorithm);
+                    embeddedTexts.Add(embeddedText);
                     break;
+                }
+
+                // not exposed yet
+                case RawContentKind.RuleSet:
+                case RawContentKind.AppConfig:
+                case RawContentKind.Win32Manifest:
+                case RawContentKind.Win32Icon:
                 default:
                     throw new InvalidOperationException();
             }
@@ -170,8 +181,9 @@ public sealed class CompilerLogReader : IDisposable
 
         var emitData = new EmitData(
             win32ResourceStream: win32ResourceStream,
-            win32IconStream: win32IconStream,
-            sourceLinkStream: sourceLinkStream);
+            sourceLinkStream: sourceLinkStream,
+            resources: resources,
+            embeddedTexts: embeddedTexts);
 
         return compilerCall.IsCSharp
             ? CreateCSharp()
@@ -251,6 +263,7 @@ public sealed class CompilerLogReader : IDisposable
             return new CSharpCompilationData(
                 compilerCall,
                 compilation,
+                emitData,
                 csharpArgs,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData.Analyzers),
@@ -283,6 +296,7 @@ public sealed class CompilerLogReader : IDisposable
             return new VisualBasicCompilationData(
                 compilerCall,
                 compilation,
+                emitData,
                 basicArgs,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData.Analyzers),
