@@ -31,6 +31,8 @@ public abstract class CompilationData
     /// </remarks>
     public BasicAnalyzerHost BasicAnalyzerHost { get; }
 
+    public EmitData EmitData { get; }
+
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }
@@ -44,6 +46,7 @@ public abstract class CompilationData
     private protected CompilationData(
         CompilerCall compilerCall,
         Compilation compilation,
+        EmitData emitData,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
@@ -51,6 +54,7 @@ public abstract class CompilationData
     {
         CompilerCall = compilerCall;
         Compilation = compilation;
+        EmitData = emitData;
         _commandLineArguments = commandLineArguments;
         AdditionalTexts = additionalTexts;
         BasicAnalyzerHost = basicAnalyzerHost;
@@ -110,6 +114,27 @@ public abstract class CompilationData
     }
 
     protected abstract GeneratorDriver CreateGeneratorDriver();
+
+    public EmitResult Emit(string directory)
+    {
+        var compilation = GetCompilationAfterGenerators();
+        compilation.Emit()
+
+
+        // pdbStream allowed except embedded PDB or EmitMetadataOnly
+        // metadataPEStream allowed except emit metadata only (then it's pestream) or includePrivatemembers ro netmeodule
+        // xmldoc path if it was specified in the arguments
+
+    }
+
+    private bool IncludePdbStream() =>
+        EmitOptions.DebugInformationFormat != DebugInformationFormat.Embedded &&
+        !EmitOptions.EmitMetadataOnly;
+
+    private bool IncludeMetadataStream() =>
+        !EmitOptions.EmitMetadataOnly &&
+        !EmitOptions.IncludePrivateMembers &&
+        CompilationOptions.OutputKind != OutputKind.NetModule;
 }
 
 public abstract class CompilationData<TCompilation, TParseOptions> : CompilationData
@@ -122,11 +147,12 @@ public abstract class CompilationData<TCompilation, TParseOptions> : Compilation
     private protected CompilationData(
         CompilerCall compilerCall,
         TCompilation compilation,
+        EmitData emitData,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
         
     }
@@ -137,11 +163,12 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
     internal CSharpCompilationData(
         CompilerCall compilerCall,
         CSharpCompilation compilation,
+        EmitData emitData,
         CSharpCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
 
     }
@@ -155,11 +182,12 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
     internal VisualBasicCompilationData(
         CompilerCall compilerCall,
         VisualBasicCompilation compilation,
+        EmitData emitData,
         VisualBasicCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        : base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        : base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
     }
 

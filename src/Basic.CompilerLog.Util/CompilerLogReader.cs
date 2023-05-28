@@ -125,6 +125,10 @@ public sealed class CompilerLogReader : IDisposable
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var additionalTextList = new List<AdditionalText>();
 
+        Stream? win32ResourceStream = null;
+        Stream? win32IconStream = null;
+        Stream? sourceLinkStream = null;
+
         foreach (var tuple in rawCompilationData.Contents)
         {
             switch (tuple.Kind)
@@ -147,16 +151,27 @@ public sealed class CompilerLogReader : IDisposable
                 // Not exposed yet but could be if needed
                 case RawContentKind.Embed:
                 case RawContentKind.SourceLink:
+                    sourceLinkStream = GetStateAwareContentStream(tuple.ContentHash);
+                    break;
                 case RawContentKind.RuleSet:
                 case RawContentKind.AppConfig:
                 case RawContentKind.Win32Manifest:
+                    break;
                 case RawContentKind.Win32Resource:
+                    win32ResourceStream = GetStateAwareContentStream(tuple.ContentHash);
+                    break;
                 case RawContentKind.Win32Icon:
+                    win32IconStream = GetStateAwareContentStream(tuple.ContentHash);
                     break;
                 default:
                     throw new InvalidOperationException();
             }
         }
+
+        var emitData = new EmitData(
+            win32ResourceStream: win32ResourceStream,
+            win32IconStream: win32IconStream,
+            sourceLinkStream: sourceLinkStream);
 
         return compilerCall.IsCSharp
             ? CreateCSharp()
@@ -599,6 +614,23 @@ public sealed class CompilerLogReader : IDisposable
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
         stream.CopyTo(destination);
+    }
+
+    /// <summary>
+    /// This gets a content <see cref="Stream"/> instance that is aware of the state
+    /// lifetime. If the <see cref="CompilerLogState" /> is owned by this instance then 
+    /// it's safe to expose streams into the underlying zip. Otherwise a copy is created
+    /// to ensure it's safe to use after this zip is closed
+    /// </summary>
+    internal Stream GetStateAwareContentStream(string contentHash)
+    {
+        if (_ownsCompilerLogState)
+        {
+            return GetContentStream(contentHash);
+        }
+
+        var bytes = GetContentBytes(contentHash);
+        return bytes.AsSimpleMemoryStream(writable: false);
     }
 
     internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm)
