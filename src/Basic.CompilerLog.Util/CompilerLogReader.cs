@@ -254,11 +254,16 @@ public sealed class CompilerLogReader : IDisposable
                 });
 
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
+
+            csharpOptions = csharpOptions
+                .WithSyntaxTreeOptionsProvider(syntaxProvider)
+                .WithStrongNameProvider(new DesktopStrongNameProvider());
+
             var compilation = CSharpCompilation.Create(
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 referenceList,
-                csharpOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                csharpOptions);
 
             return new CSharpCompilationData(
                 compilerCall,
@@ -287,11 +292,15 @@ public sealed class CompilerLogReader : IDisposable
 
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
+            basicOptions = basicOptions
+                .WithSyntaxTreeOptionsProvider(syntaxProvider)
+                .WithStrongNameProvider(new DesktopStrongNameProvider());
+
             var compilation = VisualBasicCompilation.Create(
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 referenceList,
-                basicOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                basicOptions);
 
             return new VisualBasicCompilationData(
                 compilerCall,
