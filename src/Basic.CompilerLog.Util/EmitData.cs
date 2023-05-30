@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -27,5 +28,37 @@ public sealed class EmitData
         SourceLinkStream = sourceLinkStream;
         Resources = resources;
         EmbeddedTexts = embeddedTexts;
+    }
+}
+
+public readonly struct EmitDiskResult
+{
+    public bool Success { get; }
+    public string Directory { get; }
+    public string AssemblyFileName { get; }
+    public string AssemblyFilePath { get; }
+    public string? PdbFilePath { get; }
+    public string? XmlFilePath { get; }
+    public string? MetadataFilePath { get; }
+    public ImmutableArray<Diagnostic> Diagnostics { get; }
+
+    public EmitDiskResult(
+        bool success,
+        string directory,
+        string assemblyFileName,
+        string assemblyFilePath,
+        string? pdbFilePath,
+        string? xmlFilePath,
+        string? metadataFilePath,
+        ImmutableArray<Diagnostic> diagnostics)
+    {
+        Success = success;
+        Directory = directory;
+        AssemblyFileName = assemblyFileName;
+        AssemblyFilePath = assemblyFilePath;
+        PdbFilePath = pdbFilePath;
+        XmlFilePath = xmlFilePath;
+        MetadataFilePath  = metadataFilePath;
+        Diagnostics = diagnostics;
     }
 }

@@ -225,4 +225,21 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
     }
+
+    [Fact]
+    public void EmitToDisk()
+    {
+        foreach (var complogPath in Fixture.AllComplogs)
+        {
+            TestOutputHelper.WriteLine(complogPath);
+            using var reader = CompilerLogReader.Create(complogPath);
+            foreach (var data in reader.ReadAllCompilationData())
+            {
+                using var testDir = new TempDir();
+                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
+                var emitResult = data.Emit(testDir.DirectoryPath);
+                Assert.True(emitResult.Success);
+            }
+        }
+    }
 }

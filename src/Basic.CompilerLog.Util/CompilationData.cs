@@ -115,21 +115,103 @@ public abstract class CompilationData
 
     protected abstract GeneratorDriver CreateGeneratorDriver();
 
-    public EmitResult Emit(string directory)
+    public EmitDiskResult Emit(string directory, CancellationToken cancellationToken = default)
     {
-        var compilation = GetCompilationAfterGenerators();
-        compilation.Emit();
-        _commandLineArguments.get   
+        var compilation = GetCompilationAfterGenerators(out var diagnostics);
+        var assemblyName = GetAssemblyFileName();
+        string assemblyFilePath = Path.Combine(directory, assemblyName);
+        Stream? peStream = null;
+        Stream? pdbStream = null;
+        string? pdbFilePath = null;
+        Stream? xmlStream = null;
+        string? xmlFilePath = null;
+        Stream? metadataStream = null;
+        string? metadataFilePath = null;
 
+        try
+        { 
+            peStream = OpenFile(assemblyFilePath);
 
-        ResourceDescription d;
+            if (IncludePdbStream())
+            {
+                pdbFilePath = Path.Combine(directory, Path.ChangeExtension(assemblyName, ".pdb"));
+                pdbStream = OpenFile(pdbFilePath);
+            }
 
+            if (_commandLineArguments.DocumentationPath is not null)
+            {
+                xmlFilePath = Path.Combine(directory, Path.ChangeExtension(assemblyName, ".xml"));
+                xmlStream = OpenFile(xmlFilePath);
+            }
 
-        // pdbStream allowed except embedded PDB or EmitMetadataOnly
-        // metadataPEStream allowed except emit metadata only (then it's pestream) or includePrivatemembers ro netmeodule
-        // xmldoc path if it was specified in the arguments
+            if (IncludeMetadataStream())
+            {
+                metadataFilePath = Path.Combine(directory, "ref", assemblyName);
+                metadataStream = OpenFile(metadataFilePath);
+            }
 
+            var result = compilation.Emit(
+                peStream,
+                pdbStream,
+                xmlStream,
+                EmitData.Win32ResourceStream,
+                EmitData.Resources,
+                EmitOptions,
+                debugEntryPoint: null,
+                EmitData.SourceLinkStream,
+                EmitData.EmbeddedTexts,
+                cancellationToken);
+            diagnostics = diagnostics.Concat(result.Diagnostics).ToImmutableArray();
+            return new EmitDiskResult(
+                result.Success,
+                directory,
+                assemblyName,
+                assemblyFilePath,
+                pdbFilePath,
+                xmlFilePath,
+                metadataFilePath,
+                diagnostics);
+
+        }
+        finally
+        {
+            peStream?.Dispose();
+            pdbStream?.Dispose();
+            xmlStream?.Dispose();
+            metadataStream?.Dispose();
+        }
+
+        Stream OpenFile(string filePath)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            return new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        }
     }
+
+    private string GetAssemblyFileName()
+    {
+        if (_commandLineArguments.OutputFileName is not null)
+        {
+            return _commandLineArguments.OutputFileName;
+        }
+
+        string name = Compilation.AssemblyName ?? "app";
+        return Path.GetExtension(name) switch
+        {
+            ".exe" => name,
+            ".dll" => name,
+            ".netmodule" => name,
+            _ => $"{name}{GetStandardAssemblyExtension()}"
+        };
+    }
+
+    private string GetStandardAssemblyExtension() => CompilationOptions.OutputKind switch
+    {
+        OutputKind.NetModule => ".netmodule",
+        OutputKind.ConsoleApplication => ".exe",
+        OutputKind.WindowsApplication => ".exe",
+        _ => ".dll"
+    };
 
     private bool IncludePdbStream() =>
         EmitOptions.DebugInformationFormat != DebugInformationFormat.Embedded &&

@@ -302,5 +302,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
             .Single();
         return ctor.Invoke(null);
     }
+
+    public override string ToString() => $"In Memory {AssemblyName}";
 }
 
