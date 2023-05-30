@@ -10,6 +10,15 @@ using static System.Console;
 var (command, rest) = args.Length == 0
     ? ("help", Enumerable.Empty<string>())
     : (args[0], args.Skip(1));
+// a CancellationToken that is canceled when the user hits Ctrl+C.
+var cts = new CancellationTokenSource();
+
+CancelKeyPress += (s, e) =>
+{
+    WriteLine("Canceling...");
+    cts.Cancel();
+    e.Cancel = true;
+};
 
 try
 {
@@ -20,6 +29,7 @@ try
         "export" => RunExport(rest),
         "ref" => RunReferences(rest),
         "rsp" => RunResponseFile(rest),
+        "emit" => RunEmit(rest, cts.Token),
         "analyzers" => RunAnalyzers(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(),
@@ -386,6 +396,72 @@ int RunResponseFile(IEnumerable<string> args)
     }
 }
 
+int RunEmit(IEnumerable<string> args, CancellationToken cancellationToken)
+{
+    var baseOutputPath = "";
+    var options = new FilterOptionSet()
+    {
+        { "o|out=", "path to output binaries to", o => baseOutputPath = o },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (options.Help)
+        {
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
+        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var allSucceeded = true;
+
+        baseOutputPath = GetBaseOutputPath(baseOutputPath);
+        WriteLine($"Generating binary files to {baseOutputPath}");
+        Directory.CreateDirectory(baseOutputPath);
+
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            var compilerCall = compilerCalls[i];
+            var emitDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "emit");
+            Directory.CreateDirectory(emitDirPath);
+
+            Write($"{compilerCall.ProjectFileName}({compilerCall.TargetFramework}) ... ");
+            var compilationData = reader.ReadCompilationData(compilerCall);
+            var result = compilationData.EmitToDisk(emitDirPath, cancellationToken);
+            if (result.Success)
+            {
+                WriteLine("done");
+            }
+            else
+            {
+                allSucceeded = false;
+                WriteLine("FAILED");
+                foreach (var diagnostic in result.Diagnostics)
+                {
+                    WriteLine(diagnostic.GetMessage());
+                }
+            }
+        }
+
+        return allSucceeded ? ExitSuccess : ExitFailure;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("complog rsp [OPTIONS] build.complog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
 int RunDiagnostics(IEnumerable<string> args)
 {
     var severity = DiagnosticSeverity.Warning;
@@ -447,6 +523,7 @@ int RunHelp()
           export        Export a complete project to disk
           rsp           Generate compiler response file for selected projects
           ref           Copy all references and analyzers to a single directory
+          emit          Emit all binaries from the log
           analyzers     Print analyzers used by a compilation
           print         Print summary of entries in the log
           help          Print help
