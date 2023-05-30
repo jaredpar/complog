@@ -237,7 +237,23 @@ public sealed class CompilerLogReaderTests : TestBase
             {
                 using var testDir = new TempDir();
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                var emitResult = data.Emit(testDir.DirectoryPath);
+                var emitResult = data.EmitToDisk(testDir.DirectoryPath);
+                Assert.True(emitResult.Success);
+            }
+        }
+    }
+
+    [Fact]
+    public void EmitToMemory()
+    {
+        foreach (var complogPath in Fixture.AllComplogs)
+        {
+            TestOutputHelper.WriteLine(complogPath);
+            using var reader = CompilerLogReader.Create(complogPath);
+            foreach (var data in reader.ReadAllCompilationData())
+            {
+                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
+                var emitResult = data.EmitToMemory();
                 Assert.True(emitResult.Success);
             }
         }

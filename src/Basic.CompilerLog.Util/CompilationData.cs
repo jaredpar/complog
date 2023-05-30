@@ -74,10 +74,10 @@ public abstract class CompilationData
         return _generators;
     }
 
-    public Compilation GetCompilationAfterGenerators() =>
-        GetCompilationAfterGenerators(out _);
+    public Compilation GetCompilationAfterGenerators(CancellationToken cancellationToken = default) =>
+        GetCompilationAfterGenerators(out _, cancellationToken);
 
-    public Compilation GetCompilationAfterGenerators(out ImmutableArray<Diagnostic> diagnostics)
+    public Compilation GetCompilationAfterGenerators(out ImmutableArray<Diagnostic> diagnostics, CancellationToken cancellationToken = default)
     {
         if (_afterGenerators is { } tuple)
         {
@@ -86,7 +86,7 @@ public abstract class CompilationData
         }
 
         var driver = CreateGeneratorDriver();
-        driver.RunGeneratorsAndUpdateCompilation(Compilation, out tuple.Item1, out tuple.Item2);
+        driver.RunGeneratorsAndUpdateCompilation(Compilation, out tuple.Item1, out tuple.Item2, cancellationToken);
         _afterGenerators = tuple;
         diagnostics = tuple.Item2;
         return tuple.Item1;
@@ -115,9 +115,9 @@ public abstract class CompilationData
 
     protected abstract GeneratorDriver CreateGeneratorDriver();
 
-    public EmitDiskResult Emit(string directory, CancellationToken cancellationToken = default)
+    public EmitDiskResult EmitToDisk(string directory, CancellationToken cancellationToken = default)
     {
-        var compilation = GetCompilationAfterGenerators(out var diagnostics);
+        var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
         var assemblyName = GetAssemblyFileName();
         string assemblyFilePath = Path.Combine(directory, assemblyName);
         Stream? peStream = null;
@@ -186,6 +186,50 @@ public abstract class CompilationData
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             return new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
         }
+    }
+
+    public EmitMemoryResult EmitToMemory(CancellationToken cancellationToken = default)
+    {
+        var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
+        MemoryStream assemblyStream = new MemoryStream();
+        MemoryStream? pdbStream = null;
+        MemoryStream? xmlStream = null;
+        MemoryStream? metadataStream = null;
+
+        if (IncludePdbStream())
+        {
+            pdbStream = new MemoryStream();
+        }
+
+        if (_commandLineArguments.DocumentationPath is not null)
+        {
+            xmlStream = new MemoryStream();
+        }
+
+        if (IncludeMetadataStream())
+        {
+            metadataStream = new MemoryStream();
+        }
+
+        var result = compilation.Emit(
+            assemblyStream,
+            pdbStream,
+            xmlStream,
+            EmitData.Win32ResourceStream,
+            EmitData.Resources,
+            EmitOptions,
+            debugEntryPoint: null,
+            EmitData.SourceLinkStream,
+            EmitData.EmbeddedTexts,
+            cancellationToken);
+        diagnostics = diagnostics.Concat(result.Diagnostics).ToImmutableArray();
+        return new EmitMemoryResult(
+            result.Success,
+            assemblyStream,
+            pdbStream,
+            xmlStream,
+            metadataStream,
+            diagnostics);
     }
 
     private string GetAssemblyFileName()

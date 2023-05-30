@@ -62,3 +62,29 @@ public readonly struct EmitDiskResult
         Diagnostics = diagnostics;
     }
 }
+
+public readonly struct EmitMemoryResult
+{
+    public bool Success { get; }
+    public MemoryStream AssemblyStream { get; }
+    public MemoryStream? PdbStream { get; }
+    public MemoryStream? XmlStream { get; }
+    public MemoryStream? MetadataStream { get; }
+    public ImmutableArray<Diagnostic> Diagnostics { get; }
+
+    public EmitMemoryResult(
+        bool success,
+        MemoryStream assemblyStream,
+        MemoryStream? pdbStream,
+        MemoryStream? xmlStream,
+        MemoryStream? metadataStream,
+        ImmutableArray<Diagnostic> diagnostics)
+    {
+        Success = success;
+        AssemblyStream = assemblyStream;
+        PdbStream = pdbStream;
+        XmlStream = xmlStream;
+        MetadataStream = metadataStream;
+        Diagnostics = diagnostics;
+    }
+}
