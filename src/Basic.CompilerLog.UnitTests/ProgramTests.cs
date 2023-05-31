@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -81,6 +82,28 @@ public sealed class ProgramTests : TestBase
         var exportPath = Path.Combine(exportDir.DirectoryPath, "example", "export");
         var buildResult = RunBuildCmd(exportPath);
         Assert.True(buildResult.Succeeded);
+    }
+
+    [Fact]
+    public void EmitConsole()
+    {
+        using var emitDir = new TempDir();
+        RunCompLog($"emit -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath}");
+
+        AssertOutput(@"example\emit\example.dll");
+        AssertOutput(@"example\emit\example.pdb");
+        AssertOutput(@"example\emit\ref\example.dll");
+
+        void AssertOutput(string relativePath)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                relativePath = relativePath.Replace('\\', '/');
+            }
+
+            var filePath = Path.Combine(emitDir.DirectoryPath, relativePath);
+            Assert.True(File.Exists(filePath));
+        }
     }
 }
 #endif

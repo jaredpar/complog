@@ -239,10 +239,24 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         return builder.ToImmutable();
     }
 
+    internal Type[] GetTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch
+        {
+            // TODO: need to handle the load errors here same way as compiler. The CodeFixProvider assemblies
+            // not loading shouldn't lead to not generating anything.
+            return Array.Empty<Type>();
+        }
+    }
+
     internal void GetAnalyzers(ImmutableArray<DiagnosticAnalyzer>.Builder builder, string? languageName)
     {
         var assembly = Loader.LoadFromAssemblyName(AssemblyName);
-        foreach (var type in assembly.GetTypes())
+        foreach (var type in GetTypes(assembly))
         {
             if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
             {
@@ -265,7 +279,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
     internal void GetGenerators(ImmutableArray<ISourceGenerator>.Builder builder, string? languageName)
     {
         var assembly = Loader.LoadFromAssemblyName(AssemblyName);
-        foreach (var type in assembly.GetTypes())
+        foreach (var type in GetTypes(assembly))
         {
             if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
             {
@@ -302,5 +316,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
             .Single();
         return ctor.Invoke(null);
     }
+
+    public override string ToString() => $"In Memory {AssemblyName}";
 }
 

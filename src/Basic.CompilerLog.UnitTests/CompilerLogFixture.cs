@@ -35,6 +35,7 @@ public sealed class CompilerLogFixture : IDisposable
         ConsoleComplogPath,
         ClassLibComplogPath,
         ClassLibMultiComplogPath,
+        ClassLibSignedComplogPath,
     };
 
     public CompilerLogFixture()
@@ -70,7 +71,7 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
-            DotnetUtil.Command("build -bl", scratchPath);
+            Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
         
@@ -97,7 +98,7 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            DotnetUtil.Command("build -bl", scratchPath);
+            Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
 
@@ -127,7 +128,7 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            DotnetUtil.Command("build -bl", scratchPath);
+            Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
 
@@ -149,12 +150,11 @@ public sealed class CompilerLogFixture : IDisposable
                 using System.Text.RegularExpressions;
 
                 partial class Util {
-                    [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
-                    internal static partial Regex GetRegex();
+                    internal static Regex GetRegex() => null!;
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            DotnetUtil.Command("build -bl", scratchPath);
+            Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
 

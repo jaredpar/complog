@@ -125,6 +125,13 @@ public sealed class CompilerLogReader : IDisposable
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var additionalTextList = new List<AdditionalText>();
 
+        Stream? win32ResourceStream = null;
+        Stream? sourceLinkStream = null;
+        List<ResourceDescription>? resources = rawCompilationData.Resources.Count == 0
+            ? null
+            : rawCompilationData.Resources.Select(x => x.ResourceDescription).ToList();
+        List<EmbeddedText>? embeddedTexts = null;
+
         foreach (var tuple in rawCompilationData.Contents)
         {
             switch (tuple.Kind)
@@ -143,20 +150,41 @@ public sealed class CompilerLogReader : IDisposable
                 case RawContentKind.CryptoKeyFile:
                     HandleCryptoKeyFile(tuple.ContentHash);
                     break;
-
-                // Not exposed yet but could be if needed
-                case RawContentKind.Embed:
                 case RawContentKind.SourceLink:
+                    sourceLinkStream = GetStateAwareContentStream(tuple.ContentHash);
+                    break;
+                case RawContentKind.Win32Resource:
+                    win32ResourceStream = GetStateAwareContentStream(tuple.ContentHash);
+                    break;
+                case RawContentKind.Embed:
+                {
+                    if (embeddedTexts is null)
+                    {
+                        embeddedTexts = new List<EmbeddedText>();
+                    }
+
+                    var sourceText = GetSourceText(tuple.ContentHash, hashAlgorithm, canBeEmbedded: true);
+                    var embeddedText = EmbeddedText.FromSource(tuple.FilePath, sourceText);
+                    embeddedTexts.Add(embeddedText);
+                    break;
+                }
+
+                // not exposed yet
                 case RawContentKind.RuleSet:
                 case RawContentKind.AppConfig:
                 case RawContentKind.Win32Manifest:
-                case RawContentKind.Win32Resource:
                 case RawContentKind.Win32Icon:
                     break;
                 default:
                     throw new InvalidOperationException();
             }
         }
+
+        var emitData = new EmitData(
+            win32ResourceStream: win32ResourceStream,
+            sourceLinkStream: sourceLinkStream,
+            resources: resources,
+            embeddedTexts: embeddedTexts);
 
         return compilerCall.IsCSharp
             ? CreateCSharp()
@@ -227,15 +255,21 @@ public sealed class CompilerLogReader : IDisposable
                 });
 
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
+
+            csharpOptions = csharpOptions
+                .WithSyntaxTreeOptionsProvider(syntaxProvider)
+                .WithStrongNameProvider(new DesktopStrongNameProvider());
+
             var compilation = CSharpCompilation.Create(
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 referenceList,
-                csharpOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                csharpOptions);
 
             return new CSharpCompilationData(
                 compilerCall,
                 compilation,
+                emitData,
                 csharpArgs,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData.Analyzers),
@@ -259,15 +293,20 @@ public sealed class CompilerLogReader : IDisposable
 
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
+            basicOptions = basicOptions
+                .WithSyntaxTreeOptionsProvider(syntaxProvider)
+                .WithStrongNameProvider(new DesktopStrongNameProvider());
+
             var compilation = VisualBasicCompilation.Create(
                 rawCompilationData.Arguments.CompilationName,
                 syntaxTrees,
                 referenceList,
-                basicOptions.WithSyntaxTreeOptionsProvider(syntaxProvider));
+                basicOptions);
 
             return new VisualBasicCompilationData(
                 compilerCall,
                 compilation,
+                emitData,
                 basicArgs,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData.Analyzers),
@@ -601,13 +640,47 @@ public sealed class CompilerLogReader : IDisposable
         stream.CopyTo(destination);
     }
 
-    internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm)
+    /// <summary>
+    /// This gets a content <see cref="Stream"/> instance that is aware of the state
+    /// lifetime. If the <see cref="CompilerLogState" /> is owned by this instance then 
+    /// it's safe to expose streams into the underlying zip. Otherwise a copy is created
+    /// to ensure it's safe to use after this zip is closed
+    /// </summary>
+    internal Stream GetStateAwareContentStream(string contentHash)
     {
-        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+        if (_ownsCompilerLogState)
+        {
+            return GetContentStream(contentHash);
+        }
 
-        // TODO: need to expose the real API for how the compiler reads source files. 
-        // move this comment to the rehydration code when we write it.
-        return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm);
+        var bytes = GetContentBytes(contentHash);
+        return bytes.AsSimpleMemoryStream(writable: false);
+    }
+
+    internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded = false)
+    {
+        Stream? stream = null;
+        try
+        {
+            if (canBeEmbedded)
+            {
+                // Zip streams don't have length so we have to go the byte[] route
+                var bytes = GetContentBytes(contentHash);
+                stream = bytes.AsSimpleMemoryStream();
+            }
+            else
+            {
+                stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+            }
+
+            // TODO: need to expose the real API for how the compiler reads source files. 
+            // move this comment to the rehydration code when we write it.
+            return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+        }
+        finally
+        {
+            stream?.Dispose();
+        }
     }
 
     internal byte[] GetAssemblyBytes(Guid mvid) =>

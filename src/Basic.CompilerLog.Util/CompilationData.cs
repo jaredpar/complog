@@ -31,6 +31,8 @@ public abstract class CompilationData
     /// </remarks>
     public BasicAnalyzerHost BasicAnalyzerHost { get; }
 
+    public EmitData EmitData { get; }
+
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }
@@ -44,6 +46,7 @@ public abstract class CompilationData
     private protected CompilationData(
         CompilerCall compilerCall,
         Compilation compilation,
+        EmitData emitData,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
@@ -51,6 +54,7 @@ public abstract class CompilationData
     {
         CompilerCall = compilerCall;
         Compilation = compilation;
+        EmitData = emitData;
         _commandLineArguments = commandLineArguments;
         AdditionalTexts = additionalTexts;
         BasicAnalyzerHost = basicAnalyzerHost;
@@ -70,10 +74,10 @@ public abstract class CompilationData
         return _generators;
     }
 
-    public Compilation GetCompilationAfterGenerators() =>
-        GetCompilationAfterGenerators(out _);
+    public Compilation GetCompilationAfterGenerators(CancellationToken cancellationToken = default) =>
+        GetCompilationAfterGenerators(out _, cancellationToken);
 
-    public Compilation GetCompilationAfterGenerators(out ImmutableArray<Diagnostic> diagnostics)
+    public Compilation GetCompilationAfterGenerators(out ImmutableArray<Diagnostic> diagnostics, CancellationToken cancellationToken = default)
     {
         if (_afterGenerators is { } tuple)
         {
@@ -82,7 +86,7 @@ public abstract class CompilationData
         }
 
         var driver = CreateGeneratorDriver();
-        driver.RunGeneratorsAndUpdateCompilation(Compilation, out tuple.Item1, out tuple.Item2);
+        driver.RunGeneratorsAndUpdateCompilation(Compilation, out tuple.Item1, out tuple.Item2, cancellationToken);
         _afterGenerators = tuple;
         diagnostics = tuple.Item2;
         return tuple.Item1;
@@ -110,6 +114,157 @@ public abstract class CompilationData
     }
 
     protected abstract GeneratorDriver CreateGeneratorDriver();
+
+    public EmitDiskResult EmitToDisk(string directory, CancellationToken cancellationToken = default)
+    {
+        var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
+        var assemblyName = GetAssemblyFileName();
+        string assemblyFilePath = Path.Combine(directory, assemblyName);
+        Stream? peStream = null;
+        Stream? pdbStream = null;
+        string? pdbFilePath = null;
+        Stream? xmlStream = null;
+        string? xmlFilePath = null;
+        Stream? metadataStream = null;
+        string? metadataFilePath = null;
+
+        try
+        { 
+            peStream = OpenFile(assemblyFilePath);
+
+            if (IncludePdbStream())
+            {
+                pdbFilePath = Path.Combine(directory, Path.ChangeExtension(assemblyName, ".pdb"));
+                pdbStream = OpenFile(pdbFilePath);
+            }
+
+            if (_commandLineArguments.DocumentationPath is not null)
+            {
+                xmlFilePath = Path.Combine(directory, Path.ChangeExtension(assemblyName, ".xml"));
+                xmlStream = OpenFile(xmlFilePath);
+            }
+
+            if (IncludeMetadataStream())
+            {
+                metadataFilePath = Path.Combine(directory, "ref", assemblyName);
+                metadataStream = OpenFile(metadataFilePath);
+            }
+
+            var result = compilation.Emit(
+                peStream,
+                pdbStream,
+                xmlStream,
+                EmitData.Win32ResourceStream,
+                EmitData.Resources,
+                EmitOptions,
+                debugEntryPoint: null,
+                EmitData.SourceLinkStream,
+                EmitData.EmbeddedTexts,
+                cancellationToken);
+            diagnostics = diagnostics.Concat(result.Diagnostics).ToImmutableArray();
+            return new EmitDiskResult(
+                result.Success,
+                directory,
+                assemblyName,
+                assemblyFilePath,
+                pdbFilePath,
+                xmlFilePath,
+                metadataFilePath,
+                diagnostics);
+
+        }
+        finally
+        {
+            peStream?.Dispose();
+            pdbStream?.Dispose();
+            xmlStream?.Dispose();
+            metadataStream?.Dispose();
+        }
+
+        Stream OpenFile(string filePath)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            return new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        }
+    }
+
+    public EmitMemoryResult EmitToMemory(CancellationToken cancellationToken = default)
+    {
+        var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
+        MemoryStream assemblyStream = new MemoryStream();
+        MemoryStream? pdbStream = null;
+        MemoryStream? xmlStream = null;
+        MemoryStream? metadataStream = null;
+
+        if (IncludePdbStream())
+        {
+            pdbStream = new MemoryStream();
+        }
+
+        if (_commandLineArguments.DocumentationPath is not null)
+        {
+            xmlStream = new MemoryStream();
+        }
+
+        if (IncludeMetadataStream())
+        {
+            metadataStream = new MemoryStream();
+        }
+
+        var result = compilation.Emit(
+            assemblyStream,
+            pdbStream,
+            xmlStream,
+            EmitData.Win32ResourceStream,
+            EmitData.Resources,
+            EmitOptions,
+            debugEntryPoint: null,
+            EmitData.SourceLinkStream,
+            EmitData.EmbeddedTexts,
+            cancellationToken);
+        diagnostics = diagnostics.Concat(result.Diagnostics).ToImmutableArray();
+        return new EmitMemoryResult(
+            result.Success,
+            assemblyStream,
+            pdbStream,
+            xmlStream,
+            metadataStream,
+            diagnostics);
+    }
+
+    private string GetAssemblyFileName()
+    {
+        if (_commandLineArguments.OutputFileName is not null)
+        {
+            return _commandLineArguments.OutputFileName;
+        }
+
+        string name = Compilation.AssemblyName ?? "app";
+        return Path.GetExtension(name) switch
+        {
+            ".exe" => name,
+            ".dll" => name,
+            ".netmodule" => name,
+            _ => $"{name}{GetStandardAssemblyExtension()}"
+        };
+    }
+
+    private string GetStandardAssemblyExtension() => CompilationOptions.OutputKind switch
+    {
+        OutputKind.NetModule => ".netmodule",
+        OutputKind.ConsoleApplication => ".exe",
+        OutputKind.WindowsApplication => ".exe",
+        _ => ".dll"
+    };
+
+    private bool IncludePdbStream() =>
+        EmitOptions.DebugInformationFormat != DebugInformationFormat.Embedded &&
+        !EmitOptions.EmitMetadataOnly;
+
+    private bool IncludeMetadataStream() =>
+        !EmitOptions.EmitMetadataOnly &&
+        !EmitOptions.IncludePrivateMembers &&
+        CompilationOptions.OutputKind != OutputKind.NetModule;
 }
 
 public abstract class CompilationData<TCompilation, TParseOptions> : CompilationData
@@ -122,11 +277,12 @@ public abstract class CompilationData<TCompilation, TParseOptions> : Compilation
     private protected CompilationData(
         CompilerCall compilerCall,
         TCompilation compilation,
+        EmitData emitData,
         CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
         
     }
@@ -137,11 +293,12 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
     internal CSharpCompilationData(
         CompilerCall compilerCall,
         CSharpCompilation compilation,
+        EmitData emitData,
         CSharpCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
 
     }
@@ -155,11 +312,12 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
     internal VisualBasicCompilationData(
         CompilerCall compilerCall,
         VisualBasicCompilation compilation,
+        EmitData emitData,
         VisualBasicCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        : base(compilerCall, compilation, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        : base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
     }
 

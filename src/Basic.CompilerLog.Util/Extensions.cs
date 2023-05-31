@@ -58,8 +58,8 @@ internal static class Extensions
     /// is for consumers to be able to access the underlying array via <see cref="MemoryStream.TryGetBuffer(out ArraySegment{byte})"/>
     /// and similar methods.
     /// </summary>
-    internal static MemoryStream AsSimpleMemoryStream(this byte[] array) =>
-        new MemoryStream(array, 0, count: array.Length, writable: true, publiclyVisible: true);
+    internal static MemoryStream AsSimpleMemoryStream(this byte[] array, bool writable = true) =>
+        new MemoryStream(array, 0, count: array.Length, writable: writable, publiclyVisible: true);
 
     internal static string GetResourceName(this ResourceDescription d) => ReflectionUtil.ReadField<string>(d, "ResourceName");
     internal static string? GetFileName(this ResourceDescription d) => ReflectionUtil.ReadField<string?>(d, "FileName");
