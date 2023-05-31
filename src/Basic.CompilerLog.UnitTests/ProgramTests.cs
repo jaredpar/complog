@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -95,6 +96,11 @@ public sealed class ProgramTests : TestBase
 
         void AssertOutput(string relativePath)
         {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                relativePath = relativePath.Replace('\\', '/');
+            }
+
             var filePath = Path.Combine(emitDir.DirectoryPath, relativePath);
             Assert.True(File.Exists(filePath));
         }

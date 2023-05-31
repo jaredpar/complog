@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -24,7 +25,7 @@ internal static class DotnetUtil
     {
         // TODO: has to be a better way to find the runtime directory but this works for the moment
         var path = Path.GetDirectoryName(typeof(object).Assembly.Location);
-        while (path is not null && Path.GetFileName(path) != "dotnet")
+        while (path is not null && !IsDotNetDir(path))
         {
             path = Path.GetDirectoryName(path);
         }
@@ -35,6 +36,18 @@ internal static class DotnetUtil
         }
 
         return GetSdkDirectories(path);
+
+        static bool IsDotNetDir(string path)
+        {
+            var appName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "dotnet.exe"
+                : "dotnet";
+
+            return
+                File.Exists(Path.Combine(path, appName)) &&
+                Directory.Exists(Path.Combine(path, "sdk")) &&
+                Directory.Exists(Path.Combine(path, "host"));
+        }
     }
 
     internal static List<string> GetSdkDirectories(string dotnetDirectory)
