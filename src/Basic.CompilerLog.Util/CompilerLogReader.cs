@@ -163,8 +163,8 @@ public sealed class CompilerLogReader : IDisposable
                         embeddedTexts = new List<EmbeddedText>();
                     }
 
-                    using var stream = GetContentStream(tuple.ContentHash);
-                    var embeddedText = EmbeddedText.FromStream(tuple.FilePath, stream, hashAlgorithm);
+                    var sourceText = GetSourceText(tuple.ContentHash, hashAlgorithm, canBeEmbedded: true);
+                    var embeddedText = EmbeddedText.FromSource(tuple.FilePath, sourceText);
                     embeddedTexts.Add(embeddedText);
                     break;
                 }
@@ -657,13 +657,30 @@ public sealed class CompilerLogReader : IDisposable
         return bytes.AsSimpleMemoryStream(writable: false);
     }
 
-    internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm)
+    internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded = false)
     {
-        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+        Stream? stream = null;
+        try
+        {
+            if (canBeEmbedded)
+            {
+                // Zip streams don't have length so we have to go the byte[] route
+                var bytes = GetContentBytes(contentHash);
+                stream = bytes.AsSimpleMemoryStream();
+            }
+            else
+            {
+                stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+            }
 
-        // TODO: need to expose the real API for how the compiler reads source files. 
-        // move this comment to the rehydration code when we write it.
-        return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm);
+            // TODO: need to expose the real API for how the compiler reads source files. 
+            // move this comment to the rehydration code when we write it.
+            return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+        }
+        finally
+        {
+            stream?.Dispose();
+        }
     }
 
     internal byte[] GetAssemblyBytes(Guid mvid) =>
