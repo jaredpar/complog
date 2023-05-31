@@ -174,6 +174,7 @@ public sealed class CompilerLogReader : IDisposable
                 case RawContentKind.AppConfig:
                 case RawContentKind.Win32Manifest:
                 case RawContentKind.Win32Icon:
+                    break;
                 default:
                     throw new InvalidOperationException();
             }
