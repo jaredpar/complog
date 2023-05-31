@@ -82,5 +82,22 @@ public sealed class ProgramTests : TestBase
         var buildResult = RunBuildCmd(exportPath);
         Assert.True(buildResult.Succeeded);
     }
+
+    [Fact]
+    public void EmitConsole()
+    {
+        using var emitDir = new TempDir();
+        RunCompLog($"emit -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath}");
+
+        AssertOutput(@"example\emit\example.dll");
+        AssertOutput(@"example\emit\example.pdb");
+        AssertOutput(@"example\emit\ref\example.dll");
+
+        void AssertOutput(string relativePath)
+        {
+            var filePath = Path.Combine(emitDir.DirectoryPath, relativePath);
+            Assert.True(File.Exists(filePath));
+        }
+    }
 }
 #endif
