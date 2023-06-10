@@ -118,7 +118,7 @@ public abstract class CompilationData
     public EmitDiskResult EmitToDisk(string directory, CancellationToken cancellationToken = default)
     {
         var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
-        var assemblyName = GetAssemblyFileName();
+        var assemblyName = CommonUtil.GetAssemblyFileName(_commandLineArguments);
         string assemblyFilePath = Path.Combine(directory, assemblyName);
         Stream? peStream = null;
         Stream? pdbStream = null;
@@ -231,31 +231,6 @@ public abstract class CompilationData
             metadataStream,
             diagnostics);
     }
-
-    private string GetAssemblyFileName()
-    {
-        if (_commandLineArguments.OutputFileName is not null)
-        {
-            return _commandLineArguments.OutputFileName;
-        }
-
-        string name = Compilation.AssemblyName ?? "app";
-        return Path.GetExtension(name) switch
-        {
-            ".exe" => name,
-            ".dll" => name,
-            ".netmodule" => name,
-            _ => $"{name}{GetStandardAssemblyExtension()}"
-        };
-    }
-
-    private string GetStandardAssemblyExtension() => CompilationOptions.OutputKind switch
-    {
-        OutputKind.NetModule => ".netmodule",
-        OutputKind.ConsoleApplication => ".exe",
-        OutputKind.WindowsApplication => ".exe",
-        _ => ".dll"
-    };
 
     private bool IncludePdbStream() =>
         EmitOptions.DebugInformationFormat != DebugInformationFormat.Embedded &&

@@ -135,7 +135,7 @@ int RunAnalyzers(IEnumerable<string> args)
 
         foreach (var compilerCall in compilerCalls)
         {
-            WriteLine($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
+            WriteLine(compilerCall.GetDiagnosticName());
             foreach (var tuple in reader.ReadAnalyzerFileInfo(compilerCall))
             {
                 WriteLine($"\t{tuple.FilePath}");
@@ -178,7 +178,7 @@ int RunPrint(IEnumerable<string> args)
 
         foreach (var compilerCall in compilerCalls)
         {
-            Write($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
+            Write(compilerCall.GetDiagnosticName());
             if (compilerCall.Kind == CompilerCallKind.Satellite)
             {
                 Write(" (satellite)");
@@ -428,7 +428,7 @@ int RunEmit(IEnumerable<string> args, CancellationToken cancellationToken)
             var emitDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "emit");
             Directory.CreateDirectory(emitDirPath);
 
-            Write($"{compilerCall.ProjectFileName}({compilerCall.TargetFramework}) ... ");
+            Write($"{compilerCall.GetDiagnosticName()} ... ");
             var compilationData = reader.ReadCompilationData(compilerCall);
             var result = compilationData.EmitToDisk(emitDirPath, cancellationToken);
             if (result.Success)
@@ -486,7 +486,7 @@ int RunDiagnostics(IEnumerable<string> args)
         foreach (var compilationData in compilationDatas)
         {
             var compilerCall = compilationData.CompilerCall;
-            WriteLine($"{compilerCall.ProjectFileName} ({compilerCall.TargetFramework})");
+            WriteLine(compilerCall.GetDiagnosticName());
             var compilation = compilationData.GetCompilationAfterGenerators();
             foreach (var diagnostic in compilation.GetDiagnostics())
             {

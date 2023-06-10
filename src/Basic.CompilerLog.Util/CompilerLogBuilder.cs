@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using System;
@@ -23,6 +24,13 @@ namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogBuilder : IDisposable
 {
+    // GUIDs specified in https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md#document-table-0x30
+    public static readonly Guid HashAlgorithmSha1 = unchecked(new Guid((int)0xff1816ec, (short)0xaa5e, 0x4d10, 0x87, 0xf7, 0x6f, 0x49, 0x63, 0x83, 0x34, 0x60));
+    public static readonly Guid HashAlgorithmSha256 = unchecked(new Guid((int)0x8829d00f, 0x11b8, 0x4213, 0x87, 0x8b, 0x77, 0x0e, 0x85, 0x97, 0xac, 0x16));
+
+    // https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md#embedded-source-c-and-vb-compilers
+    public static readonly Guid EmbeddedSourceGuid = new Guid("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
+
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(PathUtil.Comparer);
     private readonly HashSet<string> _sourceHashMap = new(PathUtil.Comparer);
@@ -72,6 +80,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
             AddedEmbeds(compilationWriter, commandLineArguments);
+            AddGeneratedFiles(compilationWriter, commandLineArguments, compilerCall);
             AddContentIf("link", commandLineArguments.SourceLink);
             AddContentIf("ruleset", commandLineArguments.RuleSetPath);
             AddContentIf("appconfig", commandLineArguments.AppConfigPath);
@@ -202,6 +211,113 @@ internal sealed class CompilerLogBuilder : IDisposable
         foreach (var commandLineFile in args.SourceFiles)
         {
             AddContentCore(compilationWriter, "source", commandLineFile.Path);
+        }
+    }
+
+    /// <summary>
+    /// Attempt to add all the generated files from generators. When successful the generators
+    /// don't need to be run when re-hydrating the compilation.
+    /// </summary>
+    private void AddGeneratedFiles(StreamWriter compilationWriter, CommandLineArguments args, CompilerCall compilerCall)
+    {
+        // This only works when using portable and embedded pdb formats. A full PDB can't store
+        // generated files
+        if (args.EmitOptions.DebugInformationFormat is not (DebugInformationFormat.Embedded or DebugInformationFormat.PortablePdb))
+        {
+            return;
+        }
+
+        var assemblyFileName = GetAssemblyFileName(args);
+        var assemblyFilePath = Path.Combine(args.OutputDirectory, assemblyFileName);
+        if (!File.Exists(assemblyFilePath))
+        {
+            Diagnostics.Add($"Can't find assembly file for {compilerCall.GetDiagnosticName()}");
+            return;
+        }
+
+        MetadataReaderProvider? pdbReaderProvider = null;
+        try
+        {
+            using var reader = OpenFileForRead(assemblyFilePath);
+            using var peReader = new PEReader(reader);
+            if (!peReader.TryOpenAssociatedPortablePdb(assemblyFilePath, OpenFileForRead, out pdbReaderProvider, out var pdbPath))
+            {
+                Diagnostics.Add($"Can't find portable pdb file for {compilerCall.GetDiagnosticName()}");
+                return;
+            }
+
+            var pdbReader = pdbReaderProvider!.GetMetadataReader();
+            foreach (var documentHandle in pdbReader.Documents.Skip(args.SourceFiles.Length))
+            {
+                if (GetContentStream(documentHandle) is {} tuple)
+                {
+                    var contentHash = AddContent(tuple.Stream);
+                    compilationWriter.WriteLine($"generated:{contentHash}:{tuple.Name}");
+                }
+            }
+
+            (string Name, MemoryStream Stream)? GetContentStream(DocumentHandle documentHandle)
+            {
+                var document = pdbReader.GetDocument(documentHandle);
+                var name = pdbReader.GetString(document.Name);
+                foreach (var cdiHandle in pdbReader.GetCustomDebugInformation(documentHandle))
+                {
+                    var cdi = pdbReader.GetCustomDebugInformation(cdiHandle);
+                    if (pdbReader.GetGuid(cdi.Kind) != EmbeddedSourceGuid)
+                    {
+                        continue;
+                    }
+
+                    var hashAlgorithmGuid = pdbReader.GetGuid(document.HashAlgorithm);
+                    var hashAlgorithm =
+                        hashAlgorithmGuid == HashAlgorithmSha1 ? SourceHashAlgorithm.Sha1
+                        : hashAlgorithmGuid == HashAlgorithmSha256 ? SourceHashAlgorithm.Sha256
+                        : SourceHashAlgorithm.None;
+                    if (hashAlgorithm == SourceHashAlgorithm.None)
+                    {
+                        continue;
+                    }
+
+                    var bytes = pdbReader.GetBlobBytes(cdi.Value);
+                    if (bytes is null)
+                    {
+                        continue;
+                    }
+
+                    int uncompressedSize = BitConverter.ToInt32(bytes, 0);
+                    var stream = new MemoryStream(bytes, sizeof(int), bytes.Length - sizeof(int));
+
+                    if (uncompressedSize != 0)
+                    {
+                        var decompressed = new MemoryStream(uncompressedSize);
+                        using (var deflateStream = new DeflateStream(stream, CompressionMode.Decompress))
+                        {
+                            deflateStream.CopyTo(decompressed);
+                        }
+
+                        if (decompressed.Length != uncompressedSize)
+                        {
+                            Diagnostics.Add($"Error decompressing embedded source file {compilerCall.GetDiagnosticName()}");
+                            continue;
+                        }
+
+                        stream = decompressed;
+                    }
+
+                    return (name, stream);
+                }
+
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.Add($"Error embedding generated files {compilerCall.GetDiagnosticName()}): {ex.Message}");
+            return;
+        }
+        finally
+        {
+            pdbReaderProvider?.Dispose();
         }
     }
 

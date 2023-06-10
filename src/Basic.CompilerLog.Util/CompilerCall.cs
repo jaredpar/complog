@@ -28,4 +28,8 @@ public sealed class CompilerCall
         Arguments = arguments;
         Index = index;
     }
+
+    public string GetDiagnosticName() => string.IsNullOrEmpty(TargetFramework)
+        ? ProjectFileName
+        : $"{ProjectFileName} ({TargetFramework})";
 }
