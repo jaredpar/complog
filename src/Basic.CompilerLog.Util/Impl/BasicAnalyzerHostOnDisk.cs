@@ -59,7 +59,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
         return new BasicAnalyzerHostOnDisk(loader, builder.MoveToImmutable());
     }
 
-    public override void DisposeCore()
+    protected override void DisposeCore()
     {
         try
         {

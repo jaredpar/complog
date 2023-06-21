@@ -1,5 +1,6 @@
 ﻿using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
@@ -257,5 +258,36 @@ public sealed class CompilerLogReaderTests : TestBase
                 Assert.True(emitResult.Success);
             }
         }
+    }
+
+    [Fact]
+    public void NoAnalyzersGeneratedFilesInRaw()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
+        var (_, data) = reader.ReadRawCompilationData(0);
+        Assert.Equal(1, data.Contents.Count(x => x.Kind == RawContentKind.GeneratedText));
+    }
+
+    [Fact]
+    public void NoAnalyzerGeneratedFilesShouldBeFirst()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
+        var data = reader.ReadCompilationData(0);
+        var tree = data.Compilation.SyntaxTrees.First();
+        var decls = tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().ToList();
+        Assert.True(decls.Count >= 2);
+        Assert.Equal("Util", decls[0].Identifier.Text);
+        Assert.Equal("GetRegex_0", decls[1].Identifier.Text);
+    }
+
+    [Fact]
+    public void NoAnalyzerShouldHaveNoAnalyzers()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
+        var data = reader.ReadCompilationData(0);
+        var compilation1 = data.Compilation;
+        var compilation2 = data.GetCompilationAfterGenerators();
+        Assert.Same(compilation1, compilation2);
+        Assert.Empty(data.AnalyzerReferences);
     }
 }

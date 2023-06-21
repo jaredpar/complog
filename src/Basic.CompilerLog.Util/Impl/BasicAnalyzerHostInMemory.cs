@@ -34,7 +34,7 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
         return new BasicAnalyzerHostInMemory(loader, loader.AnalyzerReferences);
     }
 
-    public override void DisposeCore()
+    protected override void DisposeCore()
     {
         Loader.Dispose();
     }

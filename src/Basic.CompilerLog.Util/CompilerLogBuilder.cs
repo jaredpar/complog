@@ -76,11 +76,11 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddReferences(compilationWriter, commandLineArguments);
             AddAnalyzers(compilationWriter, commandLineArguments);
             AddAnalyzerConfigs(compilationWriter, commandLineArguments);
+            AddGeneratedFiles(compilationWriter, commandLineArguments, compilerCall);
             AddSources(compilationWriter, commandLineArguments);
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
             AddedEmbeds(compilationWriter, commandLineArguments);
-            AddGeneratedFiles(compilationWriter, commandLineArguments, compilerCall);
             AddContentIf("link", commandLineArguments.SourceLink);
             AddContentIf("ruleset", commandLineArguments.RuleSetPath);
             AddContentIf("appconfig", commandLineArguments.AppConfigPath);

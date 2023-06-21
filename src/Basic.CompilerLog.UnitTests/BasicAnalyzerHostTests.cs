@@ -16,10 +16,14 @@ public sealed class BasicAnalyzerHostTests
     {
         Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.Default));
         Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.OnDisk));
+        Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.None));
 #if NETCOREAPP
         Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.InMemory));
 #else
         Assert.False(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.InMemory));
 #endif
+
+        // To make sure this test is updated every time a new value is added
+        Assert.Equal(4, Enum.GetValues(typeof(BasicAnalyzerKind)).Length);
     }
 }
