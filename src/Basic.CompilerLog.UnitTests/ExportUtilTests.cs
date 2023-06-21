@@ -22,7 +22,7 @@ public sealed class ExportUtilTests : TestBase
         Fixture = fixture;
     }
 
-    private void TestExport(int expectedCount)
+    private void TestExport(int expectedCount, Action<string>? callback = null)
     {
         using var scratchDir = new TempDir();
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
@@ -34,10 +34,10 @@ public sealed class ExportUtilTests : TestBase
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
 
-        TestExport(compilerLogFilePath, expectedCount);
+        TestExport(compilerLogFilePath, expectedCount, callback: callback);
     }
 
-    private void TestExport(string compilerLogFilePath, int expectedCount)
+    private void TestExport(string compilerLogFilePath, int expectedCount, bool includeAnalyzers = true, Action<string>? callback = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
 #if NETCOREAPP
@@ -45,7 +45,7 @@ public sealed class ExportUtilTests : TestBase
 #else
         var sdkDirs = DotnetUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
 #endif
-        var exportUtil = new ExportUtil(reader);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers);
         var count = 0;
         foreach (var compilerCall in reader.ReadAllCompilerCalls())
         {
@@ -66,6 +66,8 @@ public sealed class ExportUtilTests : TestBase
             {
                 Assert.False(line.Contains(tempDir.DirectoryPath, StringComparison.OrdinalIgnoreCase), $"Has full path: {line}");
             }
+
+            callback?.Invoke(tempDir.DirectoryPath);
         }
         Assert.Equal(expectedCount, count);
     }
@@ -80,6 +82,44 @@ public sealed class ExportUtilTests : TestBase
     public void ClassLib()
     {
         TestExport(Fixture.ClassLibComplogPath, 1);
+    }
+
+    /// <summary>
+    /// Make sure that generated files are put into the generated directory
+    /// </summary>
+    [Fact]
+    public void GeneratedText()
+    {
+        TestExport(Fixture.ConsoleComplogPath, 1, callback: tempPath =>
+        {
+            var generatedPath = Path.Combine(tempPath, "generated");
+            var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
+            Assert.NotEmpty(files);
+        });
+    }
+
+    /// <summary>
+    /// Make sure the rsp file has the expected structure when we exclude analyzers from the 
+    /// export.
+    /// </summary>
+    [Fact]
+    public void GeneratedTextExcludeAnalyzers()
+    {
+        TestExport(Fixture.ConsoleComplogPath, 1, includeAnalyzers: false, callback: tempPath =>
+        {
+            var rspPath = Path.Combine(tempPath, "build.rsp");
+            var foundPath = false;
+            foreach (var line in File.ReadAllLines(rspPath))
+            {
+                Assert.DoesNotContain("/analyzer", line);
+                if (line.Contains("RegexGenerator.g.cs") && !line.StartsWith("/"))
+                {
+                    foundPath = true;
+                }
+            }
+
+            Assert.True(foundPath);
+        });
     }
 
     [Fact]

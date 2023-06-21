@@ -9,6 +9,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Build.Framework;
 
 namespace Basic.CompilerLog.Util;
 
@@ -30,6 +31,7 @@ public sealed class ExportUtil
         internal string SourceDirectory { get; }
         internal string MiscDirectory { get; }
         internal string EmbeddedResourceDirectory { get; }
+        internal string GeneratedDirectory { get; }
         internal string OriginalProjectFilePath { get; }
         internal string OriginalProjectDirectory { get; }
         internal string ProjectName { get; }
@@ -43,9 +45,11 @@ public sealed class ExportUtil
             SourceDirectory = Path.Combine(destinationDirectory, "src");
             MiscDirectory = Path.Combine(destinationDirectory, "misc");
             EmbeddedResourceDirectory = Path.Combine(destinationDirectory, "resources");
+            GeneratedDirectory = Path.Combine(destinationDirectory, "generated");
             Directory.CreateDirectory(SourceDirectory);
             Directory.CreateDirectory(MiscDirectory);
             Directory.CreateDirectory(EmbeddedResourceDirectory);
+            Directory.CreateDirectory(GeneratedDirectory);
         }
 
         private string GetNewFilePath(string originalFilePath)
@@ -106,13 +110,45 @@ public sealed class ExportUtil
             action(fileStream);
             return newFilePath;
         }
+
+        internal string WriteGeneratedContent(string originalFilePath, Stream stream)
+        {
+            string filePath;
+            if (originalFilePath.StartsWith(OriginalProjectDirectory, PathUtil.Comparison))
+            {
+                filePath = PathUtil.ReplacePathStart(originalFilePath, OriginalProjectDirectory, GeneratedDirectory);
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            }
+            else
+            {
+                var number = 0;
+                var fileName = Path.GetFileName(originalFilePath);
+                do
+                {
+                    filePath = Path.Combine(GeneratedDirectory, fileName);
+                    if (!File.Exists(filePath))
+                    {
+                        break;
+                    }
+
+                    fileName = $"{Path.GetFileNameWithoutExtension(fileName)}{number}{Path.GetExtension(fileName)}";
+                    number++;
+                } while (true);
+            }
+
+            using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            stream.CopyTo(fileStream);
+            return filePath;
+        }
     }
 
     public CompilerLogReader Reader { get; }
+    public bool IncludeAnalyzers { get; }
 
-    public ExportUtil(CompilerLogReader reader)
+    public ExportUtil(CompilerLogReader reader, bool includeAnalyzers = true)
     {
         Reader = reader;
+        IncludeAnalyzers = includeAnalyzers;
     }
 
     public void ExportRsp(CompilerCall compilerCall, string destinationDir, IEnumerable<string> sdkDirectories)
@@ -127,6 +163,7 @@ public sealed class ExportUtil
         var commandLineList = new List<string>();
         var data = Reader.ReadRawCompilationData(compilerCall);
         Directory.CreateDirectory(destinationDir);
+        WriteGeneratedFiles();
         WriteContent();
         WriteAnalyzers();
         WriteReferences();
@@ -279,8 +316,11 @@ public sealed class ExportUtil
                 using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
                 var filePath = builder.WriteContent(analyzer.FilePath, analyzerStream);
 
-                var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""";
-                commandLineList.Add(arg);
+                if (IncludeAnalyzers)
+                {
+                    var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""";
+                    commandLineList.Add(arg);
+                }
             }
         }
 
@@ -288,11 +328,10 @@ public sealed class ExportUtil
         {
             foreach (var tuple in data.Contents)
             {
-                using var contentStream = Reader.GetContentStream(tuple.ContentHash);
-                var filePath = builder.WriteContent(tuple.FilePath, contentStream);
                 var prefix = tuple.Kind switch
                 {
                     RawContentKind.SourceText => "",
+                    RawContentKind.GeneratedText => null,
                     RawContentKind.AdditionalText => "/additionalfile:",
                     RawContentKind.AnalyzerConfig => "/analyzerconfig:",
                     RawContentKind.Embed => "/embed:",
@@ -306,7 +345,28 @@ public sealed class ExportUtil
                     _ => throw new Exception(),
                 };
 
+                if (prefix is null)
+                {
+                    continue;
+                }
+
+                using var contentStream = Reader.GetContentStream(tuple.ContentHash);
+                var filePath = builder.WriteContent(tuple.FilePath, contentStream);
                 commandLineList.Add($@"{prefix}""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""");
+            }
+        }
+
+        void WriteGeneratedFiles()
+        {
+            foreach (var tuple in data.Contents.Where(x => x.Kind == RawContentKind.GeneratedText))
+            {
+                using var contentStream = Reader.GetContentStream(tuple.ContentHash);
+                var filePath = builder.WriteGeneratedContent(tuple.FilePath, contentStream);
+
+                if (!IncludeAnalyzers)
+                {
+                    commandLineList.Add($@"""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""");
+                }
             }
         }
 

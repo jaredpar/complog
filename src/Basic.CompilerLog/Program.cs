@@ -289,9 +289,11 @@ int RunReferences(IEnumerable<string> args)
 int RunExport(IEnumerable<string> args)
 {
     var baseOutputPath = "";
+    var excludeAnalyzers = false;
     var options = new FilterOptionSet()
     {
         { "o|out=", "path to output rsp files", o => baseOutputPath = o },
+        { "e|exclude-analyzers", "emit the compilation without analyzers / generators", e => excludeAnalyzers = e is not null },
     };
 
     try
@@ -306,7 +308,7 @@ int RunExport(IEnumerable<string> args)
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        var exportUtil = new ExportUtil(reader);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: !excludeAnalyzers);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Exporting to {baseOutputPath}");
@@ -520,7 +522,7 @@ int RunHelp()
         Commands
           create        Create a compilerlog file 
           diagnostics   Print diagnostics for a compilation
-          export        Export a complete project to disk
+          export        Export compilation contents, rsp and build files to disk
           rsp           Generate compiler response file for selected projects
           ref           Copy all references and analyzers to a single directory
           emit          Emit all binaries from the log

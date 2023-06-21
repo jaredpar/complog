@@ -1,2 +1,4 @@
 X - make sure the generated files are first
 X - verify generated text in raw compilation data even if using option other than None
+- export inclrude generated files
+- export include option without analyzers
