@@ -135,7 +135,7 @@ int RunAnalyzers(IEnumerable<string> args)
 
         foreach (var compilerCall in compilerCalls)
         {
-            WriteLine($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
+            WriteLine(compilerCall.GetDiagnosticName());
             foreach (var tuple in reader.ReadAnalyzerFileInfo(compilerCall))
             {
                 WriteLine($"\t{tuple.FilePath}");
@@ -178,7 +178,7 @@ int RunPrint(IEnumerable<string> args)
 
         foreach (var compilerCall in compilerCalls)
         {
-            Write($"{compilerCall.ProjectFilePath} ({compilerCall.TargetFramework})");
+            Write(compilerCall.GetDiagnosticName());
             if (compilerCall.Kind == CompilerCallKind.Satellite)
             {
                 Write(" (satellite)");
@@ -289,9 +289,11 @@ int RunReferences(IEnumerable<string> args)
 int RunExport(IEnumerable<string> args)
 {
     var baseOutputPath = "";
+    var excludeAnalyzers = false;
     var options = new FilterOptionSet()
     {
         { "o|out=", "path to output rsp files", o => baseOutputPath = o },
+        { "e|exclude-analyzers", "emit the compilation without analyzers / generators", e => excludeAnalyzers = e is not null },
     };
 
     try
@@ -306,7 +308,7 @@ int RunExport(IEnumerable<string> args)
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        var exportUtil = new ExportUtil(reader);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: !excludeAnalyzers);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Exporting to {baseOutputPath}");
@@ -428,7 +430,7 @@ int RunEmit(IEnumerable<string> args, CancellationToken cancellationToken)
             var emitDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "emit");
             Directory.CreateDirectory(emitDirPath);
 
-            Write($"{compilerCall.ProjectFileName}({compilerCall.TargetFramework}) ... ");
+            Write($"{compilerCall.GetDiagnosticName()} ... ");
             var compilationData = reader.ReadCompilationData(compilerCall);
             var result = compilationData.EmitToDisk(emitDirPath, cancellationToken);
             if (result.Success)
@@ -486,7 +488,7 @@ int RunDiagnostics(IEnumerable<string> args)
         foreach (var compilationData in compilationDatas)
         {
             var compilerCall = compilationData.CompilerCall;
-            WriteLine($"{compilerCall.ProjectFileName} ({compilerCall.TargetFramework})");
+            WriteLine(compilerCall.GetDiagnosticName());
             var compilation = compilationData.GetCompilationAfterGenerators();
             foreach (var diagnostic in compilation.GetDiagnostics())
             {
@@ -520,7 +522,7 @@ int RunHelp()
         Commands
           create        Create a compilerlog file 
           diagnostics   Print diagnostics for a compilation
-          export        Export a complete project to disk
+          export        Export compilation contents, rsp and build files to disk
           rsp           Generate compiler response file for selected projects
           ref           Copy all references and analyzers to a single directory
           emit          Emit all binaries from the log

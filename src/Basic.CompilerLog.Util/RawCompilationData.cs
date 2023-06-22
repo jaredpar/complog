@@ -12,6 +12,7 @@ namespace Basic.CompilerLog.Util;
 internal enum RawContentKind
 {
     SourceText,
+    GeneratedText,
     AdditionalText,
     AnalyzerConfig,
     Embed,

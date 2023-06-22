@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
 #if NETCOREAPP
 using System.Runtime.Loader;
 #endif
@@ -38,4 +39,29 @@ internal static class CommonUtil
     }
 
 #endif
+
+    internal static string GetAssemblyFileName(CommandLineArguments arguments)
+    {
+        if (arguments.OutputFileName is not null)
+        {
+            return arguments.OutputFileName;
+        }
+
+        string name = arguments.CompilationName ?? "app";
+        return Path.GetExtension(name) switch
+        {
+            ".exe" => name,
+            ".dll" => name,
+            ".netmodule" => name,
+            _ => $"{name}{GetStandardAssemblyExtension()}"
+        };
+
+        string GetStandardAssemblyExtension() => arguments.CompilationOptions.OutputKind switch
+        {
+            OutputKind.NetModule => ".netmodule",
+            OutputKind.ConsoleApplication => ".exe",
+            OutputKind.WindowsApplication => ".exe",
+            _ => ".dll"
+        };
+    }
 }

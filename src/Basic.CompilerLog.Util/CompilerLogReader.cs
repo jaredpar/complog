@@ -22,7 +22,7 @@ public sealed class CompilerLogReader : IDisposable
     private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new ();
     private readonly bool _ownsCompilerLogState;
 
-    public BasicAnalyzerHostOptions BasicAnalyzersOptions { get; }
+    public BasicAnalyzerHostOptions BasicAnalyzerHostOptions { get; }
     internal CompilerLogState CompilerLogState { get; }
     internal ZipArchive ZipArchive { get; set; }
     internal int Count { get; }
@@ -41,7 +41,7 @@ public sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
-        BasicAnalyzersOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
+        BasicAnalyzerHostOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
         Count = ReadMetadata();
         ReadAssemblyInfo();
 
@@ -138,6 +138,12 @@ public sealed class CompilerLogReader : IDisposable
             {
                 case RawContentKind.SourceText:
                     sourceTextList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
+                    break;
+                case RawContentKind.GeneratedText:
+                    if (BasicAnalyzerHostOptions.ResolvedKind == BasicAnalyzerKind.None)
+                    {
+                        sourceTextList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
+                    }
                     break;
                 case RawContentKind.AnalyzerConfig:
                     analyzerConfigList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
@@ -371,6 +377,9 @@ public sealed class CompilerLogReader : IDisposable
                 case "source":
                     ParseContent(line, RawContentKind.SourceText);
                     break;
+                case "generated":
+                    ParseContent(line, RawContentKind.GeneratedText);
+                    break;
                 case "config":
                     ParseContent(line, RawContentKind.AnalyzerConfig);
                     break;
@@ -521,7 +530,7 @@ public sealed class CompilerLogReader : IDisposable
     {
         string? key = null;
         BasicAnalyzerHost? basicAnalyzerHost;
-        if (BasicAnalyzersOptions.Cacheable)
+        if (BasicAnalyzerHostOptions.Cacheable)
         {
             key = GetKey();
             if (_analyzersMap.TryGetValue(key, out basicAnalyzerHost) && !basicAnalyzerHost.IsDisposed)
@@ -530,16 +539,17 @@ public sealed class CompilerLogReader : IDisposable
             }
         }
 
-        basicAnalyzerHost = BasicAnalyzersOptions.ResolvedKind switch
+        basicAnalyzerHost = BasicAnalyzerHostOptions.ResolvedKind switch
         {
-            BasicAnalyzerKind.OnDisk => BasicAnalyzerHostOnDisk.Create(this, analyzers, BasicAnalyzersOptions),
-            BasicAnalyzerKind.InMemory => BasicAnalyzerHostInMemory.Create(this, analyzers, BasicAnalyzersOptions),
+            BasicAnalyzerKind.OnDisk => BasicAnalyzerHostOnDisk.Create(this, analyzers, BasicAnalyzerHostOptions),
+            BasicAnalyzerKind.InMemory => BasicAnalyzerHostInMemory.Create(this, analyzers, BasicAnalyzerHostOptions),
+            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(),
             _ => throw new InvalidOperationException()
         };
 
         CompilerLogState.BasicAnalyzerHosts.Add(basicAnalyzerHost);
 
-        if (BasicAnalyzersOptions.Cacheable)
+        if (BasicAnalyzerHostOptions.Cacheable)
         {
             _analyzersMap[key!] = basicAnalyzerHost;
         }

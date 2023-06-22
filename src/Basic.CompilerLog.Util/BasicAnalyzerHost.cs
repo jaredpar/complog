@@ -21,6 +21,8 @@ public readonly struct BasicAnalyzerHostOptions
 {
     public static BasicAnalyzerHostOptions Default { get; } = new BasicAnalyzerHostOptions(BasicAnalyzerKind.Default, cacheable: true);
 
+    public static BasicAnalyzerHostOptions None { get; } = new BasicAnalyzerHostOptions(BasicAnalyzerKind.None, cacheable: true);
+
     public static BasicAnalyzerKind RuntimeDefaultKind
     {
         get
@@ -33,7 +35,6 @@ public readonly struct BasicAnalyzerHostOptions
         }
 
     }
-
 
     public BasicAnalyzerKind Kind { get; }
 
@@ -114,6 +115,12 @@ public enum BasicAnalyzerKind
     /// side effect <see cref="AnalyzerFileReference"/> instances. 
     /// </summary>
     OnDisk = 2,
+
+    /// <summary>
+    /// Analyzers and generators are not loaded at all. The original generated files 
+    /// will be loaded directly into the resulting <see cref="Compilation" />.
+    /// </summary>
+    None = 3,
 }
 
 /// <summary>
@@ -161,7 +168,7 @@ public abstract class BasicAnalyzerHost : IDisposable
         }
     }
 
-    public abstract void DisposeCore();
+    protected abstract void DisposeCore();
 
     protected void CheckDisposed()
     {
@@ -176,7 +183,7 @@ public abstract class BasicAnalyzerHost : IDisposable
 #if NETCOREAPP
         return true;
 #else
-        return kind is BasicAnalyzerKind.OnDisk or BasicAnalyzerKind.Default;
+        return kind is BasicAnalyzerKind.OnDisk or BasicAnalyzerKind.Default or BasicAnalyzerKind.None;
 #endif
     }
 }
