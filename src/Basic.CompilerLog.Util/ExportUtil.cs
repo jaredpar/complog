@@ -18,23 +18,59 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed class ExportUtil
 {
-    private sealed class ContentBuilder
+    /// <summary>
+    /// Abstraction for getting new file paths for original paths in the compilation.
+    /// </summary>
+    private sealed class ResilientDirectory
     {
         /// <summary>
         /// Content can exist outside the cone of the original project tree. That content 
         /// is mapped, by original directory name, to a new directory in the output. This
         /// holds the map from the old directory to the new one.
         /// </summary>
-        private readonly Dictionary<string, string> MiscMap = new(PathUtil.Comparer);
+        private Dictionary<string, string> _map = new(PathUtil.Comparer);
 
+        internal string DirectoryPath { get; }
+
+        internal ResilientDirectory(string path)
+        {
+            DirectoryPath = path;
+            Directory.CreateDirectory(DirectoryPath);
+        }
+
+        internal string GetNewFilePath(string originalFilePath)
+        {
+            var key = Path.GetDirectoryName(originalFilePath)!;
+            if (!_map.TryGetValue(key, out var dirPath))
+            {
+                dirPath = Path.Combine(DirectoryPath, $"group{_map.Count}");
+                Directory.CreateDirectory(dirPath);
+                _map[key] = dirPath;
+            }
+
+            return Path.Combine(dirPath, Path.GetFileName(originalFilePath));
+        }
+
+        internal string WriteContent(string originalFilePath, Stream stream)
+        {
+            var newFilePath = GetNewFilePath(originalFilePath);
+            using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            stream.CopyTo(fileStream);
+            return newFilePath;
+        }
+    }
+
+    private sealed class ContentBuilder
+    {
         internal string DestinationDirectory { get; }
         internal string SourceDirectory { get; }
-        internal string MiscDirectory { get; }
         internal string EmbeddedResourceDirectory { get; }
-        internal string GeneratedDirectory { get; }
         internal string OriginalProjectFilePath { get; }
         internal string OriginalProjectDirectory { get; }
         internal string ProjectName { get; }
+        internal ResilientDirectory MiscDirectory { get; }
+        internal ResilientDirectory AnalyzerDirectory { get; }
+        internal ResilientDirectory GeneratedCodeDirectory { get; }
 
         internal ContentBuilder(string destinationDirectory, string originalProjectFilePath)
         {
@@ -43,16 +79,15 @@ public sealed class ExportUtil
             OriginalProjectDirectory = Path.GetDirectoryName(OriginalProjectFilePath)!;
             ProjectName = Path.GetFileName(OriginalProjectFilePath);
             SourceDirectory = Path.Combine(destinationDirectory, "src");
-            MiscDirectory = Path.Combine(destinationDirectory, "misc");
             EmbeddedResourceDirectory = Path.Combine(destinationDirectory, "resources");
-            GeneratedDirectory = Path.Combine(destinationDirectory, "generated");
+            MiscDirectory = new(Path.Combine(destinationDirectory, "misc"));
+            GeneratedCodeDirectory = new(Path.Combine(destinationDirectory, "generated"));
+            AnalyzerDirectory = new(Path.Combine(destinationDirectory, "analyzers"));
             Directory.CreateDirectory(SourceDirectory);
-            Directory.CreateDirectory(MiscDirectory);
             Directory.CreateDirectory(EmbeddedResourceDirectory);
-            Directory.CreateDirectory(GeneratedDirectory);
         }
 
-        private string GetNewFilePath(string originalFilePath)
+        private string GetNewSourcePath(string originalFilePath)
         {
             string filePath;
             if (originalFilePath.StartsWith(OriginalProjectDirectory, PathUtil.Comparison))
@@ -62,15 +97,7 @@ public sealed class ExportUtil
             }
             else
             {
-                var key = Path.GetDirectoryName(originalFilePath)!;
-                if (!MiscMap.TryGetValue(key, out var dirPath))
-                {
-                    dirPath = Path.Combine(MiscDirectory, $"group{MiscMap.Count}");
-                    Directory.CreateDirectory(dirPath);
-                    MiscMap[key] = dirPath;
-                }
-
-                filePath = Path.Combine(dirPath, Path.GetFileName(originalFilePath));
+                return MiscDirectory.GetNewFilePath(originalFilePath);
             }
 
             return filePath;
@@ -82,7 +109,7 @@ public sealed class ExportUtil
         /// </summary>
         internal string WriteContent(string originalFilePath, byte[] content)
         {
-            var newFilePath = GetNewFilePath(originalFilePath);
+            var newFilePath = GetNewSourcePath(originalFilePath);
             File.WriteAllBytes(newFilePath, content);
             return newFilePath;
         }
@@ -93,7 +120,7 @@ public sealed class ExportUtil
         /// </summary>
         internal string WriteContent(string originalFilePath, Stream stream)
         {
-            var newFilePath = GetNewFilePath(originalFilePath);
+            var newFilePath = GetNewSourcePath(originalFilePath);
             using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             stream.CopyTo(fileStream);
             return newFilePath;
@@ -105,40 +132,10 @@ public sealed class ExportUtil
         /// </summary>
         internal string WriteContent(string originalFilePath, Action<Stream> action)
         {
-            var newFilePath = GetNewFilePath(originalFilePath);
+            var newFilePath = GetNewSourcePath(originalFilePath);
             using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             action(fileStream);
             return newFilePath;
-        }
-
-        internal string WriteGeneratedContent(string originalFilePath, Stream stream)
-        {
-            string filePath;
-            if (originalFilePath.StartsWith(OriginalProjectDirectory, PathUtil.Comparison))
-            {
-                filePath = PathUtil.ReplacePathStart(originalFilePath, OriginalProjectDirectory, GeneratedDirectory);
-                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-            }
-            else
-            {
-                var number = 0;
-                var fileName = Path.GetFileName(originalFilePath);
-                do
-                {
-                    filePath = Path.Combine(GeneratedDirectory, fileName);
-                    if (!File.Exists(filePath))
-                    {
-                        break;
-                    }
-
-                    fileName = $"{Path.GetFileNameWithoutExtension(fileName)}{number}{Path.GetExtension(fileName)}";
-                    number++;
-                } while (true);
-            }
-
-            using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            stream.CopyTo(fileStream);
-            return filePath;
         }
     }
 
@@ -314,7 +311,7 @@ public sealed class ExportUtil
             foreach (var analyzer in data.Analyzers)
             {
                 using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
-                var filePath = builder.WriteContent(analyzer.FilePath, analyzerStream);
+                var filePath = builder.AnalyzerDirectory.WriteContent(analyzer.FilePath, analyzerStream);
 
                 if (IncludeAnalyzers)
                 {
@@ -361,7 +358,7 @@ public sealed class ExportUtil
             foreach (var tuple in data.Contents.Where(x => x.Kind == RawContentKind.GeneratedText))
             {
                 using var contentStream = Reader.GetContentStream(tuple.ContentHash);
-                var filePath = builder.WriteGeneratedContent(tuple.FilePath, contentStream);
+                var filePath = builder.GeneratedCodeDirectory.WriteContent(tuple.FilePath, contentStream);
 
                 if (!IncludeAnalyzers)
                 {

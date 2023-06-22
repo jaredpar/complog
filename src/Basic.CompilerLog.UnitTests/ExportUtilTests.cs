@@ -111,7 +111,7 @@ public sealed class ExportUtilTests : TestBase
             var foundPath = false;
             foreach (var line in File.ReadAllLines(rspPath))
             {
-                Assert.DoesNotContain("/analyzer", line);
+                Assert.DoesNotContain("/analyzer:", line);
                 if (line.Contains("RegexGenerator.g.cs") && !line.StartsWith("/"))
                 {
                     foundPath = true;
@@ -119,6 +119,9 @@ public sealed class ExportUtilTests : TestBase
             }
 
             Assert.True(foundPath);
+
+            var analyzers = Directory.GetFiles(Path.Combine(tempPath, "analyzers"), "*.dll", SearchOption.AllDirectories).ToList();
+            Assert.Equal(7, analyzers.Count);
         });
     }
 
