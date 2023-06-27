@@ -193,7 +193,7 @@ public static class BinaryLogUtil
                 {
                     var callKind = e.TargetName switch
                     {
-                        "CoreCompile" => CompilerCallKind.Regular,
+                        "CoreCompile" or "XamlPreCompile" => CompilerCallKind.Regular,
                         "CoreGenerateSatelliteAssemblies" => CompilerCallKind.Satellite,
                         _ => (CompilerCallKind?)null
                     };
