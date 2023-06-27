@@ -410,6 +410,9 @@ public sealed class CompilerLogReader : IDisposable
                 case "r":
                     ParseResource(line);
                     break;
+                case "win32icon":
+                    ParseContent(line, RawContentKind.Win32Icon);
+                    break;
                 default:
                     throw new InvalidOperationException($"Unrecognized line: {line}");
             }
