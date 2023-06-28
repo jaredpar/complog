@@ -148,7 +148,22 @@ public sealed class ExportUtil
         IncludeAnalyzers = includeAnalyzers;
     }
 
-    public void ExportRsp(CompilerCall compilerCall, string destinationDir, IEnumerable<string> sdkDirectories)
+    public void ExportAll(string destinationDir, IEnumerable<string> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
+    {
+        predicate ??= static _ => true;
+        for (int  i = 0; i < Reader.Count ; i++)
+        {
+            var compilerCall = Reader.ReadCompilerCall(i);
+            if (predicate(compilerCall))
+            {
+                var dir = Path.Combine(destinationDir, i.ToString());
+                Directory.CreateDirectory(dir);
+                Export(compilerCall, dir, sdkDirectories);
+            }
+        }
+    }
+
+    public void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<string> sdkDirectories)
     {
         if (!Path.IsPathRooted(destinationDir))
         {

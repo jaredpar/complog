@@ -151,7 +151,7 @@ public sealed class CompilerLogFixture : IDisposable
                     internal static Regex GetRegex() => null!;
                 }
                 """;
-            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "Class 1.cs"), program, TestBase.DefaultEncoding);
             Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
@@ -169,7 +169,7 @@ public sealed class CompilerLogFixture : IDisposable
         AllComplogs = allCompLogs;
         string WithBuild(string name, Func<string, string> action)
         {
-            var scratchPath = Path.Combine(StorageDirectory, "scratch");
+            var scratchPath = Path.Combine(StorageDirectory, "scratch dir");
             Directory.CreateDirectory(scratchPath);
             var binlogFilePath = action(scratchPath);
             var complogFilePath = Path.Combine(ComplogDirectory, name);

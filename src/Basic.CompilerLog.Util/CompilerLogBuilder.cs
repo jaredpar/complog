@@ -25,11 +25,14 @@ namespace Basic.CompilerLog.Util;
 internal sealed class CompilerLogBuilder : IDisposable
 {
     // GUIDs specified in https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md#document-table-0x30
-    public static readonly Guid HashAlgorithmSha1 = unchecked(new Guid((int)0xff1816ec, (short)0xaa5e, 0x4d10, 0x87, 0xf7, 0x6f, 0x49, 0x63, 0x83, 0x34, 0x60));
-    public static readonly Guid HashAlgorithmSha256 = unchecked(new Guid((int)0x8829d00f, 0x11b8, 0x4213, 0x87, 0x8b, 0x77, 0x0e, 0x85, 0x97, 0xac, 0x16));
+    internal static readonly Guid HashAlgorithmSha1 = unchecked(new Guid((int)0xff1816ec, (short)0xaa5e, 0x4d10, 0x87, 0xf7, 0x6f, 0x49, 0x63, 0x83, 0x34, 0x60));
+    internal static readonly Guid HashAlgorithmSha256 = unchecked(new Guid((int)0x8829d00f, 0x11b8, 0x4213, 0x87, 0x8b, 0x77, 0x0e, 0x85, 0x97, 0xac, 0x16));
 
     // https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md#embedded-source-c-and-vb-compilers
-    public static readonly Guid EmbeddedSourceGuid = new Guid("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
+    internal static readonly Guid EmbeddedSourceGuid = new Guid("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
+
+    internal static readonly Guid LanguageTypeCSharp = new Guid("{3f5162f8-07c6-11d3-9053-00c04fa302a1}");
+    internal static readonly Guid LanguageTypeBasic = new Guid("{3a12d0b8-c26c-11d0-b442-00a0244a1dd2}");
 
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(PathUtil.Comparer);
@@ -235,12 +238,15 @@ internal sealed class CompilerLogBuilder : IDisposable
             return;
         }
 
+        var (languageGuid, languageExtension) = compilerCall.IsCSharp
+            ? (LanguageTypeCSharp, ".cs")
+            : (LanguageTypeBasic, ".vb");
         MetadataReaderProvider? pdbReaderProvider = null;
         try
         {
             using var reader = OpenFileForRead(assemblyFilePath);
             using var peReader = new PEReader(reader);
-            if (!peReader.TryOpenAssociatedPortablePdb(assemblyFilePath, OpenFileForRead, out pdbReaderProvider, out var pdbPath))
+            if (!peReader.TryOpenAssociatedPortablePdb(assemblyFilePath, OpenPortablePdbFile, out pdbReaderProvider, out var pdbPath))
             {
                 Diagnostics.Add($"Can't find portable pdb file for {compilerCall.GetDiagnosticName()}");
                 return;
@@ -249,7 +255,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             var pdbReader = pdbReaderProvider!.GetMetadataReader();
             foreach (var documentHandle in pdbReader.Documents.Skip(args.SourceFiles.Length))
             {
-                if (GetContentStream(documentHandle) is {} tuple)
+                if (GetContentStream(documentHandle) is { } tuple)
                 {
                     var contentHash = AddContent(tuple.Stream);
                     compilationWriter.WriteLine($"generated:{contentHash}:{tuple.Name}");
@@ -259,7 +265,22 @@ internal sealed class CompilerLogBuilder : IDisposable
             (string Name, MemoryStream Stream)? GetContentStream(DocumentHandle documentHandle)
             {
                 var document = pdbReader.GetDocument(documentHandle);
+                if (pdbReader.GetGuid(document.Language) != languageGuid)
+                {
+                    return null;
+                }
+
                 var name = pdbReader.GetString(document.Name);
+
+                // A #line directive can be used to embed a file into the PDB. There is no way to differentiate
+                // between a file embedded this way and one generated from a source generator. For the moment
+                // using a simple hueristic to detect a generated file vs. say a .xaml file that was embedded
+                // https://github.com/jaredpar/basic-compilerlog/issues/45
+                if (Path.GetExtension(name) != languageExtension)
+                {
+                    return null;
+                }
+
                 foreach (var cdiHandle in pdbReader.GetCustomDebugInformation(documentHandle))
                 {
                     var cdi = pdbReader.GetCustomDebugInformation(cdiHandle);
@@ -304,6 +325,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                         stream = decompressed;
                     }
 
+                    stream.Position = 0;
                     return (name, stream);
                 }
 
@@ -318,6 +340,18 @@ internal sealed class CompilerLogBuilder : IDisposable
         finally
         {
             pdbReaderProvider?.Dispose();
+        }
+
+        // Similar to OpenFileForRead but don't throw here on file missing as it's expected that some files 
+        // will not have PDBs beside them.
+        static Stream? OpenPortablePdbFile(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                return null;
+            }
+
+            return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
     }
 

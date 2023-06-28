@@ -314,7 +314,7 @@ int RunExport(IEnumerable<string> args)
         {
             var compilerCall = compilerCalls[i];
             var exportDir = GetOutputPath(baseOutputPath, compilerCalls, i, "export");
-            exportUtil.ExportRsp(compilerCall, exportDir, sdkDirs);
+            exportUtil.Export(compilerCall, exportDir, sdkDirs);
         }
 
         return ExitSuccess;
