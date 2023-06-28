@@ -1,5 +1,7 @@
-﻿using Basic.CompilerLog;
+﻿using System.Diagnostics;
+using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
+using BenchmarkDotNet.Environments;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -11,11 +13,11 @@ using TraceReloggerLib;
 #pragma warning disable 8321
 
 // var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
-var filePath = @"C:\Users\jaredpar\code\MudBlazor\src\msbuild.binlog";
+// var filePath = @"C:\Users\jaredpar\code\MudBlazor\src\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
-// var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
+var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 //var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
 
 //TestDiagnostics(filePath);
@@ -24,8 +26,7 @@ var filePath = @"C:\Users\jaredpar\code\MudBlazor\src\msbuild.binlog";
 
 // await SolutionScratchAsync(filePath);
 
-var reader = CompilerLogReader.Create(filePath);
-ExportTest(reader);
+VerifyAll(filePath);
 Console.WriteLine("Done");
 
 /*
@@ -102,6 +103,38 @@ static void RoslynScratch()
 
 }
 
+void VerifyAll(string logPath, BasicAnalyzerHostOptions? options = null)
+{
+    var exportDest = @"c:\users\jaredpar\temp\export";
+    EmptyDirectory(exportDest);
+
+    options ??= BasicAnalyzerHostOptions.None;
+    using var reader = CompilerLogReader.Create(logPath, options);
+    var exportUtil = new ExportUtil(reader, includeAnalyzers: options.Value.Kind != BasicAnalyzerKind.None);
+    var sdkDirs = DotnetUtil.GetSdkDirectories();
+    int failedCount = 0;
+    foreach (var compilationData in reader.ReadAllCompilationData())
+    {
+        Console.Write($"{compilationData.CompilerCall.GetDiagnosticName()} ...");
+        var result = compilationData.EmitToMemory();
+        if (result.Success)
+        {
+            Console.WriteLine("Success");
+            continue;
+        }
+
+        Console.WriteLine("Error");
+        foreach (var item in result.Diagnostics)
+        {
+            Console.WriteLine(item.GetMessage());
+        }
+
+        var dest = Path.Combine(exportDest, failedCount.ToString());
+        Console.WriteLine($"Exporting to {dest}");
+        exportUtil.Export(compilationData.CompilerCall, dest, sdkDirs);
+        failedCount++;
+    }
+}
 
 void ExportTest(CompilerLogReader reader)
 {
