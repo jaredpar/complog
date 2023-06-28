@@ -4,13 +4,13 @@ using Mono.Options;
 internal sealed class FilterOptionSet : OptionSet
 {
     internal List<string> TargetFrameworks { get; } = new();
-    internal bool IncludeSatelliteAssemblies { get; set; }
+    internal bool IncludeAllKinds { get; set; }
     internal string? ProjectName { get; set; }
     internal bool Help { get; set; }
 
     internal FilterOptionSet()
     {
-        Add("satellite", "include satellite asseblies", s => { if (s != null) IncludeSatelliteAssemblies = true; });
+        Add("include", "include all compilation kinds", i => { if (i != null) IncludeAllKinds = true; });
         Add("targetframework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
         Add("n|projectName=", "include only compilations with the project name", (string n) => ProjectName = n);
         Add("h|help", "print help", h => { if (h != null) Help = true; });
@@ -18,7 +18,7 @@ internal sealed class FilterOptionSet : OptionSet
 
     internal bool FilterCompilerCalls(CompilerCall compilerCall)
     {
-        if (!IncludeSatelliteAssemblies && compilerCall.Kind == CompilerCallKind.Satellite)
+        if (compilerCall.Kind != CompilerCallKind.Regular && !IncludeAllKinds)
         {
             return false;
         }

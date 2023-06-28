@@ -195,14 +195,14 @@ public static class BinaryLogUtil
                     {
                         "CoreCompile" => CompilerCallKind.Regular,
                         "CoreGenerateSatelliteAssemblies" => CompilerCallKind.Satellite,
-                        _ => (CompilerCallKind?)null
+                        "XamlPreCompile" => CompilerCallKind.XamlPreCompile,
+                        _ => CompilerCallKind.Unknown
                     };
 
-                    if (callKind is { } ck && 
-                        context.TargetId != BuildEventContext.InvalidTargetId &&
+                    if (context.TargetId != BuildEventContext.InvalidTargetId &&
                         contextMap.TryGetValue(context.ProjectContextId, out var data))
                     {
-                        data.GetOrCreateTaskData(context.TargetId).Kind = ck;
+                        data.GetOrCreateTaskData(context.TargetId).Kind = callKind;
                     }
 
                     break;

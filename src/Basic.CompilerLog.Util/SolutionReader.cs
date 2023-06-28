@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.Diagnostics;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,7 +12,7 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class SolutionReader : IDisposable
 {
-    private List<ProjectId> _projectIdList;
+    private readonly ImmutableArray<(CompilerCall CompilerCall, ProjectId ProjectId)> _projectDataList;
 
     internal CompilerLogReader Reader { get; }
     internal VersionStamp VersionStamp { get; }
@@ -19,16 +20,23 @@ public sealed class SolutionReader : IDisposable
 
     public int ProjectCount => Reader.Count;
 
-    internal SolutionReader(CompilerLogReader reader, VersionStamp? versionStamp = null)
+    internal SolutionReader(CompilerLogReader reader, Func<CompilerCall, bool>? predicate = null, VersionStamp? versionStamp = null)
     {
         Reader = reader;
         VersionStamp = versionStamp ?? VersionStamp.Default;
 
-        _projectIdList = new List<ProjectId>(reader.Count);
+        predicate ??= static c => c.Kind == CompilerCallKind.Regular;
+        var builder = ImmutableArray.CreateBuilder<(CompilerCall, ProjectId)>();
         for (int i = 0; i < reader.Count; i++)
         {
-            _projectIdList.Add(ProjectId.CreateNewId(debugName: i.ToString()));
+            var call = reader.ReadCompilerCall(i);
+            if (predicate(call))
+            {
+                var projectId = ProjectId.CreateNewId(debugName: i.ToString());
+                builder.Add((call, projectId));
+            }
         }
+        _projectDataList = builder.ToImmutableArray();
     }
 
     public void Dispose()
@@ -36,12 +44,13 @@ public sealed class SolutionReader : IDisposable
         Reader.Dispose();
     }
 
-    public static SolutionReader Create(Stream stream, bool leaveOpen = false) => new (CompilerLogReader.Create(stream, leaveOpen));
+    public static SolutionReader Create(Stream stream, bool leaveOpen = false, Func<CompilerCall, bool>? predicate = null) => 
+        new (CompilerLogReader.Create(stream, leaveOpen), predicate);
 
-    public static SolutionReader Create(string filePath)
+    public static SolutionReader Create(string filePath, Func<CompilerCall, bool>? predicate = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new(CompilerLogReader.Create(stream, leaveOpen: false));
+        return new(CompilerLogReader.Create(stream, leaveOpen: false), predicate);
     }
 
     public SolutionInfo ReadSolutionInfo()
@@ -58,8 +67,8 @@ public sealed class SolutionReader : IDisposable
 
     public ProjectInfo ReadProjectInfo(int index)
     {
-        var (compilerCall, rawCompilationData) = Reader.ReadRawCompilationData(index);
-        var projectId = _projectIdList[index];
+        var (compilerCall, projectId) = _projectDataList[index];
+        var rawCompilationData = Reader.ReadRawCompilationData(compilerCall);
         var documents = new List<DocumentInfo>();
         var additionalDocuments = new List<DocumentInfo>();
         var analyzerConfigDocuments = new List<DocumentInfo>();
