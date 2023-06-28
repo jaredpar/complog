@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -24,7 +25,7 @@ public sealed class ExportUtilTests : TestBase
 
     private void TestExport(int expectedCount, Action<string>? callback = null)
     {
-        using var scratchDir = new TempDir();
+        using var scratchDir = new TempDir("export test");
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
         var compilerLogFilePath = Path.Combine(scratchDir.DirectoryPath, "build.complog");
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, compilerLogFilePath);
@@ -37,7 +38,7 @@ public sealed class ExportUtilTests : TestBase
         TestExport(compilerLogFilePath, expectedCount, callback: callback);
     }
 
-    private void TestExport(string compilerLogFilePath, int expectedCount, bool includeAnalyzers = true, Action<string>? callback = null)
+    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? callback = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
 #if NETCOREAPP
@@ -52,7 +53,7 @@ public sealed class ExportUtilTests : TestBase
             count++;
             TestOutputHelper.WriteLine($"Testing export for {compilerCall.ProjectFileName} - {compilerCall.TargetFramework}");
             using var tempDir = new TempDir();
-            exportUtil.ExportRsp(compilerCall, tempDir.DirectoryPath, sdkDirs);
+            exportUtil.Export(compilerCall, tempDir.DirectoryPath, sdkDirs);
 
             // Now run the generated build.cmd and see if it succeeds;
             var buildResult = RunBuildCmd(tempDir.DirectoryPath);
@@ -69,7 +70,15 @@ public sealed class ExportUtilTests : TestBase
 
             callback?.Invoke(tempDir.DirectoryPath);
         }
-        Assert.Equal(expectedCount, count);
+
+        if (expectedCount is { } ec)
+        {
+            Assert.Equal(ec, count);
+        }
+        else
+        {
+            Assert.True(count> 0);
+        }
     }
 
     [Fact]
@@ -171,6 +180,17 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
+    public void ConsoleWithSpaceInSourceName()
+    {
+        RunDotNet($"new console --name example --output .");
+        File.WriteAllText(Path.Combine(RootDirectory, "code file.cs"), """
+            class C { }
+            """);
+        RunDotNet("build -bl");
+        TestExport(1);
+    }
+
+    [Fact]
     public void ContentWin32Elements()
     {
         RunDotNet($"new console --name example --output .");
@@ -214,5 +234,16 @@ public sealed class ExportUtilTests : TestBase
         File.WriteAllBytes(Path.Combine(RootDirectory, "key.snk"), keyBytes);
         RunDotNet("build -bl");
         TestExport(1);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AllCompilerLogs(bool includeAnalyzers)
+    {
+        foreach (var complogPath in Fixture.AllComplogs)
+        {
+            TestExport(complogPath, expectedCount: null, includeAnalyzers);
+        }
     }
 }

@@ -10,7 +10,8 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var filePath = @"C:\Users\jaredpar\code\MudBlazor\src\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
@@ -24,7 +25,7 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // await SolutionScratchAsync(filePath);
 
 var reader = CompilerLogReader.Create(filePath);
-var all = reader.ReadAllCompilationData();
+ExportTest(reader);
 Console.WriteLine("Done");
 
 /*
@@ -102,15 +103,14 @@ static void RoslynScratch()
 }
 
 
-void ExportTest()
+void ExportTest(CompilerLogReader reader)
 {
     var dest = @"c:\users\jaredpar\temp\export";
     EmptyDirectory(dest);
 
     var d = DotnetUtil.GetSdkDirectories();
-    var reader = CompilerLogReader.Create(filePath!);
     var util = new ExportUtil(reader);
-    util.ExportRsp(reader.ReadCompilerCall(0), dest, DotnetUtil.GetSdkDirectories());
+    util.ExportAll(dest, d);
 }
 
 static void EmptyDirectory(string directory)

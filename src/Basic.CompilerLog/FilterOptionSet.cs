@@ -11,7 +11,8 @@ internal sealed class FilterOptionSet : OptionSet
     internal FilterOptionSet()
     {
         Add("include", "include all compilation kinds", i => { if (i != null) IncludeAllKinds = true; });
-        Add("targetframework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
+        Add("targetframework=", "", TargetFrameworks.Add, hidden: true);
+        Add("framework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
         Add("n|projectName=", "include only compilations with the project name", (string n) => ProjectName = n);
         Add("h|help", "print help", h => { if (h != null) Help = true; });
     }
