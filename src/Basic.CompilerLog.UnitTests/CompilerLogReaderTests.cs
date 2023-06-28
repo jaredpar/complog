@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -229,6 +230,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void EmitToDisk()
     {
+        Assert.NotEmpty(Fixture.AllComplogs);
         foreach (var complogPath in Fixture.AllComplogs)
         {
             TestOutputHelper.WriteLine(complogPath);
@@ -246,6 +248,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void EmitToMemory()
     {
+        Assert.NotEmpty(Fixture.AllComplogs);
         foreach (var complogPath in Fixture.AllComplogs)
         {
             TestOutputHelper.WriteLine(complogPath);
@@ -293,10 +296,14 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void KindWpf()
     {
-        using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath);
-        var list = reader.ReadAllCompilationData();
-        Assert.Equal(2, list.Count);
-        Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
-        Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.NotNull(Fixture.WpfAppComplogPath);
+            using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath);
+            var list = reader.ReadAllCompilationData();
+            Assert.Equal(2, list.Count);
+            Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
+            Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
+        }
     }
 }

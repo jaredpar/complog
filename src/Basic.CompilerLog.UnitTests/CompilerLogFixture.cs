@@ -3,6 +3,7 @@ using Microsoft.Build.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web;
@@ -30,16 +31,9 @@ public sealed class CompilerLogFixture : IDisposable
     /// </summary>
     internal string ClassLibMultiComplogPath { get; }
 
-    internal string WpfAppComplogPath { get; }
+    internal string? WpfAppComplogPath { get; }
 
-    internal IEnumerable<string> AllComplogs => new[]
-    {
-        ConsoleComplogPath,
-        ClassLibComplogPath,
-        ClassLibMultiComplogPath,
-        ClassLibSignedComplogPath,
-        WpfAppComplogPath
-    };
+    internal IEnumerable<string> AllComplogs { get; }
 
     public CompilerLogFixture()
     {
@@ -47,6 +41,7 @@ public sealed class CompilerLogFixture : IDisposable
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
         Directory.CreateDirectory(ComplogDirectory);
 
+        var allCompLogs = new List<string>();
         ConsoleComplogPath = WithBuild("console.complog", static string (string scratchPath) =>
         {
             DotnetUtil.CommandOrThrow($"new console --name example --output .", scratchPath);
@@ -161,13 +156,17 @@ public sealed class CompilerLogFixture : IDisposable
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
 
-        WpfAppComplogPath = WithBuild("wpfapp.complog", static string (string scratchPath) =>
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            Assert.True(DotnetUtil.Command("new wpf --name example --output .", scratchPath).Succeeded);
-            Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
-            return Path.Combine(scratchPath, "msbuild.binlog");
-        });
+            WpfAppComplogPath = WithBuild("wpfapp.complog", static string (string scratchPath) =>
+            {
+                Assert.True(DotnetUtil.Command("new wpf --name example --output .", scratchPath).Succeeded);
+                Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
+                return Path.Combine(scratchPath, "msbuild.binlog");
+            });
+        }
 
+        AllComplogs = allCompLogs;
         string WithBuild(string name, Func<string, string> action)
         {
             var scratchPath = Path.Combine(StorageDirectory, "scratch");
@@ -177,6 +176,7 @@ public sealed class CompilerLogFixture : IDisposable
             var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
             Assert.Empty(diagnostics);
             Directory.Delete(scratchPath, recursive: true);
+            allCompLogs.Add(complogFilePath);
             return complogFilePath;
         }
     }
