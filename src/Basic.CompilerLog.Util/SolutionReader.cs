@@ -18,7 +18,7 @@ public sealed class SolutionReader : IDisposable
     internal VersionStamp VersionStamp { get; }
     internal SolutionId SolutionId { get; } = SolutionId.CreateNewId();
 
-    public int ProjectCount => Reader.Count;
+    public int ProjectCount => _projectDataList.Length;
 
     internal SolutionReader(CompilerLogReader reader, Func<CompilerCall, bool>? predicate = null, VersionStamp? versionStamp = null)
     {
@@ -44,13 +44,13 @@ public sealed class SolutionReader : IDisposable
         Reader.Dispose();
     }
 
-    public static SolutionReader Create(Stream stream, bool leaveOpen = false, Func<CompilerCall, bool>? predicate = null) => 
-        new (CompilerLogReader.Create(stream, leaveOpen), predicate);
+    public static SolutionReader Create(Stream stream, bool leaveOpen = false, BasicAnalyzerHostOptions? options = null, Func<CompilerCall, bool>? predicate = null) => 
+        new (CompilerLogReader.Create(stream, leaveOpen, options), predicate);
 
-    public static SolutionReader Create(string filePath, Func<CompilerCall, bool>? predicate = null)
+    public static SolutionReader Create(string filePath, BasicAnalyzerHostOptions? options = null, Func<CompilerCall, bool>? predicate = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new(CompilerLogReader.Create(stream, leaveOpen: false), predicate);
+        return new(CompilerLogReader.Create(stream, leaveOpen: false, options), predicate);
     }
 
     public SolutionInfo ReadSolutionInfo()
@@ -78,6 +78,14 @@ public sealed class SolutionReader : IDisposable
             {
                 case RawContentKind.SourceText:
                     Add(documents);
+                    break;
+                case RawContentKind.GeneratedText:
+                    // If we're not loading analyzers then we need to put the generated text into the 
+                    // project
+                    if (Reader.BasicAnalyzerHostOptions.Kind == BasicAnalyzerKind.None)
+                    {
+                        Add(documents);
+                    }
                     break;
                 case RawContentKind.AdditionalText:
                     Add(additionalDocuments);
