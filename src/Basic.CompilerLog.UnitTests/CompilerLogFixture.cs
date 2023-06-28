@@ -3,6 +3,7 @@ using Microsoft.Build.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web;
@@ -30,13 +31,9 @@ public sealed class CompilerLogFixture : IDisposable
     /// </summary>
     internal string ClassLibMultiComplogPath { get; }
 
-    internal IEnumerable<string> AllComplogs => new[]
-    {
-        ConsoleComplogPath,
-        ClassLibComplogPath,
-        ClassLibMultiComplogPath,
-        ClassLibSignedComplogPath,
-    };
+    internal string? WpfAppComplogPath { get; }
+
+    internal IEnumerable<string> AllComplogs { get; }
 
     public CompilerLogFixture()
     {
@@ -44,9 +41,10 @@ public sealed class CompilerLogFixture : IDisposable
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
         Directory.CreateDirectory(ComplogDirectory);
 
+        var allCompLogs = new List<string>();
         ConsoleComplogPath = WithBuild("console.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new console --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new console --name example --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -77,7 +75,7 @@ public sealed class CompilerLogFixture : IDisposable
         
         ClassLibComplogPath = WithBuild("classlib.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new classlib --name example --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -104,7 +102,7 @@ public sealed class CompilerLogFixture : IDisposable
 
         ClassLibSignedComplogPath = WithBuild("classlibsigned.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new classlib --name example --output .", scratchPath);
             var keyFilePath = Path.Combine(scratchPath, "Key.snk");
             var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
@@ -134,7 +132,7 @@ public sealed class CompilerLogFixture : IDisposable
 
         ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new classlib --name example --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -158,7 +156,17 @@ public sealed class CompilerLogFixture : IDisposable
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
 
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            WpfAppComplogPath = WithBuild("wpfapp.complog", static string (string scratchPath) =>
+            {
+                Assert.True(DotnetUtil.Command("new wpf --name example --output .", scratchPath).Succeeded);
+                Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
+                return Path.Combine(scratchPath, "msbuild.binlog");
+            });
+        }
 
+        AllComplogs = allCompLogs;
         string WithBuild(string name, Func<string, string> action)
         {
             var scratchPath = Path.Combine(StorageDirectory, "scratch");
@@ -168,6 +176,7 @@ public sealed class CompilerLogFixture : IDisposable
             var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
             Assert.Empty(diagnostics);
             Directory.Delete(scratchPath, recursive: true);
+            allCompLogs.Add(complogFilePath);
             return complogFilePath;
         }
     }

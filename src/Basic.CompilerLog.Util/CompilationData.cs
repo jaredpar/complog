@@ -42,6 +42,7 @@ public abstract class CompilationData
     public ParseOptions ParseOptions => _commandLineArguments.ParseOptions;
     public bool IsCSharp => Compilation is CSharpCompilation;
     public bool VisualBasic => !IsCSharp;
+    public CompilerCallKind Kind => CompilerCall.Kind;
 
     private protected CompilationData(
         CompilerCall compilerCall,

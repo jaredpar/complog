@@ -178,12 +178,7 @@ int RunPrint(IEnumerable<string> args)
 
         foreach (var compilerCall in compilerCalls)
         {
-            Write(compilerCall.GetDiagnosticName());
-            if (compilerCall.Kind == CompilerCallKind.Satellite)
-            {
-                Write(" (satellite)");
-            }
-            WriteLine();
+            WriteLine(compilerCall.GetDiagnosticName());
         }
 
         return ExitSuccess;

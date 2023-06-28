@@ -2,8 +2,31 @@
 
 public enum CompilerCallKind
 {
+    /// <summary>
+    /// Standard compilation call that goes through the C# / VB targets
+    /// </summary>
     Regular,
-    Satellite
+
+    /// <summary>
+    /// Compilation to build a satellite assembly
+    /// </summary>
+    Satellite,
+
+    /// <summary>
+    /// Temporary assembly generated for WPF projects
+    /// </summary>
+    WpfTemporaryCompile,
+
+    /// <summary>
+    /// Compilation that occurs in the XAML pipeline to create a temporary assembly used 
+    /// to reflect on to generate types for the real compilation
+    /// </summary>
+    XamlPreCompile,
+
+    /// <summary>
+    /// Compilation that doesn't fit existing classifications
+    /// </summary>
+    Unknown
 }
 
 public sealed class CompilerCall
@@ -29,7 +52,16 @@ public sealed class CompilerCall
         Index = index;
     }
 
-    public string GetDiagnosticName() => string.IsNullOrEmpty(TargetFramework)
-        ? ProjectFileName
-        : $"{ProjectFileName} ({TargetFramework})";
+    public string GetDiagnosticName() 
+    {
+        var baseName = string.IsNullOrEmpty(TargetFramework)
+            ? ProjectFileName
+            : $"{ProjectFileName} ({TargetFramework})";
+        if (Kind != CompilerCallKind.Regular)
+        {
+            return $"{baseName} ({Kind})";
+        }
+
+        return baseName;
+    }
 }

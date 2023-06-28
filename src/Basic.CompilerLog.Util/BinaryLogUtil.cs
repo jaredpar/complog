@@ -91,12 +91,7 @@ public static class BinaryLogUtil
                 return null;
             }
 
-            if (Kind is not { } kind)
-            {
-                diagnosticList.Add($"Project {ProjectFile} ({TargetFramework}): cannot find CoreCompile");
-                return null;
-            }
-
+            var kind = Kind ?? CompilerCallKind.Unknown;
             var args = CommandLineParser.SplitCommandLineIntoArguments(CommandLineArguments, removeHashComments: true);
             var rawArgs = IsCSharp
                 ? SkipCompilerExecutable(args, "csc.exe", "csc.dll").ToArray()
@@ -193,12 +188,14 @@ public static class BinaryLogUtil
                 {
                     var callKind = e.TargetName switch
                     {
+                        "CoreCompile" when e.ParentTarget == "_CompileTemporaryAssembly" => CompilerCallKind.WpfTemporaryCompile,
                         "CoreCompile" => CompilerCallKind.Regular,
                         "CoreGenerateSatelliteAssemblies" => CompilerCallKind.Satellite,
+                        "XamlPreCompile" => CompilerCallKind.XamlPreCompile,
                         _ => (CompilerCallKind?)null
                     };
 
-                    if (callKind is { } ck && 
+                    if (callKind is { } ck &&
                         context.TargetId != BuildEventContext.InvalidTargetId &&
                         contextMap.TryGetValue(context.ProjectContextId, out var data))
                     {
