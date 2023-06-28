@@ -17,6 +17,14 @@ internal static class DotnetUtil
             args,
             workingDirectory: workingDirectory);
 
+    internal static void CommandOrThrow(string args, string? workingDirectory = null)
+    {
+        if (!Command(args, workingDirectory).Succeeded)
+        {
+            throw new Exception("Command failed");
+        }
+    }
+
     internal static ProcessResult New(string args, string? workingDirectory = null) => Command($"new {args}", workingDirectory);
 
     internal static ProcessResult Build(string args, string? workingDirectory = null) => Command($"build {args}", workingDirectory);

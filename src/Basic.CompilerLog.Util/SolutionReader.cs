@@ -55,7 +55,6 @@ public sealed class SolutionReader : IDisposable
 
     public SolutionInfo ReadSolutionInfo()
     {
-        var guard = new object();
         var projectInfoList = new List<ProjectInfo>();
         for (var i = 0; i < ProjectCount; i++)
         {

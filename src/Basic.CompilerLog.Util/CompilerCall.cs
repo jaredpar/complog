@@ -13,6 +13,11 @@ public enum CompilerCallKind
     Satellite,
 
     /// <summary>
+    /// Temporary assembly generated for WPF projects
+    /// </summary>
+    WpfTemporaryCompile,
+
+    /// <summary>
     /// Compilation that occurs in the XAML pipeline to create a temporary assembly used 
     /// to reflect on to generate types for the real compilation
     /// </summary>

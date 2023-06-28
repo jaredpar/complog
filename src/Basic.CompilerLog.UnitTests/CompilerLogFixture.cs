@@ -30,12 +30,15 @@ public sealed class CompilerLogFixture : IDisposable
     /// </summary>
     internal string ClassLibMultiComplogPath { get; }
 
+    internal string WpfAppComplogPath { get; }
+
     internal IEnumerable<string> AllComplogs => new[]
     {
         ConsoleComplogPath,
         ClassLibComplogPath,
         ClassLibMultiComplogPath,
         ClassLibSignedComplogPath,
+        WpfAppComplogPath
     };
 
     public CompilerLogFixture()
@@ -46,7 +49,7 @@ public sealed class CompilerLogFixture : IDisposable
 
         ConsoleComplogPath = WithBuild("console.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new console --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new console --name example --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -77,7 +80,7 @@ public sealed class CompilerLogFixture : IDisposable
         
         ClassLibComplogPath = WithBuild("classlib.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new classlib --name example --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -104,7 +107,7 @@ public sealed class CompilerLogFixture : IDisposable
 
         ClassLibSignedComplogPath = WithBuild("classlibsigned.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new classlib --name example --output .", scratchPath);
             var keyFilePath = Path.Combine(scratchPath, "Key.snk");
             var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
@@ -134,7 +137,7 @@ public sealed class CompilerLogFixture : IDisposable
 
         ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.Command($"new classlib --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new classlib --name example --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -158,6 +161,12 @@ public sealed class CompilerLogFixture : IDisposable
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
 
+        WpfAppComplogPath = WithBuild("wpfapp.complog", static string (string scratchPath) =>
+        {
+            Assert.True(DotnetUtil.Command("new wpf --name example --output .", scratchPath).Succeeded);
+            Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
+            return Path.Combine(scratchPath, "msbuild.binlog");
+        });
 
         string WithBuild(string name, Func<string, string> action)
         {

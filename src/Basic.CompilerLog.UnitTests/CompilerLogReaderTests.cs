@@ -134,7 +134,6 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
     }
 
-
     [Fact]
     public void AnalyzerLoadOptions()
     {
@@ -289,5 +288,15 @@ public sealed class CompilerLogReaderTests : TestBase
         var compilation2 = data.GetCompilationAfterGenerators();
         Assert.Same(compilation1, compilation2);
         Assert.Empty(data.AnalyzerReferences);
+    }
+
+    [Fact]
+    public void KindWpf()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath);
+        var list = reader.ReadAllCompilationData();
+        Assert.Equal(2, list.Count);
+        Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
+        Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
     }
 }
