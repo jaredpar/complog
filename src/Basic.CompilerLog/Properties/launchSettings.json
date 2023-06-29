@@ -2,8 +2,8 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "print -satellite",
-      "workingDirectory": "C:\\Users\\jaredpar\\code\\roslyn\\src\\Compilers\\Core\\Portable"
+      "commandLineArgs": "rsp C:\\Users\\jaredpar\\Downloads\\7.0.306.zip.binlog",
+      "workingDirectory": "C:\\users\\jaredpar\\temp"
     }
   }
 }

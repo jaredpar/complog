@@ -239,9 +239,9 @@ public sealed class ExportUtil
 
             foreach (var line in compilerCall.Arguments)
             {
-                // The only non-options are source files and those are rewritten by this 
-                // process
-                if (!IsOption(line))
+                // The only non-options are source files and those are rewritten by other 
+                // methods and added to commandLineList
+                if (!IsOption(line.AsSpan()))
                 {
                     continue;
                 }
@@ -297,9 +297,6 @@ public sealed class ExportUtil
 
             lines.AddRange(commandLineList);
             return lines;
-
-            static bool IsOption(string str) =>
-                str.Length > 0 && str[0] is '-' or '/';
         }
 
         void WriteReferences()
@@ -364,7 +361,7 @@ public sealed class ExportUtil
 
                 using var contentStream = Reader.GetContentStream(tuple.ContentHash);
                 var filePath = builder.WriteContent(tuple.FilePath, contentStream);
-                commandLineList.Add($@"{prefix}""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""");
+                commandLineList.Add($@"{prefix}{FormatPathArgument(filePath)}");
             }
         }
 
@@ -377,7 +374,7 @@ public sealed class ExportUtil
 
                 if (!IncludeAnalyzers)
                 {
-                    commandLineList.Add($@"""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""");
+                    commandLineList.Add(FormatPathArgument(filePath));
                 }
             }
         }
@@ -402,5 +399,51 @@ public sealed class ExportUtil
                 commandLineList.Add(arg);
             }
         }
+
+        string FormatPathArgument(string filePath)
+        {
+            filePath = PathUtil.RemovePathStart(filePath, destinationDir);
+            return MaybeQuoteArgument(filePath);
+        }
     }
+
+    public static void ExportRsp(CompilerCall compilerCall, TextWriter writer, bool singleLine = false) =>
+        ExportRsp(compilerCall.Arguments, writer, singleLine);
+
+    public static void ExportRsp(IEnumerable<string> arguments, TextWriter writer, bool singleLine = false)
+    {
+        bool isFirst = true;
+        foreach (var line in arguments)
+        {
+            var str = MaybeQuoteArgument(line);
+            if (singleLine)
+            {
+                if (!isFirst)
+                {
+                    writer.Write(' ');
+                }
+                writer.Write(str);
+            }
+            else
+            {
+                writer.WriteLine(str);
+            }
+
+            isFirst = false;
+        }
+    }
+
+    private static string MaybeQuoteArgument(string arg)
+    {
+        if (arg.Contains(' ') && !IsOption(arg.AsSpan()))
+        {
+            var str = $@"""{arg}""";
+            return str;
+        }
+
+        return arg;
+    }
+
+    private static bool IsOption(ReadOnlySpan<char> str) => 
+        str.Length > 0 && str[0] is '-' or '/';
 }

@@ -364,17 +364,7 @@ int RunResponseFile(IEnumerable<string> args)
             Directory.CreateDirectory(rspDirPath);
             var rspFilePath = Path.Combine(rspDirPath, "build.rsp");
             using var writer = new StreamWriter(rspFilePath, append: false, Encoding.UTF8);
-            if (singleLine)
-            {
-                writer.WriteLine(string.Join(' ', compilerCall.Arguments));
-            }
-            else
-            {
-                foreach (var arg in compilerCall.Arguments)
-                {
-                    writer.WriteLine(arg);
-                }
-            }
+            ExportUtil.ExportRsp(compilerCall, writer, singleLine);
         }
 
         return ExitSuccess;
@@ -518,7 +508,7 @@ int RunHelp()
           create        Create a compilerlog file 
           diagnostics   Print diagnostics for a compilation
           export        Export compilation contents, rsp and build files to disk
-          rsp           Generate compiler response file for selected projects
+          rsp           Generate compiler response file projects on this machine
           ref           Copy all references and analyzers to a single directory
           emit          Emit all binaries from the log
           analyzers     Print analyzers used by a compilation
