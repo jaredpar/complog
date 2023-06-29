@@ -26,6 +26,8 @@ var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog"
 
 // await SolutionScratchAsync(filePath);
 
+using var reader = CompilerLogReader.Create(@"C:\Users\jaredpar\Downloads\7.0.306.zip.binlog");
+
 VerifyAll(filePath);
 Console.WriteLine("Done");
 

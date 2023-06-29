@@ -246,4 +246,31 @@ public sealed class ExportUtilTests : TestBase
             TestExport(complogPath, expectedCount: null, includeAnalyzers);
         }
     }
+
+    [Fact]
+    public void ExportRsp()
+    {
+        var args = new[]
+        {
+            "blah .cs",
+            "/r:blah .cs", // only change non-options as options quotes handled specially by command line parser
+            "a b.cs",
+            "ab.cs",
+        };
+
+        using var writer = new StringWriter();
+        ExportUtil.ExportRsp(args, writer);
+        Assert.Equal("""
+            "blah .cs"
+            /r:blah .cs
+            "a b.cs"
+            ab.cs
+
+            """, writer.ToString());
+
+        writer.GetStringBuilder().Length = 0;
+        ExportUtil.ExportRsp(args, writer, singleLine: true);
+        Assert.Equal(@"""blah .cs"" /r:blah .cs ""a b.cs"" ab.cs", writer.ToString()); 
+    }
+
 }

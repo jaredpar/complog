@@ -47,6 +47,9 @@ namespace Basic.CompilerLog.Util
         internal static bool Contains(this string @this, string value, StringComparison comparisonType) =>
             @this.IndexOf(value, comparisonType) >= 0;
 
+        internal static bool Contains(this ReadOnlySpan<char> @this, char value) =>
+            @this.IndexOf(value) >= 0;
+
         internal static void ReadExactly(this Stream @this, Span<byte> buffer)
         {
             var bytes = new byte[1024];
@@ -61,6 +64,20 @@ namespace Basic.CompilerLog.Util
                 bytes.AsSpan(0, read).CopyTo(buffer);
                 buffer = buffer.Slice(read);
             }
+        }
+
+        internal static void Write(this TextWriter @this, ReadOnlySpan<char> buffer)
+        {
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                @this.Write(buffer[i]);
+            }
+        }
+
+        internal static void WriteLine(this TextWriter @this, ReadOnlySpan<char> buffer)
+        {
+            Write(@this, buffer);
+            @this.WriteLine();
         }
     }
 
