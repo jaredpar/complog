@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -188,6 +189,60 @@ public sealed class ExportUtilTests : TestBase
             """);
         RunDotNet("build -bl");
         TestExport(1);
+    }
+
+    [Fact]
+    public void ConsoleWithRuleset()
+    {
+        RunDotNet($"new console --name example --output .");
+        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"),
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net7.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <CodeAnalysisRuleset>example.ruleset</CodeAnalysisRuleset>
+              </PropertyGroup>
+            </Project>
+            """);
+        File.WriteAllText(Path.Combine(RootDirectory, "example.ruleset"), """
+            <RuleSet Name="Rules for Hello World project" Description="These rules focus on critical issues for the Hello World app." ToolsVersion="10.0">
+            <Localization ResourceAssembly="Microsoft.VisualStudio.CodeAnalysis.RuleSets.Strings.dll" ResourceBaseName="Microsoft.VisualStudio.CodeAnalysis.RuleSets.Strings.Localized">
+                <Name Resource="HelloWorldRules_Name" />
+                <Description Resource="HelloWorldRules_Description" />
+            </Localization>
+            <Rules AnalyzerId="Microsoft.Analyzers.ManagedCodeAnalysis" RuleNamespace="Microsoft.Rules.Managed">
+                <Rule Id="CA1001" Action="Warning" />
+                <Rule Id="CA1009" Action="Warning" />
+                <Rule Id="CA1016" Action="Warning" />
+                <Rule Id="CA1033" Action="Warning" />
+            </Rules>
+            <Rules AnalyzerId="Microsoft.CodeQuality.Analyzers" RuleNamespace="Microsoft.CodeQuality.Analyzers">
+                <Rule Id="CA1802" Action="Error" />
+                <Rule Id="CA1814" Action="Info" />
+                <Rule Id="CA1823" Action="None" />
+                <Rule Id="CA2217" Action="Warning" />
+            </Rules>
+            </RuleSet>
+            """);
+        RunDotNet("build -bl");
+        TestExport(expectedCount: 1, void (string path) =>
+        {
+            var found = false;
+            var expected = $"/ruleset:{Path.Combine("src", "example.ruleset")}";
+            foreach (var line in File.ReadAllLines(Path.Combine(path, "build.rsp")))
+            {
+                if (line == expected)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            Assert.True(found);
+        });
     }
 
     [Fact]
