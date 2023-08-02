@@ -2,7 +2,7 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "rsp C:\\Users\\jaredpar\\Downloads\\7.0.306.zip.binlog",
+      "commandLineArgs": "export -o c:\\users\\jaredpar\\temp\\export \"C:\\Users\\jaredpar\\Downloads\\msbuild.complog\"",
       "workingDirectory": "C:\\users\\jaredpar\\temp"
     }
   }

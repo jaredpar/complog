@@ -287,7 +287,7 @@ int RunExport(IEnumerable<string> args)
     var excludeAnalyzers = false;
     var options = new FilterOptionSet()
     {
-        { "o|out=", "path to output rsp files", o => baseOutputPath = o },
+        { "o|out=", "path to export build content", o => baseOutputPath = o },
         { "e|exclude-analyzers", "emit the compilation without analyzers / generators", e => excludeAnalyzers = e is not null },
     };
 
