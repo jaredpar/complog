@@ -71,6 +71,7 @@ public sealed class ExportUtil
         internal ResilientDirectory MiscDirectory { get; }
         internal ResilientDirectory AnalyzerDirectory { get; }
         internal ResilientDirectory GeneratedCodeDirectory { get; }
+        internal ResilientDirectory BuildOutput { get; }
 
         internal ContentBuilder(string destinationDirectory, string originalProjectFilePath)
         {
@@ -83,6 +84,7 @@ public sealed class ExportUtil
             MiscDirectory = new(Path.Combine(destinationDirectory, "misc"));
             GeneratedCodeDirectory = new(Path.Combine(destinationDirectory, "generated"));
             AnalyzerDirectory = new(Path.Combine(destinationDirectory, "analyzers"));
+            BuildOutput = new(Path.Combine(destinationDirectory, "output"));
             Directory.CreateDirectory(SourceDirectory);
             Directory.CreateDirectory(EmbeddedResourceDirectory);
         }
@@ -262,35 +264,25 @@ public sealed class ExportUtil
                     continue;
                 }
 
-                // Need to pre-create the output directories to allow the compiler to execute
+                // Map all of the output items to the build output directory
                 if (span.StartsWith("out", comparison) ||
                     span.StartsWith("refout", comparison) ||
-                    span.StartsWith("doc", comparison))
+                    span.StartsWith("doc", comparison) ||
+                    span.StartsWith("generatedfilesout", comparison) ||
+                    span.StartsWith("errorlog", comparison))
                 {
                     var index = span.IndexOf(':');
-                    var tempDir = span.Slice(index + 1).ToString();
+                    var argName = span.Slice(0, index).ToString();
+                    var originalValue = span.Slice(index + 1).ToString();
+                    var newValue = builder.BuildOutput.GetNewFilePath(originalValue);
+                    commandLineList.Add($@"/{argName}:{FormatPathArgument(newValue)}");
 
-                    // The RSP can write out full paths in some cases for these items, rewrite them to local
-                    // outside of obj 
-                    if (Path.IsPathRooted(tempDir))
+                    if (span.StartsWith("generatedfilesout", comparison))
                     {
-                        var argName = span.Slice(0, index).ToString();
-                        var argPath = Path.Combine("obj", argName, Path.GetFileName(tempDir));
-                        var argFullPath = Path.Combine(destinationDir, argPath);
-                        var isDir = string.IsNullOrEmpty(Path.GetExtension(tempDir));
-                        Directory.CreateDirectory(isDir
-                            ? argFullPath
-                            : Path.GetDirectoryName(argFullPath)!);
-                        commandLineList.Add($@"/{argName}:""{argPath}""");
-                        continue;
-                    }
-                    else
-                    {
-                        tempDir = Path.Combine(destinationDir, span.Slice(index + 1).ToString());
-                        tempDir = Path.GetDirectoryName(tempDir);
-                        Directory.CreateDirectory(tempDir!);
+                        Directory.CreateDirectory(newValue);
                     }
 
+                    continue;
                 }
 
                 lines.Add(line);
