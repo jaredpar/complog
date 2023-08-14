@@ -11,11 +11,24 @@ namespace Basic.CompilerLog.Util.Impl;
 /// </summary>
 internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
 {
+    internal bool ReadGeneratedFiles { get; }
     internal ImmutableArray<(SourceText SourceText, string Path)> GeneratedSourceTexts { get; }
 
-    internal BasicAnalyzerHostNone(ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
-        : base(BasicAnalyzerKind.None, CreateAnalyzerReferences(generatedSourceTexts))
+    public static readonly DiagnosticDescriptor CannotReadGeneratedFiles =
+        new DiagnosticDescriptor(
+            "BCLA0001",
+            "Cannot read generated files",
+            "Generated files could not be read when compiler log was created",
+            "BasicCompilerLog",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
+
+    internal BasicAnalyzerHostNone(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
+        : base(
+            BasicAnalyzerKind.None, 
+            CreateAnalyzerReferences(readGeneratedFiles, generatedSourceTexts))
     {
+        ReadGeneratedFiles = readGeneratedFiles;
         GeneratedSourceTexts = generatedSourceTexts;
     }
 
@@ -24,25 +37,22 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
         // Do nothing
     }
 
-    private static ImmutableArray<AnalyzerReference> CreateAnalyzerReferences(ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
-    {
-        if (generatedSourceTexts.Length == 0)
-        {
-            return ImmutableArray<AnalyzerReference>.Empty;
-        }
-
-        return ImmutableArray.Create<AnalyzerReference>(new NoneReference(generatedSourceTexts));
-    }
+    private static ImmutableArray<AnalyzerReference> CreateAnalyzerReferences(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts) =>
+        readGeneratedFiles && generatedSourceTexts.Length == 0
+            ? ImmutableArray<AnalyzerReference>.Empty
+            : ImmutableArray.Create<AnalyzerReference>(new NoneReference(readGeneratedFiles, generatedSourceTexts));
 }
 
 file sealed class NoneReference : AnalyzerReference, ISourceGenerator
 {
+    internal bool ReadGeneratedFiles { get; }
     internal ImmutableArray<(SourceText SourceText, string Path)> GeneratedSourceTexts { get; }
     public override object Id { get; } = Guid.NewGuid();
     public override string? FullPath => null;
 
-    internal NoneReference(ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
+    internal NoneReference(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
     {
+        ReadGeneratedFiles = readGeneratedFiles;
         GeneratedSourceTexts = generatedSourceTexts;
     }
 
@@ -67,6 +77,13 @@ file sealed class NoneReference : AnalyzerReference, ISourceGenerator
 
     public void Execute(GeneratorExecutionContext context)
     {
+        if (!ReadGeneratedFiles)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                BasicAnalyzerHostNone.CannotReadGeneratedFiles,
+                Location.None));
+        }
+
         // TODO: this is wrong, need correct names
         foreach (var (sourceText, filePath) in GeneratedSourceTexts)
         {

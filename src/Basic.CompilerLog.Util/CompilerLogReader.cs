@@ -576,7 +576,7 @@ public sealed class CompilerLogReader : IDisposable
         {
             BasicAnalyzerKind.OnDisk => BasicAnalyzerHostOnDisk.Create(this, analyzers, BasicAnalyzerHostOptions),
             BasicAnalyzerKind.InMemory => BasicAnalyzerHostInMemory.Create(this, analyzers, BasicAnalyzerHostOptions),
-            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(ReadGeneratedSourceTexts()),
+            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(rawCompilationData.ReadGeneratedFiles, ReadGeneratedSourceTexts()),
             _ => throw new InvalidOperationException()
         };
 
@@ -603,6 +603,8 @@ public sealed class CompilerLogReader : IDisposable
                 {
                     builder.AppendLine(tuple.ContentHash);
                 }
+
+                builder.AppendLine(rawCompilationData.ReadGeneratedFiles.ToString());
             }
 
             return builder.ToString();

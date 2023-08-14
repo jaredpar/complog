@@ -1,9 +1,11 @@
 ﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -263,7 +265,7 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void NoAnalyzersGeneratedFilesInRaw()
+    public void NoneHostGeneratedFilesInRaw()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
         var (_, data) = reader.ReadRawCompilationData(0);
@@ -271,7 +273,7 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void NoAnalyzerGeneratedFilesShouldBeLast()
+    public void NoneHostGeneratedFilesShouldBeLast()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
@@ -283,7 +285,7 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void NoAnalyzerAddsFakeGeneratorForGeneratedSource()
+    public void NoneHostAddsFakeGeneratorForGeneratedSource()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
@@ -294,7 +296,7 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void NoAnalyzerAddsNoGeneratorIfNoGeneratedSource()
+    public void NoneHostAddsNoGeneratorIfNoGeneratedSource()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleNoGeneratorComplogPath, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
@@ -303,6 +305,34 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Same(compilation1, compilation2);
         Assert.Empty(data.AnalyzerReferences);
     }
+
+    [Fact]
+    public void NoneHostNativePdb()
+    {
+        RunDotNet($"new console --name example --output .");
+        var projectFileContent = """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <DebugType>Full</DebugType>
+                <TargetFramework>net7.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+              </PropertyGroup>
+            </Project>
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
+        RunDotNet("build -bl");
+
+        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"), BasicAnalyzerHostOptions.None);
+        var rawData = reader.ReadRawCompilationData(0).Item2;
+        Assert.False(rawData.ReadGeneratedFiles);
+        var data = reader.ReadCompilationData(0);
+        var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
+        Assert.Single(diagnostics);
+        Assert.Equal(BasicAnalyzerHostNone.CannotReadGeneratedFiles.Id, diagnostics[0].Id);
+    }
+
     [Fact]
     public void KindWpf()
     {
