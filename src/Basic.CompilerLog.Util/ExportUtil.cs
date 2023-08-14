@@ -18,48 +18,6 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed class ExportUtil
 {
-    /// <summary>
-    /// Abstraction for getting new file paths for original paths in the compilation.
-    /// </summary>
-    private sealed class ResilientDirectory
-    {
-        /// <summary>
-        /// Content can exist outside the cone of the original project tree. That content 
-        /// is mapped, by original directory name, to a new directory in the output. This
-        /// holds the map from the old directory to the new one.
-        /// </summary>
-        private Dictionary<string, string> _map = new(PathUtil.Comparer);
-
-        internal string DirectoryPath { get; }
-
-        internal ResilientDirectory(string path)
-        {
-            DirectoryPath = path;
-            Directory.CreateDirectory(DirectoryPath);
-        }
-
-        internal string GetNewFilePath(string originalFilePath)
-        {
-            var key = Path.GetDirectoryName(originalFilePath)!;
-            if (!_map.TryGetValue(key, out var dirPath))
-            {
-                dirPath = Path.Combine(DirectoryPath, $"group{_map.Count}");
-                Directory.CreateDirectory(dirPath);
-                _map[key] = dirPath;
-            }
-
-            return Path.Combine(dirPath, Path.GetFileName(originalFilePath));
-        }
-
-        internal string WriteContent(string originalFilePath, Stream stream)
-        {
-            var newFilePath = GetNewFilePath(originalFilePath);
-            using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            stream.CopyTo(fileStream);
-            return newFilePath;
-        }
-    }
-
     private sealed class ContentBuilder
     {
         internal string DestinationDirectory { get; }
@@ -84,7 +42,7 @@ public sealed class ExportUtil
             MiscDirectory = new(Path.Combine(destinationDirectory, "misc"));
             GeneratedCodeDirectory = new(Path.Combine(destinationDirectory, "generated"));
             AnalyzerDirectory = new(Path.Combine(destinationDirectory, "analyzers"));
-            BuildOutput = new(Path.Combine(destinationDirectory, "output"));
+            BuildOutput = new(Path.Combine(destinationDirectory, "output"), flatten: true);
             Directory.CreateDirectory(SourceDirectory);
             Directory.CreateDirectory(EmbeddedResourceDirectory);
         }
