@@ -40,28 +40,19 @@ public sealed class SolutionReaderTests : TestBase
     public void LoadAllWithoutAnalyzers() =>
         LoadAllCore(BasicAnalyzerHostOptions.None);
 
-    [Fact]
-    public async Task DocumentsHaveGeneratedTextWithAnalyzers()
+    [Theory]
+    [InlineData(BasicAnalyzerKind.Default)]
+    [InlineData(BasicAnalyzerKind.None)]
+    public async Task DocumentsHaveGeneratedTextWithAnalyzers(BasicAnalyzerKind kind)
     {
-        using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.Default);
+        var host = new BasicAnalyzerHostOptions(kind);
+        using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath, host);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());
         var project = solution.Projects.Single();
         Assert.NotEmpty(project.AnalyzerReferences);
         var docs = await project.GetSourceGeneratedDocumentsAsync();
         var doc = docs.First(x => x.Name == "RegexGenerator.g.cs");
-        Assert.NotNull(doc);
-    }
-
-    [Fact]
-    public void DocumentsHaveGeneratedTextWithoutAnalyzers()
-    {
-        using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
-        var workspace = new AdhocWorkspace();
-        var solution = workspace.AddSolution(reader.ReadSolutionInfo());
-        var project = solution.Projects.Single();
-        Assert.Empty(project.AnalyzerReferences);
-        var doc = project.Documents.First(x => x.Name == "RegexGenerator.g.cs");
         Assert.NotNull(doc);
     }
 }

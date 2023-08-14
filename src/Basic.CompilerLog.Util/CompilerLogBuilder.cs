@@ -223,123 +223,134 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// </summary>
     private void AddGeneratedFiles(StreamWriter compilationWriter, CommandLineArguments args, CompilerCall compilerCall)
     {
-        // This only works when using portable and embedded pdb formats. A full PDB can't store
-        // generated files
-        if (args.EmitOptions.DebugInformationFormat is not (DebugInformationFormat.Embedded or DebugInformationFormat.PortablePdb))
-        {
-            return;
-        }
-
-        var assemblyFileName = GetAssemblyFileName(args);
-        var assemblyFilePath = Path.Combine(args.OutputDirectory, assemblyFileName);
-        if (!File.Exists(assemblyFilePath))
-        {
-            Diagnostics.Add($"Can't find assembly file for {compilerCall.GetDiagnosticName()}");
-            return;
-        }
-
         var (languageGuid, languageExtension) = compilerCall.IsCSharp
             ? (LanguageTypeCSharp, ".cs")
             : (LanguageTypeBasic, ".vb");
-        MetadataReaderProvider? pdbReaderProvider = null;
-        try
+
+        var succeeded = AddGeneratedFilesCore();
+        compilationWriter.WriteLine($"generatedResult:{(succeeded ? '1' : '0')}");
+
+        bool AddGeneratedFilesCore()
         {
-            using var reader = OpenFileForRead(assemblyFilePath);
-            using var peReader = new PEReader(reader);
-            if (!peReader.TryOpenAssociatedPortablePdb(assemblyFilePath, OpenPortablePdbFile, out pdbReaderProvider, out var pdbPath))
+            // This only works when using portable and embedded pdb formats. A full PDB can't store
+            // generated files
+            if (args.EmitOptions.DebugInformationFormat is not (DebugInformationFormat.Embedded or DebugInformationFormat.PortablePdb))
             {
-                Diagnostics.Add($"Can't find portable pdb file for {compilerCall.GetDiagnosticName()}");
-                return;
+                Diagnostics.Add($"Can't read generated files from native PDB");
+                return false;
             }
 
-            var pdbReader = pdbReaderProvider!.GetMetadataReader();
-            foreach (var documentHandle in pdbReader.Documents.Skip(args.SourceFiles.Length))
+            var assemblyFileName = GetAssemblyFileName(args);
+            var assemblyFilePath = Path.Combine(args.OutputDirectory, assemblyFileName);
+            if (!File.Exists(assemblyFilePath))
             {
-                if (GetContentStream(documentHandle) is { } tuple)
-                {
-                    var contentHash = AddContent(tuple.Stream);
-                    compilationWriter.WriteLine($"generated:{contentHash}:{tuple.Name}");
-                }
+                Diagnostics.Add($"Can't find assembly file for {compilerCall.GetDiagnosticName()}");
+                return false;
             }
 
-            (string Name, MemoryStream Stream)? GetContentStream(DocumentHandle documentHandle)
+            MetadataReaderProvider? pdbReaderProvider = null;
+            try
             {
-                var document = pdbReader.GetDocument(documentHandle);
-                if (pdbReader.GetGuid(document.Language) != languageGuid)
+                using var reader = OpenFileForRead(assemblyFilePath);
+                using var peReader = new PEReader(reader);
+                if (!peReader.TryOpenAssociatedPortablePdb(assemblyFilePath, OpenPortablePdbFile, out pdbReaderProvider, out var pdbPath))
                 {
-                    return null;
+                    Diagnostics.Add($"Can't find portable pdb file for {compilerCall.GetDiagnosticName()}");
+                    return false;
                 }
 
-                var name = pdbReader.GetString(document.Name);
-
-                // A #line directive can be used to embed a file into the PDB. There is no way to differentiate
-                // between a file embedded this way and one generated from a source generator. For the moment
-                // using a simple hueristic to detect a generated file vs. say a .xaml file that was embedded
-                // https://github.com/jaredpar/basic-compilerlog/issues/45
-                if (Path.GetExtension(name) != languageExtension)
+                var pdbReader = pdbReaderProvider!.GetMetadataReader();
+                foreach (var documentHandle in pdbReader.Documents.Skip(args.SourceFiles.Length))
                 {
-                    return null;
+                    if (GetContentStream(pdbReader, documentHandle) is { } tuple)
+                    {
+                        var contentHash = AddContent(tuple.Stream);
+                        compilationWriter.WriteLine($"generated:{contentHash}:{tuple.FilePath}");
+                    }
                 }
 
-                foreach (var cdiHandle in pdbReader.GetCustomDebugInformation(documentHandle))
-                {
-                    var cdi = pdbReader.GetCustomDebugInformation(cdiHandle);
-                    if (pdbReader.GetGuid(cdi.Kind) != EmbeddedSourceGuid)
-                    {
-                        continue;
-                    }
+                return true;
 
-                    var hashAlgorithmGuid = pdbReader.GetGuid(document.HashAlgorithm);
-                    var hashAlgorithm =
-                        hashAlgorithmGuid == HashAlgorithmSha1 ? SourceHashAlgorithm.Sha1
-                        : hashAlgorithmGuid == HashAlgorithmSha256 ? SourceHashAlgorithm.Sha256
-                        : SourceHashAlgorithm.None;
-                    if (hashAlgorithm == SourceHashAlgorithm.None)
-                    {
-                        continue;
-                    }
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Add($"Error embedding generated files {compilerCall.GetDiagnosticName()}): {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                pdbReaderProvider?.Dispose();
+            }
+        }
 
-                    var bytes = pdbReader.GetBlobBytes(cdi.Value);
-                    if (bytes is null)
-                    {
-                        continue;
-                    }
-
-                    int uncompressedSize = BitConverter.ToInt32(bytes, 0);
-                    var stream = new MemoryStream(bytes, sizeof(int), bytes.Length - sizeof(int));
-
-                    if (uncompressedSize != 0)
-                    {
-                        var decompressed = new MemoryStream(uncompressedSize);
-                        using (var deflateStream = new DeflateStream(stream, CompressionMode.Decompress))
-                        {
-                            deflateStream.CopyTo(decompressed);
-                        }
-
-                        if (decompressed.Length != uncompressedSize)
-                        {
-                            Diagnostics.Add($"Error decompressing embedded source file {compilerCall.GetDiagnosticName()}");
-                            continue;
-                        }
-
-                        stream = decompressed;
-                    }
-
-                    stream.Position = 0;
-                    return (name, stream);
-                }
-
+        (string FilePath, MemoryStream Stream)? GetContentStream(MetadataReader pdbReader, DocumentHandle documentHandle)
+        {
+            var document = pdbReader.GetDocument(documentHandle);
+            if (pdbReader.GetGuid(document.Language) != languageGuid)
+            {
                 return null;
             }
-        }
-        catch (Exception ex)
-        {
-            Diagnostics.Add($"Error embedding generated files {compilerCall.GetDiagnosticName()}): {ex.Message}");
-            return;
-        }
-        finally
-        {
-            pdbReaderProvider?.Dispose();
+
+            var filePath = pdbReader.GetString(document.Name);
+
+            // A #line directive can be used to embed a file into the PDB. There is no way to differentiate
+            // between a file embedded this way and one generated from a source generator. For the moment
+            // using a simple hueristic to detect a generated file vs. say a .xaml file that was embedded
+            // https://github.com/jaredpar/basic-compilerlog/issues/45
+            if (Path.GetExtension(filePath) != languageExtension)
+            {
+                return null;
+            }
+
+            foreach (var cdiHandle in pdbReader.GetCustomDebugInformation(documentHandle))
+            {
+                var cdi = pdbReader.GetCustomDebugInformation(cdiHandle);
+                if (pdbReader.GetGuid(cdi.Kind) != EmbeddedSourceGuid)
+                {
+                    continue;
+                }
+
+                var hashAlgorithmGuid = pdbReader.GetGuid(document.HashAlgorithm);
+                var hashAlgorithm =
+                    hashAlgorithmGuid == HashAlgorithmSha1 ? SourceHashAlgorithm.Sha1
+                    : hashAlgorithmGuid == HashAlgorithmSha256 ? SourceHashAlgorithm.Sha256
+                    : SourceHashAlgorithm.None;
+                if (hashAlgorithm == SourceHashAlgorithm.None)
+                {
+                    continue;
+                }
+
+                var bytes = pdbReader.GetBlobBytes(cdi.Value);
+                if (bytes is null)
+                {
+                    continue;
+                }
+
+                int uncompressedSize = BitConverter.ToInt32(bytes, 0);
+                var stream = new MemoryStream(bytes, sizeof(int), bytes.Length - sizeof(int));
+
+                if (uncompressedSize != 0)
+                {
+                    var decompressed = new MemoryStream(uncompressedSize);
+                    using (var deflateStream = new DeflateStream(stream, CompressionMode.Decompress))
+                    {
+                        deflateStream.CopyTo(decompressed);
+                    }
+
+                    if (decompressed.Length != uncompressedSize)
+                    {
+                        Diagnostics.Add($"Error decompressing embedded source file {compilerCall.GetDiagnosticName()}");
+                        continue;
+                    }
+
+                    stream = decompressed;
+                }
+
+                stream.Position = 0;
+                return (filePath, stream);
+            }
+
+            return null;
         }
 
         // Similar to OpenFileForRead but don't throw here on file missing as it's expected that some files 

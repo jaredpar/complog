@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.ComponentModel;
+using System.Diagnostics;
 
 #if NETCOREAPP
 using System.Runtime.Loader;
@@ -117,9 +118,13 @@ public enum BasicAnalyzerKind
     OnDisk = 2,
 
     /// <summary>
-    /// Analyzers and generators are not loaded at all. The original generated files 
-    /// will be loaded directly into the resulting <see cref="Compilation" />.
+    /// Analyzers and generators from the original are not loaded at all. In the case 
+    /// the original build had generated files they will be added through an in 
+    /// memory analyzer that just adds them directly.
     /// </summary>
+    /// <remarks>
+    /// This option avoids loading third party analyzers and generators.
+    /// </remarks>
     None = 3,
 }
 

@@ -22,6 +22,8 @@ public sealed class CompilerLogFixture : IDisposable
 
     internal string ConsoleComplogPath { get; }
 
+    internal string ConsoleNoGeneratorComplogPath { get; }
+
     internal string ClassLibComplogPath { get; }
 
     internal string ClassLibSignedComplogPath { get; }
@@ -69,6 +71,13 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
+            Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
+            return Path.Combine(scratchPath, "msbuild.binlog");
+        });
+
+        ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", static string (string scratchPath) =>
+        {
+            DotnetUtil.CommandOrThrow($"new console --name example --output .", scratchPath);
             Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
             return Path.Combine(scratchPath, "msbuild.binlog");
         });

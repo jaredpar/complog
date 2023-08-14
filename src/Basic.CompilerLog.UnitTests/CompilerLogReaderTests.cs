@@ -180,10 +180,10 @@ public sealed class CompilerLogReaderTests : TestBase
 
         var options = new BasicAnalyzerHostOptions(kind, cacheable: true);
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
-        var key = reader.ReadRawCompilationData(0).Item2.Analyzers;
+        var data = reader.ReadRawCompilationData(0).Item2;
 
-        var host1 = reader.ReadAnalyzers(key);
-        var host2 = reader.ReadAnalyzers(key);
+        var host1 = reader.ReadAnalyzers(data);
+        var host2 = reader.ReadAnalyzers(data);
         Assert.Same(host1, host2);
         host1.Dispose();
         Assert.True(host1.IsDisposed);
@@ -271,11 +271,11 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void NoAnalyzerGeneratedFilesShouldBeFirst()
+    public void NoAnalyzerGeneratedFilesShouldBeLast()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
-        var tree = data.Compilation.SyntaxTrees.First();
+        var tree = data.GetCompilationAfterGenerators().SyntaxTrees.Last();
         var decls = tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().ToList();
         Assert.True(decls.Count >= 2);
         Assert.Equal("Util", decls[0].Identifier.Text);
@@ -283,16 +283,26 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void NoAnalyzerShouldHaveNoAnalyzers()
+    public void NoAnalyzerAddsFakeGeneratorForGeneratedSource()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
+        var data = reader.ReadCompilationData(0);
+        var compilation1 = data.Compilation;
+        var compilation2 = data.GetCompilationAfterGenerators();
+        Assert.NotSame(compilation1, compilation2);
+        Assert.Single(data.AnalyzerReferences);
+    }
+
+    [Fact]
+    public void NoAnalyzerAddsNoGeneratorIfNoGeneratedSource()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleNoGeneratorComplogPath, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
         var compilation1 = data.Compilation;
         var compilation2 = data.GetCompilationAfterGenerators();
         Assert.Same(compilation1, compilation2);
         Assert.Empty(data.AnalyzerReferences);
     }
-
     [Fact]
     public void KindWpf()
     {

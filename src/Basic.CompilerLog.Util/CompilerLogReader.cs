@@ -7,9 +7,11 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
+using System.Runtime.CompilerServices;
 using System.Text;
 using static Basic.CompilerLog.Util.CommonUtil;
 
@@ -140,10 +142,7 @@ public sealed class CompilerLogReader : IDisposable
                     sourceTextList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
                     break;
                 case RawContentKind.GeneratedText:
-                    if (BasicAnalyzerHostOptions.ResolvedKind == BasicAnalyzerKind.None)
-                    {
-                        sourceTextList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
-                    }
+                    // Handled when creating the analyzer host
                     break;
                 case RawContentKind.AnalyzerConfig:
                     analyzerConfigList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
@@ -249,17 +248,7 @@ public sealed class CompilerLogReader : IDisposable
             var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
             var csharpOptions = (CSharpCompilationOptions)compilationOptions;
             var parseOptions = csharpArgs.ParseOptions;
-
-            var syntaxTrees = new SyntaxTree[sourceTextList.Count];
-            Parallel.For(
-                0,
-                sourceTextList.Count,
-                i =>
-                {
-                    var t = sourceTextList[i];
-                    syntaxTrees[i] = CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
-                });
-
+            var syntaxTrees = ParseSourceTexts(sourceTextList);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
             csharpOptions = csharpOptions
@@ -278,8 +267,27 @@ public sealed class CompilerLogReader : IDisposable
                 emitData,
                 csharpArgs,
                 additionalTextList.ToImmutableArray(),
-                ReadAnalyzers(rawCompilationData.Analyzers),
+                ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
+
+            SyntaxTree[] ParseSourceTexts(List<(SourceText SourceText, string Path)> sourceTextList)
+            {
+                if (sourceTextList.Count == 0)
+                {
+                    return Array.Empty<SyntaxTree>();
+                }
+
+                var syntaxTrees = new SyntaxTree[sourceTextList.Count];
+                Parallel.For(
+                    0,
+                    sourceTextList.Count,
+                    i =>
+                    {
+                        var t = sourceTextList[i];
+                        syntaxTrees[i] = CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
+                    });
+                return syntaxTrees;
+            }
         }
 
         VisualBasicCompilationData CreateVisualBasic()
@@ -287,16 +295,7 @@ public sealed class CompilerLogReader : IDisposable
             var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
             var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
             var parseOptions = basicArgs.ParseOptions;
-            var syntaxTrees = new SyntaxTree[sourceTextList.Count];
-            Parallel.For(
-                0,
-                sourceTextList.Count,
-                i =>
-                {
-                    var t = sourceTextList[i];
-                    syntaxTrees[i] = VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
-                });
-
+            var syntaxTrees = ParseSourceTexts(sourceTextList);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
             basicOptions = basicOptions
@@ -315,8 +314,27 @@ public sealed class CompilerLogReader : IDisposable
                 emitData,
                 basicArgs,
                 additionalTextList.ToImmutableArray(),
-                ReadAnalyzers(rawCompilationData.Analyzers),
+                ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
+
+            SyntaxTree[] ParseSourceTexts(List<(SourceText SourceText, string Path)> sourceTextList)
+            {
+                if (sourceTextList.Count == 0)
+                {
+                    return Array.Empty<SyntaxTree>();
+                }
+
+                var syntaxTrees = new SyntaxTree[sourceTextList.Count];
+                Parallel.For(
+                    0,
+                    sourceTextList.Count,
+                    i =>
+                    {
+                        var t = sourceTextList[i];
+                        syntaxTrees[i] = VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
+                    });
+                return syntaxTrees;
+            }
         }
     }
 
@@ -362,6 +380,7 @@ public sealed class CompilerLogReader : IDisposable
         var analyzers = new List<RawAnalyzerData>();
         var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind)>();
         var resources = new List<RawResourceData>();
+        var readGeneratedFiles = false;
 
         while (reader.ReadLine() is string line)
         {
@@ -379,6 +398,9 @@ public sealed class CompilerLogReader : IDisposable
                     break;
                 case "generated":
                     ParseContent(line, RawContentKind.GeneratedText);
+                    break;
+                case "generatedResult":
+                    readGeneratedFiles = ParseBool(line);
                     break;
                 case "config":
                     ParseContent(line, RawContentKind.AnalyzerConfig);
@@ -423,9 +445,16 @@ public sealed class CompilerLogReader : IDisposable
             references,
             analyzers,
             contents,
-            resources);
+            resources,
+            readGeneratedFiles);
 
         return data;
+
+        bool ParseBool(string line)
+        {
+            var items = line.Split(':', count: 2);
+            return items[1] == "1";
+        }
 
         void ParseMetadataReference(string line)
         {
@@ -529,8 +558,9 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
-    internal BasicAnalyzerHost ReadAnalyzers(List<RawAnalyzerData> analyzers)
+    internal BasicAnalyzerHost ReadAnalyzers(RawCompilationData rawCompilationData)
     {
+        var analyzers = rawCompilationData.Analyzers;
         string? key = null;
         BasicAnalyzerHost? basicAnalyzerHost;
         if (BasicAnalyzerHostOptions.Cacheable)
@@ -546,7 +576,7 @@ public sealed class CompilerLogReader : IDisposable
         {
             BasicAnalyzerKind.OnDisk => BasicAnalyzerHostOnDisk.Create(this, analyzers, BasicAnalyzerHostOptions),
             BasicAnalyzerKind.InMemory => BasicAnalyzerHostInMemory.Create(this, analyzers, BasicAnalyzerHostOptions),
-            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(),
+            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(ReadGeneratedSourceTexts()),
             _ => throw new InvalidOperationException()
         };
 
@@ -566,7 +596,26 @@ public sealed class CompilerLogReader : IDisposable
             {
                 builder.AppendLine($"{analyzer.Mvid}");
             }
+
+            if (BasicAnalyzerHostOptions.ResolvedKind == BasicAnalyzerKind.None)
+            {
+                foreach (var tuple in rawCompilationData.Contents.Where(static x => x.Kind == RawContentKind.GeneratedText))
+                {
+                    builder.AppendLine(tuple.ContentHash);
+                }
+            }
+
             return builder.ToString();
+        }
+
+        ImmutableArray<(SourceText SourceText, string Path)> ReadGeneratedSourceTexts()
+        {
+            var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>();
+            foreach (var tuple in rawCompilationData.Contents.Where(static x => x.Kind == RawContentKind.GeneratedText))
+            {
+                builder.Add((GetSourceText(tuple.ContentHash, rawCompilationData.Arguments.ChecksumAlgorithm), tuple.FilePath));
+            }
+            return builder.ToImmutableArray();
         }
     }
 

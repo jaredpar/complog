@@ -62,7 +62,7 @@ public class CompilerBenchmark
     public void LoadAnalyzers()
     {
         using var reader = CompilerLogReader.Create(CompilerLogPath, options: new BasicAnalyzerHostOptions(Kind));
-        var analyzers = reader.ReadAnalyzers(reader.ReadRawCompilationData(0).Item2.Analyzers);
+        var analyzers = reader.ReadAnalyzers(reader.ReadRawCompilationData(0).Item2);
         foreach (var analyzer in analyzers.AnalyzerReferences)
         {
             _ = analyzer.GetAnalyzersForAllLanguages();
