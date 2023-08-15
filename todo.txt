@@ -1,4 +1,0 @@
-make sure create is displaying diagnostics
-feed through the host to other commands
-X be better about when None can be used
-X make sure generated files only appear after getting generators

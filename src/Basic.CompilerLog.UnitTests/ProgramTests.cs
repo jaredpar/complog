@@ -84,11 +84,13 @@ public sealed class ProgramTests : TestBase
         Assert.True(buildResult.Succeeded);
     }
 
-    [Fact]
-    public void EmitConsole()
+    [Theory]
+    [InlineData("")]
+    [InlineData("-none")]
+    public void EmitConsole(string arg)
     {
         using var emitDir = new TempDir();
-        RunCompLog($"emit -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath}");
+        RunCompLog($"emit {arg} -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath}");
 
         AssertOutput(@"example\emit\example.dll");
         AssertOutput(@"example\emit\example.pdb");

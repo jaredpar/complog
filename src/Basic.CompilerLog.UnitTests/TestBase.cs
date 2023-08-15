@@ -27,6 +27,7 @@ public abstract class TestBase : IDisposable
 
     public void Dispose()
     {
+        TestOutputHelper.WriteLine("Deleting temp directory");
         Root.Dispose();
     }
 

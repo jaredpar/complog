@@ -84,10 +84,20 @@ file sealed class NoneReference : AnalyzerReference, ISourceGenerator
                 Location.None));
         }
 
-        // TODO: this is wrong, need correct names
+        // The biggest challenge with adding names here is replicating the original 
+        // hint name. There is no way to definitively recover the original name hence we 
+        // have to go with just keeping the file name that was added then doing some basic
+        // counting to keep the name unique. 
+        var set = new HashSet<string>(PathUtil.Comparer);
         foreach (var (sourceText, filePath) in GeneratedSourceTexts)
         {
-            context.AddSource(Path.GetFileName(filePath), sourceText);
+            var fileName = Path.GetFileName(filePath);
+            if (!set.Add(fileName))
+            {
+                fileName = Path.Combine(set.Count.ToString(), fileName);
+            }
+
+            context.AddSource(fileName, sourceText);
         }
     }
 }
