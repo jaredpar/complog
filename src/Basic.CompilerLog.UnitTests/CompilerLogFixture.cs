@@ -39,6 +39,10 @@ public sealed class CompilerLogFixture : IDisposable
 
     internal IEnumerable<string> AllComplogs { get; }
 
+    /// <summary>
+    /// Constructor for the primary fixture. To get actual diagnostic messages into the output 
+    /// Add the following to xunit.runner.json to enable "diagnosticMessages": true
+    /// </summary>
     public CompilerLogFixture(IMessageSink messageSink)
     {
         StorageDirectory = Path.Combine(Path.GetTempPath(), nameof(CompilerLogFixture), Guid.NewGuid().ToString("N"));
@@ -48,7 +52,6 @@ public sealed class CompilerLogFixture : IDisposable
         var diagnosticBuilder = new StringBuilder();
         void RunDotnetCommand(string args, string workingDirectory)
         {
-            DotnetUtil.Command("build-server shutdown", workingDirectory);
             diagnosticBuilder.AppendLine($"Running: {args} in {workingDirectory}");
             var result = DotnetUtil.Command(args, workingDirectory);
             diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");

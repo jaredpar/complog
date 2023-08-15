@@ -62,9 +62,9 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void References()
     {
-        Assert.Equal(0, RunCompLog($"ref -o {RootDirectory} {Fixture.ComplogDirectory}"));
-        Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "example", "refs"), "*.dll"));
-        Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "example", "analyzers"), "*.dll", SearchOption.AllDirectories));
+        Assert.Equal(0, RunCompLog($"ref -o {RootDirectory} {Path.Combine(Fixture.ComplogDirectory, "console.complog")}"));
+        Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "refs"), "*.dll"));
+        Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "analyzers"), "*.dll", SearchOption.AllDirectories));
     }
 
     [Theory]
@@ -92,9 +92,9 @@ public sealed class ProgramTests : TestBase
         using var emitDir = new TempDir();
         RunCompLog($"emit {arg} -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath}");
 
-        AssertOutput(@"example\emit\example.dll");
-        AssertOutput(@"example\emit\example.pdb");
-        AssertOutput(@"example\emit\ref\example.dll");
+        AssertOutput(@"console\emit\console.dll");
+        AssertOutput(@"console\emit\console.pdb");
+        AssertOutput(@"console\emit\ref\console.dll");
 
         void AssertOutput(string relativePath)
         {

@@ -1,4 +1,5 @@
 {
   "appDomain": "ifAvailable",
-  "shadowCopy": false
+  "shadowCopy": false,
+  "parallelizeTestCollections": false
 }
