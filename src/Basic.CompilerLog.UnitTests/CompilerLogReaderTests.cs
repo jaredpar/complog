@@ -309,6 +309,11 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostNativePdb()
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return;
+        }
+
         RunDotNet($"new console --name example --output .");
         var projectFileContent = """
             <Project Sdk="Microsoft.NET.Sdk">
