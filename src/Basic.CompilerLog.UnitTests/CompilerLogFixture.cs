@@ -77,7 +77,7 @@ public sealed class CompilerLogFixture : IDisposable
 
         ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", static string (string scratchPath) =>
         {
-            DotnetUtil.CommandOrThrow($"new console --name example --output .", scratchPath);
+            DotnetUtil.CommandOrThrow($"new console --name example-no-generator --output .", scratchPath);
             Assert.True(DotnetUtil.Command("build -bl", scratchPath).Succeeded);
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
@@ -178,16 +178,23 @@ public sealed class CompilerLogFixture : IDisposable
         AllComplogs = allCompLogs;
         string WithBuild(string name, Func<string, string> action)
         {
-            var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(scratchPath);
-            var binlogFilePath = action(scratchPath);
-            Assert.True(File.Exists(binlogFilePath));
-            var complogFilePath = Path.Combine(ComplogDirectory, name);
-            var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
-            Assert.Empty(diagnostics);
-            Directory.Delete(scratchPath, recursive: true);
-            allCompLogs.Add(complogFilePath);
-            return complogFilePath;
+            try
+            {
+                var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(scratchPath);
+                var binlogFilePath = action(scratchPath);
+                Assert.True(File.Exists(binlogFilePath));
+                var complogFilePath = Path.Combine(ComplogDirectory, name);
+                var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
+                Assert.Empty(diagnostics);
+                Directory.Delete(scratchPath, recursive: true);
+                allCompLogs.Add(complogFilePath);
+                return complogFilePath;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Cannot generate compiler log {name}", ex);
+            }
         }
     }
 
