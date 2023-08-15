@@ -178,9 +178,10 @@ public sealed class CompilerLogFixture : IDisposable
         AllComplogs = allCompLogs;
         string WithBuild(string name, Func<string, string> action)
         {
-            var scratchPath = Path.Combine(StorageDirectory, "scratch dir");
+            var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(scratchPath);
             var binlogFilePath = action(scratchPath);
+            Assert.True(File.Exists(binlogFilePath));
             var complogFilePath = Path.Combine(ComplogDirectory, name);
             var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
             Assert.Empty(diagnostics);
