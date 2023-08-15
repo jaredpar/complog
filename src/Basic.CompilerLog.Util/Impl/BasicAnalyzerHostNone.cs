@@ -40,17 +40,23 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
     private static ImmutableArray<AnalyzerReference> CreateAnalyzerReferences(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts) =>
         readGeneratedFiles && generatedSourceTexts.Length == 0
             ? ImmutableArray<AnalyzerReference>.Empty
-            : ImmutableArray.Create<AnalyzerReference>(new NoneReference(readGeneratedFiles, generatedSourceTexts));
+            : ImmutableArray.Create<AnalyzerReference>(new NoneAnalyzerReference(readGeneratedFiles, generatedSourceTexts));
 }
 
-file sealed class NoneReference : AnalyzerReference, ISourceGenerator
+/// <summary>
+/// Simple in memory generator for adding the pre-generated files in. 
+/// </summary>
+/// <remarks>
+/// Note: this cannot be a file local type because of a Roslyn bug on .NET Framework
+/// </remarks>
+internal sealed class NoneAnalyzerReference : AnalyzerReference, ISourceGenerator
 {
     internal bool ReadGeneratedFiles { get; }
     internal ImmutableArray<(SourceText SourceText, string Path)> GeneratedSourceTexts { get; }
     public override object Id { get; } = Guid.NewGuid();
     public override string? FullPath => null;
 
-    internal NoneReference(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
+    internal NoneAnalyzerReference(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
     {
         ReadGeneratedFiles = readGeneratedFiles;
         GeneratedSourceTexts = generatedSourceTexts;
