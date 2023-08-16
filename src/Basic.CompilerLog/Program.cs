@@ -386,7 +386,7 @@ int RunResponseFile(IEnumerable<string> args)
 int RunEmit(IEnumerable<string> args, CancellationToken cancellationToken)
 {
     var baseOutputPath = "";
-    var options = new FilterOptionSet()
+    var options = new FilterOptionSet(includeNoneHost: true)
     {
         { "o|out=", "path to output binaries to", o => baseOutputPath = o },
     };
@@ -452,7 +452,7 @@ int RunEmit(IEnumerable<string> args, CancellationToken cancellationToken)
 int RunDiagnostics(IEnumerable<string> args)
 {
     var severity = DiagnosticSeverity.Warning;
-    var options = new FilterOptionSet()
+    var options = new FilterOptionSet(includeNoneHost: true)
     {
         { "severity", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
     };

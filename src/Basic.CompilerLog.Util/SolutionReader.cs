@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -80,12 +81,7 @@ public sealed class SolutionReader : IDisposable
                     Add(documents);
                     break;
                 case RawContentKind.GeneratedText:
-                    // If we're not loading analyzers then we need to put the generated text into the 
-                    // project
-                    if (Reader.BasicAnalyzerHostOptions.Kind == BasicAnalyzerKind.None)
-                    {
-                        Add(documents);
-                    }
+                    // Handled when creating analyzer host.
                     break;
                 case RawContentKind.AdditionalText:
                     Add(additionalDocuments);
@@ -122,7 +118,7 @@ public sealed class SolutionReader : IDisposable
         var projectReferences = new List<ProjectReference>();
 
         var referenceList = Reader.GetMetadataReferences(FilterToUnique(rawCompilationData.References));
-        var analyzers = Reader.ReadAnalyzers(rawCompilationData.Analyzers);
+        var analyzers = Reader.ReadAnalyzers(rawCompilationData);
         var projectInfo = ProjectInfo.Create(
             projectId,
             VersionStamp,

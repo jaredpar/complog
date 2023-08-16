@@ -73,17 +73,27 @@ internal sealed class RawCompilationData
     internal List<(string FilePath, string ContentHash, RawContentKind Kind)> Contents { get; }
     internal List<RawResourceData> Resources { get; }
 
+    /// <summary>
+    /// This is true when the generated files were successfully read from the original 
+    /// compilation. This can be true when there are no generated files. A successful read
+    /// for example happens on a compilation where there are no analyzers (successfully 
+    /// read zero files)
+    /// </summary>
+    internal bool ReadGeneratedFiles { get; }
+
     internal RawCompilationData(
         CommandLineArguments arguments,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
         List<(string FilePath, string ContentHash, RawContentKind Kind)> contents,
-        List<RawResourceData> resources)
+        List<RawResourceData> resources,
+        bool readGeneratedFiles)
     {
         Arguments = arguments;
         References = references;
         Analyzers = analyzers;
         Contents = contents;
         Resources = resources;
+        ReadGeneratedFiles = readGeneratedFiles;
     }
 }

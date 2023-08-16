@@ -194,8 +194,8 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void ConsoleWithRuleset()
     {
-        RunDotNet($"new console --name example --output .");
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"),
+        RunDotNet($"new console --name console-with-ruleset --output .");
+        File.WriteAllText(Path.Combine(RootDirectory, "console-with-ruleset.csproj"),
             """
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
