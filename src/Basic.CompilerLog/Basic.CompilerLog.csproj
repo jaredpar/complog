@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>complog</ToolCommandName>
+    <UseDiaSymReaderNative>true</UseDiaSymReaderNative>
 
     <!-- NuPkg information -->
     <Version>0.1.2</Version>
