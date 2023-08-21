@@ -1,23 +1,15 @@
-﻿using Basic.CompilerLog.Util.Impl;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
@@ -83,7 +75,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddSources(compilationWriter, commandLineArguments);
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
-            AddedEmbeds(compilationWriter, commandLineArguments);
+            AddEmbeds(compilationWriter, commandLineArguments);
             AddContentIf("link", commandLineArguments.SourceLink);
             AddContentIf("ruleset", commandLineArguments.RuleSetPath);
             AddContentIf("appconfig", commandLineArguments.AppConfigPath);
@@ -455,7 +447,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddedEmbeds(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddEmbeds(StreamWriter compilationWriter, CommandLineArguments args)
     {
         foreach (var e in args.EmbeddedFiles)
         {
