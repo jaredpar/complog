@@ -104,7 +104,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void KeyFileDefault()
     {
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibSignedComplogPath);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibSignedComplogPath.Value);
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
@@ -121,7 +121,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var state = new CompilerLogState(tempDir.DirectoryPath);
 
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibSignedComplogPath, state: state);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibSignedComplogPath.Value, state: state);
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
@@ -150,7 +150,7 @@ public sealed class CompilerLogReaderTests : TestBase
             any = true;
 
             var options = new BasicAnalyzerHostOptions(kind);
-            using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
+            using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options: options);
             var data = reader.ReadCompilationData(0);
             var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
             Assert.Empty(diagnostics);
@@ -181,7 +181,7 @@ public sealed class CompilerLogReaderTests : TestBase
         }
 
         var options = new BasicAnalyzerHostOptions(kind, cacheable: true);
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options: options);
         var data = reader.ReadRawCompilationData(0).Item2;
 
         var host1 = reader.ReadAnalyzers(data);
@@ -203,7 +203,7 @@ public sealed class CompilerLogReaderTests : TestBase
         }
 
         var options = new BasicAnalyzerHostOptions(kind, cacheable: true);
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, options: options);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options: options);
         var data = reader.ReadCompilationData(0);
         Assert.False(data.BasicAnalyzerHost.IsDisposed);
         reader.Dispose();
@@ -213,7 +213,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void ProjectSingleTarget()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value);
         var list = reader.ReadAllCompilationData();
         Assert.Single(list);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
@@ -222,7 +222,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void ProjectMultiTarget()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath.Value);
         var list = reader.ReadAllCompilationData();
         Assert.Equal(2, list.Count);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
@@ -232,8 +232,9 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void EmitToDisk()
     {
-        Assert.NotEmpty(Fixture.AllComplogs);
-        foreach (var complogPath in Fixture.AllComplogs)
+        var all = Fixture.GetAllCompLogs();
+        Assert.NotEmpty(all);
+        foreach (var complogPath in all)
         {
             TestOutputHelper.WriteLine(complogPath);
             using var reader = CompilerLogReader.Create(complogPath);
@@ -250,8 +251,9 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void EmitToMemory()
     {
-        Assert.NotEmpty(Fixture.AllComplogs);
-        foreach (var complogPath in Fixture.AllComplogs)
+        var all = Fixture.GetAllCompLogs();
+        Assert.NotEmpty(all);
+        foreach (var complogPath in all)
         {
             TestOutputHelper.WriteLine(complogPath);
             using var reader = CompilerLogReader.Create(complogPath);
@@ -267,7 +269,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostGeneratedFilesInRaw()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, BasicAnalyzerHostOptions.None);
         var (_, data) = reader.ReadRawCompilationData(0);
         Assert.Equal(1, data.Contents.Count(x => x.Kind == RawContentKind.GeneratedText));
     }
@@ -275,7 +277,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostGeneratedFilesShouldBeLast()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
         var tree = data.GetCompilationAfterGenerators().SyntaxTrees.Last();
         var decls = tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().ToList();
@@ -287,7 +289,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostAddsFakeGeneratorForGeneratedSource()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath, BasicAnalyzerHostOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
         var compilation1 = data.Compilation;
         var compilation2 = data.GetCompilationAfterGenerators();
@@ -298,7 +300,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostAddsNoGeneratorIfNoGeneratedSource()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleNoGeneratorComplogPath, BasicAnalyzerHostOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleNoGeneratorComplogPath.Value, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
         var compilation1 = data.Compilation;
         var compilation2 = data.GetCompilationAfterGenerators();
@@ -344,7 +346,7 @@ public sealed class CompilerLogReaderTests : TestBase
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             Assert.NotNull(Fixture.WpfAppComplogPath);
-            using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath);
+            using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath.Value);
             var list = reader.ReadAllCompilationData();
             Assert.Equal(2, list.Count);
             Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);

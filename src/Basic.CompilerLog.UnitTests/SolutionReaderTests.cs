@@ -23,7 +23,7 @@ public sealed class SolutionReaderTests : TestBase
 
     private void LoadAllCore(BasicAnalyzerHostOptions options)
     {
-        foreach (var complogPath in Fixture.AllComplogs)
+        foreach (var complogPath in Fixture.GetAllCompLogs())
         {
             using var reader = SolutionReader.Create(complogPath, options);
             var workspace = new AdhocWorkspace();
@@ -46,7 +46,7 @@ public sealed class SolutionReaderTests : TestBase
     public async Task DocumentsHaveGeneratedTextWithAnalyzers(BasicAnalyzerKind kind)
     {
         var host = new BasicAnalyzerHostOptions(kind);
-        using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath, host);
+        using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath.Value, host);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());
         var project = solution.Projects.Single();

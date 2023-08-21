@@ -85,13 +85,13 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void Console()
     {
-        TestExport(Fixture.ConsoleComplogPath, 1);
+        TestExport(Fixture.ConsoleComplogPath.Value, 1);
     }
 
     [Fact]
     public void ClassLib()
     {
-        TestExport(Fixture.ClassLibComplogPath, 1);
+        TestExport(Fixture.ClassLibComplogPath.Value, 1);
     }
 
     /// <summary>
@@ -100,7 +100,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedText()
     {
-        TestExport(Fixture.ConsoleComplogPath, 1, callback: tempPath =>
+        TestExport(Fixture.ConsoleComplogPath.Value, 1, callback: tempPath =>
         {
             var generatedPath = Path.Combine(tempPath, "generated");
             var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
@@ -115,7 +115,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedTextExcludeAnalyzers()
     {
-        TestExport(Fixture.ConsoleComplogPath, 1, includeAnalyzers: false, callback: tempPath =>
+        TestExport(Fixture.ConsoleComplogPath.Value, 1, includeAnalyzers: false, callback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -296,7 +296,7 @@ public sealed class ExportUtilTests : TestBase
     [InlineData(false)]
     public void AllCompilerLogs(bool includeAnalyzers)
     {
-        foreach (var complogPath in Fixture.AllComplogs)
+        foreach (var complogPath in Fixture.GetAllCompLogs())
         {
             TestExport(complogPath, expectedCount: null, includeAnalyzers);
         }
