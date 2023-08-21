@@ -16,6 +16,7 @@ internal enum RawContentKind
     AdditionalText,
     AnalyzerConfig,
     Embed,
+    EmbedLine,
     SourceLink,
     RuleSet,
     AppConfig,

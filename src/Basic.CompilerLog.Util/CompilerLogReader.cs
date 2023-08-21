@@ -1,4 +1,5 @@
 ﻿using Basic.CompilerLog.Util.Impl;
+using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -173,6 +174,11 @@ public sealed class CompilerLogReader : IDisposable
                     embeddedTexts.Add(embeddedText);
                     break;
                 }
+
+                // not exposed as #line embeds don't matter for most API usages, it's only used in 
+                // command line compiles
+                case RawContentKind.EmbedLine:
+                    break;
 
                 // not exposed yet
                 case RawContentKind.RuleSet:
@@ -372,6 +378,9 @@ public sealed class CompilerLogReader : IDisposable
                     break;
                 case "embed":
                     ParseContent(line, RawContentKind.Embed);
+                    break;
+                case "embedline":
+                    ParseContent(line, RawContentKind.EmbedLine);
                     break;
                 case "link":
                     ParseContent(line, RawContentKind.SourceLink);

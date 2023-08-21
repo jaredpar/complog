@@ -1,8 +1,11 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
+using Microsoft.CodeAnalysis.VisualBasic.Syntax;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
@@ -185,6 +188,12 @@ internal sealed class CompilerLogBuilder : IDisposable
                 writer.WriteLine(value);
             }
         }
+    }
+
+    private void AddContentCore(StreamWriter compilationWriter, string key, string filePath, Stream stream)
+    {
+        var contentHash = AddContent(stream);
+        compilationWriter.WriteLine($"{key}:{contentHash}:{filePath}");
     }
 
     private void AddContentCore(StreamWriter compilationWriter, string key, string filePath)
@@ -449,9 +458,66 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddEmbeds(StreamWriter compilationWriter, CommandLineArguments args)
     {
+        if (args.EmbeddedFiles.Length == 0)
+        {
+            return;
+        }
+
+        // Embedded files is one place where the compiler requires strict ordinal matching
+        var sourceFileSet = new HashSet<string>(args.SourceFiles.Select(static x => x.Path), StringComparer.Ordinal);
+        var lineSet = new HashSet<string>(StringComparer.Ordinal);
+        var resolver = new SourceFileResolver(ImmutableArray<string>.Empty, args.BaseDirectory, args.PathMap);
         foreach (var e in args.EmbeddedFiles)
         {
-            AddContentCore(compilationWriter, "embed", e.Path);
+            using var stream = OpenFileForRead(e.Path);
+            AddContentCore(compilationWriter, "embed", e.Path, stream);
+
+            // When the compiler embeds a source file it will also embed the targets of any 
+            // #line directives in the code
+            if (sourceFileSet.Contains(e.Path))
+            {
+                foreach (string? rawTarget in GetLineTargets())
+                {
+                    if (rawTarget is null)
+                    {
+                        continue;
+                    }
+
+                    var target = rawTarget.Trim('"');
+                    if (string.IsNullOrEmpty(target))
+                    {
+                        continue;
+                    }
+
+                    target = resolver.ResolveReference(target, e.Path);
+                    if (target is not null)
+                    {
+                        AddContentCore(compilationWriter, "embedline", target);
+                    }
+                }
+
+                IEnumerable<string?> GetLineTargets()
+                {
+                    var sourceText = RoslynUtil.GetSourceText(stream, args.ChecksumAlgorithm, canBeEmbedded: false);
+                    if (args.ParseOptions is CSharpParseOptions csharpParseOptions)
+                    {
+                        var syntaxTree = CSharpSyntaxTree.ParseText(sourceText, csharpParseOptions);
+                        foreach (var line in syntaxTree.GetRoot().DescendantNodes(descendIntoTrivia: true).OfType<LineDirectiveTriviaSyntax>())
+                        {
+                            yield return line.File.Text;
+                        }
+                    }
+                    else
+                    {
+                        var basicParseOptions = (VisualBasicParseOptions)args.ParseOptions;
+                        var syntaxTree = VisualBasicSyntaxTree.ParseText(sourceText, basicParseOptions);
+                        foreach (var line in syntaxTree.GetRoot().GetDirectives(static x => x.Kind() == Microsoft.CodeAnalysis.VisualBasic.SyntaxKind.ExternalSourceDirectiveTrivia).OfType<ExternalSourceDirectiveTriviaSyntax>())
+                        {
+                            yield return line.ExternalSource.Text;
+                        }
+                    }
+                }
+            }
         }
     }
 

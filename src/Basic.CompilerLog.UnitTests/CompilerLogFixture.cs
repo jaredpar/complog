@@ -2,6 +2,7 @@
 using Microsoft.Build.Framework;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -15,7 +16,7 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class CompilerLogFixture : IDisposable
 {
-    private readonly List<Lazy<string>> _allCompLogs = new();
+    private readonly ImmutableArray<Lazy<string>> _allCompLogs;
 
     /// <summary>
     /// Storage directory for all the generated artifacts and scatch directories
@@ -67,6 +68,7 @@ public sealed class CompilerLogFixture : IDisposable
             Assert.True(result.Succeeded);
         }
 
+        var builder = ImmutableArray.CreateBuilder<Lazy<string>>();
         ConsoleComplogPath = WithBuild("console.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console --output .", scratchPath);
@@ -235,6 +237,7 @@ public sealed class CompilerLogFixture : IDisposable
             });
         }
 
+        _allCompLogs = builder.ToImmutable();
         Lazy<string> WithBuild(string name, Action<string> action)
         {
             var lazy = new Lazy<string>(() =>
@@ -260,7 +263,7 @@ public sealed class CompilerLogFixture : IDisposable
                 }
             });
 
-            _allCompLogs.Add(lazy);
+            builder.Add(lazy);
             return lazy;
         }
     }
