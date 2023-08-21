@@ -340,7 +340,6 @@ public sealed class ExportUtil
                 using var contentStream = Reader.GetContentStream(tuple.ContentHash);
                 _ = builder.WriteContent(tuple.FilePath, contentStream);
             }
-
         }
 
         void WriteResources()

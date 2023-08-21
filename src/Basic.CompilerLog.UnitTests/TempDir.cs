@@ -23,7 +23,17 @@ internal sealed class TempDir : IDisposable
 
     public void Dispose()
     {
-        Directory.Delete(DirectoryPath, recursive: true);
+        if (Directory.Exists(DirectoryPath))
+        {
+            Directory.Delete(DirectoryPath, recursive: true);
+        }
+    }
+
+    public string NewFile(string fileName, string content)
+    {
+        var filePath = Path.Combine(DirectoryPath, fileName);
+        File.WriteAllText(filePath, content);
+        return filePath;
     }
 
     public void EmptyDirectory()

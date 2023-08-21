@@ -272,22 +272,27 @@ public sealed class ExportUtilTests : TestBase
     public void StrongNameKey()
     {
         RunDotNet($"new console --name example --output .");
-        var projectFileContent = """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net7.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-                <PublicSign>true</PublicSign>
-                <KeyOriginatorFile>key.snk</KeyOriginatorFile>
-              </PropertyGroup>
-            </Project>
-            """;
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
+        AddProjectProperty("<PublicSign>true</PublicSign>");
+        AddProjectProperty("<KeyOriginatorFile>key.snk</KeyOriginatorFile>");
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
         File.WriteAllBytes(Path.Combine(RootDirectory, "key.snk"), keyBytes);
         RunDotNet("build -bl");
+        TestExport(1);
+    }
+
+    [Fact]
+    public void EmbedLineOutsidePath()
+    {
+        using var temp = new TempDir();
+        var contentFilePath = temp.NewFile("content.txt", "this is some content");
+        RunDotNet($"new console --name example --output .");
+        AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>");
+        File.WriteAllText(Path.Combine(RootDirectory, "Util.cs"),
+            $"""
+            #line 42 "{contentFilePath}"
+            """);
+        RunDotNet("build -bl");
+        temp.Dispose();
         TestExport(1);
     }
 

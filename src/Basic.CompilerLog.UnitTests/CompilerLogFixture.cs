@@ -123,18 +123,7 @@ public sealed class CompilerLogFixture : IDisposable
         ConsoleWithLineAndEmbedComplogPath = WithBuild("console-with-line-and-embed.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console --output .", scratchPath);
-            var projectFileContent = """
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup>
-                    <OutputType>Exe</OutputType>
-                    <TargetFramework>net7.0</TargetFramework>
-                    <ImplicitUsings>enable</ImplicitUsings>
-                    <Nullable>enable</Nullable>
-                    <EmbedAllSources>true</EmbedAllSources>
-                  </PropertyGroup>
-                </Project>
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "console.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            DotnetUtil.AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>", scratchPath);
             var extra = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -150,17 +139,7 @@ public sealed class CompilerLogFixture : IDisposable
 
         ClassLibComplogPath = WithBuild("classlib.complog", void (string scratchPath) =>
         {
-            RunDotnetCommand($"new classlib --name classlib --output .", scratchPath);
-            var projectFileContent = """
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup>
-                    <TargetFramework>net7.0</TargetFramework>
-                    <ImplicitUsings>enable</ImplicitUsings>
-                    <Nullable>enable</Nullable>
-                  </PropertyGroup>
-                </Project>
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "classlib.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            RunDotnetCommand($"new classlib --name classlib --output . --framework net7.0", scratchPath);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -178,17 +157,7 @@ public sealed class CompilerLogFixture : IDisposable
         {
             RunDotnetCommand($"new classlib --name classlibsigned --output .", scratchPath);
             var keyFilePath = Path.Combine(scratchPath, "Key.snk");
-            var projectFileContent = $"""
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup>
-                    <TargetFramework>net7.0</TargetFramework>
-                    <ImplicitUsings>enable</ImplicitUsings>
-                    <Nullable>enable</Nullable>
-                    <KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>
-                  </PropertyGroup>
-                </Project>
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "classlibsigned.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            DotnetUtil.AddProjectProperty($"<KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>", scratchPath);
             File.WriteAllBytes(keyFilePath, ResourceLoader.GetResourceBlob("Key.snk"));
             var program = """
                 using System;

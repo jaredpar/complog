@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.Configuration.Internal;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -28,6 +29,22 @@ internal static class DotnetUtil
     internal static ProcessResult New(string args, string? workingDirectory = null) => Command($"new {args}", workingDirectory);
 
     internal static ProcessResult Build(string args, string? workingDirectory = null) => Command($"build {args}", workingDirectory);
+
+    internal static void AddProjectProperty(string property, string workingDirectory)
+    {
+        var projectFile = Directory.EnumerateFiles(workingDirectory, "*proj").Single();
+        var lines = File.ReadAllLines(projectFile);
+        using var writer = new StreamWriter(projectFile, append: false);
+        foreach (var line in lines)
+        {
+            if (line.Contains("</PropertyGroup>"))
+            {
+                writer.WriteLine(property);
+            }
+
+            writer.WriteLine(line);
+        }
+    }
 
     internal static List<string> GetSdkDirectories()
     {
