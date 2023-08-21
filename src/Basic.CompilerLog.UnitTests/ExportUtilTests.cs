@@ -60,7 +60,7 @@ public sealed class ExportUtilTests : TestBase
             var buildResult = RunBuildCmd(tempDir.DirectoryPath);
             TestOutputHelper.WriteLine(buildResult.StandardOut);
             TestOutputHelper.WriteLine(buildResult.StandardError);
-            Assert.True(buildResult.Succeeded);
+            Assert.True(buildResult.Succeeded, $"Cannot build {Path.GetFileName(compilerLogFilePath)}");
 
             // Ensure that full paths aren't getting written out to the RSP file. That makes the 
             // build non-xcopyable. 

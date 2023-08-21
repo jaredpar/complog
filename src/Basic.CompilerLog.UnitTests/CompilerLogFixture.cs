@@ -26,6 +26,10 @@ public sealed class CompilerLogFixture : IDisposable
 
     internal string ConsoleNoGeneratorComplogPath { get; }
 
+    internal string ConsoleWithLineComplogPath { get; }
+
+    internal string ConsoleWithLineAndEmbedComplogPath { get; }
+
     internal string ClassLibComplogPath { get; }
 
     internal string ClassLibSignedComplogPath { get; }
@@ -99,6 +103,51 @@ public sealed class CompilerLogFixture : IDisposable
             return Path.Combine(scratchPath, "msbuild.binlog");
         });
         
+        ConsoleWithLineComplogPath = WithBuild("console-with-line.complog", string (string scratchPath) =>
+        {
+            RunDotnetCommand($"new console --name console --output .", scratchPath);
+            var extra = """
+                using System;
+                using System.Text.RegularExpressions;
+
+                // File that does not exsit
+                #line 42 "blah.txt"
+                class C { }
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), extra, TestBase.DefaultEncoding);
+            RunDotnetCommand("build -bl", scratchPath);
+            return Path.Combine(scratchPath, "msbuild.binlog");
+        });
+
+        ConsoleWithLineAndEmbedComplogPath = WithBuild("console-with-line-and-embed.complog", string (string scratchPath) =>
+        {
+            RunDotnetCommand($"new console --name console --output .", scratchPath);
+            var projectFileContent = """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <OutputType>Exe</OutputType>
+                    <TargetFramework>net7.0</TargetFramework>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                    <EmbedAllSources>true</EmbedAllSources>
+                  </PropertyGroup>
+                </Project>
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "console.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            var extra = """
+                using System;
+                using System.Text.RegularExpressions;
+
+                // File that does not exsit
+                #line 42 "line.txt"
+                class C { }
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), extra, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
+            RunDotnetCommand("build -bl", scratchPath);
+            return Path.Combine(scratchPath, "msbuild.binlog");
+        });
+
         ClassLibComplogPath = WithBuild("classlib.complog", string (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlib --output .", scratchPath);
