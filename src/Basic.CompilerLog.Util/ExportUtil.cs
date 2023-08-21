@@ -133,6 +133,7 @@ public sealed class ExportUtil
         var builder = new ContentBuilder(destinationDir, compilerCall.ProjectFilePath);
 
         var commandLineList = new List<string>();
+        var pathMap = new List<string>();
         var data = Reader.ReadRawCompilationData(compilerCall);
         Directory.CreateDirectory(destinationDir);
         WriteGeneratedFiles();

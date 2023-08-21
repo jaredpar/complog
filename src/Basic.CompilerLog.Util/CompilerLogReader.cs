@@ -135,32 +135,32 @@ public sealed class CompilerLogReader : IDisposable
             : rawCompilationData.Resources.Select(x => x.ResourceDescription).ToList();
         List<EmbeddedText>? embeddedTexts = null;
 
-        foreach (var tuple in rawCompilationData.Contents)
+        foreach (var rawContent in rawCompilationData.Contents)
         {
-            switch (tuple.Kind)
+            switch (rawContent.Kind)
             {
                 case RawContentKind.SourceText:
-                    sourceTextList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
+                    sourceTextList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.GeneratedText:
                     // Handled when creating the analyzer host
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    analyzerConfigList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
+                    analyzerConfigList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.AdditionalText:
                     additionalTextList.Add(new BasicAdditionalTextFile(
-                        tuple.FilePath,
-                        GetSourceText(tuple.ContentHash, hashAlgorithm)));
+                        rawContent.FilePath,
+                        GetSourceText(rawContent.ContentHash, hashAlgorithm)));
                     break;
                 case RawContentKind.CryptoKeyFile:
-                    HandleCryptoKeyFile(tuple.ContentHash);
+                    HandleCryptoKeyFile(rawContent.ContentHash);
                     break;
                 case RawContentKind.SourceLink:
-                    sourceLinkStream = GetStateAwareContentStream(tuple.ContentHash);
+                    sourceLinkStream = GetStateAwareContentStream(rawContent.ContentHash);
                     break;
                 case RawContentKind.Win32Resource:
-                    win32ResourceStream = GetStateAwareContentStream(tuple.ContentHash);
+                    win32ResourceStream = GetStateAwareContentStream(rawContent.ContentHash);
                     break;
                 case RawContentKind.Embed:
                 {
@@ -169,8 +169,8 @@ public sealed class CompilerLogReader : IDisposable
                         embeddedTexts = new List<EmbeddedText>();
                     }
 
-                    var sourceText = GetSourceText(tuple.ContentHash, hashAlgorithm, canBeEmbedded: true);
-                    var embeddedText = EmbeddedText.FromSource(tuple.FilePath, sourceText);
+                    var sourceText = GetSourceText(rawContent.ContentHash, hashAlgorithm, canBeEmbedded: true);
+                    var embeddedText = EmbeddedText.FromSource(rawContent.FilePath, sourceText);
                     embeddedTexts.Add(embeddedText);
                     break;
                 }
@@ -346,7 +346,7 @@ public sealed class CompilerLogReader : IDisposable
             : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
         var references = new List<RawReferenceData>();
         var analyzers = new List<RawAnalyzerData>();
-        var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind)>();
+        var contents = new List<RawContent>();
         var resources = new List<RawResourceData>();
         var readGeneratedFiles = false;
 
@@ -455,7 +455,7 @@ public sealed class CompilerLogReader : IDisposable
         void ParseContent(string line, RawContentKind kind)
         {
             var items = line.Split(':', count: 3);
-            contents.Add((items[2], items[1], kind));
+            contents.Add(new(items[2], items[1], kind));
         }
 
         void ParseResource(string line)

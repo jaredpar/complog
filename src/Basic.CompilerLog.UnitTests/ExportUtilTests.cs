@@ -283,17 +283,39 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void EmbedLineOutsidePath()
     {
-        using var temp = new TempDir();
-        var contentFilePath = temp.NewFile("content.txt", "this is some content");
-        RunDotNet($"new console --name example --output .");
-        AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>");
-        File.WriteAllText(Path.Combine(RootDirectory, "Util.cs"),
-            $"""
+        // Outside cone of project.
+        {
+            using var temp1 = new TempDir();
+            using var temp2 = new TempDir();
+            TestCore(temp1.NewFile("content.txt", "this is some content"), temp2.DirectoryPath);
+        }
+
+        // In cone of project
+        {
+            using var temp = new TempDir();
+            _ = temp.NewFile("content.txt", "this is other content");
+            TestCore("content.txt", temp.DirectoryPath);
+        }
+
+        // Relative above cone of project
+        {
+            using var temp = new TempDir();
+            _ = temp.NewFile("content.txt", "this is other content");
+            TestCore(@"..\content.txt", temp.NewDirectory("src"));
+        }
+
+        void TestCore(string contentFilePath, string workingDirectory)
+        {
+            RunDotNet($"new console --name example --output .", workingDirectory);
+            AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>", workingDirectory);
+            File.WriteAllText(Path.Combine(workingDirectory, "Util.cs"),
+                $"""
             #line 42 "{contentFilePath}"
             """);
-        RunDotNet("build -bl");
-        temp.Dispose();
-        TestExport(1);
+            RunDotNet("build -bl", workingDirectory);
+            File.Delete(contentFilePath);
+            TestExport(1);
+        }
     }
 
     [Theory]

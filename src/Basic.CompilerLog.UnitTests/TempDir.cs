@@ -36,6 +36,13 @@ internal sealed class TempDir : IDisposable
         return filePath;
     }
 
+    public string NewDirectory(string name)
+    {
+        var path = Path.Combine(DirectoryPath, name);
+        _ = Directory.CreateDirectory(path);
+        return path;
+    }
+
     public void EmptyDirectory()
     {
         var d = new DirectoryInfo(DirectoryPath);
