@@ -248,7 +248,7 @@ public sealed class CompilerLogReader : IDisposable
             var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
             var csharpOptions = (CSharpCompilationOptions)compilationOptions;
             var parseOptions = csharpArgs.ParseOptions;
-            var syntaxTrees = ParseSourceTexts(sourceTextList);
+            var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTextList, parseOptions);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
             csharpOptions = csharpOptions
@@ -269,25 +269,6 @@ public sealed class CompilerLogReader : IDisposable
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
-
-            SyntaxTree[] ParseSourceTexts(List<(SourceText SourceText, string Path)> sourceTextList)
-            {
-                if (sourceTextList.Count == 0)
-                {
-                    return Array.Empty<SyntaxTree>();
-                }
-
-                var syntaxTrees = new SyntaxTree[sourceTextList.Count];
-                Parallel.For(
-                    0,
-                    sourceTextList.Count,
-                    i =>
-                    {
-                        var t = sourceTextList[i];
-                        syntaxTrees[i] = CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
-                    });
-                return syntaxTrees;
-            }
         }
 
         VisualBasicCompilationData CreateVisualBasic()
@@ -295,7 +276,7 @@ public sealed class CompilerLogReader : IDisposable
             var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
             var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
             var parseOptions = basicArgs.ParseOptions;
-            var syntaxTrees = ParseSourceTexts(sourceTextList);
+            var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTextList, parseOptions);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
             basicOptions = basicOptions
@@ -316,25 +297,6 @@ public sealed class CompilerLogReader : IDisposable
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
-
-            SyntaxTree[] ParseSourceTexts(List<(SourceText SourceText, string Path)> sourceTextList)
-            {
-                if (sourceTextList.Count == 0)
-                {
-                    return Array.Empty<SyntaxTree>();
-                }
-
-                var syntaxTrees = new SyntaxTree[sourceTextList.Count];
-                Parallel.For(
-                    0,
-                    sourceTextList.Count,
-                    i =>
-                    {
-                        var t = sourceTextList[i];
-                        syntaxTrees[i] = VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
-                    });
-                return syntaxTrees;
-            }
         }
     }
 
@@ -737,9 +699,7 @@ public sealed class CompilerLogReader : IDisposable
                 stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
             }
 
-            // TODO: need to expose the real API for how the compiler reads source files. 
-            // move this comment to the rehydration code when we write it.
-            return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+            return RoslynUtil.GetSourceText(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
         }
         finally
         {
