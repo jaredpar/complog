@@ -44,7 +44,7 @@ internal sealed class Metadata
             }
             else
             {
-                var metadataVersion = ParseLine(line, "metadata", int.Parse);
+                var metadataVersion = ParseLine(line, "version", int.Parse);
                 var count = ParseLine(reader.ReadLineOrThrow(), "count", int.Parse);
                 var isWindows = ParseLine(reader.ReadLineOrThrow(), "windows", bool.Parse);
                 return new Metadata(
