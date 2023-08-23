@@ -24,7 +24,7 @@ public sealed class ExportUtilTests : TestBase
         Fixture = fixture;
     }
 
-    private void TestExport(int expectedCount, Action<string>? callback = null)
+    private void TestExport(int expectedCount, Action<string>? verifyExportCallback = null, Action? afterCreateCallback = null)
     {
         using var scratchDir = new TempDir("export test");
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
@@ -35,11 +35,12 @@ public sealed class ExportUtilTests : TestBase
         // Now that we've converted to a compiler log delete all the original project code. This 
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
+        afterCreateCallback?.Invoke();
 
-        TestExport(compilerLogFilePath, expectedCount, callback: callback);
+        TestExport(compilerLogFilePath, expectedCount, verifyExportCallback: verifyExportCallback);
     }
 
-    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? callback = null)
+    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
 #if NETCOREAPP
@@ -69,7 +70,7 @@ public sealed class ExportUtilTests : TestBase
                 Assert.False(line.Contains(tempDir.DirectoryPath, StringComparison.OrdinalIgnoreCase), $"Has full path: {line}");
             }
 
-            callback?.Invoke(tempDir.DirectoryPath);
+            verifyExportCallback?.Invoke(tempDir.DirectoryPath);
         }
 
         if (expectedCount is { } ec)
@@ -100,7 +101,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedText()
     {
-        TestExport(Fixture.ConsoleComplogPath.Value, 1, callback: tempPath =>
+        TestExport(Fixture.ConsoleComplogPath.Value, 1, verifyExportCallback: tempPath =>
         {
             var generatedPath = Path.Combine(tempPath, "generated");
             var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
@@ -115,7 +116,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedTextExcludeAnalyzers()
     {
-        TestExport(Fixture.ConsoleComplogPath.Value, 1, includeAnalyzers: false, callback: tempPath =>
+        TestExport(Fixture.ConsoleComplogPath.Value, 1, includeAnalyzers: false, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -280,42 +281,24 @@ public sealed class ExportUtilTests : TestBase
         TestExport(1);
     }
 
-    [Fact]
-    public void EmbedLineOutsidePath()
+    private void EmbedLineCore(string contentFilePath, Action? afterCreateCallback = null)
     {
-        // Outside cone of project.
-        {
-            using var temp1 = new TempDir();
-            using var temp2 = new TempDir();
-            TestCore(temp1.NewFile("content.txt", "this is some content"), temp2.DirectoryPath);
-        }
+        RunDotNet($"new console --name example --output .");
+        AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>");
+        File.WriteAllText(Path.Combine(RootDirectory, "Util.cs"),
+            $"""
+        #line 42 "{contentFilePath}"
+        """);
+        RunDotNet("build -bl");
+        TestExport(1, afterCreateCallback: afterCreateCallback);
+    }
 
-        // In cone of project
-        {
-            using var temp = new TempDir();
-            _ = temp.NewFile("content.txt", "this is other content");
-            TestCore("content.txt", temp.DirectoryPath);
-        }
-
-        // Relative above cone of project
-        {
-            using var temp = new TempDir();
-            _ = temp.NewFile("content.txt", "this is other content");
-            TestCore(@"..\content.txt", temp.NewDirectory("src"));
-        }
-
-        void TestCore(string contentFilePath, string workingDirectory)
-        {
-            RunDotNet($"new console --name example --output .", workingDirectory);
-            AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>", workingDirectory);
-            File.WriteAllText(Path.Combine(workingDirectory, "Util.cs"),
-                $"""
-            #line 42 "{contentFilePath}"
-            """);
-            RunDotNet("build -bl", workingDirectory);
-            File.Delete(contentFilePath);
-            TestExport(1);
-        }
+    [Fact]
+    public void EmbedLineInsideProject()
+    {
+        // Relative
+        _ = Root.NewFile("content.txt", "this is some content");
+        EmbedLineCore("content.txt");
     }
 
     [Theory]

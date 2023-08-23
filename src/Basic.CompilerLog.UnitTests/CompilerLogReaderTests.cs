@@ -353,4 +353,39 @@ public sealed class CompilerLogReaderTests : TestBase
             Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
         }
     }
+
+    /// <summary>
+    /// Ensure diagnostics are issued for the cases where a #line refers to
+    /// a target that can't be exported to another computer correctly.
+    /// </summary>
+    [Fact]
+    public void EmbedLineIssues()
+    {
+        // Outside project full path
+        {
+            using var temp = new TempDir();
+            Core(temp.NewFile("content.txt", "this is some content"));
+        }
+
+        // Inside project full path
+        {
+            Core(Root.NewFile("content.txt", "this is some content"));
+        }
+
+        void Core(string contentFilePath)
+        {
+            RunDotNet($"new console --name example --output .");
+            AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>");
+            File.WriteAllText(Path.Combine(RootDirectory, "Util.cs"),
+                $"""
+            #line 42 "{contentFilePath}"
+            """);
+            RunDotNet("build -bl");
+            var diagnostics = CompilerLogUtil.ConvertBinaryLog(
+                Path.Combine(RootDirectory, "msbuild.binlog"),
+                Path.Combine(RootDirectory, "msbuild.complog"));
+            Assert.Single(diagnostics);
+            Root.EmptyDirectory();
+        }
+    }
 }

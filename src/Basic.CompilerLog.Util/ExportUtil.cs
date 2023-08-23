@@ -133,7 +133,6 @@ public sealed class ExportUtil
         var builder = new ContentBuilder(destinationDir, compilerCall.ProjectFilePath);
 
         var commandLineList = new List<string>();
-        var pathMap = new List<string>();
         var data = Reader.ReadRawCompilationData(compilerCall);
         Directory.CreateDirectory(destinationDir);
         WriteGeneratedFiles();
@@ -337,9 +336,8 @@ public sealed class ExportUtil
         {
             foreach (var tuple in data.Contents.Where(x => x.Kind == RawContentKind.EmbedLine))
             {
-                // TODO: handle path map correctly here.
                 using var contentStream = Reader.GetContentStream(tuple.ContentHash);
-                _ = builder.WriteContent(tuple.FilePath, contentStream);
+                var newPath = builder.WriteContent(tuple.FilePath, contentStream);
             }
         }
 

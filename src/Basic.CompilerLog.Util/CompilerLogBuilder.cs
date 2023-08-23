@@ -64,7 +64,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             compilationWriter.WriteLine(arg);
         }
 
-        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath);
+        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
         CommandLineArguments commandLineArguments = compilerCall.IsCSharp
             ? CSharpCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
             : VisualBasicCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
@@ -78,7 +78,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddSources(compilationWriter, commandLineArguments);
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
-            AddEmbeds(compilationWriter, commandLineArguments);
+            AddEmbeds(compilationWriter, compilerCall, commandLineArguments, baseDirectory);
             AddContentIf("link", commandLineArguments.SourceLink);
             AddContentIf("ruleset", commandLineArguments.RuleSetPath);
             AddContentIf("appconfig", commandLineArguments.AppConfigPath);
@@ -456,7 +456,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddEmbeds(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddEmbeds(StreamWriter compilationWriter, CompilerCall compilerCall, CommandLineArguments args, string baseDirectory)
     {
         if (args.EmbeddedFiles.Length == 0)
         {
@@ -476,27 +476,34 @@ internal sealed class CompilerLogBuilder : IDisposable
             // #line directives in the code
             if (sourceFileSet.Contains(e.Path))
             {
-                foreach (string? rawTarget in GetLineTargets())
+                foreach (string rawTarget in GetLineTargets())
                 {
-                    if (rawTarget is null)
+                    var resolvedTarget = resolver.ResolveReference(rawTarget, e.Path);
+                    if (resolvedTarget is not null)
                     {
-                        continue;
-                    }
+                        AddContentCore(compilationWriter, "embedline", resolvedTarget);
 
-                    var target = rawTarget.Trim('"');
-                    if (string.IsNullOrEmpty(target))
-                    {
-                        continue;
-                    }
-
-                    target = resolver.ResolveReference(target, e.Path);
-                    if (target is not null)
-                    {
-                        AddContentCore(compilationWriter, "embedline", target);
+                        // Presently the compiler does not use /pathhmap when attempting to resolve
+                        // #line targets for embedded files. That means if the path is a full one here, or
+                        // resolved outside the cone of the project then it can't be exported later so 
+                        // issue a diagnostic.
+                        //
+                        // The original project directory from a compiler point of view is arbitrary as
+                        // compilers don't know about projects. Compiler logs center some operations,
+                        // like export, around the project directory.For export anything under the
+                        // original project directory will maintain the same relative relationship to
+                        // each other. Outside that though there is no relative relationship.
+                        //
+                        // https://github.com/dotnet/roslyn/issues/69659
+                        if (Path.IsPathRooted(rawTarget) ||
+                            !resolvedTarget.StartsWith(baseDirectory, PathUtil.Comparison))
+                        {
+                            Diagnostics.Add($"Cannot embed #line target {rawTarget} in {compilerCall.GetDiagnosticName()}");
+                        }
                     }
                 }
 
-                IEnumerable<string?> GetLineTargets()
+                IEnumerable<string> GetLineTargets()
                 {
                     var sourceText = RoslynUtil.GetSourceText(stream, args.ChecksumAlgorithm, canBeEmbedded: false);
                     if (args.ParseOptions is CSharpParseOptions csharpParseOptions)
@@ -504,7 +511,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                         var syntaxTree = CSharpSyntaxTree.ParseText(sourceText, csharpParseOptions);
                         foreach (var line in syntaxTree.GetRoot().DescendantNodes(descendIntoTrivia: true).OfType<LineDirectiveTriviaSyntax>())
                         {
-                            yield return line.File.Text;
+                            yield return line.File.Text.Trim('"');
                         }
                     }
                     else
@@ -513,7 +520,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                         var syntaxTree = VisualBasicSyntaxTree.ParseText(sourceText, basicParseOptions);
                         foreach (var line in syntaxTree.GetRoot().GetDirectives(static x => x.Kind() == Microsoft.CodeAnalysis.VisualBasic.SyntaxKind.ExternalSourceDirectiveTrivia).OfType<ExternalSourceDirectiveTriviaSyntax>())
                         {
-                            yield return line.ExternalSource.Text;
+                            yield return line.ExternalSource.Text.Trim('"');
                         }
                     }
                 }
