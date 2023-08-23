@@ -24,7 +24,7 @@ public sealed class ExportUtilTests : TestBase
         Fixture = fixture;
     }
 
-    private void TestExport(int expectedCount, Action<string>? verifyExportCallback = null, Action? afterCreateCallback = null)
+    private void TestExport(int expectedCount, Action<string>? verifyExportCallback = null)
     {
         using var scratchDir = new TempDir("export test");
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
@@ -35,7 +35,6 @@ public sealed class ExportUtilTests : TestBase
         // Now that we've converted to a compiler log delete all the original project code. This 
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
-        afterCreateCallback?.Invoke();
 
         TestExport(compilerLogFilePath, expectedCount, verifyExportCallback: verifyExportCallback);
     }
@@ -281,7 +280,7 @@ public sealed class ExportUtilTests : TestBase
         TestExport(1);
     }
 
-    private void EmbedLineCore(string contentFilePath, Action? afterCreateCallback = null)
+    private void EmbedLineCore(string contentFilePath)
     {
         RunDotNet($"new console --name example --output .");
         AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>");
@@ -290,7 +289,7 @@ public sealed class ExportUtilTests : TestBase
         #line 42 "{contentFilePath}"
         """);
         RunDotNet("build -bl");
-        TestExport(1, afterCreateCallback: afterCreateCallback);
+        TestExport(1);
     }
 
     [Fact]

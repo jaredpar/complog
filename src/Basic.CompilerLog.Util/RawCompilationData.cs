@@ -16,6 +16,12 @@ internal enum RawContentKind
     AdditionalText,
     AnalyzerConfig,
     Embed,
+
+    /// <summary>
+    /// This represents a #line directive target in a file that was embedded. These are different
+    /// than normal line directives in that they are embedded into the compilation as well so the
+    /// file is read from disk.
+    /// </summary>
     EmbedLine,
     SourceLink,
     RuleSet,
