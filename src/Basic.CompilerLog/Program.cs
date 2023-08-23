@@ -2,6 +2,7 @@
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
 using static Constants;
@@ -130,7 +131,7 @@ int RunAnalyzers(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         foreach (var compilerCall in compilerCalls)
@@ -215,7 +216,7 @@ int RunReferences(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
@@ -301,7 +302,7 @@ int RunExport(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: !excludeAnalyzers);
 
@@ -401,7 +402,7 @@ int RunEmit(IEnumerable<string> args, CancellationToken cancellationToken)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var allSucceeded = true;
 
@@ -467,7 +468,7 @@ int RunDiagnostics(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
         var compilationDatas = reader.ReadAllCompilationData(options.FilterCompilerCalls);
 
         foreach (var compilationData in compilationDatas)
@@ -532,6 +533,19 @@ List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>
         default:
             throw new Exception($"Unrecognized file extension: {ext}");
     }
+}
+
+CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen)
+{
+    var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen);
+    if (reader.MetadataVersion > CompilerLogReader.LatestMetadataVersion)
+    {
+        WriteLine($"Compiler log version newer than toolset: {reader.MetadataVersion}");
+        WriteLine($"Consider upgrading to latest compiler log toolset");
+        WriteLine("dotnet tool update --global Basic.CompilerLog");
+    }
+
+    return reader;
 }
 
 Stream GetOrCreateCompilerLogStream(List<string> extra)

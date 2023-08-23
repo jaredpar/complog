@@ -13,6 +13,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using static Basic.CompilerLog.Util.CommonUtil;
 
@@ -20,17 +21,19 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class CompilerLogReader : IDisposable
 {
-    private readonly Metadata _metadata;
-    private readonly Dictionary<Guid, MetadataReference> _refMap = new ();
+    public static int LatestMetadataVersion => Metadata.LatestMetadataVersion;
+
+    private readonly Dictionary<Guid, MetadataReference> _refMap = new();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new ();
+    private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new();
     private readonly bool _ownsCompilerLogState;
 
     public BasicAnalyzerHostOptions BasicAnalyzerHostOptions { get; }
     internal CompilerLogState CompilerLogState { get; }
-    internal ZipArchive ZipArchive { get; set; }
-    internal int Count => _metadata.Count;
-    internal int MetadataVersion => _metadata.MetadataVersion;
+    internal ZipArchive ZipArchive { get; private set; }
+    internal Metadata Metadata { get; }
+    internal int Count => Metadata.Count;
+    public int MetadataVersion => Metadata.MetadataVersion;
 
     private CompilerLogReader(Stream stream, bool leaveOpen, BasicAnalyzerHostOptions? basicAnalyzersOptions = null, CompilerLogState? state = null)
     {
@@ -47,14 +50,25 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         BasicAnalyzerHostOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
-        _metadata = ReadMetadata();
+        Metadata = ReadMetadata();
         ReadAssemblyInfo();
 
         Metadata ReadMetadata()
         {
             var entry = ZipArchive.GetEntry(MetadataFileName) ?? throw GetInvalidCompilerLogFileException();
             using var reader = Polyfill.NewStreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
-           return Metadata.Read(reader);
+            var metadata = Metadata.Read(reader);
+
+            if (metadata.IsWindows is { } isWindows && isWindows != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var produced = GetName(isWindows);
+                var current = GetName(RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
+                throw new Exception("Compiler log created on {produced} cannot be consumed on {current}");
+
+                string GetName(bool isWindows) => isWindows ? "Windows" : "Unix";
+            }
+
+            return metadata;
         }
 
         void ReadAssemblyInfo()
