@@ -35,7 +35,7 @@ internal static class Extensions
         return bytes;
     }
 
-    internal static string ReadLineOrThrow(this StreamReader reader)
+    internal static string ReadLineOrThrow(this TextReader reader)
     {
         if (reader.ReadLine() is { } line)
         {

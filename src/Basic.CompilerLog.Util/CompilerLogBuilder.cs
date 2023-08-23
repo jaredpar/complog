@@ -11,6 +11,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using static Basic.CompilerLog.Util.CommonUtil;
@@ -166,7 +167,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Optimal);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
-            writer.WriteLine($"count:{_compilationCount}");
+            Metadata.Create(_compilationCount).Write(writer);
         }
 
         void WriteAssemblyInfo()
