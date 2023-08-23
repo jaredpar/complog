@@ -32,7 +32,7 @@ public sealed class MetadataTests
     public void ParseVersion1()
     {
         var content = """
-            metadata:1
+            version:1
             count:50
             windows:true
             """;
