@@ -136,6 +136,7 @@ public sealed class ExportUtil
         var data = Reader.ReadRawCompilationData(compilerCall);
         Directory.CreateDirectory(destinationDir);
         WriteGeneratedFiles();
+        WriteEmbedLines();
         WriteContent();
         WriteAnalyzers();
         WriteReferences();
@@ -295,6 +296,7 @@ public sealed class ExportUtil
                     RawContentKind.AdditionalText => "/additionalfile:",
                     RawContentKind.AnalyzerConfig => "/analyzerconfig:",
                     RawContentKind.Embed => "/embed:",
+                    RawContentKind.EmbedLine => null,
                     RawContentKind.SourceLink => "/sourcelink:",
                     RawContentKind.RuleSet => "/ruleset:",
                     RawContentKind.AppConfig => "/appconfig:",
@@ -327,6 +329,15 @@ public sealed class ExportUtil
                 {
                     commandLineList.Add(FormatPathArgument(filePath));
                 }
+            }
+        }
+
+        void WriteEmbedLines()
+        {
+            foreach (var tuple in data.Contents.Where(x => x.Kind == RawContentKind.EmbedLine))
+            {
+                using var contentStream = Reader.GetContentStream(tuple.ContentHash);
+                var newPath = builder.WriteContent(tuple.FilePath, contentStream);
             }
         }
 
@@ -387,6 +398,12 @@ public sealed class ExportUtil
     private static string MaybeQuoteArgument(string arg)
     {
         if (arg.Contains(' ') && !IsOption(arg.AsSpan()))
+        {
+            var str = $@"""{arg}""";
+            return str;
+        }
+
+        if (arg.Contains('=') || arg.Contains(','))
         {
             var str = $@"""{arg}""";
             return str;

@@ -24,7 +24,7 @@ public sealed class ExportUtilTests : TestBase
         Fixture = fixture;
     }
 
-    private void TestExport(int expectedCount, Action<string>? callback = null)
+    private void TestExport(int expectedCount, Action<string>? verifyExportCallback = null)
     {
         using var scratchDir = new TempDir("export test");
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
@@ -36,10 +36,10 @@ public sealed class ExportUtilTests : TestBase
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
 
-        TestExport(compilerLogFilePath, expectedCount, callback: callback);
+        TestExport(compilerLogFilePath, expectedCount, verifyExportCallback: verifyExportCallback);
     }
 
-    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? callback = null)
+    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
 #if NETCOREAPP
@@ -60,7 +60,7 @@ public sealed class ExportUtilTests : TestBase
             var buildResult = RunBuildCmd(tempDir.DirectoryPath);
             TestOutputHelper.WriteLine(buildResult.StandardOut);
             TestOutputHelper.WriteLine(buildResult.StandardError);
-            Assert.True(buildResult.Succeeded);
+            Assert.True(buildResult.Succeeded, $"Cannot build {Path.GetFileName(compilerLogFilePath)}");
 
             // Ensure that full paths aren't getting written out to the RSP file. That makes the 
             // build non-xcopyable. 
@@ -69,7 +69,7 @@ public sealed class ExportUtilTests : TestBase
                 Assert.False(line.Contains(tempDir.DirectoryPath, StringComparison.OrdinalIgnoreCase), $"Has full path: {line}");
             }
 
-            callback?.Invoke(tempDir.DirectoryPath);
+            verifyExportCallback?.Invoke(tempDir.DirectoryPath);
         }
 
         if (expectedCount is { } ec)
@@ -85,13 +85,13 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void Console()
     {
-        TestExport(Fixture.ConsoleComplogPath, 1);
+        TestExport(Fixture.ConsoleComplogPath.Value, 1);
     }
 
     [Fact]
     public void ClassLib()
     {
-        TestExport(Fixture.ClassLibComplogPath, 1);
+        TestExport(Fixture.ClassLibComplogPath.Value, 1);
     }
 
     /// <summary>
@@ -100,7 +100,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedText()
     {
-        TestExport(Fixture.ConsoleComplogPath, 1, callback: tempPath =>
+        TestExport(Fixture.ConsoleComplogPath.Value, 1, verifyExportCallback: tempPath =>
         {
             var generatedPath = Path.Combine(tempPath, "generated");
             var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
@@ -115,7 +115,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedTextExcludeAnalyzers()
     {
-        TestExport(Fixture.ConsoleComplogPath, 1, includeAnalyzers: false, callback: tempPath =>
+        TestExport(Fixture.ConsoleComplogPath.Value, 1, includeAnalyzers: false, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -272,23 +272,32 @@ public sealed class ExportUtilTests : TestBase
     public void StrongNameKey()
     {
         RunDotNet($"new console --name example --output .");
-        var projectFileContent = """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net7.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-                <PublicSign>true</PublicSign>
-                <KeyOriginatorFile>key.snk</KeyOriginatorFile>
-              </PropertyGroup>
-            </Project>
-            """;
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
+        AddProjectProperty("<PublicSign>true</PublicSign>");
+        AddProjectProperty("<KeyOriginatorFile>key.snk</KeyOriginatorFile>");
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
         File.WriteAllBytes(Path.Combine(RootDirectory, "key.snk"), keyBytes);
         RunDotNet("build -bl");
         TestExport(1);
+    }
+
+    private void EmbedLineCore(string contentFilePath)
+    {
+        RunDotNet($"new console --name example --output .");
+        AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>");
+        File.WriteAllText(Path.Combine(RootDirectory, "Util.cs"),
+            $"""
+        #line 42 "{contentFilePath}"
+        """);
+        RunDotNet("build -bl");
+        TestExport(1);
+    }
+
+    [Fact]
+    public void EmbedLineInsideProject()
+    {
+        // Relative
+        _ = Root.NewFile("content.txt", "this is some content");
+        EmbedLineCore("content.txt");
     }
 
     [Theory]
@@ -296,7 +305,7 @@ public sealed class ExportUtilTests : TestBase
     [InlineData(false)]
     public void AllCompilerLogs(bool includeAnalyzers)
     {
-        foreach (var complogPath in Fixture.AllComplogs)
+        foreach (var complogPath in Fixture.GetAllCompLogs())
         {
             TestExport(complogPath, expectedCount: null, includeAnalyzers);
         }

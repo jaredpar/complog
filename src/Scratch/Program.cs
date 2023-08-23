@@ -12,12 +12,12 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\MudBlazor\src\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\Downloads\Roslyn.complog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
-var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
+// var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 //var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
 
 //TestDiagnostics(filePath);
@@ -26,7 +26,7 @@ var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog"
 
 // await SolutionScratchAsync(filePath);
 
-using var reader = CompilerLogReader.Create(@"C:\Users\jaredpar\Downloads\7.0.306.zip.binlog");
+using var reader = CompilerLogReader.Create(filePath);
 
 VerifyAll(filePath);
 Console.WriteLine("Done");

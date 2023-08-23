@@ -1,6 +1,7 @@
 ﻿using Basic.CompilerLog.Util;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -51,6 +52,11 @@ public abstract class TestBase : IDisposable
         TestOutputHelper.WriteLine(result.StandardOut);
         TestOutputHelper.WriteLine(result.StandardError);
         Assert.Equal(0, result.ExitCode);
+    }
+
+    protected void AddProjectProperty(string property, string? workingDirectory = null)
+    {
+        DotnetUtil.AddProjectProperty(property, workingDirectory ?? RootDirectory);
     }
 
     protected string GetBinaryLogFullPath(string? workingDirectory = null) =>

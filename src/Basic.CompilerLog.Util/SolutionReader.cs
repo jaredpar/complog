@@ -97,6 +97,7 @@ public sealed class SolutionReader : IDisposable
                 case RawContentKind.Win32Icon:
                 case RawContentKind.CryptoKeyFile:
                 case RawContentKind.Embed:
+                case RawContentKind.EmbedLine:
                     // Not exposed via the workspace APIs yet
                     break;
                 default:

@@ -16,6 +16,13 @@ internal enum RawContentKind
     AdditionalText,
     AnalyzerConfig,
     Embed,
+
+    /// <summary>
+    /// This represents a #line directive target in a file that was embedded. These are different
+    /// than normal line directives in that they are embedded into the compilation as well so the
+    /// file is read from disk.
+    /// </summary>
+    EmbedLine,
     SourceLink,
     RuleSet,
     AppConfig,
@@ -65,12 +72,31 @@ internal readonly struct RawResourceData
     }
 }
 
+internal readonly struct RawContent
+{
+    internal string FilePath { get; }
+    internal string ContentHash { get; }
+    internal RawContentKind Kind { get; }
+
+    internal RawContent(
+        string filePath,
+        string contentHash,
+        RawContentKind kind)
+    {
+        FilePath = filePath;
+        ContentHash = contentHash;
+        Kind = kind;
+    }
+
+    public override string ToString() => $"{Path.GetFileName(FilePath)} {Kind}";
+}
+
 internal sealed class RawCompilationData
 {
     internal CommandLineArguments Arguments { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
-    internal List<(string FilePath, string ContentHash, RawContentKind Kind)> Contents { get; }
+    internal List<RawContent> Contents { get; }
     internal List<RawResourceData> Resources { get; }
 
     /// <summary>
@@ -85,7 +111,7 @@ internal sealed class RawCompilationData
         CommandLineArguments arguments,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
-        List<(string FilePath, string ContentHash, RawContentKind Kind)> contents,
+        List<RawContent> contents,
         List<RawResourceData> resources,
         bool readGeneratedFiles)
     {

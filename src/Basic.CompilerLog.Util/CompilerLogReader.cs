@@ -1,4 +1,5 @@
 ﻿using Basic.CompilerLog.Util.Impl;
+using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -134,32 +135,32 @@ public sealed class CompilerLogReader : IDisposable
             : rawCompilationData.Resources.Select(x => x.ResourceDescription).ToList();
         List<EmbeddedText>? embeddedTexts = null;
 
-        foreach (var tuple in rawCompilationData.Contents)
+        foreach (var rawContent in rawCompilationData.Contents)
         {
-            switch (tuple.Kind)
+            switch (rawContent.Kind)
             {
                 case RawContentKind.SourceText:
-                    sourceTextList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
+                    sourceTextList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.GeneratedText:
                     // Handled when creating the analyzer host
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    analyzerConfigList.Add((GetSourceText(tuple.ContentHash, hashAlgorithm), tuple.FilePath));
+                    analyzerConfigList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.AdditionalText:
                     additionalTextList.Add(new BasicAdditionalTextFile(
-                        tuple.FilePath,
-                        GetSourceText(tuple.ContentHash, hashAlgorithm)));
+                        rawContent.FilePath,
+                        GetSourceText(rawContent.ContentHash, hashAlgorithm)));
                     break;
                 case RawContentKind.CryptoKeyFile:
-                    HandleCryptoKeyFile(tuple.ContentHash);
+                    HandleCryptoKeyFile(rawContent.ContentHash);
                     break;
                 case RawContentKind.SourceLink:
-                    sourceLinkStream = GetStateAwareContentStream(tuple.ContentHash);
+                    sourceLinkStream = GetStateAwareContentStream(rawContent.ContentHash);
                     break;
                 case RawContentKind.Win32Resource:
-                    win32ResourceStream = GetStateAwareContentStream(tuple.ContentHash);
+                    win32ResourceStream = GetStateAwareContentStream(rawContent.ContentHash);
                     break;
                 case RawContentKind.Embed:
                 {
@@ -168,11 +169,16 @@ public sealed class CompilerLogReader : IDisposable
                         embeddedTexts = new List<EmbeddedText>();
                     }
 
-                    var sourceText = GetSourceText(tuple.ContentHash, hashAlgorithm, canBeEmbedded: true);
-                    var embeddedText = EmbeddedText.FromSource(tuple.FilePath, sourceText);
+                    var sourceText = GetSourceText(rawContent.ContentHash, hashAlgorithm, canBeEmbedded: true);
+                    var embeddedText = EmbeddedText.FromSource(rawContent.FilePath, sourceText);
                     embeddedTexts.Add(embeddedText);
                     break;
                 }
+
+                // not exposed as #line embeds don't matter for most API usages, it's only used in 
+                // command line compiles
+                case RawContentKind.EmbedLine:
+                    break;
 
                 // not exposed yet
                 case RawContentKind.RuleSet:
@@ -248,7 +254,7 @@ public sealed class CompilerLogReader : IDisposable
             var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
             var csharpOptions = (CSharpCompilationOptions)compilationOptions;
             var parseOptions = csharpArgs.ParseOptions;
-            var syntaxTrees = ParseSourceTexts(sourceTextList);
+            var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTextList, parseOptions);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
             csharpOptions = csharpOptions
@@ -269,25 +275,6 @@ public sealed class CompilerLogReader : IDisposable
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
-
-            SyntaxTree[] ParseSourceTexts(List<(SourceText SourceText, string Path)> sourceTextList)
-            {
-                if (sourceTextList.Count == 0)
-                {
-                    return Array.Empty<SyntaxTree>();
-                }
-
-                var syntaxTrees = new SyntaxTree[sourceTextList.Count];
-                Parallel.For(
-                    0,
-                    sourceTextList.Count,
-                    i =>
-                    {
-                        var t = sourceTextList[i];
-                        syntaxTrees[i] = CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
-                    });
-                return syntaxTrees;
-            }
         }
 
         VisualBasicCompilationData CreateVisualBasic()
@@ -295,7 +282,7 @@ public sealed class CompilerLogReader : IDisposable
             var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
             var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
             var parseOptions = basicArgs.ParseOptions;
-            var syntaxTrees = ParseSourceTexts(sourceTextList);
+            var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTextList, parseOptions);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
             basicOptions = basicOptions
@@ -316,25 +303,6 @@ public sealed class CompilerLogReader : IDisposable
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
-
-            SyntaxTree[] ParseSourceTexts(List<(SourceText SourceText, string Path)> sourceTextList)
-            {
-                if (sourceTextList.Count == 0)
-                {
-                    return Array.Empty<SyntaxTree>();
-                }
-
-                var syntaxTrees = new SyntaxTree[sourceTextList.Count];
-                Parallel.For(
-                    0,
-                    sourceTextList.Count,
-                    i =>
-                    {
-                        var t = sourceTextList[i];
-                        syntaxTrees[i] = VisualBasicSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
-                    });
-                return syntaxTrees;
-            }
         }
     }
 
@@ -378,7 +346,7 @@ public sealed class CompilerLogReader : IDisposable
             : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
         var references = new List<RawReferenceData>();
         var analyzers = new List<RawAnalyzerData>();
-        var contents = new List<(string FilePath, string ContentHash, RawContentKind Kind)>();
+        var contents = new List<RawContent>();
         var resources = new List<RawResourceData>();
         var readGeneratedFiles = false;
 
@@ -410,6 +378,9 @@ public sealed class CompilerLogReader : IDisposable
                     break;
                 case "embed":
                     ParseContent(line, RawContentKind.Embed);
+                    break;
+                case "embedline":
+                    ParseContent(line, RawContentKind.EmbedLine);
                     break;
                 case "link":
                     ParseContent(line, RawContentKind.SourceLink);
@@ -484,7 +455,7 @@ public sealed class CompilerLogReader : IDisposable
         void ParseContent(string line, RawContentKind kind)
         {
             var items = line.Split(':', count: 3);
-            contents.Add((items[2], items[1], kind));
+            contents.Add(new(items[2], items[1], kind));
         }
 
         void ParseResource(string line)
@@ -737,9 +708,7 @@ public sealed class CompilerLogReader : IDisposable
                 stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
             }
 
-            // TODO: need to expose the real API for how the compiler reads source files. 
-            // move this comment to the rehydration code when we write it.
-            return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+            return RoslynUtil.GetSourceText(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
         }
         finally
         {
