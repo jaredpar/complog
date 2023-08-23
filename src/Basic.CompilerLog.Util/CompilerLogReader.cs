@@ -20,6 +20,7 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class CompilerLogReader : IDisposable
 {
+    private readonly Metadata _metadata;
     private readonly Dictionary<Guid, MetadataReference> _refMap = new ();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new ();
@@ -28,7 +29,8 @@ public sealed class CompilerLogReader : IDisposable
     public BasicAnalyzerHostOptions BasicAnalyzerHostOptions { get; }
     internal CompilerLogState CompilerLogState { get; }
     internal ZipArchive ZipArchive { get; set; }
-    internal int Count { get; }
+    internal int Count => _metadata.Count;
+    internal int MetadataVersion => _metadata.MetadataVersion;
 
     private CompilerLogReader(Stream stream, bool leaveOpen, BasicAnalyzerHostOptions? basicAnalyzersOptions = null, CompilerLogState? state = null)
     {
@@ -45,18 +47,14 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         BasicAnalyzerHostOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
-        Count = ReadMetadata();
+        _metadata = ReadMetadata();
         ReadAssemblyInfo();
 
-        int ReadMetadata()
+        Metadata ReadMetadata()
         {
             var entry = ZipArchive.GetEntry(MetadataFileName) ?? throw GetInvalidCompilerLogFileException();
             using var reader = Polyfill.NewStreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
-            var line = reader.ReadLineOrThrow();
-            var items = line.Split(':', StringSplitOptions.RemoveEmptyEntries);
-            if (items.Length != 2 || !int.TryParse(items[1], out var count))
-                throw new InvalidOperationException();
-            return count;
+           return Metadata.Read(reader);
         }
 
         void ReadAssemblyInfo()
