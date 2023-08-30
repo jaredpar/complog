@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Collections.Concurrent;
 
 #if NETCOREAPP
 using System.Runtime.Loader;
@@ -133,27 +134,27 @@ public enum BasicAnalyzerKind
 /// </summary>
 public abstract class BasicAnalyzerHost : IDisposable
 {
-    private readonly BasicAnalyzerKind _kind;
-    private readonly ImmutableArray<AnalyzerReference> _analyzerReferences;
+    private readonly ConcurrentQueue<Diagnostic> _diagnostics = new();
 
-    public BasicAnalyzerKind Kind => _kind;
+    public BasicAnalyzerHostOptions Options { get; }
+    public BasicAnalyzerKind Kind { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences
     {
         get
         {
             CheckDisposed();
-            return _analyzerReferences;
+            return AnalyzerReferencesCore;
         }
     }
 
+    protected abstract ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
+
     public bool IsDisposed { get; private set; }
 
-    protected BasicAnalyzerHost(
-        BasicAnalyzerKind kind,
-        ImmutableArray<AnalyzerReference> analyzerReferences)
+    protected BasicAnalyzerHost(BasicAnalyzerKind kind, BasicAnalyzerHostOptions options)
     {
-        _kind = kind;
-        _analyzerReferences = analyzerReferences;
+        Kind = kind;
+        Options = options;
     }
 
     public void Dispose()
@@ -182,6 +183,15 @@ public abstract class BasicAnalyzerHost : IDisposable
             throw new ObjectDisposedException(nameof(BasicAnalyzerHost));
         }
     }
+
+    protected void AddDiagnostic(Diagnostic diagnostic) => _diagnostics.Enqueue(diagnostic);
+
+    /// <summary>
+    /// Get the current set of diagnostics. This can change as analyzers can add them during 
+    /// execution which can happen in parallel to analysis.
+    /// </summary>
+    public List<Diagnostic> GetDiagnostics() => _diagnostics.ToList();
+    
 
     public static bool IsSupported(BasicAnalyzerKind kind)
     {

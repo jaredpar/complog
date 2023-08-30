@@ -90,6 +90,13 @@ public abstract class CompilationData
         driver.RunGeneratorsAndUpdateCompilation(Compilation, out tuple.Item1, out tuple.Item2, cancellationToken);
         _afterGenerators = tuple;
         diagnostics = tuple.Item2;
+
+        // Now that analyzers have completed running add any diagnostics the host has captured
+        if (BasicAnalyzerHost.GetDiagnostics() is { Count: > 0} list)
+        {
+            diagnostics = diagnostics.AddRange(list);
+        }
+
         return tuple.Item1;
     }
 

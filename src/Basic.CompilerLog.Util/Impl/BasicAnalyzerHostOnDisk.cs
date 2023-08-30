@@ -21,42 +21,31 @@ namespace Basic.CompilerLog.Util.Impl;
 internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 {
     internal OnDiskLoader Loader { get; }
-    internal new ImmutableArray<AnalyzerFileReference> AnalyzerReferences { get; }
+    protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
     internal string AnalyzerDirectory => Loader.AnalyzerDirectory;
 
-    private BasicAnalyzerHostOnDisk(
-        OnDiskLoader loader,
-        ImmutableArray<AnalyzerFileReference> analyzerReferences)
-        : base(BasicAnalyzerKind.OnDisk, ImmutableArray<AnalyzerReference>.CastUp(analyzerReferences))
-    {
-        Loader = loader;
-        AnalyzerReferences = analyzerReferences;
-    }
-
-    internal static BasicAnalyzerHostOnDisk Create(
-        CompilerLogReader reader,
-        List<RawAnalyzerData> analyzers,
-        BasicAnalyzerHostOptions options)
+    internal BasicAnalyzerHostOnDisk(CompilerLogReader reader, List<RawAnalyzerData> analyzers, BasicAnalyzerHostOptions options)
+        : base(BasicAnalyzerKind.OnDisk, options)
     {
         var name =  $"{nameof(BasicAnalyzerHostOnDisk)} {Guid.NewGuid():N}";
-        var loader = new OnDiskLoader(name, options);
-        Directory.CreateDirectory(loader.AnalyzerDirectory);
+        Loader = new OnDiskLoader(name, options);
+        Directory.CreateDirectory(Loader.AnalyzerDirectory);
 
         // Now create the AnalyzerFileReference. This won't actually pull on any assembly loading
         // until later so it can be done at the same time we're building up the files.
-        var builder = ImmutableArray.CreateBuilder<AnalyzerFileReference>(analyzers.Count);
+        var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var data in analyzers)
         {
-            var path = Path.Combine(loader.AnalyzerDirectory, data.FileName);
+            var path = Path.Combine(Loader.AnalyzerDirectory, data.FileName);
             using var fileStream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
             reader.CopyAssemblyBytes(data.Mvid, fileStream);
             fileStream.Dispose();
 
-            builder.Add(new AnalyzerFileReference(path, loader));
+            builder.Add(new AnalyzerFileReference(path, Loader));
         }
 
-        return new BasicAnalyzerHostOnDisk(loader, builder.MoveToImmutable());
+        AnalyzerReferencesCore = builder.MoveToImmutable();
     }
 
     protected override void DisposeCore()
