@@ -11,9 +11,6 @@ namespace Basic.CompilerLog.Util.Impl;
 /// </summary>
 internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
 {
-    internal bool ReadGeneratedFiles { get; }
-    internal ImmutableArray<(SourceText SourceText, string Path)> GeneratedSourceTexts { get; }
-
     public static readonly DiagnosticDescriptor CannotReadGeneratedFiles =
         new DiagnosticDescriptor(
             "BCLA0001",
@@ -23,24 +20,24 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
 
-    internal BasicAnalyzerHostNone(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
-        : base(
-            BasicAnalyzerKind.None, 
-            CreateAnalyzerReferences(readGeneratedFiles, generatedSourceTexts))
+    internal bool ReadGeneratedFiles { get; }
+    internal ImmutableArray<(SourceText SourceText, string Path)> GeneratedSourceTexts { get; }
+    protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
+
+    internal BasicAnalyzerHostNone(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts, BasicAnalyzerHostOptions options)
+        : base(BasicAnalyzerKind.None, options)
     {
         ReadGeneratedFiles = readGeneratedFiles;
         GeneratedSourceTexts = generatedSourceTexts;
+        AnalyzerReferencesCore = readGeneratedFiles && generatedSourceTexts.Length == 0
+            ? ImmutableArray<AnalyzerReference>.Empty
+            : ImmutableArray.Create<AnalyzerReference>(new NoneAnalyzerReference(readGeneratedFiles, generatedSourceTexts));
     }
 
     protected override void DisposeCore()
     {
         // Do nothing
     }
-
-    private static ImmutableArray<AnalyzerReference> CreateAnalyzerReferences(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts) =>
-        readGeneratedFiles && generatedSourceTexts.Length == 0
-            ? ImmutableArray<AnalyzerReference>.Empty
-            : ImmutableArray.Create<AnalyzerReference>(new NoneAnalyzerReference(readGeneratedFiles, generatedSourceTexts));
 }
 
 /// <summary>

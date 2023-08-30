@@ -18,20 +18,13 @@ namespace Basic.CompilerLog.Util.Impl;
 internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
 {
     internal InMemoryLoader Loader { get; }
+    protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore => Loader.AnalyzerReferences;
 
-    private BasicAnalyzerHostInMemory(
-        InMemoryLoader loader,
-        ImmutableArray<AnalyzerReference> analyzerReferences)
-        : base(BasicAnalyzerKind.InMemory, analyzerReferences)
-    {
-        Loader = loader;
-    }
-
-    internal static BasicAnalyzerHostInMemory Create(CompilerLogReader reader, List<RawAnalyzerData> analyzers, BasicAnalyzerHostOptions options) 
+    internal BasicAnalyzerHostInMemory(CompilerLogReader reader, List<RawAnalyzerData> analyzers, BasicAnalyzerHostOptions options)
+        :base(BasicAnalyzerKind.InMemory, options)
     {
         var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
-        var loader = new InMemoryLoader(name, options, reader, analyzers);
-        return new BasicAnalyzerHostInMemory(loader, loader.AnalyzerReferences);
+        Loader = new InMemoryLoader(name, options, reader, analyzers, AddDiagnostic);
     }
 
     protected override void DisposeCore()
@@ -48,7 +41,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     internal AssemblyLoadContext CompilerLoadContext { get; }
 
-    internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
         :base(name, isCollectible: true)
     {
         CompilerLoadContext = options.CompilerLoadContext;
@@ -57,7 +50,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
         {
             var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
             _map[simpleName] = reader.GetAssemblyBytes(analyzer.Mvid);
-            builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), this));
+            builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), this, onDiagnostic));
         }
 
         AnalyzerReferences = builder.MoveToImmutable();
@@ -99,7 +92,7 @@ internal sealed class InMemoryLoader
 {
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
-    internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    internal InMemoryLoader(string name, BasicAnalyzerHostOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
     {
         throw new PlatformNotSupportedException();
     }
@@ -200,15 +193,26 @@ internal sealed class InMemoryLoader
 
 file sealed class BasicAnalyzerReference : AnalyzerReference
 {
+    public static readonly DiagnosticDescriptor CannotLoadTypes =
+        new DiagnosticDescriptor(
+            "BCLA0002",
+            "Failed to load types from assembly",
+            "Failed to load types from {0}: {1}",
+            "BasicCompilerLog",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
+
     internal AssemblyName AssemblyName { get; }
     internal InMemoryLoader Loader { get; }
+    internal Action<Diagnostic> OnDiagnostic { get; }
     public override object Id { get; } = Guid.NewGuid();
     public override string? FullPath => null;
 
-    internal BasicAnalyzerReference(AssemblyName assemblyName, InMemoryLoader loader)
+    internal BasicAnalyzerReference(AssemblyName assemblyName, InMemoryLoader loader, Action<Diagnostic> onDiagnostic)
     {
         AssemblyName = assemblyName;
         Loader = loader;
+        OnDiagnostic = onDiagnostic;
     }
 
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language)
@@ -245,10 +249,10 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         {
             return assembly.GetTypes();
         }
-        catch
+        catch (Exception ex)
         {
-            // TODO: need to handle the load errors here same way as compiler. The CodeFixProvider assemblies
-            // not loading shouldn't lead to not generating anything.
+            var diagnostic = Diagnostic.Create(CannotLoadTypes, Location.None, assembly.FullName, ex.Message);
+            OnDiagnostic(diagnostic);
             return Array.Empty<Type>();
         }
     }

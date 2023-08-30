@@ -557,9 +557,9 @@ public sealed class CompilerLogReader : IDisposable
 
         basicAnalyzerHost = BasicAnalyzerHostOptions.ResolvedKind switch
         {
-            BasicAnalyzerKind.OnDisk => BasicAnalyzerHostOnDisk.Create(this, analyzers, BasicAnalyzerHostOptions),
-            BasicAnalyzerKind.InMemory => BasicAnalyzerHostInMemory.Create(this, analyzers, BasicAnalyzerHostOptions),
-            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(rawCompilationData.ReadGeneratedFiles, ReadGeneratedSourceTexts()),
+            BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers, BasicAnalyzerHostOptions),
+            BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers, BasicAnalyzerHostOptions),
+            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(rawCompilationData.ReadGeneratedFiles, ReadGeneratedSourceTexts(), BasicAnalyzerHostOptions),
             _ => throw new InvalidOperationException()
         };
 
