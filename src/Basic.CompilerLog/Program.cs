@@ -63,22 +63,10 @@ int RunCreate(IEnumerable<string> args)
         }
 
         // todo use the standard get or build code
-        string? binlogFilePath = null;
-        if (extra.Count == 1)
+        string binlogFilePath = GetLogFilePath(extra);
+        if (PathUtil.Comparer.Equals(".complog", Path.GetExtension(binlogFilePath)))
         {
-            binlogFilePath = extra[0];
-        }
-        else if (extra.Count == 0)
-        {
-            binlogFilePath = Directory
-                .EnumerateFiles(CurrentDirectory, "*.binlog")
-                .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
-                .FirstOrDefault();
-        }
-
-        if (binlogFilePath is null)
-        {
-            PrintUsage();
+            WriteLine($"Already a .complog file: {binlogFilePath}");
             return ExitFailure;
         }
 
@@ -87,11 +75,7 @@ int RunCreate(IEnumerable<string> args)
             complogFilePath = Path.ChangeExtension(binlogFilePath, ".complog");
         }
 
-        if (!Path.IsPathRooted(complogFilePath))
-        {
-            complogFilePath = Path.Combine(CurrentDirectory, complogFilePath);
-        }
-
+        complogFilePath = GetResolvedPath(CurrentDirectory, complogFilePath);
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(
             binlogFilePath,
             complogFilePath,
@@ -583,66 +567,63 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
 /// </summary>
 string GetLogFilePath(List<string> extra)
 {
-    string? path;
+    string? logFilePath;
+    IEnumerable<string> args = Array.Empty<string>();
+    string baseDirectory = CurrentDirectory;
     if (extra.Count == 0)
     {
-        path = GetLogFilePathExisting(CurrentDirectory);
-        if (path is null)
-        {
-            throw CreateOptionException();
-        }
-
-        return path;
+        logFilePath = FindLogFilePath(baseDirectory);
     }
-
-    path = extra[0];
-    if (path == "--")
+    else
     {
-        return GetLogFilePathAfterBuild(CurrentDirectory, null, extra.Skip(1));
+        logFilePath = extra[0];
+        args = extra.Skip(1);
+        if (string.IsNullOrEmpty(Path.GetExtension(logFilePath)))
+        {
+            baseDirectory = logFilePath;
+            logFilePath = FindLogFilePath(baseDirectory);
+        }
     }
 
-    switch (Path.GetExtension(path))
+    if (logFilePath is null)
+    {
+        throw CreateOptionException();
+    }
+
+    switch (Path.GetExtension(logFilePath))
     {
         case ".complog":
         case ".binlog":
-            if (extra.Count > 1)
+            if (args.Any())
             {
-                throw new OptionException($"Extra arguments: {string.Join(' ', extra.Skip(1))}", "log");
+                throw new OptionException($"Extra arguments: {string.Join(' ', args.Skip(1))}", "log");
             }
 
-            return GetResolvedPath(CurrentDirectory, path);
+            return GetResolvedPath(CurrentDirectory, logFilePath);
         case ".sln":
         case ".csproj":
-            return GetLogFilePathAfterBuild(CurrentDirectory, path, extra.Skip(1));
+        case ".vbproj":
+            return GetLogFilePathAfterBuild(baseDirectory, logFilePath, args);
         default:
-            throw new OptionException($"Not a valid log file {path}", "log");
+            throw new OptionException($"Not a valid log file {logFilePath}", "log");
     }
 
-    static string GetLogFilePathExisting(string baseDirectory)
-    {
-        // Search the directory for valid log files
-        var path = FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog");
-        if (path is not null)
-        {
-            return path;
-        }
-
-        throw CreateOptionException();
-    }
+    static string? FindLogFilePath(string baseDirectory) =>
+        FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj");
 
     static string GetLogFilePathAfterBuild(string baseDirectory, string? buildFileName, IEnumerable<string> buildArgs)
     {
         var path = buildFileName is not null
             ? GetResolvedPath(baseDirectory, buildFileName)
-            : FindFirstFileWithPattern("*.sln", "*.csproj");
+            : FindFirstFileWithPattern(baseDirectory, "*.sln", "*.csproj", ".vbproj");
         if (path is null)
         {
             throw CreateOptionException();
         }
 
-        // TODO: use a temp file for the binlog
-        var args = $"build {path} -bl:msbuild.binlog {string.Join(' ', buildArgs)}";
-        WriteLine("Building");
+        var tag = buildArgs.Any() ? "" : "-t:Rebuild";
+        var args = $"build {path} -bl:complog.binlog {tag} {string.Join(' ', buildArgs)}";
+        WriteLine($"Building {path}");
         WriteLine($"dotnet {args}");
         var result = ProcessUtil.Run("dotnet", args, baseDirectory);
         WriteLine(result.StandardOut);
@@ -652,8 +633,7 @@ string GetLogFilePath(List<string> extra)
             throw new Exception("Build failed");
         }
 
-        // TODO: use a temp file for the binlog
-        return Path.Combine(baseDirectory, "msbuild.binlog");
+        return Path.Combine(baseDirectory, "complog.binlog");
     }
 
     static OptionException CreateOptionException() => new("Need a file to analyze", "log");
