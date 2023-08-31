@@ -33,13 +33,13 @@ try
         "emit" => RunEmit(rest, cts.Token),
         "analyzers" => RunAnalyzers(rest),
         "print" => RunPrint(rest),
-        "help" => RunHelp(),
-        _ => RunHelp()
+        "help" => RunHelp(rest),
+        _ => RunHelp(null)
     };
 }
 catch (Exception e)
 {
-    RunHelp();
+    RunHelp(null);
     WriteLine("Unexpected error");
     WriteLine(e.Message);
     return ExitFailure;
@@ -62,6 +62,7 @@ int RunCreate(IEnumerable<string> args)
             return ExitFailure;
         }
 
+        // todo use the standard get or build code
         string? binlogFilePath = null;
         if (extra.Count == 1)
         {
@@ -112,7 +113,7 @@ int RunCreate(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog create [OPTIONS] binlog");
+        WriteLine("complog create [OPTIONS] msbuild.binlog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -154,7 +155,7 @@ int RunAnalyzers(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog analyzers [OPTIONS] build.complog");
+        WriteLine("complog analyzers [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -193,7 +194,7 @@ int RunPrint(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog print [OPTIONS] build.complog");
+        WriteLine("complog print [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -277,7 +278,7 @@ int RunReferences(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog rsp [OPTIONS] build.complog");
+        WriteLine("complog rsp [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -329,7 +330,7 @@ int RunExport(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog export [OPTIONS] build.complog");
+        WriteLine("complog export [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -379,7 +380,7 @@ int RunResponseFile(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog rsp [OPTIONS] build.complog");
+        WriteLine("complog rsp [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -445,7 +446,7 @@ int RunEmit(IEnumerable<string> args, CancellationToken cancellationToken)
 
     void PrintUsage()
     {
-        WriteLine("complog rsp [OPTIONS] build.complog");
+        WriteLine("complog rsp [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -496,17 +497,27 @@ int RunDiagnostics(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog diagnostics [OPTIONS] compilerlog");
+        WriteLine("complog diagnostics [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
 
-int RunHelp()
+int RunHelp(IEnumerable<string>? args)
 {
+    var verbose = false;
+    if (args is not null)
+    {
+        var options = new OptionSet()
+        {
+            { "v|verbose", "verbose output", o => { if (o is not null) verbose = true; } },
+        };
+        options.Parse(args);
+    }
+
     WriteLine("""
         complog [command] [args]
         Commands
-          create        Create a compilerlog file 
+          create        Create a compiler log file 
           diagnostics   Print diagnostics for a compilation
           export        Export compilation contents, rsp and build files to disk
           rsp           Generate compiler response file projects on this machine
@@ -516,6 +527,19 @@ int RunHelp()
           print         Print summary of entries in the log
           help          Print help
         """);
+
+    if (verbose)
+    {
+        WriteLine("""
+        Commands can be passed a .complog, .binlog, .sln or .csproj file. In the case of build 
+        files a 'dotnet build' will be used to create a binlog file. Extra build args can be 
+        passed after --. 
+        
+        For example: complog create console.csproj -- -p:Configuration=Release
+
+        """);
+    }
+
     return ExitFailure;
 }
 
@@ -554,45 +578,50 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
     return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
 }
 
+/// <summary>
+/// Returns a path to a .complog or .binlog to be used for processing
+/// </summary>
 string GetLogFilePath(List<string> extra)
 {
-    if (extra.Count > 1)
-    {
-        throw CreateOptionException();
-    }
-
     string? path;
     if (extra.Count == 0)
     {
-        path = GetLogFilePath(CurrentDirectory);
-    }
-    else
-    {
-        path = extra[0];
-        if (string.IsNullOrEmpty(Path.GetExtension(path)))
+        path = GetLogFilePathExisting(CurrentDirectory);
+        if (path is null)
         {
-            path = GetLogFilePath(path);
+            throw CreateOptionException();
         }
+
+        return path;
     }
 
-    return path;
+    path = extra[0];
+    if (path == "--")
+    {
+        return GetLogFilePathAfterBuild(CurrentDirectory, null, extra.Skip(1));
+    }
 
-    static string GetLogFilePath(string baseDirectory)
+    switch (Path.GetExtension(path))
+    {
+        case ".complog":
+        case ".binlog":
+            if (extra.Count > 1)
+            {
+                throw new OptionException($"Extra arguments: {string.Join(' ', extra.Skip(1))}", "log");
+            }
+
+            return GetResolvedPath(CurrentDirectory, path);
+        case ".sln":
+        case ".csproj":
+            return GetLogFilePathAfterBuild(CurrentDirectory, path, extra.Skip(1));
+        default:
+            throw new OptionException($"Not a valid log file {path}", "log");
+    }
+
+    static string GetLogFilePathExisting(string baseDirectory)
     {
         // Search the directory for valid log files
-        var path = Directory
-            .EnumerateFiles(baseDirectory, "*.complog")
-            .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
-            .FirstOrDefault();
-        if (path is not null)
-        {
-            return path;
-        }
-
-        path = Directory
-            .EnumerateFiles(baseDirectory, "*.binlog")
-            .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
-            .FirstOrDefault();
+        var path = FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog");
         if (path is not null)
         {
             return path;
@@ -601,7 +630,50 @@ string GetLogFilePath(List<string> extra)
         throw CreateOptionException();
     }
 
-    static OptionException CreateOptionException() => new("Need a path to a log file", "log");
+    static string GetLogFilePathAfterBuild(string baseDirectory, string? buildFileName, IEnumerable<string> buildArgs)
+    {
+        var path = buildFileName is not null
+            ? GetResolvedPath(baseDirectory, buildFileName)
+            : FindFirstFileWithPattern("*.sln", "*.csproj");
+        if (path is null)
+        {
+            throw CreateOptionException();
+        }
+
+        // TODO: use a temp file for the binlog
+        var args = $"build {path} -bl:msbuild.binlog {string.Join(' ', buildArgs)}";
+        WriteLine("Building");
+        WriteLine($"dotnet {args}");
+        var result = ProcessUtil.Run("dotnet", args, baseDirectory);
+        WriteLine(result.StandardOut);
+        WriteLine(result.StandardError);
+        if (!result.Succeeded)
+        {
+            throw new Exception("Build failed");
+        }
+
+        // TODO: use a temp file for the binlog
+        return Path.Combine(baseDirectory, "msbuild.binlog");
+    }
+
+    static OptionException CreateOptionException() => new("Need a file to analyze", "log");
+}
+
+static string? FindFirstFileWithPattern(string baseDirectory, params string[] patterns)
+{
+    foreach (var pattern in patterns)
+    {
+        var path = Directory
+            .EnumerateFiles(baseDirectory, pattern)
+            .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
+            .FirstOrDefault();
+        if (path is not null)
+        {
+            return path;
+        }
+    }
+
+    return null;
 }
 
 string GetBaseOutputPath(string? baseOutputPath)
@@ -648,7 +720,12 @@ string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
     return name;
 }
 
+static string GetResolvedPath(string baseDirectory, string path)
+{
+    if (Path.IsPathRooted(path))
+    {
+        return path;
+    }
 
-
-
-
+    return Path.Combine(baseDirectory, path);
+}
