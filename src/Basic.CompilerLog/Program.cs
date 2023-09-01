@@ -570,9 +570,11 @@ string GetLogFilePath(List<string> extra)
     string? logFilePath;
     IEnumerable<string> args = Array.Empty<string>();
     string baseDirectory = CurrentDirectory;
+    var printFile = false;
     if (extra.Count == 0)
     {
         logFilePath = FindLogFilePath(baseDirectory);
+        printFile = true;
     }
     else
     {
@@ -582,12 +584,19 @@ string GetLogFilePath(List<string> extra)
         {
             baseDirectory = logFilePath;
             logFilePath = FindLogFilePath(baseDirectory);
+            printFile = true;
         }
     }
 
     if (logFilePath is null)
     {
         throw CreateOptionException();
+    }
+
+    // If the file wasn't explicitly specified let the user know what file we are using
+    if (printFile)
+    {
+        WriteLine($"Using {logFilePath}");
     }
 
     switch (Path.GetExtension(logFilePath))
