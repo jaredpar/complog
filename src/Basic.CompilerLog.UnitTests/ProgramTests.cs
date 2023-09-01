@@ -1,4 +1,5 @@
 ﻿#if NETCOREAPP
+using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis.CSharp;
 using System;
 using System.Collections.Generic;
@@ -50,6 +51,45 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void CreateProjectFile()
+    {
+        RunDotNet("new console --name console -o .");
+        Assert.Equal(0, RunCompLog($"create console.csproj -o msbuild.complog"));
+        var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
+        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerHostOptions.None);
+        Assert.Single(reader.ReadAllCompilerCalls());
+    }
+
+    /// <summary>
+    /// Explicit build target overrides the implicit -t:Rebuild
+    /// </summary>
+    [Fact]
+    public void CreateNoopBuild()
+    {
+        RunDotNet("new console --name console -o .");
+        RunDotNet("build");
+        Assert.Equal(0, RunCompLog($"create console.csproj -o msbuild.complog -- -t:Build"));
+        var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
+        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerHostOptions.None);
+        Assert.Empty(reader.ReadAllCompilerCalls());
+    }
+
+    [Theory]
+    [InlineData("console.sln")]
+    [InlineData("console.csproj")]
+    [InlineData("")]
+    public void CreateSolution(string target)
+    {
+        RunDotNet("new console --name console -o .");
+        RunDotNet("new sln --name console");
+        RunDotNet("sln add console.csproj");
+        Assert.Equal(0, RunCompLog($"create {target} -o msbuild.complog"));
+        var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
+        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerHostOptions.None);
+        Assert.Single(reader.ReadAllCompilerCalls());
+    }
+
+    [Fact]
     public void CreateFullPath()
     {
         using var exportDir = new TempDir();
@@ -62,7 +102,7 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void References()
     {
-        Assert.Equal(0, RunCompLog($"ref -o {RootDirectory} {Path.Combine(Fixture.ComplogDirectory, "console.complog")}"));
+        Assert.Equal(0, RunCompLog($"ref -o {RootDirectory} {Fixture.ConsoleComplogPath.Value}"));
         Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "refs"), "*.dll"));
         Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "analyzers"), "*.dll", SearchOption.AllDirectories));
     }
@@ -90,7 +130,7 @@ public sealed class ProgramTests : TestBase
     public void EmitConsole(string arg)
     {
         using var emitDir = new TempDir();
-        RunCompLog($"emit {arg} -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath}");
+        RunCompLog($"emit {arg} -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath.Value}");
 
         AssertOutput(@"console\emit\console.dll");
         AssertOutput(@"console\emit\console.pdb");
