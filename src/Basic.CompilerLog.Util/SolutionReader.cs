@@ -54,6 +54,13 @@ public sealed class SolutionReader : IDisposable
         return new(CompilerLogReader.Create(stream, leaveOpen: false, options), predicate);
     }
 
+    public AdhocWorkspace CreateWorkspace()
+    {
+        var workspace = new AdhocWorkspace();
+        _ = workspace.AddSolution(ReadSolutionInfo());
+        return workspace;
+    }
+
     public SolutionInfo ReadSolutionInfo()
     {
         var projectInfoList = new List<ProjectInfo>();
