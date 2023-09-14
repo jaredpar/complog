@@ -62,8 +62,7 @@ int RunCreate(IEnumerable<string> args)
             return ExitFailure;
         }
 
-        // todo use the standard get or build code
-        string binlogFilePath = GetLogFilePath(extra);
+        string binlogFilePath = GetLogFilePath(extra, includeCompilerLogs: false);
         if (PathUtil.Comparer.Equals(".complog", Path.GetExtension(binlogFilePath)))
         {
             WriteLine($"Already a .complog file: {binlogFilePath}");
@@ -565,7 +564,7 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
 /// <summary>
 /// Returns a path to a .complog or .binlog to be used for processing
 /// </summary>
-string GetLogFilePath(List<string> extra)
+string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
 {
     string? logFilePath;
     IEnumerable<string> args = Array.Empty<string>();
@@ -573,7 +572,7 @@ string GetLogFilePath(List<string> extra)
     var printFile = false;
     if (extra.Count == 0)
     {
-        logFilePath = FindLogFilePath(baseDirectory);
+        logFilePath = FindLogFilePath(baseDirectory, includeCompilerLogs);
         printFile = true;
     }
     else
@@ -583,7 +582,7 @@ string GetLogFilePath(List<string> extra)
         if (string.IsNullOrEmpty(Path.GetExtension(logFilePath)))
         {
             baseDirectory = logFilePath;
-            logFilePath = FindLogFilePath(baseDirectory);
+            logFilePath = FindLogFilePath(baseDirectory, includeCompilerLogs);
             printFile = true;
         }
     }
@@ -617,8 +616,10 @@ string GetLogFilePath(List<string> extra)
             throw new OptionException($"Not a valid log file {logFilePath}", "log");
     }
 
-    static string? FindLogFilePath(string baseDirectory) =>
-        FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj");
+    static string? FindLogFilePath(string baseDirectory, bool includeCompilerLogs = true ) =>
+        includeCompilerLogs
+            ? FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj")
+            : FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj");
 
     static string GetLogFilePathAfterBuild(string baseDirectory, string? buildFileName, IEnumerable<string> buildArgs)
     {
