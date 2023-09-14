@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -92,11 +93,21 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void CreateFullPath()
     {
-        using var exportDir = new TempDir();
-
         RunDotNet($"new console --name example --output .");
         RunDotNet("build -bl");
         Assert.Equal(0, RunCompLog($"create {GetBinaryLogFullPath()}", RootDirectory));
+    }
+
+    /// <summary>
+    /// Don't search for complogs when an explicit log source isn't provided.
+    /// </summary>
+    [Fact]
+    public void CreateOtherComplogExists()
+    {
+        RunDotNet($"new console --name example --output .");
+        RunDotNet("build -bl");
+        Root.NewFile("other.complog", "");
+        Assert.Equal(0, RunCompLog($"create", RootDirectory));
     }
 
     [Fact]
