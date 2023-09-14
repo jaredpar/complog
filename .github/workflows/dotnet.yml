@@ -40,6 +40,6 @@ jobs:
       run: dotnet test --no-build --verbosity normal
       if: matrix.os == 'windows-latest'
     - name: Create Compiler Log
-      uses: jaredpar/basic-compilerlog-action@v1
+      uses: jaredpar/basic-compilerlog-action@v1.0.0
       with:
         artifact: ${{ matrix.artifact }}
