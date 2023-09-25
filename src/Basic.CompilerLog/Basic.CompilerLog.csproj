@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>complog</ToolCommandName>
+    <PackageId>complog</PackageId>
 
     <!-- NuPkg information -->
     <Version>0.1.2</Version>
