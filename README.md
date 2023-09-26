@@ -12,7 +12,7 @@ The compiler log files are self contained. They must be created on the same mach
 
 This global tool can be installed via 
 
-> dotnet tool install --global Basic.CompilerLog
+> dotnet tool install --global complog
 
 From there the following commands are available:
 
