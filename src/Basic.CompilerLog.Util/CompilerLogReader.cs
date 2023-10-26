@@ -1,10 +1,13 @@
 ﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Serialize;
+using MessagePack;
 using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.FindSymbols;
+using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using System.Collections.Immutable;
@@ -420,6 +423,15 @@ public sealed class CompilerLogReader : IDisposable
                 case "win32icon":
                     ParseContent(line, RawContentKind.Win32Icon);
                     break;
+                case "optionsEmit":
+                    ParseEmitOptions(line);
+                    break;
+                case "optionsParse":
+                    ParseParseOptions(line);
+                    break;
+                case "optionsCompilation":
+                    ParseCompilationOptions(line);
+                    break;
                 default:
                     throw new InvalidOperationException($"Unrecognized line: {line}");
             }
@@ -495,6 +507,25 @@ public sealed class CompilerLogReader : IDisposable
             var items = line.Split(':', count: 3);
             var mvid = Guid.Parse(items[1]);
             analyzers.Add(new RawAnalyzerData(mvid, items[2]));
+        }
+
+        void ParseEmitOptions(string line)
+        {
+            var key = line.Split(':', count: 2)[1];
+            var stream = GetContentStream(key);
+            var pack = MessagePackSerializer.Deserialize<EmitOptionsPack>(stream, SerializerOptions);
+            var options = MessagePackUtil.CreateEmitOptions(pack);
+            Debug.Assert(options.Equals(args.EmitOptions));
+        }
+
+        void ParseParseOptions(string line)
+        {
+
+        }
+
+        void ParseCompilationOptions(string line)
+        {
+
         }
     }
 
@@ -591,7 +622,7 @@ public sealed class CompilerLogReader : IDisposable
         }
     }
 
-    private static CompilerCall ReadCompilerCallCore(StreamReader reader, int index)
+    private CompilerCall ReadCompilerCallCore(StreamReader reader, int index)
     {
         var projectFile = reader.ReadLineOrThrow();
         var isCSharp = reader.ReadLineOrThrow() == "C#";
@@ -602,11 +633,29 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         var kind = (CompilerCallKind)Enum.Parse(typeof(CompilerCallKind), reader.ReadLineOrThrow());
-        var count = int.Parse(reader.ReadLineOrThrow());
-        var arguments = new string[count];
-        for (int i = 0; i < count; i++)
+
+        string[] arguments;
+        if (Metadata.MetadataVersion == 1)
         {
-            arguments[i] = reader.ReadLineOrThrow();
+            var count = int.Parse(reader.ReadLineOrThrow());
+            arguments = new string[count];
+            for (int i = 0; i < count; i++)
+            {
+                arguments[i] = reader.ReadLineOrThrow();
+            }
+        }
+        else
+        {
+            Debug.Assert(Metadata.MetadataVersion == 2);
+            var stream = GetContentStream(reader.ReadLineOrThrow());
+            var streamReader = Polyfill.NewStreamReader(stream, ContentEncoding, leaveOpen: false);
+            var list = new List<string>();
+            while (streamReader.ReadLine() is string line)
+            {
+                list.Add(line);
+            }
+
+            arguments = list.ToArray();
         }
 
         return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments, index);

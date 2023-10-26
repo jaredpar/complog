@@ -130,7 +130,7 @@ public class EmitOptionsPack
     [Key(3)]
     public ImmutableArray<InstrumentationKind> InstrumentationKinds { get; set; }
     [Key(4)]
-    public SubsystemVersion SubsystemVersion { get; set; }
+    public (int, int) SubsystemVersion { get; set; }
     [Key(5)]
     public int FileAlignment { get; set; }
     [Key(6)]

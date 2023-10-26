@@ -1,4 +1,6 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Basic.CompilerLog.Util.Serialize;
+using MessagePack;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Emit;
@@ -32,7 +34,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(PathUtil.Comparer);
-    private readonly HashSet<string> _sourceHashMap = new(PathUtil.Comparer);
+    private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
 
     private int _compilationCount;
     private bool _closed;
@@ -57,14 +59,9 @@ internal sealed class CompilerLogBuilder : IDisposable
         compilationWriter.WriteLine(compilerCall.IsCSharp ? "C#" : "VB");
         compilationWriter.WriteLine(compilerCall.TargetFramework);
         compilationWriter.WriteLine(compilerCall.Kind);
+        compilationWriter.WriteLine(AddCommandLineArguments(compilerCall));
 
         var arguments = compilerCall.Arguments;
-        compilationWriter.WriteLine(arguments.Length);
-        foreach (var arg in arguments)
-        {
-            compilationWriter.WriteLine(arg);
-        }
-
         var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
         CommandLineArguments commandLineArguments = compilerCall.IsCSharp
             ? CSharpCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
@@ -72,6 +69,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         try
         {
+            AddOptions(compilationWriter, commandLineArguments, compilerCall);
             AddReferences(compilationWriter, commandLineArguments);
             AddAnalyzers(compilationWriter, commandLineArguments);
             AddAnalyzerConfigs(compilationWriter, commandLineArguments);
@@ -139,6 +137,21 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             return null;
         }
+
+        string AddCommandLineArguments(CompilerCall call)
+        {
+            var stream = new MemoryStream();
+            using (var writer = Polyfill.NewStreamWriter(stream, ContentEncoding, leaveOpen: true))
+            {
+                foreach (var line in call.Arguments)
+                {
+                    writer.WriteLine(line);
+                }
+            }
+            
+            stream.Position = 0;
+            return AddContent(stream);
+        } 
     }
 
     private void EnsureOpen()
@@ -205,6 +218,69 @@ internal sealed class CompilerLogBuilder : IDisposable
         foreach (var commandLineFile in args.SourceFiles)
         {
             AddContentCore(compilationWriter, "source", commandLineFile.Path);
+        }
+    }
+
+    private void AddOptions(StreamWriter compilationWriter, CommandLineArguments args, CompilerCall compilerCall)
+    {
+        var stream = new MemoryStream();
+        AddEmitOptions();
+        AddParseOptions();
+        AddCompilationOptions();
+
+        void AddEmitOptions()
+        {
+            stream.Position = 0;
+            var pack = MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions);
+            MessagePackSerializer.Serialize(stream, pack, SerializerOptions);
+            stream.Position = 0;
+            compilationWriter.WriteLine($"optionsEmit:{AddContent(stream)}");
+        }
+
+        void AddParseOptions()
+        {
+            stream.Position = 0;
+            if (compilerCall.IsCSharp)
+            {
+                var options = (CSharpParseOptions)args.ParseOptions;
+                var tuple = MessagePackUtil.CreateCSharpParseOptionsPack(options);
+                MessagePackSerializer.Serialize(stream, tuple.Item1, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple.Item2, SerializerOptions);
+            }
+            else
+            {
+                var options = (VisualBasicParseOptions)args.ParseOptions;
+                var tuple = MessagePackUtil.CreateVisualBasicParseOptionsPack(options);
+                MessagePackSerializer.Serialize(stream, tuple.Item1, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple.Item2, SerializerOptions);
+            }
+
+            stream.Position = 0;
+            compilationWriter.WriteLine($"optionsParse:{AddContent(stream)}");
+        }
+
+        void AddCompilationOptions()
+        {
+            stream.Position = 0;
+            if (compilerCall.IsCSharp)
+            {
+                var options = (CSharpCompilationOptions)args.CompilationOptions;
+                var tuple = MessagePackUtil.CreateCSharpCompilationOptionsPack(options);
+                MessagePackSerializer.Serialize(stream, tuple.Item1, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple.Item2, SerializerOptions);
+            }
+            else
+            {
+                var options = (VisualBasicCompilationOptions)args.CompilationOptions;
+                var tuple = MessagePackUtil.CreateVisualBasicCompilationOptionsPack(options);
+                MessagePackSerializer.Serialize(stream, tuple.Item1, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple.Item2, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple.Item3, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple.Item4, SerializerOptions);
+            }
+
+            stream.Position = 0;
+            compilationWriter.WriteLine($"optionsCompilation:{AddContent(stream)}");
         }
     }
 
@@ -373,11 +449,12 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// </summary>
     private string AddContent(Stream stream)
     {
+        Debug.Assert(stream.Position == 0);
         var sha = SHA256.Create();
         var hash = sha.ComputeHash(stream);
         var hashText = GetHashText();
 
-        if (_sourceHashMap.Add(hashText))
+        if (_contentHashMap.Add(hashText))
         {
             var entry = ZipArchive.CreateEntry(GetContentEntryName(hashText), CompressionLevel.Optimal);
             using var entryStream = entry.Open();
@@ -389,8 +466,11 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         string GetHashText()
         {
-            var builder = new StringBuilder();
-            builder.Length = 0;
+            var builder = new StringBuilder()
+            {
+                Length = 0
+            };
+
             foreach (var b in hash)
             {
                 builder.Append($"{b:X2}");

@@ -22,11 +22,11 @@ internal static class MessagePackUtil
             baseAddress: pack.BaseAddress,
             highEntropyVirtualAddressSpace: pack.HighEntropyVirtualAddressSpace,
             fileAlignment: pack.FileAlignment,
-            subsystemVersion: pack.SubsystemVersion,
+            subsystemVersion: SubsystemVersion.Create(pack.SubsystemVersion.Item1, pack.SubsystemVersion.Item2),
             runtimeMetadataVersion: pack.RuntimeMetadataVersion,
             instrumentationKinds: pack.InstrumentationKinds,
             pdbChecksumAlgorithm: new HashAlgorithmName(pack.PdbChecksumAlgorithm),
-            defaultSourceFileEncoding: pack.DefaultSourceFileEncoding is int cp ? Encoding.GetEncoding(cp) : Encoding.Default
+            defaultSourceFileEncoding: pack.DefaultSourceFileEncoding is int cp ? Encoding.GetEncoding(cp) : null
         );
     }
 
@@ -38,7 +38,7 @@ internal static class MessagePackUtil
             TolerateErrors = options.TolerateErrors,
             IncludePrivateMembers = options.IncludePrivateMembers,
             InstrumentationKinds = options.InstrumentationKinds,
-            SubsystemVersion = options.SubsystemVersion,
+            SubsystemVersion = (options.SubsystemVersion.Major, options.SubsystemVersion.Minor),
             FileAlignment = options.FileAlignment,
             HighEntropyVirtualAddressSpace = options.HighEntropyVirtualAddressSpace,
             BaseAddress = options.BaseAddress,
