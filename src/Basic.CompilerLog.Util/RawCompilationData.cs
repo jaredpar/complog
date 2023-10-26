@@ -93,8 +93,10 @@ internal readonly struct RawContent
 
 internal sealed class RawCompilationData
 {
+    internal string? CompilationName { get; }
     internal string AssemblyFileName { get; }
     internal string? XmlFilePath { get; }
+    internal SourceHashAlgorithm ChecksumAlgorithm { get; }
     internal CommandLineArguments Arguments { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
@@ -110,8 +112,10 @@ internal sealed class RawCompilationData
     internal bool ReadGeneratedFiles { get; }
 
     internal RawCompilationData(
+        string? compilationName,
         string assemblyFileName,
         string? xmlFilePath,
+        SourceHashAlgorithm checksumAlgorithm,
         CommandLineArguments arguments,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
@@ -119,8 +123,10 @@ internal sealed class RawCompilationData
         List<RawResourceData> resources,
         bool readGeneratedFiles)
     {
+        CompilationName = compilationName;
         AssemblyFileName = assemblyFileName;
         XmlFilePath = xmlFilePath;
+        ChecksumAlgorithm = checksumAlgorithm;
         Arguments = arguments;
         References = references;
         Analyzers = analyzers;

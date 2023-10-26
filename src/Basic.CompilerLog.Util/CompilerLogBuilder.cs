@@ -78,7 +78,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
             AddEmbeds(compilationWriter, compilerCall, commandLineArguments, baseDirectory);
-            AddEmitData(compilationWriter, commandLineArguments);
+            AddExtraData(compilationWriter, commandLineArguments);
             AddContentIf("link", commandLineArguments.SourceLink);
             AddContentIf("ruleset", commandLineArguments.RuleSetPath);
             AddContentIf("appconfig", commandLineArguments.AppConfigPath);
@@ -214,10 +214,11 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddEmitData(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddExtraData(StreamWriter compilationWriter, CommandLineArguments args)
     {
         compilationWriter.WriteLine($"assemblyFileName:{GetAssemblyFileName(args)}");
         compilationWriter.WriteLine($"xmlFilePath:{args.DocumentationPath}");
+        compilationWriter.WriteLine($"checksumAlgorithm:{args.ChecksumAlgorithm}");
     }
 
     private void AddSources(StreamWriter compilationWriter, CommandLineArguments args)

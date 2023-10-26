@@ -142,7 +142,7 @@ public sealed class CompilerLogReader : IDisposable
         var referenceList = GetMetadataReferences(rawCompilationData.References);
         var compilationOptions = rawCompilationData.Arguments.CompilationOptions;
 
-        var hashAlgorithm = rawCompilationData.Arguments.ChecksumAlgorithm;
+        var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var additionalTextList = new List<AdditionalText>();
@@ -283,7 +283,7 @@ public sealed class CompilerLogReader : IDisposable
                 .WithStrongNameProvider(new DesktopStrongNameProvider());
 
             var compilation = CSharpCompilation.Create(
-                rawCompilationData.Arguments.CompilationName,
+                rawCompilationData.CompilationName,
                 syntaxTrees,
                 referenceList,
                 csharpOptions);
@@ -312,7 +312,7 @@ public sealed class CompilerLogReader : IDisposable
                 .WithStrongNameProvider(new DesktopStrongNameProvider());
 
             var compilation = VisualBasicCompilation.Create(
-                rawCompilationData.Arguments.CompilationName,
+                rawCompilationData.CompilationName,
                 syntaxTrees,
                 referenceList,
                 basicOptions);
@@ -374,6 +374,7 @@ public sealed class CompilerLogReader : IDisposable
         var readGeneratedFiles = false;
         string? assemblyFileName = null;
         string? xmlFilePath = null;
+        var checksumAlgorithm = SourceHashAlgorithm.None;
 
         while (reader.ReadLine() is string line)
         {
@@ -446,6 +447,9 @@ public sealed class CompilerLogReader : IDisposable
                 case "xmlFilePath":
                     xmlFilePath = ParseStringWithNull();
                     break;
+                case "checksumAlgorithm":
+                    checksumAlgorithm = ParseEnum<SourceHashAlgorithm>();
+                    break;
                 default:
                     throw new InvalidOperationException($"Unrecognized line: {line}");
             }
@@ -462,12 +466,22 @@ public sealed class CompilerLogReader : IDisposable
                 var str = ParseString();
                 return string.IsNullOrEmpty(str) ? null : str;
             }
+
+#if NETCOREAPP
+            T ParseEnum<T>() where T : struct, Enum
+               => Enum.Parse<T>(ParseString());
+#else
+            T ParseEnum<T>() where T : struct, Enum
+               => (T)Enum.Parse(typeof(T), ParseString());
+#endif
         }
 
         assemblyFileName ??= Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
         var data = new RawCompilationData(
+            args.CompilationName,
             assemblyFileName,
             xmlFilePath,
+            checksumAlgorithm,
             args,
             references,
             analyzers,
