@@ -223,14 +223,13 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddOptions(StreamWriter compilationWriter, CommandLineArguments args, CompilerCall compilerCall)
     {
-        var stream = new MemoryStream();
         AddEmitOptions();
         AddParseOptions();
         AddCompilationOptions();
 
         void AddEmitOptions()
         {
-            stream.Position = 0;
+            var stream = new MemoryStream();
             var pack = MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions);
             MessagePackSerializer.Serialize(stream, pack, SerializerOptions);
             stream.Position = 0;
@@ -239,7 +238,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void AddParseOptions()
         {
-            stream.Position = 0;
+            var stream = new MemoryStream();
             if (compilerCall.IsCSharp)
             {
                 var options = (CSharpParseOptions)args.ParseOptions;
@@ -259,7 +258,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void AddCompilationOptions()
         {
-            stream.Position = 0;
+            var stream = new MemoryStream();
             if (compilerCall.IsCSharp)
             {
                 var options = (CSharpCompilationOptions)args.CompilationOptions;
@@ -460,11 +459,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         string GetHashText()
         {
-            var builder = new StringBuilder()
-            {
-                Length = 0
-            };
-
+            var builder = new StringBuilder();
             foreach (var b in hash)
             {
                 builder.Append($"{b:X2}");
