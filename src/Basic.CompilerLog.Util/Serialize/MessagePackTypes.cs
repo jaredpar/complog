@@ -49,6 +49,8 @@ public class CompilationOptionsPack
     public ImmutableDictionary<string, ReportDiagnostic>? SpecificDiagnosticOptions { get; set; }
     [Key(18)]
     public bool ReportSuppressedDiagnostics { get; set; }
+    [Key(19)]
+    public bool DebugPlusMode { get; set; }
 } 
 
 [MessagePackObject]
@@ -96,12 +98,10 @@ public class ParseOptionsPack
 public class CSharpParseOptionsPack
 {
     [Key(0)]
-    public CSharpLanguageVersion LanguageVersion { get; set; }
-    [Key(1)]
     public CSharpLanguageVersion SpecifiedLanguageVersion { get; set; }
-    [Key(2)]
+    [Key(1)]
     public IEnumerable<string>? PreprocessorSymbols { get; set; }
-    [Key(3)]
+    [Key(2)]
     public IReadOnlyDictionary<string, string>? Features { get; set; }
 }
 

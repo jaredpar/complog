@@ -244,15 +244,13 @@ internal sealed class CompilerLogBuilder : IDisposable
             {
                 var options = (CSharpParseOptions)args.ParseOptions;
                 var tuple = MessagePackUtil.CreateCSharpParseOptionsPack(options);
-                MessagePackSerializer.Serialize(stream, tuple.Item1, SerializerOptions);
-                MessagePackSerializer.Serialize(stream, tuple.Item2, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple, SerializerOptions);
             }
             else
             {
                 var options = (VisualBasicParseOptions)args.ParseOptions;
                 var tuple = MessagePackUtil.CreateVisualBasicParseOptionsPack(options);
-                MessagePackSerializer.Serialize(stream, tuple.Item1, SerializerOptions);
-                MessagePackSerializer.Serialize(stream, tuple.Item2, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple, SerializerOptions);
             }
 
             stream.Position = 0;
@@ -266,17 +264,13 @@ internal sealed class CompilerLogBuilder : IDisposable
             {
                 var options = (CSharpCompilationOptions)args.CompilationOptions;
                 var tuple = MessagePackUtil.CreateCSharpCompilationOptionsPack(options);
-                MessagePackSerializer.Serialize(stream, tuple.Item1, SerializerOptions);
-                MessagePackSerializer.Serialize(stream, tuple.Item2, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple, SerializerOptions);
             }
             else
             {
                 var options = (VisualBasicCompilationOptions)args.CompilationOptions;
                 var tuple = MessagePackUtil.CreateVisualBasicCompilationOptionsPack(options);
-                MessagePackSerializer.Serialize(stream, tuple.Item1, SerializerOptions);
-                MessagePackSerializer.Serialize(stream, tuple.Item2, SerializerOptions);
-                MessagePackSerializer.Serialize(stream, tuple.Item3, SerializerOptions);
-                MessagePackSerializer.Serialize(stream, tuple.Item4, SerializerOptions);
+                MessagePackSerializer.Serialize(stream, tuple, SerializerOptions);
             }
 
             stream.Position = 0;

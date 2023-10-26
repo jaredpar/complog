@@ -1,6 +1,8 @@
 
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using MessagePack.Formatters;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
@@ -10,6 +12,29 @@ namespace Basic.CompilerLog.Util.Serialize;
 
 internal static class MessagePackUtil
 {
+    private static readonly Lazy<PropertyInfo?> s_debugPlusPropertyInfo = new(() => GetDebugPlusPropertyInfo());
+
+    private static PropertyInfo? GetDebugPlusPropertyInfo()
+    {
+        try
+        {
+            var type = typeof(CompilationOptions);
+            return type.GetProperty("DebugPlusMode", BindingFlags.NonPublic | BindingFlags.Instance);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void SetDebugPlusMode(CompilationOptions options, bool debugPlusMode)
+    {
+        if (s_debugPlusPropertyInfo.Value is { } info)
+        {
+            info.SetValue(options, debugPlusMode);
+        }
+    }
+
     internal static EmitOptions CreateEmitOptions(EmitOptionsPack pack)
     {
         return new EmitOptions
@@ -54,6 +79,12 @@ internal static class MessagePackUtil
 
     internal static CompilationOptionsPack CreateCompilationOptionsPack(CompilationOptions options)
     {
+        var debugPlusMode = false;
+        if (s_debugPlusPropertyInfo.Value is { } info)
+        {
+            debugPlusMode = (bool)info.GetValue(options)!;
+        }
+
         return new CompilationOptionsPack()
         {
             OutputKind = options.OutputKind,
@@ -75,6 +106,7 @@ internal static class MessagePackUtil
             MetadataImportOptions =  options.MetadataImportOptions,
             SpecificDiagnosticOptions = options.SpecificDiagnosticOptions,
             ReportSuppressedDiagnostics = options.ReportSuppressedDiagnostics,
+            DebugPlusMode = debugPlusMode,
         };
     }
 
@@ -88,14 +120,14 @@ internal static class MessagePackUtil
         };
     }
 
-    internal static CSharpParseOptions CreateCSharpParseOptions(ParseOptionsPack optionsPack, CSharpParseOptions csharpPack)
+    internal static CSharpParseOptions CreateCSharpParseOptions(ParseOptionsPack optionsPack, CSharpParseOptionsPack csharpPack)
     {
         return new CSharpParseOptions
         (
-            languageVersion: csharpPack.LanguageVersion,
+            languageVersion: csharpPack.SpecifiedLanguageVersion,
             documentationMode: optionsPack.DocumentationMode,
             kind: optionsPack.Kind,
-            preprocessorSymbols: csharpPack.PreprocessorSymbolNames
+            preprocessorSymbols: csharpPack.PreprocessorSymbols
         ).WithFeatures(csharpPack.Features);
     }
 
@@ -103,7 +135,6 @@ internal static class MessagePackUtil
     {
         var pack = new CSharpParseOptionsPack()
         {
-            LanguageVersion = options.LanguageVersion,
             SpecifiedLanguageVersion = options.SpecifiedLanguageVersion,
             PreprocessorSymbols = options.PreprocessorSymbolNames,
             Features = options.Features,
@@ -114,7 +145,7 @@ internal static class MessagePackUtil
 
     internal static CSharpCompilationOptions CreateCSharpCompilationOptions(CompilationOptionsPack optionsPack, CSharpCompilationOptionsPack csharpPack)
     {
-        return new CSharpCompilationOptions
+        var options = new CSharpCompilationOptions
         (
             outputKind: optionsPack.OutputKind,
             moduleName: optionsPack.ModuleName,
@@ -137,6 +168,8 @@ internal static class MessagePackUtil
             reportSuppressedDiagnostics: optionsPack.ReportSuppressedDiagnostics,
             publicSign: optionsPack.PublicSign
         );
+        SetDebugPlusMode(options, optionsPack.DebugPlusMode);
+        return options;
     }
 
     internal static (CompilationOptionsPack, CSharpCompilationOptionsPack) CreateCSharpCompilationOptionsPack(CSharpCompilationOptions options)
@@ -177,7 +210,7 @@ internal static class MessagePackUtil
 
     internal static VisualBasicCompilationOptions CreateVisualBasicCompilationOptions(CompilationOptionsPack optionsPack, VisualBasicCompilationOptionsPack basicPack, ParseOptionsPack parsePack, VisualBasicParseOptionsPack parseBasicPack)
     {
-        return new VisualBasicCompilationOptions
+        var options = new VisualBasicCompilationOptions
         (
             outputKind: optionsPack.OutputKind,
             reportSuppressedDiagnostics: optionsPack.ReportSuppressedDiagnostics,
@@ -204,6 +237,8 @@ internal static class MessagePackUtil
             publicSign: optionsPack.PublicSign,
             parseOptions: CreateVisualBasicParseOptions(parsePack, parseBasicPack)
         );
+        SetDebugPlusMode(options, optionsPack.DebugPlusMode);
+        return options;
     }
 
     internal static (CompilationOptionsPack, VisualBasicCompilationOptionsPack, ParseOptionsPack, VisualBasicParseOptionsPack) CreateVisualBasicCompilationOptionsPack(VisualBasicCompilationOptions options)

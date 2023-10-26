@@ -10,10 +10,12 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -520,12 +522,48 @@ public sealed class CompilerLogReader : IDisposable
 
         void ParseParseOptions(string line)
         {
-
+            // TODO: so inefficent ... feel like we're wasting memory here so much.
+            var key = line.Split(':', count: 2)[1];
+            var stream = GetContentStream(key);
+            if (compilerCall.IsCSharp)
+            {
+                var tuple = MessagePackSerializer.Deserialize<(ParseOptionsPack, CSharpParseOptionsPack)>(
+                    stream,
+                    SerializerOptions);
+                var options = MessagePackUtil.CreateCSharpParseOptions(tuple.Item1, tuple.Item2);
+                Debug.Assert(options.Equals(args.ParseOptions));
+            }
+            else
+            {
+                var tuple = MessagePackSerializer.Deserialize<(ParseOptionsPack, VisualBasicParseOptionsPack)>(
+                    stream,
+                    SerializerOptions);
+                var options = MessagePackUtil.CreateVisualBasicParseOptions(tuple.Item1, tuple.Item2);
+                Debug.Assert(options.Equals(args.ParseOptions));
+            }
         }
 
         void ParseCompilationOptions(string line)
         {
-
+            // TODO: so inefficent ... feel like we're wasting memory here so much.
+            var key = line.Split(':', count: 2)[1];
+            var stream = GetContentStream(key);
+            if (compilerCall.IsCSharp)
+            {
+                var tuple = MessagePackSerializer.Deserialize<(CompilationOptionsPack, CSharpCompilationOptionsPack)>(
+                    stream,
+                    SerializerOptions);
+                var options = MessagePackUtil.CreateCSharpCompilationOptions(tuple.Item1, tuple.Item2);
+                Debug.Assert(options.Equals(args.CompilationOptions));
+            }
+            else
+            {
+                var tuple = MessagePackSerializer.Deserialize<(CompilationOptionsPack, VisualBasicCompilationOptionsPack, ParseOptionsPack, VisualBasicParseOptionsPack)>(
+                    stream,
+                    SerializerOptions);
+                var options = MessagePackUtil.CreateVisualBasicCompilationOptions(tuple.Item1, tuple.Item2, tuple.Item3, tuple.Item4);
+                Debug.Assert(options.Equals(args.CompilationOptions));
+            }
         }
     }
 
