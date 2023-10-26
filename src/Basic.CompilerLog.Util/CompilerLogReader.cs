@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Text;
@@ -140,7 +141,8 @@ public sealed class CompilerLogReader : IDisposable
     {
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = GetMetadataReferences(rawCompilationData.References);
-        var compilationOptions = rawCompilationData.Arguments.CompilationOptions;
+        var emitOptions = ReadEmitOptions(rawCompilationData);
+        var compilationOptions = ReadCompilationOptions(rawCompilationData);
 
         var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
@@ -272,9 +274,8 @@ public sealed class CompilerLogReader : IDisposable
 
         CSharpCompilationData CreateCSharp()
         {
-            var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
             var csharpOptions = (CSharpCompilationOptions)compilationOptions;
-            var parseOptions = csharpArgs.ParseOptions;
+            var parseOptions = (CSharpParseOptions)ReadParseOptions(rawCompilationData);
             var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTextList, parseOptions);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
@@ -292,7 +293,7 @@ public sealed class CompilerLogReader : IDisposable
                 compilerCall,
                 compilation,
                 parseOptions,
-                rawCompilationData.Arguments.EmitOptions,
+                emitOptions,
                 emitData,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
@@ -301,9 +302,8 @@ public sealed class CompilerLogReader : IDisposable
 
         VisualBasicCompilationData CreateVisualBasic()
         {
-            var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
             var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
-            var parseOptions = basicArgs.ParseOptions;
+            var parseOptions = (VisualBasicParseOptions)ReadParseOptions(rawCompilationData);
             var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTextList, parseOptions);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
@@ -321,7 +321,7 @@ public sealed class CompilerLogReader : IDisposable
                 compilerCall,
                 compilation,
                 parseOptions,
-                rawCompilationData.Arguments.EmitOptions,
+                emitOptions,
                 emitData,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
@@ -374,6 +374,9 @@ public sealed class CompilerLogReader : IDisposable
         var readGeneratedFiles = false;
         string? assemblyFileName = null;
         string? xmlFilePath = null;
+        string? emitOptionsHash = null;
+        string? parseOptionsHash = null;
+        string? compilationOptionsHash = null;
         var checksumAlgorithm = SourceHashAlgorithm.None;
 
         while (reader.ReadLine() is string line)
@@ -433,13 +436,13 @@ public sealed class CompilerLogReader : IDisposable
                     ParseContent(line, RawContentKind.Win32Icon);
                     break;
                 case "optionsEmit":
-                    ParseEmitOptions(ParseString());
+                    emitOptionsHash = ParseString();
                     break;
                 case "optionsParse":
-                    ParseParseOptions(ParseString());
+                    parseOptionsHash= ParseString();
                     break;
                 case "optionsCompilation":
-                    ParseCompilationOptions(ParseString());
+                    compilationOptionsHash = ParseString();
                     break;
                 case "assemblyFileName":
                     assemblyFileName = ParseString();
@@ -476,17 +479,28 @@ public sealed class CompilerLogReader : IDisposable
 #endif
         }
 
+        if (emitOptionsHash is null ||
+            parseOptionsHash is null ||
+            compilationOptionsHash is null)
+        {
+            throw new Exception("Missing items in compiler log");
+        }
+
         assemblyFileName ??= Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
         var data = new RawCompilationData(
             args.CompilationName,
             assemblyFileName,
             xmlFilePath,
+            emitOptionsHash,
+            parseOptionsHash,
+            compilationOptionsHash,
             checksumAlgorithm,
             args,
             references,
             analyzers,
             contents,
             resources,
+            isCSharp: compilerCall.IsCSharp,
             readGeneratedFiles);
 
         return data;
@@ -545,58 +559,6 @@ public sealed class CompilerLogReader : IDisposable
             var items = line.Split(':', count: 3);
             var mvid = Guid.Parse(items[1]);
             analyzers.Add(new RawAnalyzerData(mvid, items[2]));
-        }
-
-        void ParseEmitOptions(string key)
-        {
-            var stream = GetContentStream(key);
-            var pack = MessagePackSerializer.Deserialize<EmitOptionsPack>(stream, SerializerOptions);
-            var options = MessagePackUtil.CreateEmitOptions(pack);
-            Debug.Assert(options.Equals(args.EmitOptions));
-        }
-
-        void ParseParseOptions(string key)
-        {
-            // TODO: so inefficent ... feel like we're wasting memory here so much.
-            var stream = GetContentStream(key);
-            if (compilerCall.IsCSharp)
-            {
-                var tuple = MessagePackSerializer.Deserialize<(ParseOptionsPack, CSharpParseOptionsPack)>(
-                    stream,
-                    SerializerOptions);
-                var options = MessagePackUtil.CreateCSharpParseOptions(tuple.Item1, tuple.Item2);
-                Debug.Assert(options.Equals(args.ParseOptions));
-            }
-            else
-            {
-                var tuple = MessagePackSerializer.Deserialize<(ParseOptionsPack, VisualBasicParseOptionsPack)>(
-                    stream,
-                    SerializerOptions);
-                var options = MessagePackUtil.CreateVisualBasicParseOptions(tuple.Item1, tuple.Item2);
-                Debug.Assert(options.Equals(args.ParseOptions));
-            }
-        }
-
-        void ParseCompilationOptions(string key)
-        {
-            // TODO: so inefficent ... feel like we're wasting memory here so much.
-            var stream = GetContentStream(key);
-            if (compilerCall.IsCSharp)
-            {
-                var tuple = MessagePackSerializer.Deserialize<(CompilationOptionsPack, CSharpCompilationOptionsPack)>(
-                    stream,
-                    SerializerOptions);
-                var options = MessagePackUtil.CreateCSharpCompilationOptions(tuple.Item1, tuple.Item2);
-                Debug.Assert(options.Equals(args.CompilationOptions));
-            }
-            else
-            {
-                var tuple = MessagePackSerializer.Deserialize<(CompilationOptionsPack, VisualBasicCompilationOptionsPack, ParseOptionsPack, VisualBasicParseOptionsPack)>(
-                    stream,
-                    SerializerOptions);
-                var options = MessagePackUtil.CreateVisualBasicCompilationOptions(tuple.Item1, tuple.Item2, tuple.Item3, tuple.Item4);
-                Debug.Assert(options.Equals(args.CompilationOptions));
-            }
         }
     }
 
@@ -687,9 +649,54 @@ public sealed class CompilerLogReader : IDisposable
             var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>();
             foreach (var tuple in rawCompilationData.Contents.Where(static x => x.Kind == RawContentKind.GeneratedText))
             {
-                builder.Add((GetSourceText(tuple.ContentHash, rawCompilationData.Arguments.ChecksumAlgorithm), tuple.FilePath));
+                builder.Add((GetSourceText(tuple.ContentHash, rawCompilationData.ChecksumAlgorithm), tuple.FilePath));
             }
             return builder.ToImmutableArray();
+        }
+    }
+
+    internal EmitOptions ReadEmitOptions(RawCompilationData rawCompilationData)
+    {
+        var stream = GetContentStream(rawCompilationData.EmitOptionsHash);
+        var pack = MessagePackSerializer.Deserialize<EmitOptionsPack>(stream, SerializerOptions);
+        return MessagePackUtil.CreateEmitOptions(pack);
+    }
+
+    internal ParseOptions ReadParseOptions(RawCompilationData rawCompilationData)
+    {
+        var stream = GetContentStream(rawCompilationData.ParseOptionsHash);
+        if (rawCompilationData.IsCSharp)
+        {
+            var tuple = MessagePackSerializer.Deserialize<(ParseOptionsPack, CSharpParseOptionsPack)>(
+                stream,
+                SerializerOptions);
+            return MessagePackUtil.CreateCSharpParseOptions(tuple.Item1, tuple.Item2);
+        }
+        else
+        {
+            var tuple = MessagePackSerializer.Deserialize<(ParseOptionsPack, VisualBasicParseOptionsPack)>(
+                stream,
+                SerializerOptions);
+            return MessagePackUtil.CreateVisualBasicParseOptions(tuple.Item1, tuple.Item2);
+        }
+    }
+
+    internal CompilationOptions ReadCompilationOptions(RawCompilationData rawCompilationData)
+    {
+        var stream = GetContentStream(rawCompilationData.CompilationOptionsHash);
+        if (rawCompilationData.IsCSharp)
+        {
+            var tuple = MessagePackSerializer.Deserialize<(CompilationOptionsPack, CSharpCompilationOptionsPack)>(
+                stream,
+                SerializerOptions);
+            return MessagePackUtil.CreateCSharpCompilationOptions(tuple.Item1, tuple.Item2);
+        }
+        else
+        {
+            var tuple = MessagePackSerializer.Deserialize<(CompilationOptionsPack, VisualBasicCompilationOptionsPack, ParseOptionsPack, VisualBasicParseOptionsPack)>(
+                stream,
+                SerializerOptions);
+            return MessagePackUtil.CreateVisualBasicCompilationOptions(tuple.Item1, tuple.Item2, tuple.Item3, tuple.Item4);
         }
     }
 

@@ -96,12 +96,16 @@ internal sealed class RawCompilationData
     internal string? CompilationName { get; }
     internal string AssemblyFileName { get; }
     internal string? XmlFilePath { get; }
+    internal string EmitOptionsHash { get; }
+    internal string ParseOptionsHash { get; }
+    internal string CompilationOptionsHash { get; }
     internal SourceHashAlgorithm ChecksumAlgorithm { get; }
     internal CommandLineArguments Arguments { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
     internal List<RawContent> Contents { get; }
     internal List<RawResourceData> Resources { get; }
+    internal bool IsCSharp { get; }
 
     /// <summary>
     /// This is true when the generated files were successfully read from the original 
@@ -115,23 +119,31 @@ internal sealed class RawCompilationData
         string? compilationName,
         string assemblyFileName,
         string? xmlFilePath,
+        string emitOptionsHash,
+        string parseOptionsHash,
+        string compilationOptionsHash,
         SourceHashAlgorithm checksumAlgorithm,
         CommandLineArguments arguments,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
         List<RawContent> contents,
         List<RawResourceData> resources,
+        bool isCSharp,
         bool readGeneratedFiles)
     {
         CompilationName = compilationName;
         AssemblyFileName = assemblyFileName;
         XmlFilePath = xmlFilePath;
+        EmitOptionsHash = emitOptionsHash;
+        ParseOptionsHash = parseOptionsHash;
+        CompilationOptionsHash = compilationOptionsHash;
         ChecksumAlgorithm = checksumAlgorithm;
         Arguments = arguments;
         References = references;
         Analyzers = analyzers;
         Contents = contents;
         Resources = resources;
+        IsCSharp = isCSharp;
         ReadGeneratedFiles = readGeneratedFiles;
     }
 }
