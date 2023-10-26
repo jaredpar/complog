@@ -59,6 +59,7 @@ public sealed class CompilerLogReader : IDisposable
             using var reader = Polyfill.NewStreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
             var metadata = Metadata.Read(reader);
 
+            /*
             if (metadata.IsWindows is { } isWindows && isWindows != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 var produced = GetName(isWindows);
@@ -67,6 +68,7 @@ public sealed class CompilerLogReader : IDisposable
 
                 string GetName(bool isWindows) => isWindows ? "Windows" : "Unix";
             }
+            */
 
             return metadata;
         }
