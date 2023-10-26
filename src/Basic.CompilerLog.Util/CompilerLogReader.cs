@@ -498,21 +498,6 @@ public sealed class CompilerLogReader : IDisposable
         }
     }
 
-    /// <summary>
-    /// Get the content hash of all the source files in the compiler log
-    /// </summary>
-    internal List<string> ReadSourceContentHashes()
-    {
-        using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(SourceInfoFileName), ContentEncoding, leaveOpen: false);
-        var list = new List<string>();
-        while (reader.ReadLine() is string line)
-        {
-            list.Add(line);
-        }
-
-        return list;
-    }
-
     public List<(string FileName, byte[] ImageBytes)> ReadReferenceFileInfo(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);

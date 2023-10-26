@@ -154,7 +154,6 @@ internal sealed class CompilerLogBuilder : IDisposable
             EnsureOpen();
             WriteMetadata();
             WriteAssemblyInfo();
-            WriteSourceInfo();
             ZipArchive.Dispose();
             ZipArchive = null!;
         }
@@ -177,16 +176,6 @@ internal sealed class CompilerLogBuilder : IDisposable
             foreach (var kvp in _mvidToRefInfoMap.OrderBy(x => x.Value.FileName).ThenBy(x => x.Key))
             {
                 writer.WriteLine($"{kvp.Value.FileName}:{kvp.Key:N}:{kvp.Value.AssemblyName}");
-            }
-        }
-
-        void WriteSourceInfo()
-        {
-            var entry = ZipArchive.CreateEntry(SourceInfoFileName, CompressionLevel.Optimal);
-            using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
-            foreach (var value in _sourceHashMap.OrderBy(x => x))
-            {
-                writer.WriteLine(value);
             }
         }
     }
