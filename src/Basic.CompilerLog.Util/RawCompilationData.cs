@@ -96,11 +96,11 @@ internal sealed class RawCompilationData
     internal string? CompilationName { get; }
     internal string AssemblyFileName { get; }
     internal string? XmlFilePath { get; }
+    internal string? OutputDirectory { get; }
     internal string EmitOptionsHash { get; }
     internal string ParseOptionsHash { get; }
     internal string CompilationOptionsHash { get; }
     internal SourceHashAlgorithm ChecksumAlgorithm { get; }
-    internal CommandLineArguments Arguments { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
     internal List<RawContent> Contents { get; }
@@ -119,11 +119,11 @@ internal sealed class RawCompilationData
         string? compilationName,
         string assemblyFileName,
         string? xmlFilePath,
+        string? outputDirectory,
         string emitOptionsHash,
         string parseOptionsHash,
         string compilationOptionsHash,
         SourceHashAlgorithm checksumAlgorithm,
-        CommandLineArguments arguments,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
         List<RawContent> contents,
@@ -134,11 +134,11 @@ internal sealed class RawCompilationData
         CompilationName = compilationName;
         AssemblyFileName = assemblyFileName;
         XmlFilePath = xmlFilePath;
+        OutputDirectory = outputDirectory;
         EmitOptionsHash = emitOptionsHash;
         ParseOptionsHash = parseOptionsHash;
         CompilationOptionsHash = compilationOptionsHash;
         ChecksumAlgorithm = checksumAlgorithm;
-        Arguments = arguments;
         References = references;
         Analyzers = analyzers;
         Contents = contents;

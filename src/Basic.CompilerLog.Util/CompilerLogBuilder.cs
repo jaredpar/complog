@@ -219,6 +219,8 @@ internal sealed class CompilerLogBuilder : IDisposable
         compilationWriter.WriteLine($"assemblyFileName:{GetAssemblyFileName(args)}");
         compilationWriter.WriteLine($"xmlFilePath:{args.DocumentationPath}");
         compilationWriter.WriteLine($"checksumAlgorithm:{args.ChecksumAlgorithm}");
+        compilationWriter.WriteLine($"outputDirectory:{args.OutputDirectory}");
+        compilationWriter.WriteLine($"compilationName:{args.CompilationName}");
     }
 
     private void AddSources(StreamWriter compilationWriter, CommandLineArguments args)

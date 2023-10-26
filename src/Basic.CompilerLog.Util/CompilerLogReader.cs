@@ -364,9 +364,6 @@ public sealed class CompilerLogReader : IDisposable
         // TODO: re-reading the call is a bit inefficient here, better to just skip 
         _ = ReadCompilerCallCore(reader, index);
 
-        CommandLineArguments args = compilerCall.IsCSharp 
-            ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
         var references = new List<RawReferenceData>();
         var analyzers = new List<RawAnalyzerData>();
         var contents = new List<RawContent>();
@@ -377,6 +374,8 @@ public sealed class CompilerLogReader : IDisposable
         string? emitOptionsHash = null;
         string? parseOptionsHash = null;
         string? compilationOptionsHash = null;
+        string? outputDirectory = null;
+        string? compilationName = null;
         var checksumAlgorithm = SourceHashAlgorithm.None;
 
         while (reader.ReadLine() is string line)
@@ -453,6 +452,12 @@ public sealed class CompilerLogReader : IDisposable
                 case "checksumAlgorithm":
                     checksumAlgorithm = ParseEnum<SourceHashAlgorithm>();
                     break;
+                case "outputDirectory":
+                    outputDirectory = ParseString();
+                    break;
+                case "compilationName":
+                    compilationName = ParseString();
+                    break;
                 default:
                     throw new InvalidOperationException($"Unrecognized line: {line}");
             }
@@ -481,21 +486,22 @@ public sealed class CompilerLogReader : IDisposable
 
         if (emitOptionsHash is null ||
             parseOptionsHash is null ||
-            compilationOptionsHash is null)
+            compilationOptionsHash is null ||
+            compilationName is null )
         {
             throw new Exception("Missing items in compiler log");
         }
 
         assemblyFileName ??= Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
         var data = new RawCompilationData(
-            args.CompilationName,
+            compilationName,
             assemblyFileName,
             xmlFilePath,
+            outputDirectory,
             emitOptionsHash,
             parseOptionsHash,
             compilationOptionsHash,
             checksumAlgorithm,
-            args,
             references,
             analyzers,
             contents,
