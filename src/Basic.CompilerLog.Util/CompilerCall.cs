@@ -42,7 +42,13 @@ public sealed class CompilerCall
     public string ProjectFileName => Path.GetFileName(ProjectFilePath);
     public string ProjectDirectory => Path.GetDirectoryName(ProjectFilePath)!;
 
-    internal CompilerCall(string projectFilePath, CompilerCallKind kind, string? targetFramework, bool isCSharp, string[] arguments, int? index)
+    internal CompilerCall(
+        string projectFilePath,
+        CompilerCallKind kind,
+        string? targetFramework,
+        bool isCSharp,
+        string[] arguments,
+        int? index)
     {
         ProjectFilePath = projectFilePath;
         Kind = kind;

@@ -211,6 +211,8 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         var emitData = new EmitData(
+            rawCompilationData.AssemblyFileName,
+            rawCompilationData.XmlFilePath,
             win32ResourceStream: win32ResourceStream,
             sourceLinkStream: sourceLinkStream,
             resources: resources,
@@ -289,8 +291,9 @@ public sealed class CompilerLogReader : IDisposable
             return new CSharpCompilationData(
                 compilerCall,
                 compilation,
+                parseOptions,
+                rawCompilationData.Arguments.EmitOptions,
                 emitData,
-                csharpArgs,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
@@ -317,8 +320,9 @@ public sealed class CompilerLogReader : IDisposable
             return new VisualBasicCompilationData(
                 compilerCall,
                 compilation,
+                parseOptions,
+                rawCompilationData.Arguments.EmitOptions,
                 emitData,
-                basicArgs,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
@@ -368,6 +372,8 @@ public sealed class CompilerLogReader : IDisposable
         var contents = new List<RawContent>();
         var resources = new List<RawResourceData>();
         var readGeneratedFiles = false;
+        string? assemblyFileName = null;
+        string? xmlFilePath = null;
 
         while (reader.ReadLine() is string line)
         {
@@ -387,7 +393,7 @@ public sealed class CompilerLogReader : IDisposable
                     ParseContent(line, RawContentKind.GeneratedText);
                     break;
                 case "generatedResult":
-                    readGeneratedFiles = ParseBool(line);
+                    readGeneratedFiles = ParseBool();
                     break;
                 case "config":
                     ParseContent(line, RawContentKind.AnalyzerConfig);
@@ -426,20 +432,42 @@ public sealed class CompilerLogReader : IDisposable
                     ParseContent(line, RawContentKind.Win32Icon);
                     break;
                 case "optionsEmit":
-                    ParseEmitOptions(line);
+                    ParseEmitOptions(ParseString());
                     break;
                 case "optionsParse":
-                    ParseParseOptions(line);
+                    ParseParseOptions(ParseString());
                     break;
                 case "optionsCompilation":
-                    ParseCompilationOptions(line);
+                    ParseCompilationOptions(ParseString());
+                    break;
+                case "assemblyFileName":
+                    assemblyFileName = ParseString();
+                    break;
+                case "xmlFilePath":
+                    xmlFilePath = ParseStringWithNull();
                     break;
                 default:
                     throw new InvalidOperationException($"Unrecognized line: {line}");
             }
+
+            bool ParseBool() =>
+                colonIndex + 1 < line.Length &&
+                line[colonIndex + 1] == '1';
+
+            string ParseString() =>
+                line.AsSpan().Slice(colonIndex + 1).ToString();
+
+            string? ParseStringWithNull()
+            {
+                var str = ParseString();
+                return string.IsNullOrEmpty(str) ? null : str;
+            }
         }
 
+        assemblyFileName ??= Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
         var data = new RawCompilationData(
+            assemblyFileName,
+            xmlFilePath,
             args,
             references,
             analyzers,
@@ -448,12 +476,6 @@ public sealed class CompilerLogReader : IDisposable
             readGeneratedFiles);
 
         return data;
-
-        bool ParseBool(string line)
-        {
-            var items = line.Split(':', count: 2);
-            return items[1] == "1";
-        }
 
         void ParseMetadataReference(string line)
         {
@@ -511,19 +533,17 @@ public sealed class CompilerLogReader : IDisposable
             analyzers.Add(new RawAnalyzerData(mvid, items[2]));
         }
 
-        void ParseEmitOptions(string line)
+        void ParseEmitOptions(string key)
         {
-            var key = line.Split(':', count: 2)[1];
             var stream = GetContentStream(key);
             var pack = MessagePackSerializer.Deserialize<EmitOptionsPack>(stream, SerializerOptions);
             var options = MessagePackUtil.CreateEmitOptions(pack);
             Debug.Assert(options.Equals(args.EmitOptions));
         }
 
-        void ParseParseOptions(string line)
+        void ParseParseOptions(string key)
         {
             // TODO: so inefficent ... feel like we're wasting memory here so much.
-            var key = line.Split(':', count: 2)[1];
             var stream = GetContentStream(key);
             if (compilerCall.IsCSharp)
             {
@@ -543,10 +563,9 @@ public sealed class CompilerLogReader : IDisposable
             }
         }
 
-        void ParseCompilationOptions(string line)
+        void ParseCompilationOptions(string key)
         {
             // TODO: so inefficent ... feel like we're wasting memory here so much.
-            var key = line.Split(':', count: 2)[1];
             var stream = GetContentStream(key);
             if (compilerCall.IsCSharp)
             {

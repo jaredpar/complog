@@ -16,7 +16,6 @@ public abstract class CompilationData
     private ImmutableArray<DiagnosticAnalyzer> _analyzers;
     private ImmutableArray<ISourceGenerator> _generators;
     private (Compilation, ImmutableArray<Diagnostic>)? _afterGenerators;
-    private readonly CommandLineArguments _commandLineArguments;
 
     public CompilerCall CompilerCall { get; } 
     public Compilation Compilation { get; }
@@ -36,10 +35,10 @@ public abstract class CompilationData
     public ImmutableArray<AdditionalText> AdditionalTexts { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     public AnalyzerConfigOptionsProvider AnalyzerConfigOptionsProvider { get; }
+    public EmitOptions EmitOptions { get; }
+    public ParseOptions ParseOptions { get; }
 
     public CompilationOptions CompilationOptions => Compilation.Options;
-    public EmitOptions EmitOptions => _commandLineArguments.EmitOptions;
-    public ParseOptions ParseOptions => _commandLineArguments.ParseOptions;
     public bool IsCSharp => Compilation is CSharpCompilation;
     public bool VisualBasic => !IsCSharp;
     public CompilerCallKind Kind => CompilerCall.Kind;
@@ -47,16 +46,18 @@ public abstract class CompilationData
     private protected CompilationData(
         CompilerCall compilerCall,
         Compilation compilation,
+        ParseOptions parseOptions,
+        EmitOptions emitOptions,
         EmitData emitData,
-        CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
     {
         CompilerCall = compilerCall;
         Compilation = compilation;
+        ParseOptions = parseOptions;
+        EmitOptions = emitOptions;
         EmitData = emitData;
-        _commandLineArguments = commandLineArguments;
         AdditionalTexts = additionalTexts;
         BasicAnalyzerHost = basicAnalyzerHost;
         AnalyzerReferences = basicAnalyzerHost.AnalyzerReferences;
@@ -126,7 +127,7 @@ public abstract class CompilationData
     public EmitDiskResult EmitToDisk(string directory, CancellationToken cancellationToken = default)
     {
         var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
-        var assemblyName = CommonUtil.GetAssemblyFileName(_commandLineArguments);
+        var assemblyName = EmitData.AssemblyFileName;
         string assemblyFilePath = Path.Combine(directory, assemblyName);
         Stream? peStream = null;
         Stream? pdbStream = null;
@@ -146,7 +147,7 @@ public abstract class CompilationData
                 pdbStream = OpenFile(pdbFilePath);
             }
 
-            if (_commandLineArguments.DocumentationPath is not null)
+            if (EmitData.XmlFilePath is not null)
             {
                 xmlFilePath = Path.Combine(directory, Path.ChangeExtension(assemblyName, ".xml"));
                 xmlStream = OpenFile(xmlFilePath);
@@ -209,7 +210,7 @@ public abstract class CompilationData
             pdbStream = new MemoryStream();
         }
 
-        if (_commandLineArguments.DocumentationPath is not null)
+        if (EmitData.XmlFilePath is not null)
         {
             xmlStream = new MemoryStream();
         }
@@ -260,12 +261,13 @@ public abstract class CompilationData<TCompilation, TParseOptions> : Compilation
     private protected CompilationData(
         CompilerCall compilerCall,
         TCompilation compilation,
+        TParseOptions parseOptions,
+        EmitOptions emitOptions,
         EmitData emitData,
-        CommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
         
     }
@@ -276,12 +278,13 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
     internal CSharpCompilationData(
         CompilerCall compilerCall,
         CSharpCompilation compilation,
+        CSharpParseOptions parseOptions,
+        EmitOptions emitOptions,
         EmitData emitData,
-        CSharpCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        :base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
 
     }
@@ -295,12 +298,13 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
     internal VisualBasicCompilationData(
         CompilerCall compilerCall,
         VisualBasicCompilation compilation,
+        VisualBasicParseOptions parseOptions,
+        EmitOptions emitOptions,
         EmitData emitData,
-        VisualBasicCommandLineArguments commandLineArguments,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
         AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        : base(compilerCall, compilation, emitData, commandLineArguments, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        : base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
     {
     }
 

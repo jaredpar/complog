@@ -78,6 +78,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddAdditionalTexts(compilationWriter, commandLineArguments);
             AddResources(compilationWriter, commandLineArguments);
             AddEmbeds(compilationWriter, compilerCall, commandLineArguments, baseDirectory);
+            AddEmitData(compilationWriter, commandLineArguments);
             AddContentIf("link", commandLineArguments.SourceLink);
             AddContentIf("ruleset", commandLineArguments.RuleSetPath);
             AddContentIf("appconfig", commandLineArguments.AppConfigPath);
@@ -211,6 +212,12 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             AddContentCore(compilationWriter, "config", filePath);
         }
+    }
+
+    private void AddEmitData(StreamWriter compilationWriter, CommandLineArguments args)
+    {
+        compilationWriter.WriteLine($"assemblyFileName:{GetAssemblyFileName(args)}");
+        compilationWriter.WriteLine($"xmlFilePath:{args.DocumentationPath}");
     }
 
     private void AddSources(StreamWriter compilationWriter, CommandLineArguments args)
