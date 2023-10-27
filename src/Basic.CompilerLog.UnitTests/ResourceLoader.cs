@@ -7,7 +7,7 @@ namespace Basic.CompilerLog.UnitTests;
 
 internal static class ResourceLoader
 {
-    private static Stream GetResourceStream(string name)
+    public static Stream GetResourceStream(string name)
     {
         var assembly = typeof(ResourceLoader).GetTypeInfo().Assembly;
 

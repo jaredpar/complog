@@ -1,16 +1,22 @@
 ﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Serialize;
+using MessagePack;
 using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.FindSymbols;
+using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -19,7 +25,7 @@ using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class CompilerLogReader : IDisposable
+public abstract class CompilerLogReader : IDisposable
 {
     public static int LatestMetadataVersion => Metadata.LatestMetadataVersion;
 
@@ -27,6 +33,7 @@ public sealed class CompilerLogReader : IDisposable
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new();
     private readonly bool _ownsCompilerLogState;
+    private readonly Dictionary<int, object> _compilationInfoMap = new();
 
     public BasicAnalyzerHostOptions BasicAnalyzerHostOptions { get; }
     internal CompilerLogState CompilerLogState { get; }
@@ -34,42 +41,16 @@ public sealed class CompilerLogReader : IDisposable
     internal Metadata Metadata { get; }
     internal int Count => Metadata.Count;
     public int MetadataVersion => Metadata.MetadataVersion;
+    public bool IsWindowsLog => Metadata.IsWindows == true;
 
-    private CompilerLogReader(Stream stream, bool leaveOpen, BasicAnalyzerHostOptions? basicAnalyzersOptions = null, CompilerLogState? state = null)
+    internal CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions? basicAnalyzersOptions, CompilerLogState? state)
     {
-        try
-        {
-            ZipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);
-            CompilerLogState = state ?? new CompilerLogState();
-            _ownsCompilerLogState = state is null;
-        }
-        catch (InvalidDataException)
-        {
-            // Happens when this is not a valid zip file
-            throw GetInvalidCompilerLogFileException();
-        }
-
+        ZipArchive = zipArchive;
+        CompilerLogState = state ?? new CompilerLogState();
+        _ownsCompilerLogState = state is null;
         BasicAnalyzerHostOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
-        Metadata = ReadMetadata();
+        Metadata = metadata;
         ReadAssemblyInfo();
-
-        Metadata ReadMetadata()
-        {
-            var entry = ZipArchive.GetEntry(MetadataFileName) ?? throw GetInvalidCompilerLogFileException();
-            using var reader = Polyfill.NewStreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
-            var metadata = Metadata.Read(reader);
-
-            if (metadata.IsWindows is { } isWindows && isWindows != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                var produced = GetName(isWindows);
-                var current = GetName(RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
-                throw new Exception("Compiler log created on {produced} cannot be consumed on {current}");
-
-                string GetName(bool isWindows) => isWindows ? "Windows" : "Unix";
-            }
-
-            return metadata;
-        }
 
         void ReadAssemblyInfo()
         {
@@ -82,15 +63,40 @@ public sealed class CompilerLogReader : IDisposable
                 _mvidToRefInfoMap[mvid] = (items[0], assemblyName);
             }
         }
-
-        static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
     }
 
     public static CompilerLogReader Create(
         Stream stream,
         bool leaveOpen = false,
         BasicAnalyzerHostOptions? options = null,
-        CompilerLogState? state = null) => new CompilerLogReader(stream, leaveOpen, options, state);
+        CompilerLogState? state = null)
+    {
+        try
+        {
+            var zipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);
+            var metadata = ReadMetadata();
+            return metadata.MetadataVersion switch {
+                1 => new CompilerLogReaderVersion1(zipArchive, metadata, options, state),
+                2 => new CompilerLogReaderVersion2(zipArchive, metadata, options, state),
+                _ => throw GetInvalidCompilerLogFileException(),
+            };
+
+            Metadata ReadMetadata()
+            {
+                var entry = zipArchive.GetEntry(MetadataFileName) ?? throw GetInvalidCompilerLogFileException();
+                using var reader = Polyfill.NewStreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
+                var metadata = Metadata.Read(reader);
+                return metadata;
+            }
+        }
+        catch (InvalidDataException)
+        {
+            // Happens when this is not a valid zip file
+            throw GetInvalidCompilerLogFileException();
+        }
+
+        static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
+    } 
 
     public static CompilerLogReader Create(
         string filePath,
@@ -98,7 +104,26 @@ public sealed class CompilerLogReader : IDisposable
         CompilerLogState? state = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new CompilerLogReader(stream, leaveOpen: false, options, state);
+        return Create(stream, leaveOpen: false, options, state);
+    }
+
+    private protected abstract object ReadCompilationInfo(int index);
+
+    private protected abstract CompilerCall ReadCompilerCallCore(int index, object rawInfo);
+
+    private protected abstract RawCompilationData ReadRawCompilationDataCore(int index, object rawInfo);
+
+    private protected abstract (EmitOptions, ParseOptions, CompilationOptions) ReadCompilerOptionsCore(int index, object rawInfo);
+
+    private object GetOrReadCompilationInfo(int index)
+    {
+        if (!_compilationInfoMap.TryGetValue(index, out var info))
+        {
+            info = ReadCompilationInfo(index);
+            _compilationInfoMap[index] = info;
+        }
+
+        return info;
     }
 
     public CompilerCall ReadCompilerCall(int index)
@@ -106,8 +131,7 @@ public sealed class CompilerLogReader : IDisposable
         if (index >= Count)
             throw new InvalidOperationException();
 
-        using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
-        return ReadCompilerCallCore(reader, index);
+        return ReadCompilerCallCore(index, GetOrReadCompilationInfo(index));
     }
 
     public List<CompilerCall> ReadAllCompilerCalls(Func<CompilerCall, bool>? predicate = null)
@@ -126,16 +150,25 @@ public sealed class CompilerLogReader : IDisposable
         return list;
     }
 
+    public (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilerCall compilerCall)
+    {
+        var index = GetIndex(compilerCall);
+        var info = GetOrReadCompilationInfo(index);
+        return ReadCompilerOptionsCore(index, info);
+    }
+
     public CompilationData ReadCompilationData(int index) =>
         ReadCompilationData(ReadCompilerCall(index));
 
     public CompilationData ReadCompilationData(CompilerCall compilerCall)
     {
+        var index = GetIndex(compilerCall);
+        var info = GetOrReadCompilationInfo(index);
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = GetMetadataReferences(rawCompilationData.References);
-        var compilationOptions = rawCompilationData.Arguments.CompilationOptions;
+        var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptionsCore(index, info);
 
-        var hashAlgorithm = rawCompilationData.Arguments.ChecksumAlgorithm;
+        var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var additionalTextList = new List<AdditionalText>();
@@ -204,6 +237,8 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         var emitData = new EmitData(
+            rawCompilationData.AssemblyFileName,
+            rawCompilationData.XmlFilePath,
             win32ResourceStream: win32ResourceStream,
             sourceLinkStream: sourceLinkStream,
             resources: resources,
@@ -263,9 +298,8 @@ public sealed class CompilerLogReader : IDisposable
 
         CSharpCompilationData CreateCSharp()
         {
-            var csharpArgs = (CSharpCommandLineArguments)rawCompilationData.Arguments;
             var csharpOptions = (CSharpCompilationOptions)compilationOptions;
-            var parseOptions = csharpArgs.ParseOptions;
+            var parseOptions = (CSharpParseOptions)rawParseOptions;
             var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTextList, parseOptions);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
@@ -274,7 +308,7 @@ public sealed class CompilerLogReader : IDisposable
                 .WithStrongNameProvider(new DesktopStrongNameProvider());
 
             var compilation = CSharpCompilation.Create(
-                rawCompilationData.Arguments.CompilationName,
+                rawCompilationData.CompilationName,
                 syntaxTrees,
                 referenceList,
                 csharpOptions);
@@ -282,8 +316,9 @@ public sealed class CompilerLogReader : IDisposable
             return new CSharpCompilationData(
                 compilerCall,
                 compilation,
+                parseOptions,
+                emitOptions,
                 emitData,
-                csharpArgs,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
@@ -291,9 +326,8 @@ public sealed class CompilerLogReader : IDisposable
 
         VisualBasicCompilationData CreateVisualBasic()
         {
-            var basicArgs = (VisualBasicCommandLineArguments)rawCompilationData.Arguments;
             var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
-            var parseOptions = basicArgs.ParseOptions;
+            var parseOptions = (VisualBasicParseOptions)rawParseOptions;
             var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTextList, parseOptions);
             var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
 
@@ -302,7 +336,7 @@ public sealed class CompilerLogReader : IDisposable
                 .WithStrongNameProvider(new DesktopStrongNameProvider());
 
             var compilation = VisualBasicCompilation.Create(
-                rawCompilationData.Arguments.CompilationName,
+                rawCompilationData.CompilationName,
                 syntaxTrees,
                 referenceList,
                 basicOptions);
@@ -310,8 +344,9 @@ public sealed class CompilerLogReader : IDisposable
             return new VisualBasicCompilationData(
                 compilerCall,
                 compilation,
+                parseOptions,
+                emitOptions,
                 emitData,
-                basicArgs,
                 additionalTextList.ToImmutableArray(),
                 ReadAnalyzers(rawCompilationData),
                 analyzerProvider);
@@ -331,8 +366,17 @@ public sealed class CompilerLogReader : IDisposable
 
     internal (CompilerCall, RawCompilationData) ReadRawCompilationData(int index)
     {
-        var compilerCall = ReadCompilerCall(index);
-        return (compilerCall, ReadRawCompilationData(compilerCall));
+        var info = GetOrReadCompilationInfo(index);
+        var compilerCall = ReadCompilerCallCore(index, info);
+        var rawCompilationData = ReadRawCompilationDataCore(index, info);
+        return (compilerCall, rawCompilationData);
+    }
+
+    internal RawCompilationData ReadRawCompilationData(CompilerCall compilerCall)
+    {
+        var index = GetIndex(compilerCall);
+        var info = GetOrReadCompilationInfo(index);
+        return ReadRawCompilationDataCore(index, info);
     }
 
     internal int GetIndex(CompilerCall compilerCall)
@@ -343,172 +387,6 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         throw new ArgumentException($"Invalid index");
-    }
-
-    internal RawCompilationData ReadRawCompilationData(CompilerCall compilerCall)
-    {
-        var index = GetIndex(compilerCall);
-        using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
-
-        // TODO: re-reading the call is a bit inefficient here, better to just skip 
-        _ = ReadCompilerCallCore(reader, index);
-
-        CommandLineArguments args = compilerCall.IsCSharp 
-            ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, Path.GetDirectoryName(compilerCall.ProjectFilePath), sdkDirectory: null, additionalReferenceDirectories: null);
-        var references = new List<RawReferenceData>();
-        var analyzers = new List<RawAnalyzerData>();
-        var contents = new List<RawContent>();
-        var resources = new List<RawResourceData>();
-        var readGeneratedFiles = false;
-
-        while (reader.ReadLine() is string line)
-        {
-            var colonIndex = line.IndexOf(':');
-            switch (line.AsSpan().Slice(0, colonIndex))
-            {
-                case "m":
-                    ParseMetadataReference(line);
-                    break;
-                case "a":
-                    ParseAnalyzer(line);
-                    break;
-                case "source":
-                    ParseContent(line, RawContentKind.SourceText);
-                    break;
-                case "generated":
-                    ParseContent(line, RawContentKind.GeneratedText);
-                    break;
-                case "generatedResult":
-                    readGeneratedFiles = ParseBool(line);
-                    break;
-                case "config":
-                    ParseContent(line, RawContentKind.AnalyzerConfig);
-                    break;
-                case "text":
-                    ParseContent(line, RawContentKind.AdditionalText);
-                    break;
-                case "embed":
-                    ParseContent(line, RawContentKind.Embed);
-                    break;
-                case "embedline":
-                    ParseContent(line, RawContentKind.EmbedLine);
-                    break;
-                case "link":
-                    ParseContent(line, RawContentKind.SourceLink);
-                    break;
-                case "ruleset":
-                    ParseContent(line, RawContentKind.RuleSet);
-                    break;
-                case "appconfig":
-                    ParseContent(line, RawContentKind.AppConfig);
-                    break;
-                case "win32manifest":
-                    ParseContent(line, RawContentKind.Win32Manifest);
-                    break;
-                case "win32resource":
-                    ParseContent(line, RawContentKind.Win32Resource);
-                    break;
-                case "cryptokeyfile":
-                    ParseContent(line, RawContentKind.CryptoKeyFile);
-                    break;
-                case "r":
-                    ParseResource(line);
-                    break;
-                case "win32icon":
-                    ParseContent(line, RawContentKind.Win32Icon);
-                    break;
-                default:
-                    throw new InvalidOperationException($"Unrecognized line: {line}");
-            }
-        }
-
-        var data = new RawCompilationData(
-            args,
-            references,
-            analyzers,
-            contents,
-            resources,
-            readGeneratedFiles);
-
-        return data;
-
-        bool ParseBool(string line)
-        {
-            var items = line.Split(':', count: 2);
-            return items[1] == "1";
-        }
-
-        void ParseMetadataReference(string line)
-        {
-            var items = line.Split(':');
-            if (items.Length == 5 &&
-                Guid.TryParse(items[1], out var mvid) &&
-                int.TryParse(items[2], out var kind))
-            {
-                var embedInteropTypes = items[3] == "1";
-
-                string[]? aliases = null;
-                if (!string.IsNullOrEmpty(items[4]))
-                {
-                    aliases = items[4].Split(',');
-                }
-
-                references.Add(new RawReferenceData(
-                    mvid,
-                    aliases,
-                    embedInteropTypes));
-                return;
-            }
-
-            throw new InvalidOperationException();
-        }
-
-        void ParseContent(string line, RawContentKind kind)
-        {
-            var items = line.Split(':', count: 3);
-            contents.Add(new(items[2], items[1], kind));
-        }
-
-        void ParseResource(string line)
-        {
-            var items = line.Split(':', count: 5);
-            var fileName = items[4];
-            var isPublic = bool.Parse(items[3]);
-            var contentHash = items[1];
-            var dataProvider = () =>
-            {
-                var bytes = GetContentBytes(contentHash);
-                return new MemoryStream(bytes);
-            };
-
-            var d = string.IsNullOrEmpty(fileName)
-                ? new ResourceDescription(items[2], dataProvider, isPublic)
-                : new ResourceDescription(items[2], fileName, dataProvider, isPublic);
-            resources.Add(new(contentHash, d));
-        }
-
-        void ParseAnalyzer(string line)
-        {
-            var items = line.Split(':', count: 3);
-            var mvid = Guid.Parse(items[1]);
-            analyzers.Add(new RawAnalyzerData(mvid, items[2]));
-        }
-    }
-
-    /// <summary>
-    /// Get the content hash of all the source files in the compiler log
-    /// </summary>
-    internal List<string> ReadSourceContentHashes()
-    {
-        using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(SourceInfoFileName), ContentEncoding, leaveOpen: false);
-        var list = new List<string>();
-        while (reader.ReadLine() is string line)
-        {
-            list.Add(line);
-        }
-
-        return list;
     }
 
     public List<(string FileName, byte[] ImageBytes)> ReadReferenceFileInfo(CompilerCall compilerCall)
@@ -598,31 +476,10 @@ public sealed class CompilerLogReader : IDisposable
             var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>();
             foreach (var tuple in rawCompilationData.Contents.Where(static x => x.Kind == RawContentKind.GeneratedText))
             {
-                builder.Add((GetSourceText(tuple.ContentHash, rawCompilationData.Arguments.ChecksumAlgorithm), tuple.FilePath));
+                builder.Add((GetSourceText(tuple.ContentHash, rawCompilationData.ChecksumAlgorithm), tuple.FilePath));
             }
             return builder.ToImmutableArray();
         }
-    }
-
-    private static CompilerCall ReadCompilerCallCore(StreamReader reader, int index)
-    {
-        var projectFile = reader.ReadLineOrThrow();
-        var isCSharp = reader.ReadLineOrThrow() == "C#";
-        var targetFramework = reader.ReadLineOrThrow();
-        if (string.IsNullOrEmpty(targetFramework))
-        {
-            targetFramework = null;
-        }
-
-        var kind = (CompilerCallKind)Enum.Parse(typeof(CompilerCallKind), reader.ReadLineOrThrow());
-        var count = int.Parse(reader.ReadLineOrThrow());
-        var arguments = new string[count];
-        for (int i = 0; i < count; i++)
-        {
-            arguments[i] = reader.ReadLineOrThrow();
-        }
-
-        return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments, index);
     }
 
     internal string GetMetadataReferenceFileName(Guid mvid)
@@ -673,6 +530,12 @@ public sealed class CompilerLogReader : IDisposable
             list.Add(GetMetadataReference(referenceData));
         }
         return list;
+    }
+
+    internal T GetContentPack<T>(string contentHash)
+    {
+        var stream = GetContentStream(contentHash);
+        return MessagePackSerializer.Deserialize<T>(stream, SerializerOptions);
     }
 
     internal byte[] GetContentBytes(string contentHash) =>

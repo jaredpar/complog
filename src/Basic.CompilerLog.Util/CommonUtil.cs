@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MessagePack;
 using Microsoft.CodeAnalysis;
 #if NETCOREAPP
 using System.Runtime.Loader;
@@ -14,8 +15,8 @@ internal static class CommonUtil
 {
     internal const string MetadataFileName = "metadata.txt";
     internal const string AssemblyInfoFileName = "assemblyinfo.txt";
-    internal const string SourceInfoFileName = "source.txt";
     internal static readonly Encoding ContentEncoding = Encoding.UTF8;
+    internal static readonly MessagePackSerializerOptions SerializerOptions = MessagePackSerializerOptions.Standard.WithAllowAssemblyVersionMismatch(true);
 
     internal static string GetCompilerEntryName(int index) => $"compilations/{index}.txt";
     internal static string GetAssemblyEntryName(Guid mvid) => $"assembly/{mvid:N}";

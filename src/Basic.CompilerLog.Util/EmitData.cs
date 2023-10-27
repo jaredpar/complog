@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,17 +14,24 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed class EmitData
 {
+    // TODO: maybe don't need these after all?
+    public string AssemblyFileName { get; }
+    public string? XmlFilePath { get; }
     public Stream? Win32ResourceStream { get; }
     public Stream? SourceLinkStream { get; }
     public IEnumerable<ResourceDescription>? Resources { get; }
     public IEnumerable<EmbeddedText>? EmbeddedTexts { get; }
 
     public EmitData(
+        string assemblyFileName,
+        string? xmlFilePath,
         Stream? win32ResourceStream,
         Stream? sourceLinkStream,
         IEnumerable<ResourceDescription>? resources,
         IEnumerable<EmbeddedText>? embeddedTexts)
     {
+        AssemblyFileName = assemblyFileName;
+        XmlFilePath = xmlFilePath;
         Win32ResourceStream = win32ResourceStream;
         SourceLinkStream = sourceLinkStream;
         Resources = resources;

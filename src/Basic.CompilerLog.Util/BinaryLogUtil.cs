@@ -107,7 +107,7 @@ public static class BinaryLogUtil
                 kind,
                 TargetFramework,
                 isCSharp: IsCSharp,
-                rawArgs,
+                new Lazy<string[]>(() => rawArgs),
                 index: null);
         }
     }

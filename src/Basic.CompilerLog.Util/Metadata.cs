@@ -9,7 +9,7 @@ namespace Basic.CompilerLog.Util;
 
 internal sealed class Metadata
 {
-    internal static readonly int LatestMetadataVersion = 1;
+    internal static readonly int LatestMetadataVersion = 2;
 
     internal int MetadataVersion { get; }
     internal int Count { get; }

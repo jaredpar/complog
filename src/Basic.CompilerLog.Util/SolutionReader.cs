@@ -120,16 +120,17 @@ public sealed class SolutionReader : IDisposable
 
         var referenceList = Reader.GetMetadataReferences(FilterToUnique(rawCompilationData.References));
         var analyzers = Reader.ReadAnalyzers(rawCompilationData);
+        var options = Reader.ReadCompilerOptions(compilerCall);
         var projectInfo = ProjectInfo.Create(
             projectId,
             VersionStamp,
             name: compilerCall.ProjectFileName,
-            assemblyName: rawCompilationData.Arguments.OutputFileName!,
+            assemblyName: rawCompilationData.AssemblyFileName,
             language: compilerCall.IsCSharp ? LanguageNames.CSharp : LanguageNames.VisualBasic,
             filePath: compilerCall.ProjectFilePath,
-            outputFilePath: Path.Combine(rawCompilationData.Arguments.OutputDirectory, rawCompilationData.Arguments.OutputFileName!),
-            compilationOptions: rawCompilationData.Arguments.CompilationOptions,
-            parseOptions: rawCompilationData.Arguments.ParseOptions,
+            outputFilePath: Path.Combine(rawCompilationData.OutputDirectory ?? "", rawCompilationData.AssemblyFileName),
+            compilationOptions: options.CompilationOptions,
+            parseOptions: options.ParseOptions,
             documents,
             projectReferences,
             referenceList,

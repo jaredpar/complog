@@ -93,11 +93,17 @@ internal readonly struct RawContent
 
 internal sealed class RawCompilationData
 {
-    internal CommandLineArguments Arguments { get; }
+    internal int Index { get; }
+    internal string? CompilationName { get; }
+    internal string AssemblyFileName { get; }
+    internal string? XmlFilePath { get; }
+    internal string? OutputDirectory { get; }
+    internal SourceHashAlgorithm ChecksumAlgorithm { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
     internal List<RawContent> Contents { get; }
     internal List<RawResourceData> Resources { get; }
+    internal bool IsCSharp { get; }
 
     /// <summary>
     /// This is true when the generated files were successfully read from the original 
@@ -108,18 +114,30 @@ internal sealed class RawCompilationData
     internal bool ReadGeneratedFiles { get; }
 
     internal RawCompilationData(
-        CommandLineArguments arguments,
+        int index, 
+        string? compilationName,
+        string assemblyFileName,
+        string? xmlFilePath,
+        string? outputDirectory,
+        SourceHashAlgorithm checksumAlgorithm,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
         List<RawContent> contents,
         List<RawResourceData> resources,
+        bool isCSharp,
         bool readGeneratedFiles)
     {
-        Arguments = arguments;
+        Index = index;
+        CompilationName = compilationName;
+        AssemblyFileName = assemblyFileName;
+        XmlFilePath = xmlFilePath;
+        OutputDirectory = outputDirectory;
+        ChecksumAlgorithm = checksumAlgorithm;
         References = references;
         Analyzers = analyzers;
         Contents = contents;
         Resources = resources;
+        IsCSharp = isCSharp;
         ReadGeneratedFiles = readGeneratedFiles;
     }
 }
