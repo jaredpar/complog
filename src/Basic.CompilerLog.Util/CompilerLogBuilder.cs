@@ -55,12 +55,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         try
         {
-            var arguments = compilerCall.Arguments;
-            var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
-            CommandLineArguments commandLineArguments = compilerCall.IsCSharp
-                ? CSharpCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
-                : VisualBasicCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
-
+            var commandLineArguments = compilerCall.ParseArguments();
             var infoPack = new CompilationInfoPack()
             {
                 ProjectFilePath = compilerCall.ProjectFilePath,
@@ -68,7 +63,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 TargetFramework = compilerCall.TargetFramework,
                 CompilerCallKind = compilerCall.Kind,
                 CommandLineArgsHash = AddContentMessagePack(compilerCall.Arguments),
-                CompilationDataPackHash = AddCompilationDataPack(commandLineArguments, baseDirectory),
+                CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
             };
 
             AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
@@ -88,7 +83,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return false;
         }
 
-        string AddCompilationDataPack(CommandLineArguments commandLineArguments, string baseDirectory)
+        string AddCompilationDataPack(CommandLineArguments commandLineArguments)
         {
             var dataPack = new CompilationDataPack()
             {
@@ -106,7 +101,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddSources(dataPack, commandLineArguments);
             AddAdditionalTexts(dataPack, commandLineArguments);
             AddResources(dataPack, commandLineArguments);
-            AddEmbeds(dataPack, compilerCall, commandLineArguments, baseDirectory);
+            AddEmbeds(dataPack, compilerCall, commandLineArguments);
             AddContentIf(dataPack, RawContentKind.SourceLink, commandLineArguments.SourceLink);
             AddContentIf(dataPack, RawContentKind.RuleSet, commandLineArguments.RuleSetPath);
             AddContentIf(dataPack, RawContentKind.AppConfig, commandLineArguments.AppConfigPath);
@@ -490,7 +485,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddEmbeds(CompilationDataPack dataPack, CompilerCall compilerCall, CommandLineArguments args, string baseDirectory)
+    private void AddEmbeds(CompilationDataPack dataPack, CompilerCall compilerCall, CommandLineArguments args)
     {
         if (args.EmbeddedFiles.Length == 0)
         {
@@ -498,6 +493,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
 
         // Embedded files is one place where the compiler requires strict ordinal matching
+        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
         var sourceFileSet = new HashSet<string>(args.SourceFiles.Select(static x => x.Path), StringComparer.Ordinal);
         var lineSet = new HashSet<string>(StringComparer.Ordinal);
         var resolver = new SourceFileResolver(ImmutableArray<string>.Empty, args.BaseDirectory, args.PathMap);

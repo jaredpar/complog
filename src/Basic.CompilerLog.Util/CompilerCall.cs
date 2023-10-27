@@ -1,4 +1,8 @@
-﻿namespace Basic.CompilerLog.Util;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.VisualBasic;
+
+namespace Basic.CompilerLog.Util;
 
 public enum CompilerCallKind
 {
@@ -69,5 +73,13 @@ public sealed class CompilerCall
         }
 
         return baseName;
+    }
+
+    internal CommandLineArguments ParseArguments()
+    {
+        var baseDirectory = Path.GetDirectoryName(ProjectFilePath)!;
+        return IsCSharp
+            ? CSharpCommandLineParser.Default.Parse(Arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
+            : VisualBasicCommandLineParser.Default.Parse(Arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
     }
 }

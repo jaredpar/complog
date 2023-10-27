@@ -22,11 +22,7 @@ internal sealed class CompilerLogReaderVersion1 : CompilerLogReader
     {
         using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index)), ContentEncoding, leaveOpen: false);
         var compilerCall = ReadCompilerCallCore(reader, index);
-        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
-        CommandLineArguments commandLineArguments = compilerCall.IsCSharp
-            ? CSharpCommandLineParser.Default.Parse(compilerCall.Arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse(compilerCall.Arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
-
+        var commandLineArguments = compilerCall.ParseArguments();
         return new CompilationInfo(compilerCall, commandLineArguments);
     }
 

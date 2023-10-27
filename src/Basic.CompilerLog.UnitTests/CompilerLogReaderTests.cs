@@ -402,4 +402,35 @@ public sealed class CompilerLogReaderTests : TestBase
             Assert.True(result.Success);
         }
     }
+
+    /// <summary>
+    /// Ensure that our options round tripping code is correct and produces the same result as 
+    /// argument parsing. This will also catch cases where new values are added to the options 
+    /// that are not being set by our code base.
+    /// </summary>
+    [Fact]
+    public void OptionsCorrectness()
+    {
+        var all = Fixture.GetAllCompLogs();
+        Assert.NotEmpty(all);
+        foreach (var complogPath in all)
+        {
+            TestOutputHelper.WriteLine(complogPath);
+            using var reader = CompilerLogReader.Create(complogPath);
+            foreach (var data in reader.ReadAllCompilationData())
+            {
+                var args = data.CompilerCall.ParseArguments();
+                Assert.Equal(args.EmitOptions, data.EmitOptions);
+                Assert.Equal(args.ParseOptions, data.ParseOptions);
+
+                var expectedCompilationOptions = args.CompilationOptions
+                    .WithCryptoKeyFile(null);
+                var actualCompilationOptions = data.CompilationOptions
+                    .WithSyntaxTreeOptionsProvider(null)
+                    .WithStrongNameProvider(null)
+                    .WithCryptoKeyFile(null);
+                Assert.Equal(expectedCompilationOptions, actualCompilationOptions);
+            }
+        }
+    }
 }
