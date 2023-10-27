@@ -32,6 +32,9 @@
     <EmbeddedResource Include="Resources\Key.snk">
         <LogicalName>Key.snk</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Resources\MetadataVersion1\console.complog">
+        <LogicalName>MetadataVersion1.console.complog</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>
