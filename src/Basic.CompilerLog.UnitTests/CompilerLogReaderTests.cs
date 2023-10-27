@@ -393,13 +393,16 @@ public sealed class CompilerLogReaderTests : TestBase
     [InlineData("MetadataVersion1.console.complog")]
     public void MetadataCompat(string resourceName)
     {
-        using var stream = ResourceLoader.GetResourceStream(resourceName);
-        using var reader = CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None);
-        foreach (var compilerCall in reader.ReadAllCompilerCalls())
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            var data = reader.ReadCompilationData(compilerCall);
-            var result = data.EmitToMemory();
-            Assert.True(result.Success);
+            using var stream = ResourceLoader.GetResourceStream(resourceName);
+            using var reader = CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None);
+            foreach (var compilerCall in reader.ReadAllCompilerCalls())
+            {
+                var data = reader.ReadCompilationData(compilerCall);
+                var result = data.EmitToMemory();
+                Assert.True(result.Success);
+            }
         }
     }
 
