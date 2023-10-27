@@ -53,53 +53,31 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     internal bool Add(CompilerCall compilerCall)
     {
-        var memoryStream = new MemoryStream();
-        using var compilationWriter = Polyfill.NewStreamWriter(memoryStream, ContentEncoding, leaveOpen: true);
-        compilationWriter.WriteLine(compilerCall.ProjectFilePath);
-        compilationWriter.WriteLine(compilerCall.IsCSharp ? "C#" : "VB");
-        compilationWriter.WriteLine(compilerCall.TargetFramework);
-        compilationWriter.WriteLine(compilerCall.Kind);
-        compilationWriter.WriteLine(AddCommandLineArguments(compilerCall));
-
-        var arguments = compilerCall.Arguments;
-        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
-        CommandLineArguments commandLineArguments = compilerCall.IsCSharp
-            ? CSharpCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
-
         try
         {
-            AddOptions(compilationWriter, commandLineArguments, compilerCall);
-            AddReferences(compilationWriter, commandLineArguments);
-            AddAnalyzers(compilationWriter, commandLineArguments);
-            AddAnalyzerConfigs(compilationWriter, commandLineArguments);
-            AddGeneratedFiles(compilationWriter, commandLineArguments, compilerCall);
-            AddSources(compilationWriter, commandLineArguments);
-            AddAdditionalTexts(compilationWriter, commandLineArguments);
-            AddResources(compilationWriter, commandLineArguments);
-            AddEmbeds(compilationWriter, compilerCall, commandLineArguments, baseDirectory);
-            AddExtraData(compilationWriter, commandLineArguments);
-            AddContentIf("link", commandLineArguments.SourceLink);
-            AddContentIf("ruleset", commandLineArguments.RuleSetPath);
-            AddContentIf("appconfig", commandLineArguments.AppConfigPath);
-            AddContentIf("win32resource", commandLineArguments.Win32ResourceFile);
-            AddContentIf("win32icon", commandLineArguments.Win32Icon);
-            AddContentIf("win32manifest", commandLineArguments.Win32Manifest);
-            AddContentIf("cryptokeyfile", commandLineArguments.CompilationOptions.CryptoKeyFile);
+            var arguments = compilerCall.Arguments;
+            var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
+            CommandLineArguments commandLineArguments = compilerCall.IsCSharp
+                ? CSharpCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
+                : VisualBasicCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
 
-            compilationWriter.Flush();
+            var infoPack = new CompilationInfoPack()
+            {
+                ProjectFilePath = compilerCall.ProjectFilePath,
+                IsCSharp = compilerCall.IsCSharp,
+                TargetFramework = compilerCall.TargetFramework,
+                CompilerCallKind = compilerCall.Kind,
+                CommandLineArgsHash = AddContentMessagePack(compilerCall.Arguments),
+                CompilationDataPackHash = AddCompilationDataPack(commandLineArguments, baseDirectory),
+            };
 
-            CompressionLevel level;
-#if NETCOREAPP
-            level = CompressionLevel.SmallestSize;
-#else
-            level = CompressionLevel.Optimal;
-#endif
-            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), level);
-            using var entryStream = entry.Open();
-            memoryStream.Position = 0;
-            memoryStream.CopyTo(entryStream);
-            entryStream.Close();
+            AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
+
+            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), CompressionLevel.Optimal);
+            using (var entryStream = entry.Open())
+            {
+                MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
+            }
 
             _compilationCount++;
             return true;
@@ -110,11 +88,40 @@ internal sealed class CompilerLogBuilder : IDisposable
             return false;
         }
 
-        void AddContentIf(string key, string? filePath)
+        string AddCompilationDataPack(CommandLineArguments commandLineArguments, string baseDirectory)
+        {
+            var dataPack = new CompilationDataPack()
+            {
+                ContentList = new(),
+                ValueMap = new(),
+                References = new(),
+                Analyzers = new(),
+                Resources = new(),
+            };
+            AddValues(dataPack, commandLineArguments);
+            AddReferences(dataPack, commandLineArguments);
+            AddAnalyzers(dataPack, commandLineArguments);
+            AddAnalyzerConfigs(dataPack, commandLineArguments);
+            AddGeneratedFiles(dataPack, commandLineArguments, compilerCall);
+            AddSources(dataPack, commandLineArguments);
+            AddAdditionalTexts(dataPack, commandLineArguments);
+            AddResources(dataPack, commandLineArguments);
+            AddEmbeds(dataPack, compilerCall, commandLineArguments, baseDirectory);
+            AddContentIf(dataPack, RawContentKind.SourceLink, commandLineArguments.SourceLink);
+            AddContentIf(dataPack, RawContentKind.RuleSet, commandLineArguments.RuleSetPath);
+            AddContentIf(dataPack, RawContentKind.AppConfig, commandLineArguments.AppConfigPath);
+            AddContentIf(dataPack, RawContentKind.Win32Resource, commandLineArguments.Win32ResourceFile);
+            AddContentIf(dataPack, RawContentKind.Win32Icon, commandLineArguments.Win32Icon);
+            AddContentIf(dataPack, RawContentKind.Win32Manifest, commandLineArguments.Win32Manifest);
+            AddContentIf(dataPack, RawContentKind.CryptoKeyFile, commandLineArguments.CompilationOptions.CryptoKeyFile);
+            return AddContentMessagePack(dataPack);
+        }
+
+        void AddContentIf(CompilationDataPack dataPack, RawContentKind kind, string? filePath)
         {
             if (TryResolve(filePath) is { } resolvedFilePath)
             {
-                AddContentCore(compilationWriter, key, resolvedFilePath);
+                AddContentCore(dataPack, kind, resolvedFilePath);
             }
         }
 
@@ -139,20 +146,26 @@ internal sealed class CompilerLogBuilder : IDisposable
             return null;
         }
 
-        string AddCommandLineArguments(CompilerCall call)
+        void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)
         {
-            var stream = new MemoryStream();
-            using (var writer = Polyfill.NewStreamWriter(stream, ContentEncoding, leaveOpen: true))
+            infoPack.EmitOptionsHash = AddContentMessagePack(MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions));
+
+            if (compilerCall.IsCSharp)
             {
-                foreach (var line in call.Arguments)
-                {
-                    writer.WriteLine(line);
-                }
+                infoPack.ParseOptionsHash = AddContentMessagePack(
+                    MessagePackUtil.CreateCSharpParseOptionsPack((CSharpParseOptions)args.ParseOptions));
+                infoPack.CompilationOptionsHash = AddContentMessagePack(
+                    MessagePackUtil.CreateCSharpCompilationOptionsPack((CSharpCompilationOptions)args.CompilationOptions));
             }
-            
-            stream.Position = 0;
-            return AddContent(stream);
-        } 
+            else
+            {
+                infoPack.ParseOptionsHash = AddContentMessagePack(
+                    MessagePackUtil.CreateVisualBasicParseOptionsPack((VisualBasicParseOptions)args.ParseOptions));
+                infoPack.CompilationOptionsHash = AddContentMessagePack(
+                    MessagePackUtil.CreateVisualBasicCompilationOptionsPack((VisualBasicCompilationOptions)args.CompilationOptions));
+            }
+        }
+
     }
 
     private void EnsureOpen()
@@ -194,96 +207,41 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddContentCore(StreamWriter compilationWriter, string key, string filePath, Stream stream)
+    private void AddContentCore(CompilationDataPack dataPack, RawContentKind kind, string filePath, Stream stream)
     {
         var contentHash = AddContent(stream);
-        compilationWriter.WriteLine($"{key}:{contentHash}:{filePath}");
+
+        dataPack.ContentList.Add(((int)kind, new ContentPack(contentHash, filePath)));
     }
 
-    private void AddContentCore(StreamWriter compilationWriter, string key, string filePath)
+    private void AddContentCore(CompilationDataPack dataPack, RawContentKind kind, string filePath)
     {
         var contentHash = AddContent(filePath);
-        compilationWriter.WriteLine($"{key}:{contentHash}:{filePath}");
+        dataPack.ContentList.Add(((int)kind, new ContentPack(contentHash, filePath)));
     }
 
-    private void AddAnalyzerConfigs(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddAnalyzerConfigs(CompilationDataPack dataPack, CommandLineArguments args)
     {
         foreach (var filePath in args.AnalyzerConfigPaths)
         {
-            AddContentCore(compilationWriter, "config", filePath);
+            AddContentCore(dataPack, RawContentKind.AnalyzerConfig, filePath);
         }
     }
 
-    private void AddExtraData(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddValues(CompilationDataPack dataPack, CommandLineArguments args)
     {
-        compilationWriter.WriteLine($"assemblyFileName:{GetAssemblyFileName(args)}");
-        compilationWriter.WriteLine($"xmlFilePath:{args.DocumentationPath}");
-        compilationWriter.WriteLine($"checksumAlgorithm:{args.ChecksumAlgorithm}");
-        compilationWriter.WriteLine($"outputDirectory:{args.OutputDirectory}");
-        compilationWriter.WriteLine($"compilationName:{args.CompilationName}");
+        dataPack.ValueMap.Add("assemblyFileName", GetAssemblyFileName(args));
+        dataPack.ValueMap.Add("xmlFilePath", args.DocumentationPath);
+        dataPack.ValueMap.Add("outputDirectory", args.OutputDirectory);
+        dataPack.ValueMap.Add("compilationName", args.CompilationName);
+        dataPack.ChecksumAlgorithm = args.ChecksumAlgorithm;
     }
 
-    private void AddSources(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddSources(CompilationDataPack dataPack, CommandLineArguments args)
     {
         foreach (var commandLineFile in args.SourceFiles)
         {
-            AddContentCore(compilationWriter, "source", commandLineFile.Path);
-        }
-    }
-
-    private void AddOptions(StreamWriter compilationWriter, CommandLineArguments args, CompilerCall compilerCall)
-    {
-        AddEmitOptions();
-        AddParseOptions();
-        AddCompilationOptions();
-
-        void AddEmitOptions()
-        {
-            var stream = new MemoryStream();
-            var pack = MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions);
-            MessagePackSerializer.Serialize(stream, pack, SerializerOptions);
-            stream.Position = 0;
-            compilationWriter.WriteLine($"optionsEmit:{AddContent(stream)}");
-        }
-
-        void AddParseOptions()
-        {
-            var stream = new MemoryStream();
-            if (compilerCall.IsCSharp)
-            {
-                var options = (CSharpParseOptions)args.ParseOptions;
-                var tuple = MessagePackUtil.CreateCSharpParseOptionsPack(options);
-                MessagePackSerializer.Serialize(stream, tuple, SerializerOptions);
-            }
-            else
-            {
-                var options = (VisualBasicParseOptions)args.ParseOptions;
-                var tuple = MessagePackUtil.CreateVisualBasicParseOptionsPack(options);
-                MessagePackSerializer.Serialize(stream, tuple, SerializerOptions);
-            }
-
-            stream.Position = 0;
-            compilationWriter.WriteLine($"optionsParse:{AddContent(stream)}");
-        }
-
-        void AddCompilationOptions()
-        {
-            var stream = new MemoryStream();
-            if (compilerCall.IsCSharp)
-            {
-                var options = (CSharpCompilationOptions)args.CompilationOptions;
-                var tuple = MessagePackUtil.CreateCSharpCompilationOptionsPack(options);
-                MessagePackSerializer.Serialize(stream, tuple, SerializerOptions);
-            }
-            else
-            {
-                var options = (VisualBasicCompilationOptions)args.CompilationOptions;
-                var tuple = MessagePackUtil.CreateVisualBasicCompilationOptionsPack(options);
-                MessagePackSerializer.Serialize(stream, tuple, SerializerOptions);
-            }
-
-            stream.Position = 0;
-            compilationWriter.WriteLine($"optionsCompilation:{AddContent(stream)}");
+            AddContentCore(dataPack, RawContentKind.SourceText, commandLineFile.Path);
         }
     }
 
@@ -291,14 +249,13 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// Attempt to add all the generated files from generators. When successful the generators
     /// don't need to be run when re-hydrating the compilation.
     /// </summary>
-    private void AddGeneratedFiles(StreamWriter compilationWriter, CommandLineArguments args, CompilerCall compilerCall)
+    private void AddGeneratedFiles(CompilationDataPack dataPack, CommandLineArguments args, CompilerCall compilerCall)
     {
         var (languageGuid, languageExtension) = compilerCall.IsCSharp
             ? (LanguageTypeCSharp, ".cs")
             : (LanguageTypeBasic, ".vb");
 
-        var succeeded = AddGeneratedFilesCore();
-        compilationWriter.WriteLine($"generatedResult:{(succeeded ? '1' : '0')}");
+        dataPack.IncludesGeneratedText = AddGeneratedFilesCore();
 
         bool AddGeneratedFilesCore()
         {
@@ -334,8 +291,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 {
                     if (GetContentStream(pdbReader, documentHandle) is { } tuple)
                     {
-                        var contentHash = AddContent(tuple.Stream);
-                        compilationWriter.WriteLine($"generated:{contentHash}:{tuple.FilePath}");
+                        AddContentCore(dataPack, RawContentKind.GeneratedText, tuple.FilePath, tuple.Stream);
                     }
                 }
 
@@ -437,6 +393,17 @@ internal sealed class CompilerLogBuilder : IDisposable
     }
 
     /// <summary>
+    /// Add the <see cref="value"/> as content using message pack serialization
+    /// </summary>
+    private string AddContentMessagePack<T>(T value)
+    {
+        var stream = new MemoryStream();
+        MessagePackSerializer.Serialize(stream, value, SerializerOptions);
+        stream.Position = 0;
+        return AddContent(stream);
+    }
+
+    /// <summary>
     /// Add a source file to the storage and return the stored name of the content in our 
     /// storage. This will be a checksum of the content itself
     /// </summary>
@@ -479,38 +446,30 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddReferences(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)
     {
         foreach (var reference in args.MetadataReferences)
         {
-            var mvid = AddAssembly(reference.Reference);
-            compilationWriter.Write($"m:{mvid}:");
-            compilationWriter.Write((int)reference.Properties.Kind);
-            compilationWriter.Write(":");
-            compilationWriter.Write(reference.Properties.EmbedInteropTypes ? '1' : '0');
-            compilationWriter.Write(":");
-
-            var any = false;
-            foreach (var alias in reference.Properties.Aliases)
+            var pack = new ReferencePack()
             {
-                if (any)
-                    compilationWriter.Write(",");
-                compilationWriter.Write(alias);
-                any = true;
-            }
-            compilationWriter.WriteLine();
+                Mvid = AddAssembly(reference.Reference),
+                Kind = reference.Properties.Kind,
+                EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
+                Aliases = reference.Properties.Aliases
+            };
+            dataPack.References.Add(pack);
         }
     }
 
-    private void AddAdditionalTexts(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddAdditionalTexts(CompilationDataPack dataPack, CommandLineArguments args)
     {
         foreach (var additionalText in args.AdditionalFiles)
         {
-            AddContentCore(compilationWriter, "text", additionalText.Path);
+            AddContentCore(dataPack, RawContentKind.AdditionalText, additionalText.Path);
         }
     }
 
-    private void AddResources(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddResources(CompilationDataPack dataPack, CommandLineArguments args)
     {
         foreach (var r in args.ManifestResources)
         {
@@ -520,12 +479,18 @@ internal sealed class CompilerLogBuilder : IDisposable
             var dataProvider = r.GetDataProvider();
 
             using var stream = dataProvider();
-            var contentHash = AddContent(stream);
-            compilationWriter.WriteLine($"r:{contentHash}:{name}:{isPublic}:{fileName}");
+            var pack = new ResourcePack()
+            {
+                ContentHash = AddContent(stream),
+                FileName = fileName,
+                Name = name,
+                IsPublic = isPublic,
+            };
+            dataPack.Resources.Add(pack);
         }
     }
 
-    private void AddEmbeds(StreamWriter compilationWriter, CompilerCall compilerCall, CommandLineArguments args, string baseDirectory)
+    private void AddEmbeds(CompilationDataPack dataPack, CompilerCall compilerCall, CommandLineArguments args, string baseDirectory)
     {
         if (args.EmbeddedFiles.Length == 0)
         {
@@ -539,7 +504,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         foreach (var e in args.EmbeddedFiles)
         {
             using var stream = OpenFileForRead(e.Path);
-            AddContentCore(compilationWriter, "embed", e.Path, stream);
+            AddContentCore(dataPack, RawContentKind.Embed, e.Path, stream);
 
             // When the compiler embeds a source file it will also embed the targets of any 
             // #line directives in the code
@@ -550,7 +515,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                     var resolvedTarget = resolver.ResolveReference(rawTarget, e.Path);
                     if (resolvedTarget is not null)
                     {
-                        AddContentCore(compilationWriter, "embedline", resolvedTarget);
+                        AddContentCore(dataPack, RawContentKind.EmbedLine, resolvedTarget);
 
                         // Presently the compiler does not use /pathhmap when attempting to resolve
                         // #line targets for embedded files. That means if the path is a full one here, or
@@ -597,12 +562,17 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddAnalyzers(StreamWriter compilationWriter, CommandLineArguments args)
+    private void AddAnalyzers(CompilationDataPack dataPack, CommandLineArguments args)
     {
         foreach (var analyzer in args.AnalyzerReferences)
         {
             var mvid = AddAssembly(analyzer.FilePath);
-            compilationWriter.WriteLine($"a:{mvid}:{analyzer.FilePath}");
+            var pack = new AnalyzerPack()
+            {
+                Mvid = mvid,
+                FilePath = analyzer.FilePath
+            };
+            dataPack.Analyzers.Add(pack);
         }
     }
 

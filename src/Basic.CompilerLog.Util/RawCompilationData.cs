@@ -93,13 +93,11 @@ internal readonly struct RawContent
 
 internal sealed class RawCompilationData
 {
+    internal int Index { get; }
     internal string? CompilationName { get; }
     internal string AssemblyFileName { get; }
     internal string? XmlFilePath { get; }
     internal string? OutputDirectory { get; }
-    internal string EmitOptionsHash { get; }
-    internal string ParseOptionsHash { get; }
-    internal string CompilationOptionsHash { get; }
     internal SourceHashAlgorithm ChecksumAlgorithm { get; }
     internal List<RawReferenceData> References { get; }
     internal List<RawAnalyzerData> Analyzers { get; }
@@ -116,13 +114,11 @@ internal sealed class RawCompilationData
     internal bool ReadGeneratedFiles { get; }
 
     internal RawCompilationData(
+        int index, 
         string? compilationName,
         string assemblyFileName,
         string? xmlFilePath,
         string? outputDirectory,
-        string emitOptionsHash,
-        string parseOptionsHash,
-        string compilationOptionsHash,
         SourceHashAlgorithm checksumAlgorithm,
         List<RawReferenceData> references,
         List<RawAnalyzerData> analyzers,
@@ -131,13 +127,11 @@ internal sealed class RawCompilationData
         bool isCSharp,
         bool readGeneratedFiles)
     {
+        Index = index;
         CompilationName = compilationName;
         AssemblyFileName = assemblyFileName;
         XmlFilePath = xmlFilePath;
         OutputDirectory = outputDirectory;
-        EmitOptionsHash = emitOptionsHash;
-        ParseOptionsHash = parseOptionsHash;
-        CompilationOptionsHash = compilationOptionsHash;
         ChecksumAlgorithm = checksumAlgorithm;
         References = references;
         Analyzers = analyzers;

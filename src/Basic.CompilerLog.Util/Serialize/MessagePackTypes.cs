@@ -1,10 +1,17 @@
 using System.Collections.Immutable;
+using System.Collections.Generic;
 using MessagePack;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.VisualBasic;
 using CSharpLanguageVersion=Microsoft.CodeAnalysis.CSharp.LanguageVersion;
 using BasicLanguageVersion=Microsoft.CodeAnalysis.VisualBasic.LanguageVersion;
 using Microsoft.CodeAnalysis.Emit;
+using System.Globalization;
+using Microsoft.CodeAnalysis.Text;
+
+// This is a file for serialization types, the nullable state here records the intent of
+// the fields. It's not possible to make these completely nullable safe. 
+#nullable disable warnings
 
 namespace Basic.CompilerLog.Util.Serialize;
 
@@ -151,4 +158,101 @@ public class EmitOptionsPack
     public int? DefaultSourceFileEncoding { get; set; }
     [Key(14)]
     public int? FallbackSourceFileEncoding { get; set; }
+}
+
+[MessagePackObject]
+public class ContentPack
+{
+    [Key(0)]
+    public string ContentHash { get; set; }
+    [Key(1)]
+    public string FilePath { get; set; }
+
+    public ContentPack()
+    {
+
+    }
+
+    public ContentPack(string contentHash, string filePath = null)
+    {
+        FilePath = filePath;
+        ContentHash = contentHash;
+    }
+}
+
+[MessagePackObject]
+public class ReferencePack
+{
+    [Key(0)]
+    public Guid Mvid { get; set; }
+    [Key(1)]
+    public MetadataImageKind Kind { get; set; }
+    [Key(2)]
+    public bool EmbedInteropTypes { get; set; }
+    [Key(3)]
+    public ImmutableArray<string> Aliases { get; set; }
+}
+
+[MessagePackObject]
+public class AnalyzerPack
+{
+    [Key(0)]
+    public Guid Mvid { get; set; }
+    [Key(1)]
+    public string FilePath { get; set; }
+}
+
+[MessagePackObject]
+public class ResourcePack
+{
+    [Key(0)]
+    public string ContentHash { get; set; }
+    [Key(1)]
+    public string? FileName { get; set; }
+    [Key(2)]
+    public string Name { get; set; }
+    [Key(3)]
+    public bool IsPublic { get; set; }
+}
+
+[MessagePackObject]
+public class CompilationInfoPack
+{
+    [Key(0)]
+    public string ProjectFilePath { get; set; }
+    [Key(1)]
+    public bool IsCSharp { get; set; }
+    [Key(2)]
+    public string? TargetFramework { get; set; }
+    [Key(3)]
+    public CompilerCallKind CompilerCallKind { get; set; }
+    [Key(4)]
+    public string CommandLineArgsHash { get; set; }
+    [Key(5)]
+    public string CompilationDataPackHash { get; set; }
+    [Key(6)]
+    public string EmitOptionsHash { get; set; }
+    [Key(7)]
+    public string ParseOptionsHash { get; set; }
+    [Key(8)]
+    public string CompilationOptionsHash { get; set; }
+}
+
+[MessagePackObject]
+public class CompilationDataPack
+{
+    [Key(0)]
+    public List<(int, ContentPack)> ContentList { get; set; }
+    [Key(1)]
+    public Dictionary<string, string?> ValueMap { get; set; }
+    [Key(2)]
+    public List<ReferencePack> References { get; set; }
+    [Key(3)]
+    public List<AnalyzerPack> Analyzers { get; set; }
+    [Key(4)]
+    public List<ResourcePack> Resources { get; set; }
+    [Key(5)]
+    public bool IncludesGeneratedText { get; set; }
+    [Key(6)]
+    public SourceHashAlgorithm ChecksumAlgorithm { get; set; }
 }

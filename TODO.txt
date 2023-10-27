@@ -1,6 +1,8 @@
-Do not create CommandLineArguments in the Reader.
-centralize serialization options
+X Do not create CommandLineArguments in the Reader.
+X centralize serialization options
+do not use CompilerCall as the _header_ type in the reader, make ito object or generic and that is the extensibility point for reader versions
 maybe raw serialization
 need a cross os diagnostic that prints, maybe just put it in the command line only
 remove Arguments from CompilerCall, doesen't need to be there in raw form, can make it a helper through the log reader
 unit tests that use the old version of compiler logs to guarantee compat
+pool the memory stream
