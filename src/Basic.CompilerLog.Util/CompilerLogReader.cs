@@ -41,6 +41,7 @@ public abstract class CompilerLogReader : IDisposable
     internal Metadata Metadata { get; }
     internal int Count => Metadata.Count;
     public int MetadataVersion => Metadata.MetadataVersion;
+    public bool IsWindowsLog => Metadata.IsWindows == true;
 
     internal CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions? basicAnalyzersOptions, CompilerLogState? state)
     {
@@ -85,18 +86,6 @@ public abstract class CompilerLogReader : IDisposable
                 var entry = zipArchive.GetEntry(MetadataFileName) ?? throw GetInvalidCompilerLogFileException();
                 using var reader = Polyfill.NewStreamReader(entry.Open(), ContentEncoding, leaveOpen: false);
                 var metadata = Metadata.Read(reader);
-
-                /*
-                if (metadata.IsWindows is { } isWindows && isWindows != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    var produced = GetName(isWindows);
-                    var current = GetName(RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
-                    throw new Exception("Compiler log created on {produced} cannot be consumed on {current}");
-
-                    string GetName(bool isWindows) => isWindows ? "Windows" : "Unix";
-                }
-                */
-
                 return metadata;
             }
         }

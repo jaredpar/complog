@@ -549,7 +549,12 @@ CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen)
     {
         WriteLine($"Compiler log version newer than toolset: {reader.MetadataVersion}");
         WriteLine($"Consider upgrading to latest compiler log toolset");
-        WriteLine("dotnet tool update --global Basic.CompilerLog");
+        WriteLine("dotnet tool update --global complog");
+    }
+
+    if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    {
+        WriteLine($"Compiler log generated on different operating system");
     }
 
     return reader;

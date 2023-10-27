@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Net.Http.Headers;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.VisualBasic;
 
@@ -35,13 +36,15 @@ public enum CompilerCallKind
 
 public sealed class CompilerCall
 {
+    private readonly Lazy<string[]> _lazyArguments;
+
     public string ProjectFilePath { get; }
     public CompilerCallKind Kind { get; }
     public string? TargetFramework { get; }
     public bool IsCSharp { get; }
-    public string[] Arguments { get; }
     internal int? Index { get; }
 
+    public string[] Arguments => _lazyArguments.Value;
     public bool IsVisualBasic => !IsCSharp;
     public string ProjectFileName => Path.GetFileName(ProjectFilePath);
     public string ProjectDirectory => Path.GetDirectoryName(ProjectFilePath)!;
@@ -51,15 +54,15 @@ public sealed class CompilerCall
         CompilerCallKind kind,
         string? targetFramework,
         bool isCSharp,
-        string[] arguments,
+        Lazy<string[]> arguments,
         int? index)
     {
         ProjectFilePath = projectFilePath;
         Kind = kind;
         TargetFramework = targetFramework;
         IsCSharp = isCSharp;
-        Arguments = arguments;
         Index = index;
+        _lazyArguments = arguments;
     }
 
     public string GetDiagnosticName() 

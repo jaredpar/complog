@@ -50,7 +50,7 @@ internal sealed class CompilerLogReaderVersion1 : CompilerLogReader
             arguments[i] = reader.ReadLineOrThrow();
         }
 
-        return new CompilerCall(projectFile, kind, targetFramework, isCSharp, arguments, index);
+        return new CompilerCall(projectFile, kind, targetFramework, isCSharp, new Lazy<string[]>(() => arguments), index);
     }
 
     private protected override RawCompilationData ReadRawCompilationDataCore(int index, object rawInfo)

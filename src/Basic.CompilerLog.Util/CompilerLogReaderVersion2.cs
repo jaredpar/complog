@@ -30,7 +30,7 @@ internal sealed class CompilerLogReaderVersion2 : CompilerLogReader
             pack.CompilerCallKind,
             pack.TargetFramework,
             pack.IsCSharp,
-            GetContentPack<string[]>(pack.CommandLineArgsHash),
+            new Lazy<string[]>(() => GetContentPack<string[]>(pack.CommandLineArgsHash)),
             index);
     }
 

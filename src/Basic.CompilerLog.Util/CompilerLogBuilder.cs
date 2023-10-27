@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using Microsoft.CodeAnalysis.VisualBasic.Syntax;
+using Microsoft.Extensions.ObjectPool;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO.Compression;
@@ -22,6 +23,16 @@ namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogBuilder : IDisposable
 {
+    private sealed class MemoryStreamPoolPolicy : IPooledObjectPolicy<MemoryStream>
+    {
+        public MemoryStream Create() => new MemoryStream();
+        public bool Return(MemoryStream stream)
+        { 
+            stream.Position = 0;
+            return true;
+        }
+    }
+
     // GUIDs specified in https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md#document-table-0x30
     internal static readonly Guid HashAlgorithmSha1 = unchecked(new Guid((int)0xff1816ec, (short)0xaa5e, 0x4d10, 0x87, 0xf7, 0x6f, 0x49, 0x63, 0x83, 0x34, 0x60));
     internal static readonly Guid HashAlgorithmSha256 = unchecked(new Guid((int)0x8829d00f, 0x11b8, 0x4213, 0x87, 0x8b, 0x77, 0x0e, 0x85, 0x97, 0xac, 0x16));
@@ -35,6 +46,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(PathUtil.Comparer);
     private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
+    private readonly DefaultObjectPool<MemoryStream> _memoryStreamPool = new(new MemoryStreamPoolPolicy(), maximumRetained: 5);
 
     private int _compilationCount;
     private bool _closed;
@@ -392,10 +404,17 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// </summary>
     private string AddContentMessagePack<T>(T value)
     {
-        var stream = new MemoryStream();
-        MessagePackSerializer.Serialize(stream, value, SerializerOptions);
-        stream.Position = 0;
-        return AddContent(stream);
+        var stream = _memoryStreamPool.Get();
+        try
+        {
+            MessagePackSerializer.Serialize(stream, value, SerializerOptions);
+            stream.Position = 0;
+            return AddContent(stream);
+        }
+        finally
+        {
+            _memoryStreamPool.Return(stream);
+        }
     }
 
     /// <summary>
