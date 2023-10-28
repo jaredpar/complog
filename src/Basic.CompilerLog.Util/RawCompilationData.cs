@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Configuration.Internal;
 using System.Linq;
 using System.Text;
@@ -49,10 +50,10 @@ internal readonly struct RawAnalyzerData
 internal readonly struct RawReferenceData
 {
     internal readonly Guid Mvid;
-    internal readonly string[]? Aliases;
+    internal readonly ImmutableArray<string> Aliases;
     internal readonly bool EmbedInteropTypes;
 
-    internal RawReferenceData(Guid mvid, string[]? aliases, bool embedInteropTypes)
+    internal RawReferenceData(Guid mvid, ImmutableArray<string> aliases, bool embedInteropTypes)
     {
         Mvid = mvid;
         Aliases = aliases;

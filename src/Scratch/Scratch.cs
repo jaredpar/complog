@@ -2,6 +2,7 @@
 using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using BenchmarkDotNet.Environments;
+using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -26,6 +27,8 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 
 
 // await SolutionScratchAsync(filePath);
+
+// Profile();
 
 using var reader = CompilerLogReader.Create(filePath);
 
@@ -106,6 +109,25 @@ static void RoslynScratch()
 
 }
 
+void Profile()
+{
+    var binlogPath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+    var complogPath = @"c:\users\jaredpar\temp\console\msbuild.complog";
+
+    if (File.Exists(complogPath))
+    {
+        File.Delete(complogPath);
+    }
+
+    _ = CompilerLogUtil.ConvertBinaryLog(binlogPath, complogPath);
+
+    using var reader = CompilerLogReader.Create(complogPath);
+    foreach (var compilerCall in reader.ReadAllCompilerCalls())
+    {
+        _ = reader.ReadCompilationData(compilerCall);
+    }
+}
+
 void VerifyAll(string logPath, BasicAnalyzerHostOptions? options = null)
 {
     var exportDest = @"c:\users\jaredpar\temp\export";
@@ -180,7 +202,7 @@ static void RoundTrip(string binlogFilePath)
     }
 }
 
-static async Task SolutionScratchAsync(string binlogFilePath)
+static async System.Threading.Tasks.Task SolutionScratchAsync(string binlogFilePath)
 {
     using var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath);
     using var reader = SolutionReader.Create(stream, leaveOpen: false);

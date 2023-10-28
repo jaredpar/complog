@@ -115,7 +115,9 @@ public sealed class SolutionReader : IDisposable
             }
         }
 
-        // TODO: should actually store this information in the log so we can rehydrate
+        // https://github.com/jaredpar/complog/issues/24
+        // Need to store project reference information at the builder point so they can be properly repacked
+        // here and setup in the Workspace
         var projectReferences = new List<ProjectReference>();
 
         var referenceList = Reader.GetMetadataReferences(FilterToUnique(rawCompilationData.References));

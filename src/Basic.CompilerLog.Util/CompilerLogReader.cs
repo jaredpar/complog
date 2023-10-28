@@ -501,7 +501,7 @@ public abstract class CompilerLogReader : IDisposable
 
         var bytes = GetAssemblyBytes(mvid);
         var tuple = _mvidToRefInfoMap[mvid];
-        metadataReference = MetadataReference.CreateFromStream(new MemoryStream(bytes.ToArray()), filePath: tuple.FileName);
+        metadataReference = MetadataReference.CreateFromStream(new MemoryStream(bytes), filePath: tuple.FileName);
         _refMap.Add(mvid, metadataReference);
         return metadataReference;
     }
