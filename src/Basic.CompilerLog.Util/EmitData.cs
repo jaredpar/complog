@@ -14,7 +14,6 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed class EmitData
 {
-    // TODO: maybe don't need these after all?
     public string AssemblyFileName { get; }
     public string? XmlFilePath { get; }
     public Stream? Win32ResourceStream { get; }

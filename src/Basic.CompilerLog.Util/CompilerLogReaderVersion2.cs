@@ -41,7 +41,7 @@ internal sealed class CompilerLogReaderVersion2 : CompilerLogReader
 
         var references = dataPack
             .References
-            .Select(x => new RawReferenceData(x.Mvid, x.Aliases.ToArray(), x.EmbedInteropTypes))
+            .Select(x => new RawReferenceData(x.Mvid, x.Aliases, x.EmbedInteropTypes))
             .ToList();
         var analyzers = dataPack
             .Analyzers

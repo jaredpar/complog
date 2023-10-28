@@ -7,6 +7,7 @@ using static Basic.CompilerLog.Util.CommonUtil;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.VisualBasic;
 using Microsoft.CodeAnalysis.Emit;
+using System.Collections.Immutable;
 
 namespace Basic.CompilerLog.Util;
 
@@ -157,10 +158,10 @@ internal sealed class CompilerLogReaderVersion1 : CompilerLogReader
             {
                 var embedInteropTypes = items[3] == "1";
 
-                string[]? aliases = null;
+                var aliases = ImmutableArray<string>.Empty;
                 if (!string.IsNullOrEmpty(items[4]))
                 {
-                    aliases = items[4].Split(',');
+                    aliases = items[4].Split(',').ToImmutableArray();
                 }
 
                 references.Add(new RawReferenceData(

@@ -264,9 +264,19 @@ public sealed class ExportUtil
                 using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
                 Reader.CopyAssemblyBytes(mvid, fileStream);
 
-                // TODO: need to support aliases here.
-                var arg = $@"/reference:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
-                commandLineList.Add(arg);
+                if (tuple.Aliases.Length > 0)
+                {
+                    foreach (var alias in tuple.Aliases)
+                    {
+                        var arg = $@"/reference:{alias}=""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
+                        commandLineList.Add(arg);
+                    }
+                }
+                else
+                {
+                    var arg = $@"/reference:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
+                    commandLineList.Add(arg);
+                }
             }
         }
 
