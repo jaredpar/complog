@@ -25,6 +25,38 @@ From there the following commands are available:
 
 ## Info
 
-:warning: A compiler log will include potentially sensitive artifacts :warning:
+:warning: A compiler log **will** include potentially sensitive artifacts :warning:
 
 A compiler log file contains all of the information necessary to recreate a `Compilation`. That includes all source, resources, references, strong name keys, etc .... That will be visible to anyone you provide a compiler log to.
+
+## Creating Compiler Logs
+There are a number of ways to create a compiler log. The easiest is to create it off of a [binary log](https://github.com/dotnet/msbuild/blob/main/documentation/wiki/Binary-Log.md) file from a previous build.
+
+```cmd
+> msbuild -bl MySolution.sln
+> complog create msbuild.binlog
+```
+
+By default this will include every project in the binary log. If there are a lot of projects this can produce a large compiler log. You can use the `-p` option to limit the compiler log to a specific set of projects.
+
+```cmd
+> complog create msbuild.binlog -p MyProject.csproj
+```
+
+For solutions or projects that can be built with `dotnet build` a compiler log can be created by just running `create` against the solution or project file directly.
+
+```cmd
+> complog create MyProject.csproj
+```
+
+When trying to get a compiler log from a build that occurs in a GitHub action you can use the `complog-action` action to simplify creating and uploading the compiler log.
+
+```yml
+  - name: Build .NET app
+    run: dotnet build -bl
+
+  - name: Create and upload the compiler log
+    uses: jaredpar/compilerlog-action@v1
+    with:
+      binlog: msbuild.binlog
+```
