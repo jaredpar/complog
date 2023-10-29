@@ -5,7 +5,7 @@ internal sealed class FilterOptionSet : OptionSet
 {
     internal List<string> TargetFrameworks { get; } = new();
     internal bool IncludeAllKinds { get; set; }
-    internal string? ProjectName { get; set; }
+    internal List<string> ProjectNames { get; } = new();
     internal bool Help { get; set; }
     internal bool UseNoneHost { get; set; }
 
@@ -13,8 +13,9 @@ internal sealed class FilterOptionSet : OptionSet
     {
         Add("include", "include all compilation kinds", i => { if (i is not null) IncludeAllKinds = true; });
         Add("targetframework=", "", TargetFrameworks.Add, hidden: true);
-        Add("framework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
-        Add("n|projectName=", "include only compilations with the project name", (string n) => ProjectName = n);
+        Add("f|framework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
+        Add("p|project=", "include only compilations for the given project (allows multiple)", ProjectNames.Add);
+        Add("n|projectName=", "include only compilations for the project", ProjectNames.Add, hidden: true);
         Add("h|help", "print help", h => { if (h != null) Help = true; });
 
         if (includeNoneHost)
@@ -38,16 +39,12 @@ internal sealed class FilterOptionSet : OptionSet
             return false;
         }
 
-        if (!string.IsNullOrEmpty(ProjectName))
+        if (ProjectNames.Count > 0)
         {
+            var name = Path.GetFileName(compilerCall.ProjectFilePath);
+            var nameNoExtension = Path.GetFileNameWithoutExtension(compilerCall.ProjectFilePath);
             var comparer = PathUtil.Comparer;
-            if (comparer.Equals(ProjectName, Path.GetFileName(compilerCall.ProjectFilePath)) ||
-                comparer.Equals(ProjectName, Path.GetFileNameWithoutExtension(compilerCall.ProjectFilePath)))
-            {
-                return true;
-            }
-
-            return false;
+            return ProjectNames.Any(x => comparer.Equals(x, name) || comparer.Equals(x, nameNoExtension));
         }
 
         return true;
