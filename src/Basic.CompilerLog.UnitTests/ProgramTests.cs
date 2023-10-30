@@ -141,7 +141,7 @@ public sealed class ProgramTests : TestBase
     public void EmitConsole(string arg)
     {
         using var emitDir = new TempDir();
-        RunCompLog($"emit {arg} -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath.Value}");
+        RunCompLog($"replay {arg} -emit -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath.Value}");
 
         AssertOutput(@"console\emit\console.dll");
         AssertOutput(@"console\emit\console.pdb");

@@ -38,7 +38,14 @@ public sealed class EmitData
     }
 }
 
-public readonly struct EmitDiskResult
+public interface IEmitResult
+{
+    public bool Success { get; }
+    public ImmutableArray<Diagnostic> Diagnostics { get; }
+}
+
+
+public readonly struct EmitDiskResult : IEmitResult
 {
     public bool Success { get; }
     public string Directory { get; }
@@ -70,7 +77,7 @@ public readonly struct EmitDiskResult
     }
 }
 
-public readonly struct EmitMemoryResult
+public readonly struct EmitMemoryResult : IEmitResult
 {
     public bool Success { get; }
     public MemoryStream AssemblyStream { get; }

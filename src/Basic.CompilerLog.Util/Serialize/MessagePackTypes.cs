@@ -75,7 +75,7 @@ public class CSharpCompilationOptionsPack
 public class VisualBasicCompilationOptionsPack
 {
     [Key(1)]
-    public ImmutableArray<GlobalImport> GlobalImports { get; set; }
+    public string[] GlobalImports { get; set; }
     [Key(2)]
     public string? RootNamespace { get; set; }
     [Key(3)]
