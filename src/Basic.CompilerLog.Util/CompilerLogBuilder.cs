@@ -80,7 +80,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
 
-            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), CompressionLevel.Optimal);
+            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), CompressionLevel.Fastest);
             using (var entryStream = entry.Open())
             {
                 MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
@@ -198,14 +198,14 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void WriteMetadata()
         {
-            var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Optimal);
+            var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Fastest);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             Metadata.Create(_compilationCount).Write(writer);
         }
 
         void WriteAssemblyInfo()
         {
-            var entry = ZipArchive.CreateEntry(AssemblyInfoFileName, CompressionLevel.Optimal);
+            var entry = ZipArchive.CreateEntry(AssemblyInfoFileName, CompressionLevel.Fastest);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             foreach (var kvp in _mvidToRefInfoMap.OrderBy(x => x.Value.FileName).ThenBy(x => x.Key))
             {
@@ -268,6 +268,12 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             // This only works when using portable and embedded pdb formats. A full PDB can't store
             // generated files
+            if (!args.EmitPdb)
+            {
+                Diagnostics.Add($"Can't read generated files as no PDB is emitted");
+                return false;
+            }
+
             if (args.EmitOptions.DebugInformationFormat is not (DebugInformationFormat.Embedded or DebugInformationFormat.PortablePdb))
             {
                 Diagnostics.Add($"Can't read generated files from native PDB");
@@ -440,7 +446,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         if (_contentHashMap.Add(hashText))
         {
-            var entry = ZipArchive.CreateEntry(GetContentEntryName(hashText), CompressionLevel.Optimal);
+            var entry = ZipArchive.CreateEntry(GetContentEntryName(hashText), CompressionLevel.Fastest);
             using var entryStream = entry.Open();
             stream.Position = 0;
             stream.CopyTo(entryStream);
@@ -617,7 +623,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return mvid;
         }
 
-        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Optimal);
+        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Fastest);
         using var entryStream = entry.Open();
         file.Position = 0;
         file.CopyTo(entryStream);

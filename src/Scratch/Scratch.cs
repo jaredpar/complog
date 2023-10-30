@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Reflection;
 using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using BenchmarkDotNet.Environments;
@@ -128,37 +129,18 @@ void Profile()
     }
 }
 
-void VerifyAll(string logPath, BasicAnalyzerHostOptions? options = null)
+int RunComplog(string args)
+{
+    var assembly = typeof(FilterOptionSet).Assembly;
+    var program = assembly.GetType("Program", throwOnError: true);
+    var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
+    return (int)main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) })!;
+}
+
+void VerifyAll(string logPath)
 {
     var exportDest = @"c:\users\jaredpar\temp\export";
-    EmptyDirectory(exportDest);
-
-    options ??= BasicAnalyzerHostOptions.None;
-    using var reader = CompilerLogReader.Create(logPath, options);
-    var exportUtil = new ExportUtil(reader, includeAnalyzers: options.Value.Kind != BasicAnalyzerKind.None);
-    var sdkDirs = DotnetUtil.GetSdkDirectories();
-    int failedCount = 0;
-    foreach (var compilationData in reader.ReadAllCompilationData())
-    {
-        Console.Write($"{compilationData.CompilerCall.GetDiagnosticName()} ...");
-        var result = compilationData.EmitToMemory();
-        if (result.Success)
-        {
-            Console.WriteLine("Success");
-            continue;
-        }
-
-        Console.WriteLine("Error");
-        foreach (var item in result.Diagnostics)
-        {
-            Console.WriteLine(item.GetMessage());
-        }
-
-        var dest = Path.Combine(exportDest, failedCount.ToString());
-        Console.WriteLine($"Exporting to {dest}");
-        exportUtil.Export(compilationData.CompilerCall, dest, sdkDirs);
-        failedCount++;
-    }
+    RunComplog($"replay {logPath} -o {exportDest} -export");
 }
 
 void ExportTest(CompilerLogReader reader)

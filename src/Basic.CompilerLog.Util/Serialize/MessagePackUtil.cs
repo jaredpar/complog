@@ -1,4 +1,5 @@
 
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -217,7 +218,7 @@ internal static class MessagePackUtil
             moduleName: optionsPack.ModuleName,
             mainTypeName: optionsPack.MainTypeName,
             scriptClassName: WellKnownMemberNames.DefaultScriptClassName,
-            globalImports: basicPack.GlobalImports,
+            globalImports: basicPack.GlobalImports.Select(x => GlobalImport.Parse(x)).ToImmutableArray(),
             rootNamespace: basicPack.RootNamespace,
             optionStrict: basicPack.OptionStrict,
             optionInfer: basicPack.OptionInfer,
@@ -246,7 +247,7 @@ internal static class MessagePackUtil
         var tuple = CreateVisualBasicParseOptionsPack(options.ParseOptions);
         var pack = new VisualBasicCompilationOptionsPack()
         {
-            GlobalImports = options.GlobalImports,
+            GlobalImports = options.GlobalImports.Select(x => x.Name).ToArray(),
             RootNamespace = options.RootNamespace,
             OptionStrict = options.OptionStrict,
             OptionInfer = options.OptionInfer,

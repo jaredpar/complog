@@ -26,14 +26,17 @@ try
     return command.ToLower() switch
     {
         "create" => RunCreate(rest),
-        "diagnostics" => RunDiagnostics(rest),
+        "replay" => RunReplay(rest, cts.Token),
         "export" => RunExport(rest),
         "ref" => RunReferences(rest),
         "rsp" => RunResponseFile(rest),
-        "emit" => RunEmit(rest, cts.Token),
         "analyzers" => RunAnalyzers(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(rest),
+
+        // Older option names
+        "diagnostics" => RunReplay(rest, cts.Token),
+        "emit" => RunReplay(rest, cts.Token),
         _ => RunHelp(null)
     };
 }
@@ -368,78 +371,20 @@ int RunResponseFile(IEnumerable<string> args)
     }
 }
 
-int RunEmit(IEnumerable<string> args, CancellationToken cancellationToken)
+int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
 {
     var baseOutputPath = "";
-    var options = new FilterOptionSet(includeNoneHost: true)
-    {
-        { "o|out=", "path to output binaries to", o => baseOutputPath = o },
-    };
-
-    try
-    {
-        var extra = options.Parse(args);
-        if (options.Help)
-        {
-            PrintUsage();
-            return ExitFailure;
-        }
-
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
-        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        var allSucceeded = true;
-
-        baseOutputPath = GetBaseOutputPath(baseOutputPath);
-        WriteLine($"Generating binary files to {baseOutputPath}");
-        Directory.CreateDirectory(baseOutputPath);
-
-        for (int i = 0; i < compilerCalls.Count; i++)
-        {
-            var compilerCall = compilerCalls[i];
-            var emitDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "emit");
-            Directory.CreateDirectory(emitDirPath);
-
-            Write($"{compilerCall.GetDiagnosticName()} ... ");
-            var compilationData = reader.ReadCompilationData(compilerCall);
-            var result = compilationData.EmitToDisk(emitDirPath, cancellationToken);
-            if (result.Success)
-            {
-                WriteLine("done");
-            }
-            else
-            {
-                allSucceeded = false;
-                WriteLine("FAILED");
-                foreach (var diagnostic in result.Diagnostics)
-                {
-                    WriteLine(diagnostic.GetMessage());
-                }
-            }
-        }
-
-        return allSucceeded ? ExitSuccess : ExitFailure;
-    }
-    catch (OptionException e)
-    {
-        WriteLine(e.Message);
-        PrintUsage();
-        return ExitFailure;
-    }
-
-    void PrintUsage()
-    {
-        WriteLine("complog rsp [OPTIONS] msbuild.complog");
-        options.WriteOptionDescriptions(Out);
-    }
-}
-
-int RunDiagnostics(IEnumerable<string> args)
-{
     var severity = DiagnosticSeverity.Warning;
+    var export = false;
+    var emit = false;
+    var analyzers = false;
     var options = new FilterOptionSet(includeNoneHost: true)
     {
         { "severity", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
+        { "export", "export failed compilation", e => export = e is not null },
+        { "emit", "emit compilation", e => emit = e is not null },
+        { "analyzers", "use actual analyzers / generators (default uses generated files)", a => analyzers = a is not null },
+        { "o|out=", "path to export to ", b => baseOutputPath = b },
     };
 
     try
@@ -451,21 +396,64 @@ int RunDiagnostics(IEnumerable<string> args)
             return ExitFailure;
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
-        var compilationDatas = reader.ReadAllCompilationData(options.FilterCompilerCalls);
-
-        foreach (var compilationData in compilationDatas)
+        if (!string.IsNullOrEmpty(baseOutputPath) && !(export || emit))
         {
-            var compilerCall = compilationData.CompilerCall;
-            WriteLine(compilerCall.GetDiagnosticName());
+            WriteLine("Error: Specified a path to export to but did not specify -export");
+            return ExitFailure;
+        }
+
+        baseOutputPath = GetBaseOutputPath(baseOutputPath);
+        if (!string.IsNullOrEmpty(baseOutputPath))
+        {
+            WriteLine($"Outputting to {baseOutputPath}");
+        }
+
+        var analyzerHostOptions = analyzers ? BasicAnalyzerHostOptions.Default : BasicAnalyzerHostOptions.None;
+        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, analyzerHostOptions);
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: analyzerHostOptions.Kind != BasicAnalyzerKind.None);
+        var sdkDirs = DotnetUtil.GetSdkDirectories();
+
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var compilerCall = compilerCalls[i];
+
+            Write($"{compilerCall.GetDiagnosticName()} ...");
+
+            var compilationData = reader.ReadCompilationData(compilerCall);
             var compilation = compilationData.GetCompilationAfterGenerators();
-            foreach (var diagnostic in compilation.GetDiagnostics())
+
+            IEmitResult emitResult;
+            if (emit)
+            {
+                var path = GetOutputPath(baseOutputPath, compilerCalls, i, "emit");
+                Directory.CreateDirectory(path);
+                emitResult = compilationData.EmitToDisk(path, cancellationToken);
+            }
+            else
+            {
+                emitResult = compilationData.EmitToMemory(cancellationToken);
+            }
+
+            WriteLine(emitResult.Success ? "Success" : "Error");
+            foreach (var diagnostic in emitResult.Diagnostics)
             {
                 if (diagnostic.Severity >= severity)
                 {
+                    Write("    ");
                     WriteLine(diagnostic.GetMessage());
                 }
+            }
+
+            if (!emitResult.Success && export)
+            {
+                var exportPath = GetOutputPath(baseOutputPath, compilerCalls, i, "export");
+                Directory.CreateDirectory(exportPath);
+                WriteLine($"Exporting to {exportPath}");
+                exportUtil.Export(compilationData.CompilerCall, exportPath, sdkDirs);
             }
         }
 
@@ -480,7 +468,7 @@ int RunDiagnostics(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog diagnostics [OPTIONS] msbuild.complog");
+        WriteLine("complog replay [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -542,9 +530,9 @@ List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>
     }
 }
 
-CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen)
+CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerHostOptions? options = null)
 {
-    var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen);
+    var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen, options);
     if (reader.MetadataVersion > CompilerLogReader.LatestMetadataVersion)
     {
         WriteLine($"Compiler log version newer than toolset: {reader.MetadataVersion}");

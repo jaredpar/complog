@@ -16,12 +16,12 @@ This global tool can be installed via
 
 From there the following commands are available:
 
-- `create`: create a compilerlog file from an existing binary log
-- `diagnostics`: print diagnostics from the specified compilations
+- `create`: create a complog file from an existing binary log
+- `replay`: replay the builds from the complog
 - `export`: export complete compilations to disk
 - `ref`: export references for a compilation to disk
 - `rsp`: generate rsp files for compilation events
-- `print`: print the summary of a compilerlog on the command line
+- `print`: print the summary of a complog on the command line
 
 ## Info
 
