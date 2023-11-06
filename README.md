@@ -85,8 +85,11 @@ That will write out all the artifacts necessary to run a command line build to d
 
 ![example of export output](/docs/images/debug-rsp-1.png)
 
-The next step is to setup csc / vbc to use the build.rsp file for debugging. 
-The next step is to setu the `build.rsp` in Visual Studio
+The next step is to setup csc / vbc to use the build.rsp file for debugging. Open the debug settings for csc / vbc and set them to have the argument `@build.rsp` and make the working directory the location of that file.
+
+![example of debug settnigs](/docs/images/debug-rsp-2.png)
+
+Then launch csc / vbc and it will debug that project.
 
 
 
