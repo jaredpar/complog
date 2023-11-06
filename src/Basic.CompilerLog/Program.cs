@@ -636,7 +636,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
             throw new Exception("Build failed");
         }
 
-        return Path.Combine(baseDirectory, "complog.binlog");
+        return Path.Combine(baseDirectory, "build.binlog");
     }
 
     static OptionException CreateOptionException() => new("Need a file to analyze", "log");
