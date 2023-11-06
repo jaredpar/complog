@@ -60,3 +60,34 @@ When trying to get a compiler log from a build that occurs in a GitHub action yo
     with:
       binlog: msbuild.binlog
 ```
+
+## Debugging Compiler Logs
+### Running locally
+To re-run all of the compilations in a compiler log use the `replay` command
+
+```cmd
+> complog replay build.complog
+Microsoft.VisualStudio.IntegrationTest.IntegrationService.csproj (net472) ...Success
+Roslyn.Test.Performance.Utilities.csproj (net472) ...Success
+Microsoft.CodeAnalysis.XunitHook.csproj (net472) ...Success
+```
+
+Passing the `-export` argument will cause all failed compilations to be exported to the local disk for easy analysis.
+
+### Debugging in Visual Studio
+To debug a compilation in Visual Studio first export it to disk: 
+
+```cmd
+> complog export build.complog
+```
+
+That will write out all the artifacts necessary to run a command line build to disk. Use the `--project` option to limit the output to specific projects. For each project it will generate a build.rsp command that uses the exported arguments. It will also generate several `build*.cmd` files. Those will execute `dotnet exec csc.dll @build.rsp` on the build for every SDK installed on the machine. 
+
+![example of export output](/docs/images/debug-rsp-1.png)
+
+The next step is to setup csc / vbc to use the build.rsp file for debugging. 
+The next step is to setu the `build.rsp` in Visual Studio
+
+
+
+

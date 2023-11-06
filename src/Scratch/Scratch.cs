@@ -14,7 +14,8 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+//  var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.complog";
 // var filePath = @"c:\users\jaredpar\temp\Build.complog";
 // var filePath = @"C:\Users\jaredpar\code\MudBlazor\src\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
@@ -31,10 +32,16 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 
 // Profile();
 
+var timeSpan = DateTime.UtcNow;
+RunComplog($"replay {filePath}");
+Console.WriteLine(DateTime.UtcNow - timeSpan);
+
+/*
 using var reader = CompilerLogReader.Create(filePath);
 
 VerifyAll(filePath);
 Console.WriteLine("Done");
+*/
 
 /*
 var reader = SolutionReader.Create(filePath);
