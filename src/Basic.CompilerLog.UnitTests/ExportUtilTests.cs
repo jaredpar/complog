@@ -312,7 +312,7 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ExportRsp()
+    public void ExportRsp1()
     {
         var args = new[]
         {
@@ -337,4 +337,21 @@ public sealed class ExportUtilTests : TestBase
         Assert.Equal(@"""blah .cs"" /r:blah .cs ""a b.cs"" ab.cs", writer.ToString()); 
     }
 
+    [Fact]
+    public void ExportRsp2()
+    {
+        var args = new[]
+        {
+            "blah.cs",
+            @"/embed:""c:\blah\a,b=net472.cs""",
+        };
+
+        using var writer = new StringWriter();
+        ExportUtil.ExportRsp(args, writer);
+        Assert.Equal("""
+            blah.cs
+            /embed:"c:\blah\a,b=net472.cs"
+
+            """, writer.ToString());
+    }
 }
