@@ -1,0 +1,14 @@
+{
+    "stryker-config":
+    {
+        "reporters": [
+            "progress",
+            "html"
+        ],
+        "solution": "BasicCompilerLog.sln",
+        "project": "src/Basic.CompilerLog.Util/Basic.CompilerLog.Util.csproj",
+        "test-projects": ["src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj"],
+        "language-version": "CSharp11",
+        "target-framework": "net7.0"
+    }
+}
