@@ -407,13 +407,12 @@ public sealed class ExportUtil
 
     private static string MaybeQuoteArgument(string arg)
     {
-        if (arg.Contains(' ') && !IsOption(arg.AsSpan()))
+        if (IsOption(arg.AsSpan()))
         {
-            var str = $@"""{arg}""";
-            return str;
+            return arg;
         }
 
-        if (arg.Contains('=') || arg.Contains(','))
+        if (arg.Contains(' ') || arg.Contains('=') || arg.Contains(','))
         {
             var str = $@"""{arg}""";
             return str;
