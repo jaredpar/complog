@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing.Printing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MessagePack.Formatters;
 
 namespace Basic.CompilerLog;
 
@@ -28,7 +30,8 @@ internal static class ProcessUtil
     internal static ProcessResult Run(
         string fileName,
         string args,
-        string? workingDirectory = null)
+        string? workingDirectory = null,
+        Dictionary<string, string>? environment = null)
     {
         var info = new ProcessStartInfo()
         {
@@ -40,11 +43,20 @@ internal static class ProcessUtil
             RedirectStandardError = true,
         };
 
+        if (environment is not null)
+        {
+            info.Environment.Clear();
+            foreach (var tuple in environment)
+            {
+                info.Environment.Add(tuple.Key, tuple.Value);
+            }
+        }
+
         var process = Process.Start(info)!;
         var standardOut = process.StandardOutput.ReadToEnd();
         var standardError = process.StandardError.ReadToEnd();
-
         process.WaitForExit();
+
         return new ProcessResult(
             process.ExitCode,
             standardOut,
