@@ -138,21 +138,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void ConsoleMultiTarget()
     {
-        RunDotNet($"new console --name example --output .");
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"),
-            """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFrameworks>net7.0;net6.0</TargetFrameworks>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-                <GenerateDocumentationFile>true</GenerateDocumentationFile>
-              </PropertyGroup>
-            </Project>
-            """);
-        RunDotNet("build -bl");
-        TestExport(2);
+        TestExport(Fixture.ClassLibMultiComplogPath.Value, expectedCount: 2);
     }
 
     [Fact]
@@ -271,13 +257,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void StrongNameKey()
     {
-        RunDotNet($"new console --name example --output .");
-        AddProjectProperty("<PublicSign>true</PublicSign>");
-        AddProjectProperty("<KeyOriginatorFile>key.snk</KeyOriginatorFile>");
-        var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        File.WriteAllBytes(Path.Combine(RootDirectory, "key.snk"), keyBytes);
-        RunDotNet("build -bl");
-        TestExport(1);
+        TestExport(Fixture.ClassLibSignedComplogPath.Value, expectedCount: 1);
     }
 
     private void EmbedLineCore(string contentFilePath)

@@ -10,7 +10,7 @@ namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogReaderVersion2 : CompilerLogReader
 {
-    internal CompilerLogReaderVersion2(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions? basicAnalyzersOptions, CompilerLogState? state)
+    internal CompilerLogReaderVersion2(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions basicAnalyzersOptions, CompilerLogState? state)
         :base(zipArchive, metadata, basicAnalyzersOptions, state)
     {
 

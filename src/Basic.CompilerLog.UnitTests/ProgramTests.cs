@@ -118,16 +118,12 @@ public sealed class ProgramTests : TestBase
         Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "analyzers"), "*.dll", SearchOption.AllDirectories));
     }
 
-    [Theory]
-    [InlineData("console")]
-    [InlineData("classlib")]
-    public void ExportHelloWorld(string template)
+    [Fact]
+    public void ExportCompilerLog()
     {
         using var exportDir = new TempDir();
 
-        RunDotNet($"new {template} --name example --output .");
-        RunDotNet("build -bl");
-        Assert.Equal(0, RunCompLog($"export -o {exportDir.DirectoryPath}", RootDirectory));
+        Assert.Equal(0, RunCompLog($"export -o {exportDir.DirectoryPath} {Fixture.ConsoleComplogPath.Value} ", RootDirectory));
 
         // Now run the generated build.cmd and see if it succeeds;
         var exportPath = Path.Combine(exportDir.DirectoryPath, "example", "export");
@@ -138,7 +134,7 @@ public sealed class ProgramTests : TestBase
     [Theory]
     [InlineData("")]
     [InlineData("-none")]
-    public void EmitConsole(string arg)
+    public void ReplayConsoleWithEmit(string arg)
     {
         using var emitDir = new TempDir();
         RunCompLog($"replay {arg} -emit -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath.Value}");

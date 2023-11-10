@@ -256,7 +256,7 @@ public sealed class CompilerLogReaderTests : TestBase
         foreach (var complogPath in all)
         {
             TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath);
+            using var reader = CompilerLogReader.Create(complogPath, options: BasicAnalyzerHostOptions.None);
             foreach (var data in reader.ReadAllCompilationData())
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");

@@ -43,12 +43,12 @@ public abstract class CompilerLogReader : IDisposable
     public int MetadataVersion => Metadata.MetadataVersion;
     public bool IsWindowsLog => Metadata.IsWindows == true;
 
-    internal CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions? basicAnalyzersOptions, CompilerLogState? state)
+    internal CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions basicAnalyzersOptions, CompilerLogState? state)
     {
         ZipArchive = zipArchive;
         CompilerLogState = state ?? new CompilerLogState();
         _ownsCompilerLogState = state is null;
-        BasicAnalyzerHostOptions = basicAnalyzersOptions ?? BasicAnalyzerHostOptions.Default;
+        BasicAnalyzerHostOptions = basicAnalyzersOptions;
         Metadata = metadata;
         ReadAssemblyInfo();
 
@@ -71,6 +71,7 @@ public abstract class CompilerLogReader : IDisposable
         BasicAnalyzerHostOptions? options = null,
         CompilerLogState? state = null)
     {
+        options ??= BasicAnalyzerHostOptions.Default;
         try
         {
             var zipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);

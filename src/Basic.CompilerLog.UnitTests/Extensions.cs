@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Xunit;
+using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -20,5 +23,10 @@ internal static class Extensions
         }
 
         throw new Exception($"Cannot get MVID from reference {reference.Display}");
+    }
+
+    internal static void OnDiagnosticMessage(this IMessageSink messageSink, string message)
+    {
+        messageSink.OnMessage(new DiagnosticMessage(message));
     }
 }

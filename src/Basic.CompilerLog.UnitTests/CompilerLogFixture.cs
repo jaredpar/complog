@@ -193,7 +193,7 @@ public sealed class CompilerLogFixture : IDisposable
                     internal static Regex GetRegex() => null!;
                 }
                 """;
-            File.WriteAllText(Path.Combine(scratchPath, "Class 1.cs"), program, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
             RunDotnetCommand("build -bl", scratchPath);
         });
 
@@ -211,10 +211,12 @@ public sealed class CompilerLogFixture : IDisposable
         {
             var lazy = new Lazy<string>(() =>
             {
+                var start = DateTime.UtcNow;
                 try
                 {
                     var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
+                    messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
                     RunDotnetCommand("new globaljson --sdk-version 7.0.400", scratchPath);
                     action(scratchPath);
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
@@ -227,8 +229,12 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    messageSink.OnMessage(new DiagnosticMessage(diagnosticBuilder.ToString()));
+                    messageSink.OnDiagnosticMessage(diagnosticBuilder.ToString());
                     throw new Exception($"Cannot generate compiler log {name}", ex);
+                }
+                finally
+                {
+                    messageSink.OnDiagnosticMessage($"Finished {name} {(DateTime.UtcNow - start).TotalSeconds}");
                 }
             });
 

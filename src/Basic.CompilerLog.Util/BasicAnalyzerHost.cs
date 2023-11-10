@@ -19,7 +19,7 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.Util;
 
-public readonly struct BasicAnalyzerHostOptions
+public sealed class BasicAnalyzerHostOptions
 {
     public static BasicAnalyzerHostOptions Default { get; } = new BasicAnalyzerHostOptions(BasicAnalyzerKind.Default, cacheable: true);
 
