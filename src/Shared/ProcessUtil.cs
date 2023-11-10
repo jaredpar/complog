@@ -33,6 +33,42 @@ internal static class ProcessUtil
         string? workingDirectory = null,
         Dictionary<string, string>? environment = null)
     {
+        var info = GetStartInfo(fileName, args, workingDirectory, environment);
+        var process = Process.Start(info)!;
+        var standardOut = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        return new ProcessResult(
+            process.ExitCode,
+            standardOut,
+            standardError);
+    }
+
+    internal static async Task<ProcessResult> RunAsync(
+        string fileName,
+        string args,
+        string? workingDirectory = null,
+        Dictionary<string, string>? environment = null)
+    {
+        var info = GetStartInfo(fileName, args, workingDirectory, environment);
+        var process = Process.Start(info)!;
+        var standardOut = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+
+        return new ProcessResult(
+            process.ExitCode,
+            await standardOut,
+            await standardError);
+    }
+
+    private static ProcessStartInfo GetStartInfo(
+        string fileName,
+        string args,
+        string? workingDirectory = null,
+        Dictionary<string, string>? environment = null)
+    {
         var info = new ProcessStartInfo()
         {
             FileName = fileName,
@@ -52,14 +88,6 @@ internal static class ProcessUtil
             }
         }
 
-        var process = Process.Start(info)!;
-        var standardOut = process.StandardOutput.ReadToEnd();
-        var standardError = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-
-        return new ProcessResult(
-            process.ExitCode,
-            standardOut,
-            standardError);
+        return info;
     }
 }

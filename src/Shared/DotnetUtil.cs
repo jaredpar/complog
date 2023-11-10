@@ -43,6 +43,13 @@ internal static class DotnetUtil
             workingDirectory: workingDirectory,
             environment: _lazyDotnetEnvironmentVariables.Value);
 
+    internal static Task<ProcessResult> CommandAsync(string args, string? workingDirectory = null) =>
+        ProcessUtil.RunAsync(
+            "dotnet",
+            args,
+            workingDirectory: workingDirectory,
+            environment: _lazyDotnetEnvironmentVariables.Value);
+
     internal static void CommandOrThrow(string args, string? workingDirectory = null)
     {
         if (!Command(args, workingDirectory).Succeeded)

@@ -83,24 +83,24 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void Console()
+    public async Task Console()
     {
-        TestExport(Fixture.ConsoleComplogPath.Value, 1);
+        TestExport(await Fixture.ConsoleComplogPath.Value, 1);
     }
 
     [Fact]
-    public void ClassLib()
+    public async Task ClassLib()
     {
-        TestExport(Fixture.ClassLibComplogPath.Value, 1);
+        TestExport(await Fixture.ClassLibComplogPath.Value, 1);
     }
 
     /// <summary>
     /// Make sure that generated files are put into the generated directory
     /// </summary>
     [Fact]
-    public void GeneratedText()
+    public async Task GeneratedText()
     {
-        TestExport(Fixture.ConsoleComplogPath.Value, 1, verifyExportCallback: tempPath =>
+        TestExport(await Fixture.ConsoleComplogPath.Value, 1, verifyExportCallback: tempPath =>
         {
             var generatedPath = Path.Combine(tempPath, "generated");
             var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
@@ -113,9 +113,9 @@ public sealed class ExportUtilTests : TestBase
     /// export.
     /// </summary>
     [Fact]
-    public void GeneratedTextExcludeAnalyzers()
+    public async Task GeneratedTextExcludeAnalyzers()
     {
-        TestExport(Fixture.ConsoleComplogPath.Value, 1, includeAnalyzers: false, verifyExportCallback: tempPath =>
+        TestExport(await Fixture.ConsoleComplogPath.Value, 1, includeAnalyzers: false, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -136,9 +136,9 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ConsoleMultiTarget()
+    public async Task ConsoleMultiTarget()
     {
-        TestExport(Fixture.ClassLibMultiComplogPath.Value, expectedCount: 2);
+        TestExport(await Fixture.ClassLibMultiComplogPath.Value, expectedCount: 2);
     }
 
     [Fact]
@@ -255,9 +255,9 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void StrongNameKey()
+    public async Task StrongNameKey()
     {
-        TestExport(Fixture.ClassLibSignedComplogPath.Value, expectedCount: 1);
+        TestExport(await Fixture.ClassLibSignedComplogPath.Value, expectedCount: 1);
     }
 
     private void EmbedLineCore(string contentFilePath)
@@ -283,11 +283,11 @@ public sealed class ExportUtilTests : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AllCompilerLogs(bool includeAnalyzers)
+    public async Task AllCompilerLogs(bool includeAnalyzers)
     {
         foreach (var complogPath in Fixture.GetAllCompLogs())
         {
-            TestExport(complogPath, expectedCount: null, includeAnalyzers);
+            TestExport(await complogPath, expectedCount: null, includeAnalyzers);
         }
     }
 

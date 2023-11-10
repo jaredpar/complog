@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,7 +17,7 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class CompilerLogFixture : IDisposable
 {
-    private readonly ImmutableArray<Lazy<string>> _allCompLogs;
+    private readonly ImmutableArray<Lazy<Task<string>>> _allCompLogs;
 
     /// <summary>
     /// Storage directory for all the generated artifacts and scatch directories
@@ -28,24 +29,24 @@ public sealed class CompilerLogFixture : IDisposable
     /// </summary>
     internal string ComplogDirectory { get; }
 
-    internal Lazy<string> ConsoleComplogPath { get; }
+    internal Lazy<Task<string>> ConsoleComplogPath { get; }
 
-    internal Lazy<string> ConsoleNoGeneratorComplogPath { get; }
+    internal Lazy<Task<string>> ConsoleNoGeneratorComplogPath { get; }
 
-    internal Lazy<string> ConsoleWithLineComplogPath { get; }
+    internal Lazy<Task<string>> ConsoleWithLineComplogPath { get; }
 
-    internal Lazy<string> ConsoleWithLineAndEmbedComplogPath { get; }
+    internal Lazy<Task<string>> ConsoleWithLineAndEmbedComplogPath { get; }
 
-    internal Lazy<string> ClassLibComplogPath { get; }
+    internal Lazy<Task<string>> ClassLibComplogPath { get; }
 
-    internal Lazy<string> ClassLibSignedComplogPath { get; }
+    internal Lazy<Task<string>> ClassLibSignedComplogPath { get; }
 
     /// <summary>
     /// A multi-targeted class library
     /// </summary>
-    internal Lazy<string> ClassLibMultiComplogPath { get; }
+    internal Lazy<Task<string>> ClassLibMultiComplogPath { get; }
 
-    internal Lazy<string>? WpfAppComplogPath { get; }
+    internal Lazy<Task<string>>? WpfAppComplogPath { get; }
 
     /// <summary>
     /// Constructor for the primary fixture. To get actual diagnostic messages into the output 
@@ -58,20 +59,20 @@ public sealed class CompilerLogFixture : IDisposable
         Directory.CreateDirectory(ComplogDirectory);
 
         var diagnosticBuilder = new StringBuilder();
-        void RunDotnetCommand(string args, string workingDirectory)
+        async Task RunDotnetCommand(string args, string workingDirectory)
         {
             diagnosticBuilder.AppendLine($"Running: {args} in {workingDirectory}");
-            var result = DotnetUtil.Command(args, workingDirectory);
+            var result = await DotnetUtil.CommandAsync(args, workingDirectory);
             diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");
             diagnosticBuilder.AppendLine($"Standard Output: {result.StandardOut}");
             diagnosticBuilder.AppendLine($"Standard Error: {result.StandardError}");
             Assert.True(result.Succeeded);
         }
 
-        var builder = ImmutableArray.CreateBuilder<Lazy<string>>();
-        ConsoleComplogPath = WithBuild("console.complog", void (string scratchPath) =>
+        var builder = ImmutableArray.CreateBuilder<Lazy<Task<string>>>();
+        ConsoleComplogPath = WithBuild("console.complog", async Task (string scratchPath) =>
         {
-            RunDotnetCommand($"new console --name console --output .", scratchPath);
+            await RunDotnetCommand($"new console --name console --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -96,18 +97,18 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            await RunDotnetCommand("build -bl", scratchPath);
         });
 
-        ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
+        ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", async Task (string scratchPath) =>
         {
-            RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
-            RunDotnetCommand("build -bl", scratchPath);
+            await RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
+            await RunDotnetCommand("build -bl", scratchPath);
         });
         
-        ConsoleWithLineComplogPath = WithBuild("console-with-line.complog", void (string scratchPath) =>
+        ConsoleWithLineComplogPath = WithBuild("console-with-line.complog", async Task (string scratchPath) =>
         {
-            RunDotnetCommand($"new console --name console --output .", scratchPath);
+            await RunDotnetCommand($"new console --name console --output .", scratchPath);
             var extra = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -117,12 +118,12 @@ public sealed class CompilerLogFixture : IDisposable
                 class C { }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), extra, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            await RunDotnetCommand("build -bl", scratchPath);
         });
 
-        ConsoleWithLineAndEmbedComplogPath = WithBuild("console-with-line-and-embed.complog", void (string scratchPath) =>
+        ConsoleWithLineAndEmbedComplogPath = WithBuild("console-with-line-and-embed.complog", async Task (string scratchPath) =>
         {
-            RunDotnetCommand($"new console --name console --output .", scratchPath);
+            await RunDotnetCommand($"new console --name console --output .", scratchPath);
             DotnetUtil.AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>", scratchPath);
             var extra = """
                 using System;
@@ -134,12 +135,12 @@ public sealed class CompilerLogFixture : IDisposable
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), extra, TestBase.DefaultEncoding);
             File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            await RunDotnetCommand("build -bl", scratchPath);
         });
 
-        ClassLibComplogPath = WithBuild("classlib.complog", void (string scratchPath) =>
+        ClassLibComplogPath = WithBuild("classlib.complog", async Task (string scratchPath) =>
         {
-            RunDotnetCommand($"new classlib --name classlib --output . --framework net7.0", scratchPath);
+            await RunDotnetCommand($"new classlib --name classlib --output . --framework net7.0", scratchPath);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -150,12 +151,12 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            await RunDotnetCommand("build -bl", scratchPath);
         });
 
-        ClassLibSignedComplogPath = WithBuild("classlibsigned.complog", void (string scratchPath) =>
+        ClassLibSignedComplogPath = WithBuild("classlibsigned.complog", async Task (string scratchPath) =>
         {
-            RunDotnetCommand($"new classlib --name classlibsigned --output .", scratchPath);
+            await RunDotnetCommand($"new classlib --name classlibsigned --output .", scratchPath);
             var keyFilePath = Path.Combine(scratchPath, "Key.snk");
             DotnetUtil.AddProjectProperty($"<KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>", scratchPath);
             File.WriteAllBytes(keyFilePath, ResourceLoader.GetResourceBlob("Key.snk"));
@@ -169,12 +170,12 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            await RunDotnetCommand("build -bl", scratchPath);
         });
 
-        ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", void (string scratchPath) =>
+        ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", async Task (string scratchPath) =>
         {
-            RunDotnetCommand($"new classlib --name classlibmulti --output .", scratchPath);
+            await RunDotnetCommand($"new classlib --name classlibmulti --output .", scratchPath);
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
@@ -194,22 +195,22 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            await RunDotnetCommand("build -bl", scratchPath);
         });
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            WpfAppComplogPath = WithBuild("wpfapp.complog", void (string scratchPath) =>
+            WpfAppComplogPath = WithBuild("wpfapp.complog", async Task (string scratchPath) =>
             {
-                RunDotnetCommand("new wpf --name wpfapp --output .", scratchPath);
-                RunDotnetCommand("build -bl", scratchPath);
+                await RunDotnetCommand("new wpf --name wpfapp --output .", scratchPath);
+                await RunDotnetCommand("build -bl", scratchPath);
             });
         }
 
         _allCompLogs = builder.ToImmutable();
-        Lazy<string> WithBuild(string name, Action<string> action)
+        Lazy<Task<string>> WithBuild(string name, Func<string, Task> action)
         {
-            var lazy = new Lazy<string>(() =>
+            var func = async Task<string> () =>
             {
                 var start = DateTime.UtcNow;
                 try
@@ -217,8 +218,8 @@ public sealed class CompilerLogFixture : IDisposable
                     var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
-                    RunDotnetCommand("new globaljson --sdk-version 7.0.400", scratchPath);
-                    action(scratchPath);
+                    await RunDotnetCommand("new globaljson --sdk-version 7.0.400", scratchPath);
+                    await action(scratchPath);
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
                     var complogFilePath = Path.Combine(ComplogDirectory, name);
@@ -229,21 +230,23 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 catch (Exception ex)
                 {
+                    diagnosticBuilder.Append($"Exception: {ex.Message}");
                     messageSink.OnDiagnosticMessage(diagnosticBuilder.ToString());
-                    throw new Exception($"Cannot generate compiler log {name}", ex);
+                    throw;
                 }
                 finally
                 {
                     messageSink.OnDiagnosticMessage($"Finished {name} {(DateTime.UtcNow - start).TotalSeconds}");
                 }
-            });
+            };
 
+            var lazy = new Lazy<Task<string>>(func, isThreadSafe: false);
             builder.Add(lazy);
             return lazy;
         }
     }
 
-    public IEnumerable<string> GetAllCompLogs() => _allCompLogs.Select(x => x.Value);
+    public IEnumerable<Task<string>> GetAllCompLogs() => _allCompLogs.Select(x => x.Value);
 
     public void Dispose()
     {

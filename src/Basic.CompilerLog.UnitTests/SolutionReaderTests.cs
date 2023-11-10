@@ -21,11 +21,11 @@ public sealed class SolutionReaderTests : TestBase
         Fixture = fixture;
     }
 
-    private void LoadAllCore(BasicAnalyzerHostOptions options)
+    private async Task LoadAllCoreAsync(BasicAnalyzerHostOptions options)
     {
         foreach (var complogPath in Fixture.GetAllCompLogs())
         {
-            using var reader = SolutionReader.Create(complogPath, options);
+            using var reader = SolutionReader.Create(await complogPath, options);
             var workspace = new AdhocWorkspace();
             var solution = workspace.AddSolution(reader.ReadSolutionInfo());
             Assert.NotEmpty(solution.Projects);
@@ -33,12 +33,12 @@ public sealed class SolutionReaderTests : TestBase
     }
 
     [Fact]
-    public void LoadAllWithAnalyzers() =>
-        LoadAllCore(BasicAnalyzerHostOptions.Default);
+    public async Task LoadAllWithAnalyzers() =>
+        await LoadAllCoreAsync(BasicAnalyzerHostOptions.Default);
 
     [Fact]
-    public void LoadAllWithoutAnalyzers() =>
-        LoadAllCore(BasicAnalyzerHostOptions.None);
+    public async Task LoadAllWithoutAnalyzers() =>
+        await LoadAllCoreAsync(BasicAnalyzerHostOptions.None);
 
     [Theory]
     [InlineData(BasicAnalyzerKind.Default)]
@@ -46,7 +46,7 @@ public sealed class SolutionReaderTests : TestBase
     public async Task DocumentsHaveGeneratedTextWithAnalyzers(BasicAnalyzerKind kind)
     {
         var host = new BasicAnalyzerHostOptions(kind);
-        using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath.Value, host);
+        using var reader = SolutionReader.Create(await Fixture.ConsoleComplogPath.Value, host);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());
         var project = solution.Projects.Single();
