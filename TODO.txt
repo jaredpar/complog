@@ -1,0 +1,7 @@
+Work remaining
+- Make the general pattern a bit less hacky
+
+The problems with this approach is that it's pretty limited. Can only emulate the compiler 
+when the log has a .NET Core based compiler because the complog process is a .NET Core 
+process. Most of the time though the builds are driven through msbuild so it will be a
+.NET framework compiler.
