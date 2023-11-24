@@ -371,8 +371,13 @@ int RunResponseFile(IEnumerable<string> args)
     }
 }
 
-int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
+static int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken) =>
+    RunReplayCore(args, useHost: true);
+
+static int RunReplayCore(IEnumerable<string> args, bool useHost)
 {
+    var cancellationToken = CancellationToken.None;
+    var context = AssemblyLoadContext.GetLoadContext(typeof(Program).Assembly);
     var baseOutputPath = "";
     var severity = DiagnosticSeverity.Warning;
     var export = false;
@@ -410,6 +415,12 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
 
         var analyzerHostOptions = analyzers ? BasicAnalyzerHostOptions.Default : BasicAnalyzerHostOptions.None;
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
+        if (useHost)
+        {
+            var util = new ContextUtil();
+            util.RunInStream(compilerLogStream, args);
+        }
+
         using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, analyzerHostOptions);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: analyzerHostOptions.Kind != BasicAnalyzerKind.None);
@@ -530,7 +541,7 @@ List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>
     }
 }
 
-CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerHostOptions? options = null)
+static CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerHostOptions? options = null)
 {
     var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen, options);
     if (reader.MetadataVersion > CompilerLogReader.LatestMetadataVersion)
@@ -548,7 +559,7 @@ CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen,
     return reader;
 }
 
-Stream GetOrCreateCompilerLogStream(List<string> extra)
+static Stream GetOrCreateCompilerLogStream(List<string> extra)
 {
     var logFilePath = GetLogFilePath(extra);
     return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
@@ -557,7 +568,7 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
 /// <summary>
 /// Returns a path to a .complog or .binlog to be used for processing
 /// </summary>
-string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
+static string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
 {
     string? logFilePath;
     IEnumerable<string> args = Array.Empty<string>();
@@ -659,7 +670,7 @@ static string? FindFirstFileWithPattern(string baseDirectory, params string[] pa
     return null;
 }
 
-string GetBaseOutputPath(string? baseOutputPath)
+static string GetBaseOutputPath(string? baseOutputPath)
 {
     if (string.IsNullOrEmpty(baseOutputPath))
     {
@@ -674,7 +685,7 @@ string GetBaseOutputPath(string? baseOutputPath)
     return baseOutputPath;
 }
 
-string GetOutputPath(string baseOutputPath, List<CompilerCall> compilerCalls, int index, string? directoryName = null)
+static string GetOutputPath(string baseOutputPath, List<CompilerCall> compilerCalls, int index, string? directoryName = null)
 {
     var projectName = GetProjectUniqueName(compilerCalls, index);
     return string.IsNullOrEmpty(directoryName)
@@ -682,7 +693,7 @@ string GetOutputPath(string baseOutputPath, List<CompilerCall> compilerCalls, in
         : Path.Combine(baseOutputPath, projectName, directoryName);
 }
 
-string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
+static string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
 {
     var compilerCall = compilerCalls[index];
     var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
