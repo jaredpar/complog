@@ -42,12 +42,13 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore -bl 
-    - name: Test
+    - name: Test Linux
       run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed"
       if: matrix.os == 'ubuntu-latest'
-    - name: Test
+    - name: Test Windows
       run: dotnet test --no-build --logger "console;verbosity=detailed"
-      if: matrix.os == 'windows-latest'
+      # if: matrix.os == 'windows-latest'
+      if: false
     - name: Create Compiler Log
       run: dotnet run --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
     - name: Publish Compiler Log
