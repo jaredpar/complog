@@ -64,16 +64,17 @@ public sealed class CompilerLogFixture : IDisposable
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
         Directory.CreateDirectory(ComplogDirectory);
 
-        var diagnosticBuilder = new StringBuilder();
         void RunDotnetCommand(string args, string workingDirectory)
         {
             var start = DateTime.UtcNow;
+            var diagnosticBuilder = new StringBuilder();
             diagnosticBuilder.AppendLine($"Running: {args} in {workingDirectory}");
             var result = DotnetUtil.Command(args, workingDirectory);
             diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");
             diagnosticBuilder.AppendLine($"Standard Output: {result.StandardOut}");
             diagnosticBuilder.AppendLine($"Standard Error: {result.StandardError}");
             diagnosticBuilder.AppendLine($"Finished: {(DateTime.UtcNow - start).TotalSeconds:F2}s");
+            messageSink.OnMessage(new DiagnosticMessage(diagnosticBuilder.ToString()));
             Assert.True(result.Succeeded);
         }
 
@@ -260,7 +261,6 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    messageSink.OnDiagnosticMessage(diagnosticBuilder.ToString());
                     throw new Exception($"Cannot generate compiler log {name}", ex);
                 }
                 finally
