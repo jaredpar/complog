@@ -32,7 +32,13 @@ public sealed class CompilerLogFixture : IDisposable
 
     internal Lazy<string> ConsoleNoGeneratorComplogPath { get; }
 
-    internal Lazy<string> ConsoleWithLineComplogPath { get; }
+    /// <summary>
+    /// This is a console project that has every nasty feature that can be thought of
+    /// like resources, line directives, embeds, etc ... Rather than running a 
+    /// `dotnet build` for every one of these individually (which is expensive) in 
+    /// unit tests try to create a single project that has all of them.
+    /// </summary>
+    internal Lazy<string> ConsoleComplexComplogPath { get; }
 
     internal Lazy<string> ConsoleWithLineAndEmbedComplogPath { get; }
 
@@ -105,18 +111,66 @@ public sealed class CompilerLogFixture : IDisposable
             RunDotnetCommand("build -bl", scratchPath);
         });
         
-        ConsoleWithLineComplogPath = WithBuild("console-with-line.complog", void (string scratchPath) =>
+        ConsoleComplexComplogPath = WithBuild("console-complex.complog", void (string scratchPath) =>
         {
-            RunDotnetCommand($"new console --name console --output .", scratchPath);
-            var extra = """
+            RunDotnetCommand($"new console --name console-complex --output .", scratchPath);
+
+            File.WriteAllText(Path.Combine(scratchPath, "console-complex.csproj"), """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <OutputType>Exe</OutputType>
+                    <TargetFramework>net7.0</TargetFramework>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                    <EmbedAllSources>true</EmbedAllSources>
+                    <CodeAnalysisRuleset>example.ruleset</CodeAnalysisRuleset>
+                    <Win32Manifest>resource.txt</Win32Manifest>
+                  </PropertyGroup>
+                  <ItemGroup>
+                    <EmbeddedResource Include="resource.txt" />
+                  </ItemGroup>
+                </Project>
+                """, TestBase.DefaultEncoding);
+
+            File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), """
                 using System;
                 using System.Text.RegularExpressions;
 
                 // File that does not exsit
-                #line 42 "blah.txt"
+                #line 42 "line.txt"
                 class C { }
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), extra, TestBase.DefaultEncoding);
+                """, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
+
+            // File with a space in the name to make sure we quote correctly in RSP
+            File.WriteAllText(Path.Combine(scratchPath, "Code With Space In The Name.cs"), """
+                class D { }
+                """, TestBase.DefaultEncoding);
+
+            File.WriteAllText(Path.Combine(scratchPath, "resource.txt"), """
+                This is an awesome resource
+                """);
+
+            File.WriteAllText(Path.Combine(scratchPath, "example.ruleset"), """
+                <RuleSet Name="Rules for Hello World project" Description="These rules focus on critical issues for the Hello World app." ToolsVersion="10.0">
+                    <Localization ResourceAssembly="Microsoft.VisualStudio.CodeAnalysis.RuleSets.Strings.dll" ResourceBaseName="Microsoft.VisualStudio.CodeAnalysis.RuleSets.Strings.Localized">
+                        <Name Resource="HelloWorldRules_Name" />
+                        <Description Resource="HelloWorldRules_Description" />
+                    </Localization>
+                    <Rules AnalyzerId="Microsoft.Analyzers.ManagedCodeAnalysis" RuleNamespace="Microsoft.Rules.Managed">
+                        <Rule Id="CA1001" Action="Warning" />
+                        <Rule Id="CA1009" Action="Warning" />
+                        <Rule Id="CA1016" Action="Warning" />
+                        <Rule Id="CA1033" Action="Warning" />
+                    </Rules>
+                    <Rules AnalyzerId="Microsoft.CodeQuality.Analyzers" RuleNamespace="Microsoft.CodeQuality.Analyzers">
+                        <Rule Id="CA1802" Action="Error" />
+                        <Rule Id="CA1814" Action="Info" />
+                        <Rule Id="CA1823" Action="None" />
+                        <Rule Id="CA2217" Action="Warning" />
+                    </Rules>
+                </RuleSet>
+                """);
             RunDotnetCommand("build -bl", scratchPath);
         });
 
