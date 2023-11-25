@@ -16,6 +16,8 @@ on:
     - 'README.md'
 
 jobs:
+  env:
+    TEST_ARTIFACTS_DIR: ${{ github.workspace }}/artifacts/test
   build:
     strategy:
       matrix:
@@ -52,3 +54,9 @@ jobs:
       with:
         name: ${{ matrix.artifact }}
         path: msbuild.complog
+    - name: Publish Test Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Artifacts ${{ matrix.os }}
+        path: ${{ github.workspace }}/artifacts/test
+

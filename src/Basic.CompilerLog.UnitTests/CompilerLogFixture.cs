@@ -247,6 +247,12 @@ public sealed class CompilerLogFixture : IDisposable
                     Assert.True(File.Exists(binlogFilePath));
                     var complogFilePath = Path.Combine(ComplogDirectory, name);
                     var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
+
+                    if (Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR") is { } testArtifactsDir)
+                    {
+                        File.Copy(binlogFilePath, Path.Combine(testArtifactsDir, Path.ChangeExtension(name, ".binlog")));
+                    }
+
                     Assert.Empty(diagnostics);
                     Directory.Delete(scratchPath, recursive: true);
                     return complogFilePath;
