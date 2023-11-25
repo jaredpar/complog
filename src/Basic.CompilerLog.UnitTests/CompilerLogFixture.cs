@@ -250,6 +250,7 @@ public sealed class CompilerLogFixture : IDisposable
 
                     if (Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR") is { } testArtifactsDir)
                     {
+                        Directory.CreateDirectory(testArtifactsDir);
                         File.Copy(binlogFilePath, Path.Combine(testArtifactsDir, Path.ChangeExtension(name, ".binlog")));
                     }
 
