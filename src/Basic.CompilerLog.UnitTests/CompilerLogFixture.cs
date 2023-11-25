@@ -109,6 +109,32 @@ public sealed class CompilerLogFixture : IDisposable
             RunDotnetCommand("build -bl", scratchPath);
         });
 
+        ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand($"new classlib --name classlibmulti --output .", scratchPath);
+            var projectFileContent = """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                  </PropertyGroup>
+                </Project>
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "classlibmulti.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            var program = """
+                using System;
+                using System.Text.RegularExpressions;
+
+                partial class Util {
+                    internal static Regex GetRegex() => null!;
+                }
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
+            RunDotnetCommand("build -bl", scratchPath);
+        });
+
+
         ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
@@ -191,31 +217,6 @@ public sealed class CompilerLogFixture : IDisposable
                 partial class Util {
                     [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
                     internal static partial Regex GetRegex();
-                }
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
-        });
-
-        ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", void (string scratchPath) =>
-        {
-            RunDotnetCommand($"new classlib --name classlibmulti --output .", scratchPath);
-            var projectFileContent = """
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup>
-                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
-                    <ImplicitUsings>enable</ImplicitUsings>
-                    <Nullable>enable</Nullable>
-                  </PropertyGroup>
-                </Project>
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "classlibmulti.csproj"), projectFileContent, TestBase.DefaultEncoding);
-            var program = """
-                using System;
-                using System.Text.RegularExpressions;
-
-                partial class Util {
-                    internal static Regex GetRegex() => null!;
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
