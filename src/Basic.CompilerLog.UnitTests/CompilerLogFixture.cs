@@ -40,11 +40,7 @@ public sealed class CompilerLogFixture : IDisposable
     /// </summary>
     internal Lazy<string> ConsoleComplexComplogPath { get; }
 
-    internal Lazy<string> ConsoleWithLineAndEmbedComplogPath { get; }
-
     internal Lazy<string> ClassLibComplogPath { get; }
-
-    internal Lazy<string> ClassLibSignedComplogPath { get; }
 
     /// <summary>
     /// A multi-targeted class library
@@ -52,6 +48,11 @@ public sealed class CompilerLogFixture : IDisposable
     internal Lazy<string> ClassLibMultiComplogPath { get; }
 
     internal Lazy<string>? WpfAppComplogPath { get; }
+
+    /// <summary>
+    /// Named complog value that makes intent of getting signed one clear
+    /// </summary>
+    internal Lazy<string> ConsoleSignedComplogPath => ConsoleComplexComplogPath;
 
     /// <summary>
     /// Constructor for the primary fixture. To get actual diagnostic messages into the output 
@@ -114,8 +115,8 @@ public sealed class CompilerLogFixture : IDisposable
         ConsoleComplexComplogPath = WithBuild("console-complex.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console-complex --output .", scratchPath);
-
-            File.WriteAllText(Path.Combine(scratchPath, "console-complex.csproj"), """
+            var keyFilePath = Path.Combine(scratchPath, "Key.snk");
+            File.WriteAllText(Path.Combine(scratchPath, "console-complex.csproj"), $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
                     <OutputType>Exe</OutputType>
@@ -125,12 +126,15 @@ public sealed class CompilerLogFixture : IDisposable
                     <EmbedAllSources>true</EmbedAllSources>
                     <CodeAnalysisRuleset>example.ruleset</CodeAnalysisRuleset>
                     <Win32Manifest>resource.txt</Win32Manifest>
+                    <KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>
                   </PropertyGroup>
                   <ItemGroup>
                     <EmbeddedResource Include="resource.txt" />
                   </ItemGroup>
                 </Project>
                 """, TestBase.DefaultEncoding);
+
+            File.WriteAllBytes(keyFilePath, ResourceLoader.GetResourceBlob("Key.snk"));
 
             File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), """
                 using System;
@@ -174,45 +178,9 @@ public sealed class CompilerLogFixture : IDisposable
             RunDotnetCommand("build -bl", scratchPath);
         });
 
-        ConsoleWithLineAndEmbedComplogPath = WithBuild("console-with-line-and-embed.complog", void (string scratchPath) =>
-        {
-            RunDotnetCommand($"new console --name console --output .", scratchPath);
-            DotnetUtil.AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>", scratchPath);
-            var extra = """
-                using System;
-                using System.Text.RegularExpressions;
-
-                // File that does not exsit
-                #line 42 "line.txt"
-                class C { }
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), extra, TestBase.DefaultEncoding);
-            File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
-        });
-
         ClassLibComplogPath = WithBuild("classlib.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlib --output . --framework net7.0", scratchPath);
-            var program = """
-                using System;
-                using System.Text.RegularExpressions;
-
-                partial class Util {
-                    [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
-                    internal static partial Regex GetRegex();
-                }
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
-        });
-
-        ClassLibSignedComplogPath = WithBuild("classlibsigned.complog", void (string scratchPath) =>
-        {
-            RunDotnetCommand($"new classlib --name classlibsigned --output .", scratchPath);
-            var keyFilePath = Path.Combine(scratchPath, "Key.snk");
-            DotnetUtil.AddProjectProperty($"<KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>", scratchPath);
-            File.WriteAllBytes(keyFilePath, ResourceLoader.GetResourceBlob("Key.snk"));
             var program = """
                 using System;
                 using System.Text.RegularExpressions;

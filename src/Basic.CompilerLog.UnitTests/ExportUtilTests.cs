@@ -155,7 +155,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void StrongNameKey()
     {
-        TestExport(Fixture.ClassLibSignedComplogPath.Value, expectedCount: 1, runBuild: false);
+        TestExport(Fixture.ConsoleSignedComplogPath.Value, expectedCount: 1, runBuild: false);
     }
 
     private void EmbedLineCore(string contentFilePath)

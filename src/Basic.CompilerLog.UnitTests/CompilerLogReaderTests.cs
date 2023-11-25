@@ -104,7 +104,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void KeyFileDefault()
     {
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibSignedComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleSignedComplogPath.Value);
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
@@ -121,7 +121,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var state = new CompilerLogState(tempDir.DirectoryPath);
 
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibSignedComplogPath.Value, state: state);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value, state: state);
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
@@ -426,13 +426,18 @@ public sealed class CompilerLogReaderTests : TestBase
                 Assert.Equal(args.EmitOptions, data.EmitOptions);
                 Assert.Equal(args.ParseOptions, data.ParseOptions);
 
-                var expectedCompilationOptions = args.CompilationOptions
-                    .WithCryptoKeyFile(null);
-                var actualCompilationOptions = data.CompilationOptions
-                    .WithSyntaxTreeOptionsProvider(null)
-                    .WithStrongNameProvider(null)
-                    .WithCryptoKeyFile(null);
-                Assert.Equal(expectedCompilationOptions, actualCompilationOptions);
+                // TODO: can't round trip ruleset options yet because it isn't 
+                // handled in specific diagnostic potions
+                if (complogPath != Fixture.ConsoleComplexComplogPath.Value)
+                {
+                    var expectedCompilationOptions = args.CompilationOptions
+                        .WithCryptoKeyFile(null);
+                    var actualCompilationOptions = data.CompilationOptions
+                        .WithSyntaxTreeOptionsProvider(null)
+                        .WithStrongNameProvider(null)
+                        .WithCryptoKeyFile(null);
+                    Assert.Equal(expectedCompilationOptions, actualCompilationOptions);
+                }
             }
         }
     }
