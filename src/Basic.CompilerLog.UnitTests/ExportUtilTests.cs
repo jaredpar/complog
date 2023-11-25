@@ -183,7 +183,7 @@ public sealed class ExportUtilTests : TestBase
     [InlineData(false)]
     public void AllCompilerLogs(bool includeAnalyzers)
     {
-        foreach (var complogPath in Fixture.GetAllCompLogs())
+        foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestExport(complogPath, expectedCount: null, includeAnalyzers);
         }

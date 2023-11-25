@@ -67,11 +67,13 @@ public sealed class CompilerLogFixture : IDisposable
         var diagnosticBuilder = new StringBuilder();
         void RunDotnetCommand(string args, string workingDirectory)
         {
+            var start = DateTime.UtcNow;
             diagnosticBuilder.AppendLine($"Running: {args} in {workingDirectory}");
             var result = DotnetUtil.Command(args, workingDirectory);
             diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");
             diagnosticBuilder.AppendLine($"Standard Output: {result.StandardOut}");
             diagnosticBuilder.AppendLine($"Standard Error: {result.StandardError}");
+            diagnosticBuilder.AppendLine($"Finished: {(DateTime.UtcNow - start).TotalSeconds:F2}s");
             Assert.True(result.Succeeded);
         }
 
@@ -256,7 +258,7 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 finally
                 {
-                    messageSink.OnDiagnosticMessage($"Finished {name} {(DateTime.UtcNow - start).TotalSeconds}");
+                    messageSink.OnDiagnosticMessage($"Finished {name} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
                 }
             });
 
@@ -265,7 +267,18 @@ public sealed class CompilerLogFixture : IDisposable
         }
     }
 
-    public IEnumerable<string> GetAllCompLogs() => _allCompLogs.Select(x => x.Value);
+    public IEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper)
+    {
+        var start = DateTime.UtcNow;
+        testOutputHelper.WriteLine($"Starting {nameof(GetAllCompilerLogs)}");
+        var list = new List<string>(_allCompLogs.Length);
+        foreach (var complog in _allCompLogs)
+        {
+            list.Add(complog.Value);
+        }
+        testOutputHelper.WriteLine($"Finished {nameof(GetAllCompilerLogs)} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
+        return list;
+    } 
 
     public void Dispose()
     {

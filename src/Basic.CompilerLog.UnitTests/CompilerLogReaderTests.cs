@@ -232,7 +232,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void EmitToDisk()
     {
-        var all = Fixture.GetAllCompLogs();
+        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
         Assert.NotEmpty(all);
         foreach (var complogPath in all)
         {
@@ -251,7 +251,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void EmitToMemory()
     {
-        var all = Fixture.GetAllCompLogs();
+        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
         Assert.NotEmpty(all);
         foreach (var complogPath in all)
         {
@@ -414,7 +414,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void OptionsCorrectness()
     {
-        var all = Fixture.GetAllCompLogs();
+        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
         Assert.NotEmpty(all);
         foreach (var complogPath in all)
         {
