@@ -16,9 +16,9 @@ on:
     - 'README.md'
 
 jobs:
-  env:
-    TEST_ARTIFACTS_DIR: ${{ github.workspace }}/artifacts/test
   build:
+    env:
+      TEST_ARTIFACTS_DIR: ${{ github.workspace }}/artifacts/test
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
