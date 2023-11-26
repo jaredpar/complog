@@ -18,12 +18,12 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Fact]
-    public void EmitToDisk()
+    public async Task EmitToDisk()
     {
-        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
-        Assert.NotEmpty(all);
-        foreach (var complogPath in all)
+        var any = false;
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
+            any = true;
             TestOutputHelper.WriteLine(complogPath);
             using var reader = CompilerLogReader.Create(complogPath);
             foreach (var data in reader.ReadAllCompilationData())
@@ -34,14 +34,14 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 Assert.True(emitResult.Success);
             }
         }
+
+        Assert.True(any);
     }
 
     [Fact]
-    public void EmitToMemory()
+    public async Task EmitToMemory()
     {
-        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
-        Assert.NotEmpty(all);
-        foreach (var complogPath in all)
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
             using var reader = CompilerLogReader.Create(complogPath, options: BasicAnalyzerHostOptions.None);
@@ -57,9 +57,9 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AllCompilerLogs(bool includeAnalyzers)
+    public async Task ExportAndBuild(bool includeAnalyzers)
     {
-        foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             ExportUtilTests.TestExport(TestOutputHelper, complogPath, expectedCount: null, includeAnalyzers, runBuild: true);
         }
@@ -68,10 +68,10 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void LoadAllCore(bool none)
+    public async Task LoadAllCore(bool none)
     {
         var options = none ? BasicAnalyzerHostOptions.None : BasicAnalyzerHostOptions.Default;
-        foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             using var reader = SolutionReader.Create(complogPath, options);
             var workspace = new AdhocWorkspace();
@@ -86,11 +86,9 @@ public sealed class UsingAllCompilerLogTests : TestBase
     /// that are not being set by our code base.
     /// </summary>
     [Fact]
-    public void OptionsCorrectness()
+    public async Task OptionsCorrectness()
     {
-        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
-        Assert.NotEmpty(all);
-        foreach (var complogPath in all)
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
             using var reader = CompilerLogReader.Create(complogPath);

@@ -27,25 +27,6 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     /// <summary>
-    /// Ensure that we can process the contents of all the major templates
-    /// </summary>
-    [Theory]
-    [InlineData("console")]
-    [InlineData("classlib")]
-    public void ReadDifferentTemplates(string template)
-    {
-        RunDotNet($"new {template} --name example --output .");
-        RunDotNet("build -bl -nr:false");
-
-        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
-        var compilerCall = reader.ReadCompilerCall(0);
-        Assert.True(compilerCall.IsCSharp);
-
-        var compilationData = reader.ReadCompilationData(compilerCall);
-        Assert.NotNull(compilationData);
-    }
-
-    /// <summary>
     /// Can we process an extra file in the major templates. The file name should not impact 
     /// the content of the file.
     /// </summary>

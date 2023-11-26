@@ -1,5 +1,6 @@
 ﻿using Basic.CompilerLog.Util;
 using Microsoft.Build.Framework;
+using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -284,17 +285,38 @@ public sealed class CompilerLogFixture : IDisposable
         }
     }
 
-    public IEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper)
+    public async IAsyncEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper)
     {
         var start = DateTime.UtcNow;
-        testOutputHelper.WriteLine($"Starting {nameof(GetAllCompilerLogs)}");
         var list = new List<string>(_allCompLogs.Length);
         foreach (var complog in _allCompLogs)
         {
+            testOutputHelper.WriteLine($"Generating {complog.Value}");
+            if (complog.IsValueCreated)
+            {
+                testOutputHelper.WriteLine($"Using cached value");
+                yield return complog.Value;
+            }
+            else
+            {
+                TaskCompletionSource<string> tcs = new();
+                await Task.Factory.StartNew(() =>
+                {
+                    try
+                    {
+                        testOutputHelper.WriteLine($"Starting {nameof(GetAllCompilerLogs)}");
+                        tcs.SetResult(complog.Value);
+                        testOutputHelper.WriteLine($"Finished {nameof(GetAllCompilerLogs)} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
+                    }
+                    catch (Exception ex)
+                    {
+                        tcs.SetException(ex);
+                    }
+                }, TaskCreationOptions.LongRunning);
+                yield return await tcs.Task;
+            }
             list.Add(complog.Value);
         }
-        testOutputHelper.WriteLine($"Finished {nameof(GetAllCompilerLogs)} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
-        return list;
     } 
 
     public void Dispose()
