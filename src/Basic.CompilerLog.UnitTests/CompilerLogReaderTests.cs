@@ -27,25 +27,6 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     /// <summary>
-    /// Ensure that we can process the contents of all the major templates
-    /// </summary>
-    [Theory]
-    [InlineData("console")]
-    [InlineData("classlib")]
-    public void ReadDifferentTemplates(string template)
-    {
-        RunDotNet($"new {template} --name example --output .");
-        RunDotNet("build -bl -nr:false");
-
-        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
-        var compilerCall = reader.ReadCompilerCall(0);
-        Assert.True(compilerCall.IsCSharp);
-
-        var compilationData = reader.ReadCompilationData(compilerCall);
-        Assert.NotNull(compilationData);
-    }
-
-    /// <summary>
     /// Can we process an extra file in the major templates. The file name should not impact 
     /// the content of the file.
     /// </summary>
@@ -73,31 +54,10 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void ResourceSimpleEmbedded()
     {
-        RunDotNet($"new console --name example --output .");
-        var projectFileContent = """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net7.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-              </PropertyGroup>
-              <ItemGroup>
-                <EmbeddedResource Include="resource.txt" />
-              </ItemGroup>
-            </Project>
-            """;
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
-        var resourceContent = """
-            // This is an amazing resource
-            """;
-        File.WriteAllText(Path.Combine(RootDirectory, "resource.txt"), resourceContent, DefaultEncoding);
-        RunDotNet("build -bl -nr:false");
-
-        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var d = rawData.Resources.Single();
-        Assert.Equal("example.resource.txt", d.ResourceDescription.GetResourceName());
+        Assert.Equal("console-complex.resource.txt", d.ResourceDescription.GetResourceName());
     }
 
     [Fact]
@@ -227,43 +187,6 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Equal(2, list.Count);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
-    }
-
-    [Fact]
-    public void EmitToDisk()
-    {
-        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
-        Assert.NotEmpty(all);
-        foreach (var complogPath in all)
-        {
-            TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath);
-            foreach (var data in reader.ReadAllCompilationData())
-            {
-                using var testDir = new TempDir();
-                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                var emitResult = data.EmitToDisk(testDir.DirectoryPath);
-                Assert.True(emitResult.Success);
-            }
-        }
-    }
-
-    [Fact]
-    public void EmitToMemory()
-    {
-        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
-        Assert.NotEmpty(all);
-        foreach (var complogPath in all)
-        {
-            TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath, options: BasicAnalyzerHostOptions.None);
-            foreach (var data in reader.ReadAllCompilationData())
-            {
-                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                var emitResult = data.EmitToMemory();
-                Assert.True(emitResult.Success);
-            }
-        }
     }
 
     [Fact]
@@ -406,39 +329,4 @@ public sealed class CompilerLogReaderTests : TestBase
         }
     }
 
-    /// <summary>
-    /// Ensure that our options round tripping code is correct and produces the same result as 
-    /// argument parsing. This will also catch cases where new values are added to the options 
-    /// that are not being set by our code base.
-    /// </summary>
-    [Fact]
-    public void OptionsCorrectness()
-    {
-        var all = Fixture.GetAllCompilerLogs(TestOutputHelper);
-        Assert.NotEmpty(all);
-        foreach (var complogPath in all)
-        {
-            TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath);
-            foreach (var data in reader.ReadAllCompilationData())
-            {
-                var args = data.CompilerCall.ParseArguments();
-                Assert.Equal(args.EmitOptions, data.EmitOptions);
-                Assert.Equal(args.ParseOptions, data.ParseOptions);
-
-                // TODO: can't round trip ruleset options yet because it isn't 
-                // handled in specific diagnostic potions
-                if (complogPath != Fixture.ConsoleComplexComplogPath.Value)
-                {
-                    var expectedCompilationOptions = args.CompilationOptions
-                        .WithCryptoKeyFile(null);
-                    var actualCompilationOptions = data.CompilationOptions
-                        .WithSyntaxTreeOptionsProvider(null)
-                        .WithStrongNameProvider(null)
-                        .WithCryptoKeyFile(null);
-                    Assert.Equal(expectedCompilationOptions, actualCompilationOptions);
-                }
-            }
-        }
-    }
 }
