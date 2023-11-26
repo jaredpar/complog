@@ -166,7 +166,7 @@ public sealed class ExportUtilTests : TestBase
             $"""
         #line 42 "{contentFilePath}"
         """);
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
         TestExport(1);
     }
 

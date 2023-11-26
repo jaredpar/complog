@@ -36,9 +36,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: |
-          6.0.4xx
-          7.0.x
+        dotnet-version: 7.0.x
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
@@ -46,10 +44,12 @@ jobs:
     - name: Test Linux
       run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed"
       if: matrix.os == 'ubuntu-latest'
-    - name: Test Windows
-      run: dotnet test --no-build --logger "console;verbosity=detailed"
-      # if: matrix.os == 'windows-latest'
-      if: false
+    - name: Test Windows .NET Core
+      run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed"
+      if: matrix.os == 'windows-latest'
+    - name: Test Windows .NET Framework
+      run: dotnet test --no-build --framework net472 --logger "console;verbosity=detailed"
+      if: matrix.os == 'windows-latest'
     - name: Create Compiler Log
       run: dotnet run --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
     - name: Publish Compiler Log

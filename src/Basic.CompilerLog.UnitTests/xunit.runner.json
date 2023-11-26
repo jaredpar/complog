@@ -1,6 +1,5 @@
 {
   "appDomain": "ifAvailable",
   "shadowCopy": false,
-  "diagnosticMessages": true,
   "parallelizeTestCollections": false
 }

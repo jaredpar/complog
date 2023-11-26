@@ -67,6 +67,7 @@ public sealed class CompilerLogFixture : IDisposable
         var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR");
         if (testArtifactsDir is not null)
         {
+            testArtifactsDir = Path.Combine(testArtifactsDir, RuntimeInformation.FrameworkDescription);
             Directory.CreateDirectory(testArtifactsDir);
         }
 
@@ -74,14 +75,6 @@ public sealed class CompilerLogFixture : IDisposable
         void RunDotnetCommand(string args, string workingDirectory)
         {
             (string, string)[]? extraEnvironmentVariables = null;
-            if (testArtifactsDir is not null)
-            {
-                extraEnvironmentVariables = new (string, string)[]
-                {
-                    ("COREHOST_TRACE", "1"),
-                    ("COREHOST_TRACEFILE", Path.Combine(testArtifactsDir, $"process.{processCount}.corehost.trace"))
-                };
-            }
             var start = DateTime.UtcNow;
             var diagnosticBuilder = new StringBuilder();
 

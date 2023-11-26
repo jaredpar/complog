@@ -45,7 +45,7 @@ public sealed class ProgramTests : TestBase
     public void Create(string extra, string fileName)
     {
         RunDotNet("new console");
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
         Assert.Equal(0, RunCompLog($"create {extra}"));
         var complogPath = Path.Combine(RootDirectory, fileName);
         Assert.True(File.Exists(complogPath));
@@ -94,7 +94,7 @@ public sealed class ProgramTests : TestBase
     public void CreateFullPath()
     {
         RunDotNet($"new console --name example --output .");
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
         Assert.Equal(0, RunCompLog($"create {GetBinaryLogFullPath()}", RootDirectory));
     }
 
@@ -105,7 +105,7 @@ public sealed class ProgramTests : TestBase
     public void CreateOtherComplogExists()
     {
         RunDotNet($"new console --name example --output .");
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
         Root.NewFile("other.complog", "");
         Assert.Equal(0, RunCompLog($"create", RootDirectory));
     }

@@ -35,7 +35,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void ReadDifferentTemplates(string template)
     {
         RunDotNet($"new {template} --name example --output .");
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
         var compilerCall = reader.ReadCompilerCall(0);
@@ -60,7 +60,7 @@ public sealed class CompilerLogReaderTests : TestBase
             // Example content
             """;
         File.WriteAllText(Path.Combine(RootDirectory, fileName), content, DefaultEncoding);
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
         var rawData = reader.ReadRawCompilationData(0).Item2;
@@ -92,7 +92,7 @@ public sealed class CompilerLogReaderTests : TestBase
             // This is an amazing resource
             """;
         File.WriteAllText(Path.Combine(RootDirectory, "resource.txt"), resourceContent, DefaultEncoding);
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
         var rawData = reader.ReadRawCompilationData(0).Item2;
@@ -329,7 +329,7 @@ public sealed class CompilerLogReaderTests : TestBase
             </Project>
             """;
         File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"), BasicAnalyzerHostOptions.None);
         var rawData = reader.ReadRawCompilationData(0).Item2;
@@ -380,7 +380,7 @@ public sealed class CompilerLogReaderTests : TestBase
                 $"""
             #line 42 "{contentFilePath}"
             """);
-            RunDotNet("build -bl");
+            RunDotNet("build -bl -nr:false");
             var diagnostics = CompilerLogUtil.ConvertBinaryLog(
                 Path.Combine(RootDirectory, "msbuild.binlog"),
                 Path.Combine(RootDirectory, "msbuild.complog"));
