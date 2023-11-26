@@ -45,10 +45,10 @@ jobs:
       run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed" --logger "trx;LogFileName=${{ github.workspace }}/TestResults-Linux.trx"
       if: matrix.os == 'ubuntu-latest'
     - name: Test Windows .NET Core
-      run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed" --logger "trx;LogFileName=TestResults-Windows-Core.trx"
+      run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed" --logger "trx;LogFileName=${{ github.workspace}}/TestResults-Windows-Core.trx"
       if: matrix.os == 'windows-latest'
     - name: Test Windows .NET Framework
-      run: dotnet test --no-build --framework net472 --logger "console;verbosity=detailed" --logger "trx;LogFileName=TestResults-Windows-Framework.trx"
+      run: dotnet test --no-build --framework net472 --logger "console;verbosity=detailed" --logger "trx;LogFileName=${{ github.workspace}}/TestResults-Windows-Framework.trx"
       if: matrix.os == 'windows-latest'
 
     - name: Create Compiler Log
