@@ -39,7 +39,10 @@ public sealed class ExportUtilTests : TestBase
         TestExport(compilerLogFilePath, expectedCount, verifyExportCallback: verifyExportCallback, runBuild: runBuild);
     }
 
-    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true)
+    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true) =>
+        TestExport(TestOutputHelper, compilerLogFilePath, expectedCount, includeAnalyzers, verifyExportCallback, runBuild);
+
+    internal static void TestExport(ITestOutputHelper testOutputHelper, string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
 #if NETCOREAPP
@@ -52,7 +55,7 @@ public sealed class ExportUtilTests : TestBase
         foreach (var compilerCall in reader.ReadAllCompilerCalls())
         {
             count++;
-            TestOutputHelper.WriteLine($"Testing export for {compilerCall.ProjectFileName} - {compilerCall.TargetFramework}");
+            testOutputHelper.WriteLine($"Testing export for {compilerCall.ProjectFileName} - {compilerCall.TargetFramework}");
             using var tempDir = new TempDir();
             exportUtil.Export(compilerCall, tempDir.DirectoryPath, sdkDirs);
 
@@ -60,8 +63,8 @@ public sealed class ExportUtilTests : TestBase
             {
                 // Now run the generated build.cmd and see if it succeeds;
                 var buildResult = RunBuildCmd(tempDir.DirectoryPath);
-                TestOutputHelper.WriteLine(buildResult.StandardOut);
-                TestOutputHelper.WriteLine(buildResult.StandardError);
+                testOutputHelper.WriteLine(buildResult.StandardOut);
+                testOutputHelper.WriteLine(buildResult.StandardError);
                 Assert.True(buildResult.Succeeded, $"Cannot build {Path.GetFileName(compilerLogFilePath)}");
             }
 
@@ -176,17 +179,6 @@ public sealed class ExportUtilTests : TestBase
         // Relative
         _ = Root.NewFile("content.txt", "this is some content");
         EmbedLineCore("content.txt");
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void AllCompilerLogs(bool includeAnalyzers)
-    {
-        foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
-        {
-            TestExport(complogPath, expectedCount: null, includeAnalyzers);
-        }
     }
 
     [Fact]

@@ -22,25 +22,6 @@ public sealed class SolutionReaderTests : TestBase
         Fixture = fixture;
     }
 
-    private void LoadAllCore(BasicAnalyzerHostOptions options)
-    {
-        foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
-        {
-            using var reader = SolutionReader.Create(complogPath, options);
-            var workspace = new AdhocWorkspace();
-            var solution = workspace.AddSolution(reader.ReadSolutionInfo());
-            Assert.NotEmpty(solution.Projects);
-        }
-    }
-
-    [Fact]
-    public void LoadAllWithAnalyzers() =>
-        LoadAllCore(BasicAnalyzerHostOptions.Default);
-
-    [Fact]
-    public void LoadAllWithoutAnalyzers() =>
-        LoadAllCore(BasicAnalyzerHostOptions.None);
-
     [Theory]
     [InlineData(BasicAnalyzerKind.Default)]
     [InlineData(BasicAnalyzerKind.None)]
