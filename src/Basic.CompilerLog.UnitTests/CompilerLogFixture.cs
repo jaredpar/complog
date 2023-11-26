@@ -64,12 +64,29 @@ public sealed class CompilerLogFixture : IDisposable
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
         Directory.CreateDirectory(ComplogDirectory);
 
+        var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR");
+        if (testArtifactsDir is not null)
+        {
+            Directory.CreateDirectory(testArtifactsDir);
+        }
+
+        int processCount = 0;
         void RunDotnetCommand(string args, string workingDirectory)
         {
+            (string, string)[]? extraEnvironmentVariables = null;
+            if (testArtifactsDir is not null)
+            {
+                extraEnvironmentVariables = new (string, string)[]
+                {
+                    ("COREHOST_TRACE", "1"),
+                    ("COREHOST_TRACEFILE", Path.Combine(testArtifactsDir, $"process.{processCount}.corehost.trace"))
+                };
+            }
             var start = DateTime.UtcNow;
             var diagnosticBuilder = new StringBuilder();
-            diagnosticBuilder.AppendLine($"Running: {args} in {workingDirectory}");
-            var result = DotnetUtil.Command(args, workingDirectory);
+
+            diagnosticBuilder.AppendLine($"Running: {processCount++} {args} in {workingDirectory}");
+            var result = DotnetUtil.Command(args, workingDirectory, extraEnvironmentVariables);
             diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");
             diagnosticBuilder.AppendLine($"Standard Output: {result.StandardOut}");
             diagnosticBuilder.AppendLine($"Standard Error: {result.StandardError}");
@@ -240,14 +257,6 @@ public sealed class CompilerLogFixture : IDisposable
                 var start = DateTime.UtcNow;
                 try
                 {
-                    var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR");
-                    if (testArtifactsDir is not null)
-                    {
-                        Directory.CreateDirectory(testArtifactsDir);
-                        Environment.SetEnvironmentVariable("COREHOST_TRACE", "1");
-                        Environment.SetEnvironmentVariable("COREHOST_TRACEFILE", Path.Combine(testArtifactsDir, Path.ChangeExtension(name, "corehost.trace")));
-                    }
-
                     var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
@@ -260,7 +269,6 @@ public sealed class CompilerLogFixture : IDisposable
 
                     if (testArtifactsDir is not null)
                     {
-                        Directory.CreateDirectory(testArtifactsDir);
                         File.Copy(binlogFilePath, Path.Combine(testArtifactsDir, Path.ChangeExtension(name, ".binlog")));
                     }
 
