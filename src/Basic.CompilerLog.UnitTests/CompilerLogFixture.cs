@@ -240,6 +240,14 @@ public sealed class CompilerLogFixture : IDisposable
                 var start = DateTime.UtcNow;
                 try
                 {
+                    var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR");
+                    if (testArtifactsDir is not null)
+                    {
+                        Directory.CreateDirectory(testArtifactsDir);
+                        Environment.SetEnvironmentVariable("COREHOST_TRACE", "1");
+                        Environment.SetEnvironmentVariable("COREHOST_TRACEFILE", Path.Combine(testArtifactsDir, Path.ChangeExtension(name, "corehost.trace")));
+                    }
+
                     var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
@@ -250,7 +258,7 @@ public sealed class CompilerLogFixture : IDisposable
                     var complogFilePath = Path.Combine(ComplogDirectory, name);
                     var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
 
-                    if (Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR") is { } testArtifactsDir)
+                    if (testArtifactsDir is not null)
                     {
                         Directory.CreateDirectory(testArtifactsDir);
                         File.Copy(binlogFilePath, Path.Combine(testArtifactsDir, Path.ChangeExtension(name, ".binlog")));
