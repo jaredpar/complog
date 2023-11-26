@@ -45,7 +45,7 @@ public sealed class ProgramTests : TestBase
     public void Create(string extra, string fileName)
     {
         RunDotNet("new console");
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
         Assert.Equal(0, RunCompLog($"create {extra}"));
         var complogPath = Path.Combine(RootDirectory, fileName);
         Assert.True(File.Exists(complogPath));
@@ -94,7 +94,7 @@ public sealed class ProgramTests : TestBase
     public void CreateFullPath()
     {
         RunDotNet($"new console --name example --output .");
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
         Assert.Equal(0, RunCompLog($"create {GetBinaryLogFullPath()}", RootDirectory));
     }
 
@@ -105,7 +105,7 @@ public sealed class ProgramTests : TestBase
     public void CreateOtherComplogExists()
     {
         RunDotNet($"new console --name example --output .");
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
         Root.NewFile("other.complog", "");
         Assert.Equal(0, RunCompLog($"create", RootDirectory));
     }
@@ -118,19 +118,15 @@ public sealed class ProgramTests : TestBase
         Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "analyzers"), "*.dll", SearchOption.AllDirectories));
     }
 
-    [Theory]
-    [InlineData("console")]
-    [InlineData("classlib")]
-    public void ExportHelloWorld(string template)
+    [Fact]
+    public void ExportCompilerLog()
     {
         using var exportDir = new TempDir();
 
-        RunDotNet($"new {template} --name example --output .");
-        RunDotNet("build -bl");
-        Assert.Equal(0, RunCompLog($"export -o {exportDir.DirectoryPath}", RootDirectory));
+        Assert.Equal(0, RunCompLog($"export -o {exportDir.DirectoryPath} {Fixture.ConsoleComplogPath.Value} ", RootDirectory));
 
         // Now run the generated build.cmd and see if it succeeds;
-        var exportPath = Path.Combine(exportDir.DirectoryPath, "example", "export");
+        var exportPath = Path.Combine(exportDir.DirectoryPath, "console", "export");
         var buildResult = RunBuildCmd(exportPath);
         Assert.True(buildResult.Succeeded);
     }
@@ -138,7 +134,7 @@ public sealed class ProgramTests : TestBase
     [Theory]
     [InlineData("")]
     [InlineData("-none")]
-    public void EmitConsole(string arg)
+    public void ReplayConsoleWithEmit(string arg)
     {
         using var emitDir = new TempDir();
         RunCompLog($"replay {arg} -emit -o {emitDir.DirectoryPath} {Fixture.ConsoleComplogPath.Value}");

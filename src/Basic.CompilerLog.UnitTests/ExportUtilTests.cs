@@ -24,7 +24,7 @@ public sealed class ExportUtilTests : TestBase
         Fixture = fixture;
     }
 
-    private void TestExport(int expectedCount, Action<string>? verifyExportCallback = null)
+    private void TestExport(int expectedCount, Action<string>? verifyExportCallback = null, bool runBuild = true)
     {
         using var scratchDir = new TempDir("export test");
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
@@ -36,10 +36,10 @@ public sealed class ExportUtilTests : TestBase
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
 
-        TestExport(compilerLogFilePath, expectedCount, verifyExportCallback: verifyExportCallback);
+        TestExport(compilerLogFilePath, expectedCount, verifyExportCallback: verifyExportCallback, runBuild: runBuild);
     }
 
-    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null)
+    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
 #if NETCOREAPP
@@ -56,11 +56,14 @@ public sealed class ExportUtilTests : TestBase
             using var tempDir = new TempDir();
             exportUtil.Export(compilerCall, tempDir.DirectoryPath, sdkDirs);
 
-            // Now run the generated build.cmd and see if it succeeds;
-            var buildResult = RunBuildCmd(tempDir.DirectoryPath);
-            TestOutputHelper.WriteLine(buildResult.StandardOut);
-            TestOutputHelper.WriteLine(buildResult.StandardError);
-            Assert.True(buildResult.Succeeded, $"Cannot build {Path.GetFileName(compilerLogFilePath)}");
+            if (runBuild)
+            {
+                // Now run the generated build.cmd and see if it succeeds;
+                var buildResult = RunBuildCmd(tempDir.DirectoryPath);
+                TestOutputHelper.WriteLine(buildResult.StandardOut);
+                TestOutputHelper.WriteLine(buildResult.StandardError);
+                Assert.True(buildResult.Succeeded, $"Cannot build {Path.GetFileName(compilerLogFilePath)}");
+            }
 
             // Ensure that full paths aren't getting written out to the RSP file. That makes the 
             // build non-xcopyable. 
@@ -82,18 +85,6 @@ public sealed class ExportUtilTests : TestBase
         }
     }
 
-    [Fact]
-    public void Console()
-    {
-        TestExport(Fixture.ConsoleComplogPath.Value, 1);
-    }
-
-    [Fact]
-    public void ClassLib()
-    {
-        TestExport(Fixture.ClassLibComplogPath.Value, 1);
-    }
-
     /// <summary>
     /// Make sure that generated files are put into the generated directory
     /// </summary>
@@ -105,7 +96,7 @@ public sealed class ExportUtilTests : TestBase
             var generatedPath = Path.Combine(tempPath, "generated");
             var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
             Assert.NotEmpty(files);
-        });
+        }, runBuild: false);
     }
 
     /// <summary>
@@ -132,103 +123,19 @@ public sealed class ExportUtilTests : TestBase
 
             var analyzers = Directory.GetFiles(Path.Combine(tempPath, "analyzers"), "*.dll", SearchOption.AllDirectories).ToList();
             Assert.Equal(7, analyzers.Count);
-        });
+        }, runBuild: false);
     }
 
     [Fact]
     public void ConsoleMultiTarget()
     {
-        RunDotNet($"new console --name example --output .");
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"),
-            """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFrameworks>net7.0;net6.0</TargetFrameworks>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-                <GenerateDocumentationFile>true</GenerateDocumentationFile>
-              </PropertyGroup>
-            </Project>
-            """);
-        RunDotNet("build -bl");
-        TestExport(2);
-    }
-
-    [Fact]
-    public void ConsoleWithResource()
-    {
-        RunDotNet($"new console --name example --output .");
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"),
-            """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net7.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-              </PropertyGroup>
-              <ItemGroup>
-                <EmbeddedResource Include="resource.txt" />
-              </ItemGroup>
-            </Project>
-            """);
-        File.WriteAllText(Path.Combine(RootDirectory, "resource.txt"), """
-            This is an awesome resource
-            """);
-        RunDotNet("build -bl");
-        TestExport(1);
-    }
-
-    [Fact]
-    public void ConsoleWithSpaceInSourceName()
-    {
-        RunDotNet($"new console --name example --output .");
-        File.WriteAllText(Path.Combine(RootDirectory, "code file.cs"), """
-            class C { }
-            """);
-        RunDotNet("build -bl");
-        TestExport(1);
+        TestExport(Fixture.ClassLibMultiComplogPath.Value, expectedCount: 2, runBuild: false);
     }
 
     [Fact]
     public void ConsoleWithRuleset()
     {
-        RunDotNet($"new console --name console-with-ruleset --output .");
-        File.WriteAllText(Path.Combine(RootDirectory, "console-with-ruleset.csproj"),
-            """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net7.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-                <CodeAnalysisRuleset>example.ruleset</CodeAnalysisRuleset>
-              </PropertyGroup>
-            </Project>
-            """);
-        File.WriteAllText(Path.Combine(RootDirectory, "example.ruleset"), """
-            <RuleSet Name="Rules for Hello World project" Description="These rules focus on critical issues for the Hello World app." ToolsVersion="10.0">
-            <Localization ResourceAssembly="Microsoft.VisualStudio.CodeAnalysis.RuleSets.Strings.dll" ResourceBaseName="Microsoft.VisualStudio.CodeAnalysis.RuleSets.Strings.Localized">
-                <Name Resource="HelloWorldRules_Name" />
-                <Description Resource="HelloWorldRules_Description" />
-            </Localization>
-            <Rules AnalyzerId="Microsoft.Analyzers.ManagedCodeAnalysis" RuleNamespace="Microsoft.Rules.Managed">
-                <Rule Id="CA1001" Action="Warning" />
-                <Rule Id="CA1009" Action="Warning" />
-                <Rule Id="CA1016" Action="Warning" />
-                <Rule Id="CA1033" Action="Warning" />
-            </Rules>
-            <Rules AnalyzerId="Microsoft.CodeQuality.Analyzers" RuleNamespace="Microsoft.CodeQuality.Analyzers">
-                <Rule Id="CA1802" Action="Error" />
-                <Rule Id="CA1814" Action="Info" />
-                <Rule Id="CA1823" Action="None" />
-                <Rule Id="CA2217" Action="Warning" />
-            </Rules>
-            </RuleSet>
-            """);
-        RunDotNet("build -bl");
-        TestExport(expectedCount: 1, void (string path) =>
+        TestExport(Fixture.ConsoleComplexComplogPath.Value, expectedCount: 1, verifyExportCallback: void (string path) =>
         {
             var found = false;
             var expected = $"/ruleset:{Path.Combine("src", "example.ruleset")}";
@@ -242,42 +149,13 @@ public sealed class ExportUtilTests : TestBase
             }
 
             Assert.True(found);
-        });
-    }
-
-    [Fact]
-    public void ContentWin32Elements()
-    {
-        RunDotNet($"new console --name example --output .");
-        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"),
-            $"""
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net7.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-                <Win32Manifest>resource.txt</Win32Manifest>
-              </PropertyGroup>
-            </Project>
-            """);
-        File.WriteAllText(Path.Combine(RootDirectory, "resource.txt"), """
-            This is an awesome resource
-            """);
-        RunDotNet("build -bl");
-        TestExport(1);
+        }, runBuild: false);
     }
 
     [Fact]
     public void StrongNameKey()
     {
-        RunDotNet($"new console --name example --output .");
-        AddProjectProperty("<PublicSign>true</PublicSign>");
-        AddProjectProperty("<KeyOriginatorFile>key.snk</KeyOriginatorFile>");
-        var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        File.WriteAllBytes(Path.Combine(RootDirectory, "key.snk"), keyBytes);
-        RunDotNet("build -bl");
-        TestExport(1);
+        TestExport(Fixture.ConsoleSignedComplogPath.Value, expectedCount: 1, runBuild: false);
     }
 
     private void EmbedLineCore(string contentFilePath)
@@ -288,7 +166,7 @@ public sealed class ExportUtilTests : TestBase
             $"""
         #line 42 "{contentFilePath}"
         """);
-        RunDotNet("build -bl");
+        RunDotNet("build -bl -nr:false");
         TestExport(1);
     }
 
@@ -305,7 +183,7 @@ public sealed class ExportUtilTests : TestBase
     [InlineData(false)]
     public void AllCompilerLogs(bool includeAnalyzers)
     {
-        foreach (var complogPath in Fixture.GetAllCompLogs())
+        foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestExport(complogPath, expectedCount: null, includeAnalyzers);
         }

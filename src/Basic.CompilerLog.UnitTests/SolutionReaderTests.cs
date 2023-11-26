@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -23,7 +24,7 @@ public sealed class SolutionReaderTests : TestBase
 
     private void LoadAllCore(BasicAnalyzerHostOptions options)
     {
-        foreach (var complogPath in Fixture.GetAllCompLogs())
+        foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             using var reader = SolutionReader.Create(complogPath, options);
             var workspace = new AdhocWorkspace();

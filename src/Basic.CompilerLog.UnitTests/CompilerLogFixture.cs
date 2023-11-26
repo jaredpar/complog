@@ -32,13 +32,15 @@ public sealed class CompilerLogFixture : IDisposable
 
     internal Lazy<string> ConsoleNoGeneratorComplogPath { get; }
 
-    internal Lazy<string> ConsoleWithLineComplogPath { get; }
-
-    internal Lazy<string> ConsoleWithLineAndEmbedComplogPath { get; }
+    /// <summary>
+    /// This is a console project that has every nasty feature that can be thought of
+    /// like resources, line directives, embeds, etc ... Rather than running a 
+    /// `dotnet build` for every one of these individually (which is expensive) in 
+    /// unit tests try to create a single project that has all of them.
+    /// </summary>
+    internal Lazy<string> ConsoleComplexComplogPath { get; }
 
     internal Lazy<string> ClassLibComplogPath { get; }
-
-    internal Lazy<string> ClassLibSignedComplogPath { get; }
 
     /// <summary>
     /// A multi-targeted class library
@@ -46,6 +48,11 @@ public sealed class CompilerLogFixture : IDisposable
     internal Lazy<string> ClassLibMultiComplogPath { get; }
 
     internal Lazy<string>? WpfAppComplogPath { get; }
+
+    /// <summary>
+    /// Named complog value that makes intent of getting signed one clear
+    /// </summary>
+    internal Lazy<string> ConsoleSignedComplogPath => ConsoleComplexComplogPath;
 
     /// <summary>
     /// Constructor for the primary fixture. To get actual diagnostic messages into the output 
@@ -57,14 +64,27 @@ public sealed class CompilerLogFixture : IDisposable
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
         Directory.CreateDirectory(ComplogDirectory);
 
-        var diagnosticBuilder = new StringBuilder();
+        var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR");
+        if (testArtifactsDir is not null)
+        {
+            testArtifactsDir = Path.Combine(testArtifactsDir, RuntimeInformation.FrameworkDescription);
+            Directory.CreateDirectory(testArtifactsDir);
+        }
+
+        int processCount = 0;
         void RunDotnetCommand(string args, string workingDirectory)
         {
-            diagnosticBuilder.AppendLine($"Running: {args} in {workingDirectory}");
-            var result = DotnetUtil.Command(args, workingDirectory);
+            (string, string)[]? extraEnvironmentVariables = null;
+            var start = DateTime.UtcNow;
+            var diagnosticBuilder = new StringBuilder();
+
+            diagnosticBuilder.AppendLine($"Running: {processCount++} {args} in {workingDirectory}");
+            var result = DotnetUtil.Command(args, workingDirectory, extraEnvironmentVariables);
             diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");
             diagnosticBuilder.AppendLine($"Standard Output: {result.StandardOut}");
             diagnosticBuilder.AppendLine($"Standard Error: {result.StandardError}");
+            diagnosticBuilder.AppendLine($"Finished: {(DateTime.UtcNow - start).TotalSeconds:F2}s");
+            messageSink.OnMessage(new DiagnosticMessage(diagnosticBuilder.ToString()));
             Assert.True(result.Succeeded);
         }
 
@@ -96,80 +116,7 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
-        });
-
-        ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
-        {
-            RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
-            RunDotnetCommand("build -bl", scratchPath);
-        });
-        
-        ConsoleWithLineComplogPath = WithBuild("console-with-line.complog", void (string scratchPath) =>
-        {
-            RunDotnetCommand($"new console --name console --output .", scratchPath);
-            var extra = """
-                using System;
-                using System.Text.RegularExpressions;
-
-                // File that does not exsit
-                #line 42 "blah.txt"
-                class C { }
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), extra, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
-        });
-
-        ConsoleWithLineAndEmbedComplogPath = WithBuild("console-with-line-and-embed.complog", void (string scratchPath) =>
-        {
-            RunDotnetCommand($"new console --name console --output .", scratchPath);
-            DotnetUtil.AddProjectProperty("<EmbedAllSources>true</EmbedAllSources>", scratchPath);
-            var extra = """
-                using System;
-                using System.Text.RegularExpressions;
-
-                // File that does not exsit
-                #line 42 "line.txt"
-                class C { }
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), extra, TestBase.DefaultEncoding);
-            File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
-        });
-
-        ClassLibComplogPath = WithBuild("classlib.complog", void (string scratchPath) =>
-        {
-            RunDotnetCommand($"new classlib --name classlib --output . --framework net7.0", scratchPath);
-            var program = """
-                using System;
-                using System.Text.RegularExpressions;
-
-                partial class Util {
-                    [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
-                    internal static partial Regex GetRegex();
-                }
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
-        });
-
-        ClassLibSignedComplogPath = WithBuild("classlibsigned.complog", void (string scratchPath) =>
-        {
-            RunDotnetCommand($"new classlib --name classlibsigned --output .", scratchPath);
-            var keyFilePath = Path.Combine(scratchPath, "Key.snk");
-            DotnetUtil.AddProjectProperty($"<KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>", scratchPath);
-            File.WriteAllBytes(keyFilePath, ResourceLoader.GetResourceBlob("Key.snk"));
-            var program = """
-                using System;
-                using System.Text.RegularExpressions;
-
-                partial class Util {
-                    [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
-                    internal static partial Regex GetRegex();
-                }
-                """;
-            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
         ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", void (string scratchPath) =>
@@ -193,8 +140,97 @@ public sealed class CompilerLogFixture : IDisposable
                     internal static Regex GetRegex() => null!;
                 }
                 """;
-            File.WriteAllText(Path.Combine(scratchPath, "Class 1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+        });
+
+
+        ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+        });
+        
+        ConsoleComplexComplogPath = WithBuild("console-complex.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand($"new console --name console-complex --output .", scratchPath);
+            var keyFilePath = Path.Combine(scratchPath, "Key.snk");
+            File.WriteAllText(Path.Combine(scratchPath, "console-complex.csproj"), $"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <OutputType>Exe</OutputType>
+                    <TargetFramework>net7.0</TargetFramework>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                    <EmbedAllSources>true</EmbedAllSources>
+                    <CodeAnalysisRuleset>example.ruleset</CodeAnalysisRuleset>
+                    <Win32Manifest>resource.txt</Win32Manifest>
+                    <KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>
+                  </PropertyGroup>
+                  <ItemGroup>
+                    <EmbeddedResource Include="resource.txt" />
+                  </ItemGroup>
+                </Project>
+                """, TestBase.DefaultEncoding);
+
+            File.WriteAllBytes(keyFilePath, ResourceLoader.GetResourceBlob("Key.snk"));
+
+            File.WriteAllText(Path.Combine(scratchPath, "Extra.cs"), """
+                using System;
+                using System.Text.RegularExpressions;
+
+                // File that does not exsit
+                #line 42 "line.txt"
+                class C { }
+                """, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
+
+            // File with a space in the name to make sure we quote correctly in RSP
+            File.WriteAllText(Path.Combine(scratchPath, "Code With Space In The Name.cs"), """
+                class D { }
+                """, TestBase.DefaultEncoding);
+
+            File.WriteAllText(Path.Combine(scratchPath, "resource.txt"), """
+                This is an awesome resource
+                """);
+
+            File.WriteAllText(Path.Combine(scratchPath, "example.ruleset"), """
+                <RuleSet Name="Rules for Hello World project" Description="These rules focus on critical issues for the Hello World app." ToolsVersion="10.0">
+                    <Localization ResourceAssembly="Microsoft.VisualStudio.CodeAnalysis.RuleSets.Strings.dll" ResourceBaseName="Microsoft.VisualStudio.CodeAnalysis.RuleSets.Strings.Localized">
+                        <Name Resource="HelloWorldRules_Name" />
+                        <Description Resource="HelloWorldRules_Description" />
+                    </Localization>
+                    <Rules AnalyzerId="Microsoft.Analyzers.ManagedCodeAnalysis" RuleNamespace="Microsoft.Rules.Managed">
+                        <Rule Id="CA1001" Action="Warning" />
+                        <Rule Id="CA1009" Action="Warning" />
+                        <Rule Id="CA1016" Action="Warning" />
+                        <Rule Id="CA1033" Action="Warning" />
+                    </Rules>
+                    <Rules AnalyzerId="Microsoft.CodeQuality.Analyzers" RuleNamespace="Microsoft.CodeQuality.Analyzers">
+                        <Rule Id="CA1802" Action="Error" />
+                        <Rule Id="CA1814" Action="Info" />
+                        <Rule Id="CA1823" Action="None" />
+                        <Rule Id="CA2217" Action="Warning" />
+                    </Rules>
+                </RuleSet>
+                """);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+        });
+
+        ClassLibComplogPath = WithBuild("classlib.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand($"new classlib --name classlib --output . --framework net7.0", scratchPath);
+            var program = """
+                using System;
+                using System.Text.RegularExpressions;
+
+                partial class Util {
+                    [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
+                    internal static partial Regex GetRegex();
+                }
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -202,7 +238,7 @@ public sealed class CompilerLogFixture : IDisposable
             WpfAppComplogPath = WithBuild("wpfapp.complog", void (string scratchPath) =>
             {
                 RunDotnetCommand("new wpf --name wpfapp --output .", scratchPath);
-                RunDotnetCommand("build -bl", scratchPath);
+                RunDotnetCommand("build -bl -nr:false", scratchPath);
             });
         }
 
@@ -211,24 +247,35 @@ public sealed class CompilerLogFixture : IDisposable
         {
             var lazy = new Lazy<string>(() =>
             {
+                var start = DateTime.UtcNow;
                 try
                 {
                     var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
+                    messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
                     RunDotnetCommand("new globaljson --sdk-version 7.0.400", scratchPath);
                     action(scratchPath);
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
                     var complogFilePath = Path.Combine(ComplogDirectory, name);
                     var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
+
+                    if (testArtifactsDir is not null)
+                    {
+                        File.Copy(binlogFilePath, Path.Combine(testArtifactsDir, Path.ChangeExtension(name, ".binlog")));
+                    }
+
                     Assert.Empty(diagnostics);
                     Directory.Delete(scratchPath, recursive: true);
                     return complogFilePath;
                 }
                 catch (Exception ex)
                 {
-                    messageSink.OnMessage(new DiagnosticMessage(diagnosticBuilder.ToString()));
                     throw new Exception($"Cannot generate compiler log {name}", ex);
+                }
+                finally
+                {
+                    messageSink.OnDiagnosticMessage($"Finished {name} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
                 }
             });
 
@@ -237,7 +284,18 @@ public sealed class CompilerLogFixture : IDisposable
         }
     }
 
-    public IEnumerable<string> GetAllCompLogs() => _allCompLogs.Select(x => x.Value);
+    public IEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper)
+    {
+        var start = DateTime.UtcNow;
+        testOutputHelper.WriteLine($"Starting {nameof(GetAllCompilerLogs)}");
+        var list = new List<string>(_allCompLogs.Length);
+        foreach (var complog in _allCompLogs)
+        {
+            list.Add(complog.Value);
+        }
+        testOutputHelper.WriteLine($"Finished {nameof(GetAllCompilerLogs)} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
+        return list;
+    } 
 
     public void Dispose()
     {
