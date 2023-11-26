@@ -74,7 +74,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 IsCSharp = compilerCall.IsCSharp,
                 TargetFramework = compilerCall.TargetFramework,
                 CompilerCallKind = compilerCall.Kind,
-                CommandLineArgsHash = AddContentMessagePack(compilerCall.Arguments),
+                CommandLineArgsHash = AddContentMessagePack(compilerCall.GetArguments()),
                 CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
             };
 
