@@ -145,7 +145,6 @@ public sealed class CompilerLogFixture : IDisposable
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
-
         ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
@@ -164,7 +163,7 @@ public sealed class CompilerLogFixture : IDisposable
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     <EmbedAllSources>true</EmbedAllSources>
-                    <CodeAnalysisRuleset>example.ruleset</CodeAnalysisRuleset>
+                    <CodeAnalysisRuleset>{scratchPath}\example.ruleset</CodeAnalysisRuleset>
                     <Win32Manifest>resource.txt</Win32Manifest>
                     <KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>
                   </PropertyGroup>
@@ -259,7 +258,12 @@ public sealed class CompilerLogFixture : IDisposable
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
                     var complogFilePath = Path.Combine(ComplogDirectory, name);
-                    var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
+                    var compilerCalls = new List<CompilerCall>();
+                    var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath, cc => 
+                    {
+                        compilerCalls.Add(cc);
+                        return true;
+                    });
 
                     if (testArtifactsDir is not null)
                     {
@@ -267,8 +271,39 @@ public sealed class CompilerLogFixture : IDisposable
                     }
 
                     Assert.Empty(diagnostics);
+                    VerifyOptions();
+
                     Directory.Delete(scratchPath, recursive: true);
                     return complogFilePath;
+
+                    // Ensure that our options round tripping code is correct and produces the same result as 
+                    // argument parsing. This will also catch cases where new values are added to the options 
+                    // that are not being set by our code base.
+                    //
+                    // This cannot be done later as the original options require calling CommandLineArguments.Parse
+                    // which only works when the original build artifacts are on disk. This is why we do it here
+                    // before deliting the scratch directory.
+                    void VerifyOptions()
+                    {
+                        using var reader = CompilerLogReader.Create(complogFilePath);
+                        var dataList = reader.ReadAllCompilationData();
+                        Assert.Equal(compilerCalls.Count, dataList.Count);
+                        for (int i = 0; i < dataList.Count; i++)
+                        {
+                            var args = compilerCalls[i].ParseArguments();
+                            var data = dataList[i];
+                            Assert.Equal(args.EmitOptions, data.EmitOptions);
+                            Assert.Equal(args.ParseOptions, data.ParseOptions);
+
+                            var expectedCompilationOptions = args.CompilationOptions
+                                .WithCryptoKeyFile(null);
+                            var actualCompilationOptions = data.CompilationOptions
+                                .WithSyntaxTreeOptionsProvider(null)
+                                .WithStrongNameProvider(null)
+                                .WithCryptoKeyFile(null);
+                            Assert.Equal(expectedCompilationOptions, actualCompilationOptions);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {

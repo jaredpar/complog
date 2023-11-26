@@ -79,38 +79,4 @@ public sealed class UsingAllCompilerLogTests : TestBase
             Assert.NotEmpty(solution.Projects);
         }
     }
-
-    /// <summary>
-    /// Ensure that our options round tripping code is correct and produces the same result as 
-    /// argument parsing. This will also catch cases where new values are added to the options 
-    /// that are not being set by our code base.
-    /// </summary>
-    [Fact]
-    public async Task OptionsCorrectness()
-    {
-        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
-        {
-            TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath);
-            foreach (var data in reader.ReadAllCompilationData())
-            {
-                var args = data.CompilerCall.ParseArguments();
-                Assert.Equal(args.EmitOptions, data.EmitOptions);
-                Assert.Equal(args.ParseOptions, data.ParseOptions);
-
-                // TODO: can't round trip ruleset options yet because it isn't 
-                // handled in specific diagnostic potions
-                if (complogPath != Fixture.ConsoleComplexComplogPath.Value)
-                {
-                    var expectedCompilationOptions = args.CompilationOptions
-                        .WithCryptoKeyFile(null);
-                    var actualCompilationOptions = data.CompilationOptions
-                        .WithSyntaxTreeOptionsProvider(null)
-                        .WithStrongNameProvider(null)
-                        .WithCryptoKeyFile(null);
-                    Assert.Equal(expectedCompilationOptions, actualCompilationOptions);
-                }
-            }
-        }
-    }
 }

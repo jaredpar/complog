@@ -198,7 +198,7 @@ public sealed class ExportUtil
             // compiler options aren't case sensitive
             var comparison = StringComparison.OrdinalIgnoreCase;
 
-            foreach (var line in compilerCall.Arguments)
+            foreach (var line in compilerCall.GetArguments())
             {
                 // The only non-options are source files and those are rewritten by other 
                 // methods and added to commandLineList
@@ -380,7 +380,7 @@ public sealed class ExportUtil
     }
 
     public static void ExportRsp(CompilerCall compilerCall, TextWriter writer, bool singleLine = false) =>
-        ExportRsp(compilerCall.Arguments, writer, singleLine);
+        ExportRsp(compilerCall.GetArguments(), writer, singleLine);
 
     public static void ExportRsp(IEnumerable<string> arguments, TextWriter writer, bool singleLine = false)
     {

@@ -37,6 +37,7 @@ public enum CompilerCallKind
 public sealed class CompilerCall
 {
     private readonly Lazy<string[]> _lazyArguments;
+    private readonly Lazy<CommandLineArguments> _lazyParsedArgumets;
 
     public string ProjectFilePath { get; }
     public CompilerCallKind Kind { get; }
@@ -44,7 +45,6 @@ public sealed class CompilerCall
     public bool IsCSharp { get; }
     internal int? Index { get; }
 
-    public string[] Arguments => _lazyArguments.Value;
     public bool IsVisualBasic => !IsCSharp;
     public string ProjectFileName => Path.GetFileName(ProjectFilePath);
     public string ProjectDirectory => Path.GetDirectoryName(ProjectFilePath)!;
@@ -63,6 +63,7 @@ public sealed class CompilerCall
         IsCSharp = isCSharp;
         Index = index;
         _lazyArguments = arguments;
+        _lazyParsedArgumets = new Lazy<CommandLineArguments>(ParseArgumentsCore);
     }
 
     public string GetDiagnosticName() 
@@ -78,11 +79,15 @@ public sealed class CompilerCall
         return baseName;
     }
 
-    internal CommandLineArguments ParseArguments()
+    public string[] GetArguments() => _lazyArguments.Value;
+
+    internal CommandLineArguments ParseArguments() => _lazyParsedArgumets.Value;
+
+    private CommandLineArguments ParseArgumentsCore()
     {
         var baseDirectory = Path.GetDirectoryName(ProjectFilePath)!;
         return IsCSharp
-            ? CSharpCommandLineParser.Default.Parse(Arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse(Arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
+            ? CSharpCommandLineParser.Default.Parse(GetArguments(), baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
+            : VisualBasicCommandLineParser.Default.Parse(GetArguments(), baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
     }
 }
