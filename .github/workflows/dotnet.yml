@@ -42,7 +42,7 @@ jobs:
     - name: Build
       run: dotnet build --no-restore -bl 
     - name: Test Linux
-      run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed" --logger "trx;LogFileName=${{ github.workspace }}TestResults-Linux.trx"
+      run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed" --logger "trx;LogFileName=${{ github.workspace }}/TestResults-Linux.trx"
       if: matrix.os == 'ubuntu-latest'
     #- name: Test Windows .NET Core
     #  run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed" --logger "trx;LogFileName=TestResults-Windows-Core.trx"
