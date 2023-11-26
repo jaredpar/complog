@@ -123,7 +123,7 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
         ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", void (string scratchPath) =>
@@ -148,14 +148,14 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
 
         ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
-            RunDotnetCommand("build -bl", scratchPath);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
         
         ConsoleComplexComplogPath = WithBuild("console-complex.complog", void (string scratchPath) =>
@@ -221,7 +221,7 @@ public sealed class CompilerLogFixture : IDisposable
                     </Rules>
                 </RuleSet>
                 """);
-            RunDotnetCommand("build -bl", scratchPath);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
         ClassLibComplogPath = WithBuild("classlib.complog", void (string scratchPath) =>
@@ -237,7 +237,7 @@ public sealed class CompilerLogFixture : IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
-            RunDotnetCommand("build -bl", scratchPath);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -245,7 +245,7 @@ public sealed class CompilerLogFixture : IDisposable
             WpfAppComplogPath = WithBuild("wpfapp.complog", void (string scratchPath) =>
             {
                 RunDotnetCommand("new wpf --name wpfapp --output .", scratchPath);
-                RunDotnetCommand("build -bl", scratchPath);
+                RunDotnetCommand("build -bl -nr:false", scratchPath);
             });
         }
 
