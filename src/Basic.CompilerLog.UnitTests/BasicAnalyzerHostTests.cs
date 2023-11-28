@@ -1,6 +1,9 @@
 ﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -26,4 +29,22 @@ public sealed class BasicAnalyzerHostTests
         // To make sure this test is updated every time a new value is added
         Assert.Equal(4, Enum.GetValues(typeof(BasicAnalyzerKind)).Length);
     }
+
+    [Fact]
+    public void Dispose()
+    {
+        var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty, BasicAnalyzerHostOptions.None);
+        host.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => { _ = host.AnalyzerReferences; });
+    }
+
+    [Fact]
+    public void Props()
+    {
+        var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty, BasicAnalyzerHostOptions.None);
+        host.Dispose();
+        Assert.Equal(BasicAnalyzerKind.None, host.Kind);
+        Assert.Same(BasicAnalyzerHostOptions.None, host.Options);
+    }
+
 }

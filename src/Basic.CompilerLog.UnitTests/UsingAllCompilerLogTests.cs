@@ -1,4 +1,5 @@
 
+using System.Configuration;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Xunit;
@@ -20,22 +21,26 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [Fact]
     public async Task EmitToDisk()
     {
-        var any = false;
+        var list = new List<Task>();
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
-            any = true;
-            TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath);
-            foreach (var data in reader.ReadAllCompilationData())
+            var task = Task.Run(() => 
             {
-                using var testDir = new TempDir();
-                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                var emitResult = data.EmitToDisk(testDir.DirectoryPath);
-                Assert.True(emitResult.Success);
-            }
+                using var reader = CompilerLogReader.Create(complogPath);
+                foreach (var data in reader.ReadAllCompilationData())
+                {
+                    using var testDir = new TempDir();
+                    TestOutputHelper.WriteLine($"{Path.GetFileName(complogPath)}: {data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
+                    var emitResult = data.EmitToDisk(testDir.DirectoryPath);
+                    Assert.True(emitResult.Success);
+                }
+            });
+
+            list.Add(task);
         }
 
-        Assert.True(any);
+        Assert.NotEmpty(list);
+        await Task.WhenAll(list);
     }
 
     [Fact]
@@ -59,10 +64,14 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [InlineData(false)]
     public async Task ExportAndBuild(bool includeAnalyzers)
     {
+        var list = new List<Task>();
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
-            ExportUtilTests.TestExport(TestOutputHelper, complogPath, expectedCount: null, includeAnalyzers, runBuild: true);
+            var task = Task.Run(() => ExportUtilTests.TestExport(TestOutputHelper, complogPath, expectedCount: null, includeAnalyzers, runBuild: true));
+            list.Add(task);
         }
+
+        await Task.WhenAll(list);
     }
 
     [Theory]
