@@ -86,6 +86,12 @@ jobs:
         name: ${{ matrix.artifact }}
         path: msbuild.complog
 
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ${{ env.TEST_COVERAGE_PATH }}
+
     - name: Publish Test Results
       uses: actions/upload-artifact@v3
       if: always()
