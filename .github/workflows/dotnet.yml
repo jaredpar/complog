@@ -18,7 +18,10 @@ on:
 jobs:
   build:
     env:
-      TEST_ARTIFACTS_DIR: ${{ github.workspace }}/artifacts/test
+      TEST_ARTIFACTS_PATH: ${{ github.workspace }}/artifacts/test
+      TEST_RESULTS_PATH: ${{ github.workspace }}/artifacts/test-results
+      TEST_COVERAGE_PATH: ${{ github.workspace }}/artifacts/coverage
+
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
@@ -32,6 +35,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+
+    # Setup the output directories for usage
+    - name: Create directories
+      run: mkdir $TEST_ARTIFACTS_PATH $TEST_RESULTS_PATH $TEST_COVERAGE_PATH
+
     - uses: actions/checkout@v3
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
@@ -41,18 +49,34 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore -bl 
+
     - name: Test Linux
-      run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed" --logger "trx;LogFileName=${{ github.workspace }}/TestResults-Linux.trx"
+      run: >
+        dotnet test --no-build --framework net7.0 
+        --logger "console;verbosity=detailed"
+        --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH }}/TestResults-Linux.trx"
+        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.linux.xml
       if: matrix.os == 'ubuntu-latest'
+
     - name: Test Windows .NET Core
-      run: dotnet test --no-build --framework net7.0 --logger "console;verbosity=detailed" --logger "trx;LogFileName=${{ github.workspace}}/TestResults-Windows-Core.trx"
+      run: >
+        dotnet test --no-build --framework net7.0
+         --logger "console;verbosity=detailed"
+         --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH}}/TestResults-Windows-Core.trx"
+        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.windows.core.xml
       if: matrix.os == 'windows-latest'
+
     - name: Test Windows .NET Framework
-      run: dotnet test --no-build --framework net472 --logger "console;verbosity=detailed" --logger "trx;LogFileName=${{ github.workspace}}/TestResults-Windows-Framework.trx"
+      run: >
+        dotnet test --no-build --framework net7.0
+         --logger "console;verbosity=detailed"
+         --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH}}/TestResults-Windows-Framework.trx"
+        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.windows.framework.xml
       if: matrix.os == 'windows-latest'
 
     - name: Create Compiler Log
       run: dotnet run --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
+
     - name: Publish Compiler Log
       uses: actions/upload-artifact@v3
       with:
@@ -64,12 +88,12 @@ jobs:
       if: always()
       with:
         name: test-results
-        path: ${{ github.workspace }}/*.trx
+        path: ${{ env.TEST_RESULTS_PATH }}/*.trx
 
     - name: Publish Test Artifacts
       uses: actions/upload-artifact@v3
       if: always()
       with:
         name: Test Artifacts ${{ matrix.os }}
-        path: ${{ github.workspace }}/artifacts/test
+        path: $ {{ env.TEST_ARTIFACTS_PATH }}
 
