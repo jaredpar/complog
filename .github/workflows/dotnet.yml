@@ -17,19 +17,21 @@ on:
 
 jobs:
   build:
-    env:
-      TEST_ARTIFACTS_PATH: ${{ github.workspace }}/artifacts/test
-      TEST_RESULTS_PATH: ${{ github.workspace }}/artifacts/test-results
-      TEST_COVERAGE_PATH: ${{ github.workspace }}/artifacts/coverage
-
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
         include:
           - os: windows-latest
             artifact: windows.complog
+            slash: '\\'
           - os: ubuntu-latest
             artifact: ubuntu.complog
+            slash: '/'
+
+    env:
+      TEST_ARTIFACTS_PATH: ${{ github.workspace }}${{ matrix.slash}}artifacts${{matrix.slash}}test
+      TEST_RESULTS_PATH: ${{ github.workspace }}${{ matrix.slash}}artifacts${{ matrix.slash}}test-results
+      TEST_COVERAGE_PATH: ${{ github.workspace }}${{ matrix.slash}}artifacts${{ matrix.slash}}coverage
 
     name: Build and Test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
