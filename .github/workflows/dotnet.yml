@@ -23,10 +23,10 @@ jobs:
         include:
           - os: windows-latest
             artifact: windows.complog
-            slash: '\\'
+            slash: \
           - os: ubuntu-latest
             artifact: ubuntu.complog
-            slash: '/'
+            slash: /
 
     env:
       TEST_ARTIFACTS_PATH: ${{ github.workspace }}${{ matrix.slash}}artifacts${{matrix.slash}}test
