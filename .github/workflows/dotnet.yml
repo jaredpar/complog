@@ -41,10 +41,7 @@ jobs:
     # Setup the output directories for usage
     - name: Create directories
       shell: pwsh
-      run: |
-        New-Item -Type Directory -Path "${{ env.TEST_ARTIFACTS_PATH }}"
-        New-Item -Type Directory -Path "${{ env.TEST_RESULTS_PATH }}"
-        New-Item -Type Directory -Path "${{ env.TEST_COVERAGE_PATH }}"
+      run: New-Item -Type Directory -Path @("${{ env.TEST_ARTIFACTS_PATH }}", "${{ env.TEST_RESULTS_PATH }}", "${{ env.TEST_COVERAGE_PATH }}") 
 
     - uses: actions/checkout@v3
     - name: Setup .NET
