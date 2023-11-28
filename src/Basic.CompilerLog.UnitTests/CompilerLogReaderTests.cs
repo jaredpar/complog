@@ -101,6 +101,15 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
+    public void AdditionalFiles()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
+        var data = reader.ReadCompilationData(0);
+        Assert.Single(data.AdditionalTexts);
+        Assert.Equal("additional.txt", Path.GetFileName(data.AdditionalTexts[0].Path));
+    }
+
+    [Fact]
     public void AnalyzerLoadOptions()
     {
         var any = false;

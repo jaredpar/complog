@@ -177,6 +177,7 @@ public sealed class CompilerLogFixture : IDisposable
                   </PropertyGroup>
                   <ItemGroup>
                     <EmbeddedResource Include="resource.txt" />
+                    <AdditionalFiles Include="additional.txt" />
                   </ItemGroup>
                 </Project>
                 """, TestBase.DefaultEncoding);
@@ -192,6 +193,11 @@ public sealed class CompilerLogFixture : IDisposable
                 class C { }
                 """, TestBase.DefaultEncoding);
             File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
+
+            File.WriteAllText(Path.Combine(scratchPath, "additional.txt"), """
+                This is an additional file. 
+                It just has some text in it
+                """, TestBase.DefaultEncoding);
 
             // File with a space in the name to make sure we quote correctly in RSP
             File.WriteAllText(Path.Combine(scratchPath, "Code With Space In The Name.cs"), """
