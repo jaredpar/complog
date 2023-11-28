@@ -20,13 +20,6 @@ public abstract class TestBase : IDisposable
     internal TempDir Root { get; }
     internal string RootDirectory => Root.DirectoryPath;
 
-    internal static bool IsRunningOnCore =>
-#if NETCOREAPP
-    true;
-#else
-    false;
-#endif
-
     protected TestBase(ITestOutputHelper testOutputHelper, string name)
     {
         TestOutputHelper = testOutputHelper;

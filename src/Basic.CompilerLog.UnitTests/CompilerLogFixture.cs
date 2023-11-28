@@ -70,7 +70,7 @@ public sealed class CompilerLogFixture : IDisposable
         var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_PATH");
         if (testArtifactsDir is not null)
         {
-            testArtifactsDir = Path.Combine(testArtifactsDir, TestBase.IsRunningOnCore ? "core" : "framework");
+            testArtifactsDir = Path.Combine(testArtifactsDir, Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(testArtifactsDir);
         }
 
