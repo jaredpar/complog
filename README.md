@@ -30,7 +30,13 @@ From there the following commands are available:
 A compiler log file contains all of the information necessary to recreate a `Compilation`. That includes all source, resources, references, strong name keys, etc .... That will be visible to anyone you provide a compiler log to.
 
 ## Creating Compiler Logs
-There are a number of ways to create a compiler log. The easiest is to create it off of a [binary log](https://github.com/dotnet/msbuild/blob/main/documentation/wiki/Binary-Log.md) file from a previous build.
+There are a number of ways to create a compiler log. The first step is to install the `complog` global tool as that will be used to create the compiler log.
+
+```cmd
+> dotnet tool install -g complog
+```
+
+The easiest is to create it off of a [binary log](https://github.com/dotnet/msbuild/blob/main/documentation/wiki/Binary-Log.md) file from a previous build.
 
 ```cmd
 > msbuild -bl MySolution.sln
