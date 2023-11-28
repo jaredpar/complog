@@ -38,7 +38,7 @@ jobs:
 
     # Setup the output directories for usage
     - name: Create directories
-      run: mkdir $TEST_ARTIFACTS_PATH $TEST_RESULTS_PATH $TEST_COVERAGE_PATH
+      run: mkdir -p ${{ env.TEST_ARTIFACTS_PATH }}  ${{ env.TEST_RESULTS_PATH }} ${{ env.TEST_COVERAGE_PATH }}
 
     - uses: actions/checkout@v3
     - name: Setup .NET
