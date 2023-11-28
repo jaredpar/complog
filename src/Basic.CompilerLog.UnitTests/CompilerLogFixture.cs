@@ -48,6 +48,8 @@ public sealed class CompilerLogFixture : IDisposable
     /// </summary>
     internal Lazy<string> ClassLibMultiComplogPath { get; }
 
+    internal Lazy<string> ConsoleVisualBasicComplogPath { get; }
+
     internal Lazy<string>? WpfAppComplogPath { get; }
 
     /// <summary>
@@ -65,7 +67,7 @@ public sealed class CompilerLogFixture : IDisposable
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
         Directory.CreateDirectory(ComplogDirectory);
 
-        var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_DIR");
+        var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_PATH");
         if (testArtifactsDir is not null)
         {
             testArtifactsDir = Path.Combine(testArtifactsDir, RuntimeInformation.FrameworkDescription);
@@ -148,6 +150,12 @@ public sealed class CompilerLogFixture : IDisposable
         ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+        });
+
+        ConsoleVisualBasicComplogPath = WithBuild("console-vb.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand($"new console --name console-vb --language VB --output .", scratchPath);
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
         

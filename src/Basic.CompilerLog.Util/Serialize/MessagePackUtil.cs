@@ -189,7 +189,7 @@ internal static class MessagePackUtil
     {
         return new VisualBasicParseOptions
         (
-            languageVersion: basicPack.LanguageVersion,
+            languageVersion: basicPack.SpecifiedLanguageVersion,
             documentationMode: optionsPack.DocumentationMode,
             kind: optionsPack.Kind,
             preprocessorSymbols: basicPack.PreprocessorSymbols
