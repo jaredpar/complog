@@ -8,6 +8,9 @@ using System.ComponentModel.Design.Serialization;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+#if NETCOREAPP
+using System.Runtime.Loader;
+#endif
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -170,6 +173,29 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.True(data.BasicAnalyzerHost.IsDisposed);
     }
 
+#if NETCOREAPP
+
+    /// <summary>
+    /// Ensure that diagnostics are raised when the analyzer can't properly load all of the types
+    /// </summary>
+    [Fact]
+    public void AnalyzerDiagnostics()
+    {
+        var options = new BasicAnalyzerHostOptions(BasicAnalyzerKind.InMemory, cacheable: true);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options);
+        var data = reader.ReadRawCompilationData(0).Item2;
+        var analyzers = data.Analyzers
+            .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
+            .ToList();
+        var host = new BasicAnalyzerHostInMemory(reader, analyzers, options);
+        foreach (var analyzer in host.AnalyzerReferences)
+        {
+            analyzer.GetAnalyzersForAllLanguages();
+        }
+        Assert.NotEmpty(host.GetDiagnostics());
+    }
+#endif
+
     [Fact]
     public void ProjectSingleTarget()
     {
@@ -328,5 +354,4 @@ public sealed class CompilerLogReaderTests : TestBase
             }
         }
     }
-
 }
