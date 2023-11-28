@@ -1,6 +1,8 @@
 Compiler Logs
 ===
 
+[![codecov](https://codecov.io/gh/jaredpar/complog/graph/badge.svg?token=MIM7Y2JZ5G)](https://codecov.io/gh/jaredpar/complog)
+
 This is the repository for creating and consuming compiler log files. These are files created from a [MSBuild binary log](https://github.com/KirillOsenkov/MSBuildStructuredLog) that contain information necessary to recreate all of the [Compilation](https://docs.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.compilation?view=roslyn-dotnet-4.2.0) instances from that build. 
 
 The compiler log files are self contained. They must be created on the same machine where the binary log was created but after creation they can be freely copied between machines. That enables a number of scenarios:
