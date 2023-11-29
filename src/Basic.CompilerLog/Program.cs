@@ -166,7 +166,7 @@ int RunPrint(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
@@ -582,7 +582,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
     {
         logFilePath = extra[0];
         args = extra.Skip(1);
-        if (string.IsNullOrEmpty(Path.GetExtension(logFilePath)))
+        if (string.IsNullOrEmpty(Path.GetExtension(logFilePath)) && Directory.Exists(logFilePath))
         {
             baseDirectory = logFilePath;
             logFilePath = FindLogFilePath(baseDirectory, includeCompilerLogs);

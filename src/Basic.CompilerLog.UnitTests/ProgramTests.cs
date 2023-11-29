@@ -238,5 +238,40 @@ public sealed class ProgramTests : TestBase
             Assert.True(File.Exists(filePath));
         }
     }
+
+    [Fact]
+    public void PrintAll()
+    {
+        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(0, exitCode);
+        Assert.Contains("console.csproj (net7.0)", output);
+        Assert.Contains("classlib.csproj (net7.0)", output);
+    }
+
+    [Fact]
+    public void PrintOne()
+    {
+        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -p classlib.csproj");
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("console.csproj (net7.0)", output);
+        Assert.Contains("classlib.csproj (net7.0)", output);
+    }
+
+    [Fact]
+    public void PrintHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"print -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog print [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void PrintError()
+    {
+        var (exitCode, output) = RunCompLogEx($"print --not-an-option");
+        Assert.Equal(1, exitCode);
+        Assert.Contains("complog print [OPTIONS]", output);
+    }
+
 }
 #endif
