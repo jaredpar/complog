@@ -30,14 +30,22 @@ public sealed class ProgramTests : TestBase
 
     public int RunCompLog(string args, string? currentDirectory = null)
     {
+        var (exitCode, _) = RunCompLogEx(args, currentDirectory);
+        return exitCode;
+    }
+
+    public (int ExitCode, string Output) RunCompLogEx(string args, string? currentDirectory = null)
+    {
+        var writer = new System.IO.StringWriter();
         currentDirectory ??= RootDirectory;
         Constants.CurrentDirectory = currentDirectory;
+        Constants.Out = writer;
         var assembly = typeof(FilterOptionSet).Assembly;
         var program = assembly.GetType("Program", throwOnError: true);
         var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.NotNull(main);
         var ret = main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
-        return (int)ret!;
+        return ((int)ret!, writer.ToString());
     }
 
     private void RunWithBoth(Action<string> action)
@@ -50,6 +58,46 @@ public sealed class ProgramTests : TestBase
         var diagnostics = CompilerLogUtil.ConvertBinaryLog(Fixture.SolutionBinaryLogPath, complogPath);
         Assert.Empty(diagnostics);
         action(complogPath);
+    }
+
+    [Fact]
+    public void AnalyzersSimple()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -p console.csproj");
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+    }
+
+    [Fact]
+    public void AnalyzersHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog analyzers [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void AnalyzersError()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath}");
+        Assert.NotEqual(0, exitCode);
+        Assert.StartsWith("Unexpected error", output); 
+    }
+
+    [Fact]
+    public void AnalyzerBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath} --not-an-option");
+        Assert.NotEqual(0, exitCode);
+        Assert.StartsWith("Extra arguments", output); 
+    }
+
+    [Fact]
+    public void BadCommand()
+    {
+        var (exitCode, output) = RunCompLogEx("invalid");
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains(@"""invalid"" is not a valid command", output);
     }
 
     [Theory]
@@ -160,6 +208,58 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void ReferencesHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"ref -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog ref [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void ReferencesBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx($"ref --not-an-option");
+        Assert.Equal(1, exitCode);
+        Assert.Contains("complog ref [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void ResponseSingle()
+    {
+        var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj");
+        Assert.Equal(0, exitCode);
+        var rsp = Path.Combine(RootDirectory, @".complog", "console", "build.rsp");
+        Assert.True(File.Exists(rsp));
+        Assert.Contains("Program.cs", File.ReadAllLines(rsp));
+    }
+
+    [Fact]
+    public void ResponseAll()
+    {
+        var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(0, exitCode);
+        var rsp = Path.Combine(RootDirectory, @".complog", "console", "build.rsp");
+        Assert.True(File.Exists(rsp));
+        Assert.Contains("Program.cs", File.ReadAllLines(rsp));
+    }
+
+    [Fact]
+    public void ResponseHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"rsp -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog rsp [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void ResponseBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx($"rsp --not-an-option");
+        Assert.Equal(1, exitCode);
+        Assert.Contains("complog rsp [OPTIONS]", output);
+    }
+
+    [Fact]
     public void ExportCompilerLog()
     {
         RunWithBoth(logPath =>
@@ -173,6 +273,23 @@ public sealed class ProgramTests : TestBase
             var buildResult = RunBuildCmd(exportPath);
             Assert.True(buildResult.Succeeded);
         });
+    }
+
+    [Fact]
+    public void Help()
+    {
+        var (exitCode, output) = RunCompLogEx($"help");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog [command] [args]", output);
+    }
+
+    [Fact]
+    public void HelpVerbose()
+    {
+        var (exitCode, output) = RunCompLogEx($"help -v");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog [command] [args]", output);
+        Assert.Contains("Commands can be passed a .complog, ", output);
     }
 
     [Theory]
@@ -198,5 +315,40 @@ public sealed class ProgramTests : TestBase
             Assert.True(File.Exists(filePath));
         }
     }
+
+    [Fact]
+    public void PrintAll()
+    {
+        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(0, exitCode);
+        Assert.Contains("console.csproj (net7.0)", output);
+        Assert.Contains("classlib.csproj (net7.0)", output);
+    }
+
+    [Fact]
+    public void PrintOne()
+    {
+        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -p classlib.csproj");
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("console.csproj (net7.0)", output);
+        Assert.Contains("classlib.csproj (net7.0)", output);
+    }
+
+    [Fact]
+    public void PrintHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"print -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog print [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void PrintError()
+    {
+        var (exitCode, output) = RunCompLogEx($"print --not-an-option");
+        Assert.Equal(1, exitCode);
+        Assert.Contains("complog print [OPTIONS]", output);
+    }
+
 }
 #endif

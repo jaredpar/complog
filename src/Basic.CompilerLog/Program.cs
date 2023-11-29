@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
 using static Constants;
-using static System.Console;
 
 var (command, rest) = args.Length == 0
     ? ("help", Enumerable.Empty<string>())
@@ -15,7 +14,7 @@ var (command, rest) = args.Length == 0
 // a CancellationToken that is canceled when the user hits Ctrl+C.
 var cts = new CancellationTokenSource();
 
-CancelKeyPress += (s, e) =>
+Console.CancelKeyPress += (s, e) =>
 {
     WriteLine("Canceling...");
     cts.Cancel();
@@ -38,14 +37,14 @@ try
         // Older option names
         "diagnostics" => RunReplay(rest, cts.Token),
         "emit" => RunReplay(rest, cts.Token),
-        _ => RunHelp(null)
+        _ => RunBadCommand(command)
     };
 }
 catch (Exception e)
 {
-    RunHelp(null);
     WriteLine("Unexpected error");
     WriteLine(e.Message);
+    RunHelp(null);
     return ExitFailure;
 }
 
@@ -125,7 +124,7 @@ int RunAnalyzers(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
@@ -167,7 +166,7 @@ int RunPrint(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
@@ -210,7 +209,7 @@ int RunReferences(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
@@ -275,7 +274,7 @@ int RunReferences(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog rsp [OPTIONS] msbuild.complog");
+        WriteLine("complog ref [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -348,7 +347,7 @@ int RunResponseFile(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         var compilerCalls = GetCompilerCalls(extra, options.FilterCompilerCalls);
@@ -484,6 +483,13 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
     }
 }
 
+int RunBadCommand(string command)
+{
+    WriteLine(@$"""{command}"" is not a valid command");
+    _ = RunHelp(null);
+    return ExitFailure;
+}
+
 int RunHelp(IEnumerable<string>? args)
 {
     var verbose = false;
@@ -522,7 +528,7 @@ int RunHelp(IEnumerable<string>? args)
         """);
     }
 
-    return ExitFailure;
+    return ExitSuccess;
 }
 
 List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>? predicate)
@@ -583,7 +589,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
     {
         logFilePath = extra[0];
         args = extra.Skip(1);
-        if (string.IsNullOrEmpty(Path.GetExtension(logFilePath)))
+        if (string.IsNullOrEmpty(Path.GetExtension(logFilePath)) && Directory.Exists(logFilePath))
         {
             baseDirectory = logFilePath;
             logFilePath = FindLogFilePath(baseDirectory, includeCompilerLogs);
@@ -723,3 +729,6 @@ static string GetResolvedPath(string baseDirectory, string path)
 
     return Path.Combine(baseDirectory, path);
 }
+
+static void Write(string str) => Constants.Out.Write(str);
+static void WriteLine(string line) => Constants.Out.WriteLine(line);
