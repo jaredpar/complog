@@ -228,7 +228,7 @@ public sealed class ProgramTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj");
         Assert.Equal(0, exitCode);
-        var rsp = Path.Combine(RootDirectory, @".complog\console\build.rsp");
+        var rsp = Path.Combine(RootDirectory, @".complog", "console", "build.rsp");
         Assert.True(File.Exists(rsp));
         Assert.Contains("Program.cs", File.ReadAllLines(rsp));
     }
@@ -238,7 +238,7 @@ public sealed class ProgramTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(0, exitCode);
-        var rsp = Path.Combine(RootDirectory, @".complog\console\build.rsp");
+        var rsp = Path.Combine(RootDirectory, @".complog", "console", "build.rsp");
         Assert.True(File.Exists(rsp));
         Assert.Contains("Program.cs", File.ReadAllLines(rsp));
     }
