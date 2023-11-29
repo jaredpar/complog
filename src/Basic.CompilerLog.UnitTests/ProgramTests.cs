@@ -87,19 +87,18 @@ public sealed class ProgramTests : TestBase
         Assert.Empty(reader.ReadAllCompilerCalls());
     }
 
-    [Theory]
-    [InlineData("console.sln")]
-    [InlineData("console.csproj")]
-    [InlineData("")]
-    public void CreateSolution(string target)
+    [Fact]
+    public void CreateWithBuild()
     {
-        RunDotNet("new console --name console -o .");
-        RunDotNet("new sln --name console");
-        RunDotNet("sln add console.csproj");
-        Assert.Equal(0, RunCompLog($"create {target} -o msbuild.complog"));
-        var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerHostOptions.None);
-        Assert.Single(reader.ReadAllCompilerCalls());
+        RunCore(Fixture.SolutionPath);
+        RunCore(Fixture.ConsoleProjectPath);
+        void RunCore(string filePath)
+        {
+            Assert.Equal(0, RunCompLog($"create {filePath} -o msbuild.complog"));
+            var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
+            using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerHostOptions.None);
+            Assert.NotEmpty(reader.ReadAllCompilerCalls());
+        }
     }
 
     /// <summary>
@@ -127,16 +126,26 @@ public sealed class ProgramTests : TestBase
         Assert.Equal(1, RunCompLog($"create {Fixture.RemovedBinaryLogPath}"));
     }
 
-    /// <summary>
-    /// Don't search for complogs when an explicit log source isn't provided.
-    /// </summary>
-    [Fact]
-    public void CreateOtherComplogExists()
+    [Theory]
+    [InlineData("-h")]
+    [InlineData("-help")]
+    public void CreateHelp(string arg)
     {
-        RunDotNet($"new console --name example --output .");
-        RunDotNet("build -bl -nr:false");
-        Root.NewFile("other.complog", "");
-        Assert.Equal(0, RunCompLog($"create", RootDirectory));
+        Assert.Equal(1, RunCompLog($"create {arg}"));
+    }
+
+    [Fact]
+    public void CreateExistingComplog()
+    {
+        var complogPath = Path.Combine(RootDirectory, "file.complog");
+        File.WriteAllText(complogPath, "");
+        Assert.Equal(1, RunCompLog($"create {complogPath}"));
+    }
+
+    [Fact]
+    public void CreateExtraArguments()
+    {
+        Assert.Equal(1, RunCompLog($"create {Fixture.SolutionBinaryLogPath} extra"));
     }
 
     [Fact]
