@@ -37,7 +37,7 @@ try
         // Older option names
         "diagnostics" => RunReplay(rest, cts.Token),
         "emit" => RunReplay(rest, cts.Token),
-        _ => RunHelp(null)
+        _ => RunBadCommand(command)
     };
 }
 catch (Exception e)
@@ -347,7 +347,7 @@ int RunResponseFile(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         var compilerCalls = GetCompilerCalls(extra, options.FilterCompilerCalls);
@@ -481,6 +481,13 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
         WriteLine("complog replay [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
+}
+
+int RunBadCommand(string command)
+{
+    WriteLine(@"""{command}"" is not a valid command");
+    _ = RunHelp(null);
+    return ExitFailure;
 }
 
 int RunHelp(IEnumerable<string>? args)

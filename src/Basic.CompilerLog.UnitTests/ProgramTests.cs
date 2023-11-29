@@ -92,6 +92,13 @@ public sealed class ProgramTests : TestBase
         Assert.StartsWith("Extra arguments", output); 
     }
 
+    [Fact]
+    public void BadCommand()
+    {
+        var (exitCode, output) = RunCompLogEx("invalid");
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains(@"""invalid"" is not a valid command", output);
+    }
 
     [Theory]
     [InlineData("", "msbuild.complog")]
@@ -214,6 +221,42 @@ public sealed class ProgramTests : TestBase
         var (exitCode, output) = RunCompLogEx($"ref --not-an-option");
         Assert.Equal(1, exitCode);
         Assert.Contains("complog ref [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void ResponseSingle()
+    {
+        var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj");
+        Assert.Equal(0, exitCode);
+        var rsp = Path.Combine(RootDirectory, @".complog\console\build.rsp");
+        Assert.True(File.Exists(rsp));
+        Assert.Contains("Program.cs", File.ReadAllLines(rsp));
+    }
+
+    [Fact]
+    public void ResponseAll()
+    {
+        var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(0, exitCode);
+        var rsp = Path.Combine(RootDirectory, @".complog\console\build.rsp");
+        Assert.True(File.Exists(rsp));
+        Assert.Contains("Program.cs", File.ReadAllLines(rsp));
+    }
+
+    [Fact]
+    public void ResponseHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"rsp -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog rsp [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void ResponseBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx($"rsp --not-an-option");
+        Assert.Equal(1, exitCode);
+        Assert.Contains("complog rsp [OPTIONS]", output);
     }
 
     [Fact]
