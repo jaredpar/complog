@@ -295,7 +295,7 @@ int RunExport(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
@@ -390,7 +390,7 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
     var analyzers = false;
     var options = new FilterOptionSet(includeNoneHost: true)
     {
-        { "severity", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
+        { "severity=", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
         { "export", "export failed compilation", e => export = e is not null },
         { "emit", "emit compilation", e => emit = e is not null },
         { "analyzers", "use actual analyzers / generators (default uses generated files)", a => analyzers = a is not null },
@@ -403,12 +403,12 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         if (!string.IsNullOrEmpty(baseOutputPath) && !(export || emit))
         {
-            WriteLine("Error: Specified a path to export to but did not specify -export");
+            WriteLine("Error: Specified a path to export to but did not specify -export or -emit");
             return ExitFailure;
         }
 
@@ -424,6 +424,7 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: analyzerHostOptions.Kind != BasicAnalyzerKind.None);
         var sdkDirs = DotnetUtil.GetSdkDirectories();
+        var success = true;
 
         for (int i = 0; i < compilerCalls.Count; i++)
         {
@@ -464,10 +465,11 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
                 Directory.CreateDirectory(exportPath);
                 WriteLine($"Exporting to {exportPath}");
                 exportUtil.Export(compilationData.CompilerCall, exportPath, sdkDirs);
+                success = false;
             }
         }
 
-        return ExitSuccess;
+        return success ? ExitSuccess : ExitFailure;
     }
     catch (OptionException e)
     {
@@ -650,7 +652,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
         WriteLine(result.StandardError);
         if (!result.Succeeded)
         {
-            throw new Exception("Build failed");
+            WriteLine("Build Failed!");
         }
 
         return Path.Combine(baseDirectory, "build.binlog");
