@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
 using static Constants;
-using static System.Console;
 
 var (command, rest) = args.Length == 0
     ? ("help", Enumerable.Empty<string>())
@@ -15,7 +14,7 @@ var (command, rest) = args.Length == 0
 // a CancellationToken that is canceled when the user hits Ctrl+C.
 var cts = new CancellationTokenSource();
 
-CancelKeyPress += (s, e) =>
+Console.CancelKeyPress += (s, e) =>
 {
     WriteLine("Canceling...");
     cts.Cancel();
@@ -43,9 +42,9 @@ try
 }
 catch (Exception e)
 {
-    RunHelp(null);
     WriteLine("Unexpected error");
     WriteLine(e.Message);
+    RunHelp(null);
     return ExitFailure;
 }
 
@@ -125,7 +124,7 @@ int RunAnalyzers(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
@@ -723,3 +722,6 @@ static string GetResolvedPath(string baseDirectory, string path)
 
     return Path.Combine(baseDirectory, path);
 }
+
+static void Write(string str) => Constants.Out.Write(str);
+static void WriteLine(string line) => Constants.Out.WriteLine(line);

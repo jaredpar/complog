@@ -10,4 +10,5 @@ internal static class Constants
     internal const int ExitSuccess = 0;
 
     internal static string CurrentDirectory { get; set; } = Environment.CurrentDirectory;
+    internal static TextWriter Out { get; set; } = Console.Out;
 }

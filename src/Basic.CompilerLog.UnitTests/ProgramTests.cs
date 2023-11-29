@@ -30,14 +30,22 @@ public sealed class ProgramTests : TestBase
 
     public int RunCompLog(string args, string? currentDirectory = null)
     {
+        var (exitCode, _) = RunCompLogEx(args, currentDirectory);
+        return exitCode;
+    }
+
+    public (int ExitCode, string Output) RunCompLogEx(string args, string? currentDirectory = null)
+    {
+        var writer = new System.IO.StringWriter();
         currentDirectory ??= RootDirectory;
         Constants.CurrentDirectory = currentDirectory;
+        Constants.Out = writer;
         var assembly = typeof(FilterOptionSet).Assembly;
         var program = assembly.GetType("Program", throwOnError: true);
         var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.NotNull(main);
         var ret = main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
-        return (int)ret!;
+        return ((int)ret!, writer.ToString());
     }
 
     private void RunWithBoth(Action<string> action)
@@ -146,6 +154,38 @@ public sealed class ProgramTests : TestBase
     public void CreateExtraArguments()
     {
         Assert.Equal(1, RunCompLog($"create {Fixture.SolutionBinaryLogPath} extra"));
+    }
+
+    [Fact]
+    public void AnalyzersSimple()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -p console.csproj");
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+    }
+
+    [Fact]
+    public void AnalyzersHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog analyzers [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void AnalyzersError()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath}");
+        Assert.NotEqual(0, exitCode);
+        Assert.StartsWith("Unexpected error", output); 
+    }
+
+    [Fact]
+    public void AnalyzerBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath} --not-an-option");
+        Assert.NotEqual(0, exitCode);
+        Assert.StartsWith("Extra arguments", output); 
     }
 
     [Fact]
