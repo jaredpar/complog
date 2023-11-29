@@ -2,6 +2,28 @@
 
 namespace Basic.CompilerLog.Util;
 
+public readonly struct ConvertBinaryLogResult
+{
+    public bool Succeeded { get; }
+
+    /// <summary>
+    /// The set of <see cref="CompilerCall"/> included in the log
+    /// </summary>
+    public List<CompilerCall> CompilerCalls { get; }
+
+    /// <summary>
+    /// The diagnostics produced during conversion
+    /// </summary>
+    public List<string> Diagnostics { get; }
+
+    public ConvertBinaryLogResult(bool succeeded, List<CompilerCall> compilerCalls, List<string> diagnostics)
+    {
+        Succeeded = succeeded;
+        CompilerCalls = compilerCalls;
+        Diagnostics = diagnostics;
+    }
+}
+
 public static class CompilerLogUtil
 {
     /// <summary>
@@ -48,7 +70,24 @@ public static class CompilerLogUtil
 
     public static bool TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, List<string> diagnostics, Func<CompilerCall, bool>? predicate = null)
     {
+        var result = TryConvertBinaryLog(binaryLogStream, compilerLogStream, predicate);
+        diagnostics.AddRange(result.Diagnostics);
+        return result.Succeeded;
+    }
+
+    public static ConvertBinaryLogResult TryConvertBinaryLog(string binaryLogFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
+    {
+        using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        using var binaryLogStream = new FileStream(binaryLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return TryConvertBinaryLog(binaryLogStream, compilerLogStream, predicate);
+    }
+
+    public static ConvertBinaryLogResult TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
+    {
         predicate ??= static _ => true;
+        var diagnostics = new List<string>();
+        var included = new List<CompilerCall>();
+
         var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, diagnostics);
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics);
         var success = true;
@@ -56,13 +95,18 @@ public static class CompilerLogUtil
         {
             if (predicate(compilerInvocation))
             {
-                if (!builder.Add(compilerInvocation))
+                if (builder.Add(compilerInvocation))
+                {
+                    included.Add(compilerInvocation);
+                }
+                else
                 {
                     success = false;
                 }
             }
         }
-        return success;
+
+        return new ConvertBinaryLogResult(success, included, diagnostics);
     }
 
     public static List<CompilerCall> ReadAllCompilerCalls(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
