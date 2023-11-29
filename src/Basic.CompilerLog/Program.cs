@@ -274,7 +274,7 @@ int RunReferences(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog rsp [OPTIONS] msbuild.complog");
+        WriteLine("complog ref [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -485,7 +485,7 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
 
 int RunBadCommand(string command)
 {
-    WriteLine(@"""{command}"" is not a valid command");
+    WriteLine(@$"""{command}"" is not a valid command");
     _ = RunHelp(null);
     return ExitFailure;
 }
