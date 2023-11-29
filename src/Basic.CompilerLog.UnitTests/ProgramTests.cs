@@ -43,11 +43,11 @@ public sealed class ProgramTests : TestBase
     private void RunWithBoth(Action<string> action)
     {
         // Run with the binary log
-        action(Fixture.BinaryLogPath);
+        action(Fixture.SolutionBinaryLogPath);
 
         // Now create a compiler log 
         var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-        var diagnostics = CompilerLogUtil.ConvertBinaryLog(Fixture.BinaryLogPath, complogPath);
+        var diagnostics = CompilerLogUtil.ConvertBinaryLog(Fixture.SolutionBinaryLogPath, complogPath);
         Assert.Empty(diagnostics);
         action(complogPath);
     }
@@ -58,7 +58,7 @@ public sealed class ProgramTests : TestBase
     [InlineData("-o custom.complog", "custom.complog")]
     public void Create(string extra, string fileName)
     {
-        Assert.Equal(0, RunCompLog($"create {extra} -p {Fixture.ConsoleProjectName} {Fixture.BinaryLogPath}"));
+        Assert.Equal(0, RunCompLog($"create {extra} -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}"));
         var complogPath = Path.Combine(RootDirectory, fileName);
         Assert.True(File.Exists(complogPath));
     }
@@ -109,7 +109,7 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void CreateEmpty()
     {
-        var result = RunCompLog($"create -p does-not-exist.csproj {Fixture.BinaryLogPath}");
+        var result = RunCompLog($"create -p does-not-exist.csproj {Fixture.SolutionBinaryLogPath}");
         Assert.NotEqual(0, result);
     }
 
@@ -119,6 +119,12 @@ public sealed class ProgramTests : TestBase
         RunDotNet($"new console --name example --output .");
         RunDotNet("build -bl -nr:false");
         Assert.Equal(0, RunCompLog($"create {GetBinaryLogFullPath()}", RootDirectory));
+    }
+
+    [Fact]
+    public void CreateOverRemovedProject()
+    {
+        Assert.Equal(1, RunCompLog($"create {Fixture.RemovedBinaryLogPath}"));
     }
 
     /// <summary>
@@ -166,7 +172,7 @@ public sealed class ProgramTests : TestBase
     public void ReplayConsoleWithEmit(string arg)
     {
         using var emitDir = new TempDir();
-        RunCompLog($"replay {arg} -emit -o {emitDir.DirectoryPath} {Fixture.BinaryLogPath}");
+        RunCompLog($"replay {arg} -emit -o {emitDir.DirectoryPath} {Fixture.SolutionBinaryLogPath}");
 
         AssertOutput(@"console\emit\console.dll");
         AssertOutput(@"console\emit\console.pdb");
