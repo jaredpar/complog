@@ -209,7 +209,7 @@ int RunReferences(IEnumerable<string> args)
         if (options.Help)
         {
             PrintUsage();
-            return ExitFailure;
+            return ExitSuccess;
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
@@ -521,7 +521,7 @@ int RunHelp(IEnumerable<string>? args)
         """);
     }
 
-    return ExitFailure;
+    return ExitSuccess;
 }
 
 List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>? predicate)

@@ -60,6 +60,39 @@ public sealed class ProgramTests : TestBase
         action(complogPath);
     }
 
+    [Fact]
+    public void AnalyzersSimple()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -p console.csproj");
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+    }
+
+    [Fact]
+    public void AnalyzersHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog analyzers [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void AnalyzersError()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath}");
+        Assert.NotEqual(0, exitCode);
+        Assert.StartsWith("Unexpected error", output); 
+    }
+
+    [Fact]
+    public void AnalyzerBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath} --not-an-option");
+        Assert.NotEqual(0, exitCode);
+        Assert.StartsWith("Extra arguments", output); 
+    }
+
+
     [Theory]
     [InlineData("", "msbuild.complog")]
     [InlineData("--out custom.complog", "custom.complog")]
@@ -157,38 +190,6 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void AnalyzersSimple()
-    {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -p console.csproj");
-        Assert.Equal(0, exitCode);
-        Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
-    }
-
-    [Fact]
-    public void AnalyzersHelp()
-    {
-        var (exitCode, output) = RunCompLogEx($"analyzers -h");
-        Assert.Equal(0, exitCode);
-        Assert.StartsWith("complog analyzers [OPTIONS]", output);
-    }
-
-    [Fact]
-    public void AnalyzersError()
-    {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath}");
-        Assert.NotEqual(0, exitCode);
-        Assert.StartsWith("Unexpected error", output); 
-    }
-
-    [Fact]
-    public void AnalyzerBadOption()
-    {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath} --not-an-option");
-        Assert.NotEqual(0, exitCode);
-        Assert.StartsWith("Extra arguments", output); 
-    }
-
-    [Fact]
     public void References()
     {
         RunWithBoth(logPath =>
@@ -197,6 +198,22 @@ public sealed class ProgramTests : TestBase
             Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "refs"), "*.dll"));
             Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "analyzers"), "*.dll", SearchOption.AllDirectories));
         });
+    }
+
+    [Fact]
+    public void ReferencesHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"ref -h");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog ref [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void ReferencesBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx($"ref --not-an-option");
+        Assert.Equal(1, exitCode);
+        Assert.Contains("complog ref [OPTIONS]", output);
     }
 
     [Fact]
@@ -213,6 +230,23 @@ public sealed class ProgramTests : TestBase
             var buildResult = RunBuildCmd(exportPath);
             Assert.True(buildResult.Succeeded);
         });
+    }
+
+    [Fact]
+    public void Help()
+    {
+        var (exitCode, output) = RunCompLogEx($"help");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog [command] [args]", output);
+    }
+
+    [Fact]
+    public void HelpVerbose()
+    {
+        var (exitCode, output) = RunCompLogEx($"help -v");
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("complog [command] [args]", output);
+        Assert.Contains("Commands can be passed a .complog, ", output);
     }
 
     [Theory]
