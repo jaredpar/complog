@@ -14,7 +14,7 @@
     <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Basic.Reference.Assemblies.Net60" Version="1.2.4" />
-    <PackageReference Include="coverlet.collector" Version="6.0.0">
+    <PackageReference Include="coverlet.msbuild" Version="6.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
