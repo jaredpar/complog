@@ -2,6 +2,7 @@
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
+using StructuredLogViewer;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
@@ -74,21 +75,31 @@ int RunCreate(IEnumerable<string> args)
 
         if (complogFilePath is null)
         {
-            complogFilePath = Path.ChangeExtension(binlogFilePath, ".complog");
+            complogFilePath = Path.ChangeExtension(Path.GetFileName(binlogFilePath), ".complog");
         }
 
         complogFilePath = GetResolvedPath(CurrentDirectory, complogFilePath);
-        var diagnosticList = CompilerLogUtil.ConvertBinaryLog(
-            binlogFilePath,
-            complogFilePath,
-            options.FilterCompilerCalls);
-
-        foreach (var diagnostic in diagnosticList)
+        var convertResult = CompilerLogUtil.TryConvertBinaryLog(binlogFilePath, complogFilePath, options.FilterCompilerCalls);
+        foreach (var diagnostic in convertResult.Diagnostics)
         {
            WriteLine(diagnostic);
         }
 
-        return ExitSuccess;
+        if (options.ProjectNames.Count > 0)
+        {
+            foreach (var compilerCall in convertResult.CompilerCalls)
+            {
+                WriteLine(compilerCall.GetDiagnosticName());
+            }
+        }
+
+        if (convertResult.CompilerCalls.Count == 0)
+        {
+            WriteLine($"No compilations added");
+            return ExitFailure;
+        }
+
+        return convertResult.Succeeded ? ExitSuccess : ExitFailure;
     }
     catch (OptionException e)
     {

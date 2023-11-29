@@ -15,7 +15,7 @@ using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
-public sealed class CompilerLogFixture : IDisposable
+public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
     private readonly ImmutableArray<Lazy<string>> _allCompLogs;
 
@@ -62,6 +62,7 @@ public sealed class CompilerLogFixture : IDisposable
     /// Add the following to xunit.runner.json to enable "diagnosticMessages": true
     /// </summary>
     public CompilerLogFixture(IMessageSink messageSink)
+        : base(messageSink)
     {
         StorageDirectory = Path.Combine(Path.GetTempPath(), nameof(CompilerLogFixture), Guid.NewGuid().ToString("N"));
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
@@ -72,23 +73,6 @@ public sealed class CompilerLogFixture : IDisposable
         {
             testArtifactsDir = Path.Combine(testArtifactsDir, Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(testArtifactsDir);
-        }
-
-        int processCount = 0;
-        void RunDotnetCommand(string args, string workingDirectory)
-        {
-            (string, string)[]? extraEnvironmentVariables = null;
-            var start = DateTime.UtcNow;
-            var diagnosticBuilder = new StringBuilder();
-
-            diagnosticBuilder.AppendLine($"Running: {processCount++} {args} in {workingDirectory}");
-            var result = DotnetUtil.Command(args, workingDirectory, extraEnvironmentVariables);
-            diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");
-            diagnosticBuilder.AppendLine($"Standard Output: {result.StandardOut}");
-            diagnosticBuilder.AppendLine($"Standard Error: {result.StandardError}");
-            diagnosticBuilder.AppendLine($"Finished: {(DateTime.UtcNow - start).TotalSeconds:F2}s");
-            messageSink.OnMessage(new DiagnosticMessage(diagnosticBuilder.ToString()));
-            Assert.True(result.Succeeded);
         }
 
         var builder = ImmutableArray.CreateBuilder<Lazy<string>>();
