@@ -401,7 +401,7 @@ public sealed class ProgramTests : TestBase
         var (exitCode, output) = RunCompLogEx($"replay {Fixture.ConsoleWithDiagnosticsBinaryLogPath} -export -o {RootDirectory}");
         Assert.Equal(Constants.ExitFailure, exitCode);
         Assert.Contains("Exporting to", output);
-        Assert.True(File.Exists(Path.Combine(RootDirectory, "console-with-diagnostics", "export", "build.cmd")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, "console-with-diagnostics", "export", "build.rsp")));
         Assert.True(File.Exists(Path.Combine(RootDirectory, "console-with-diagnostics", "export", "ref", "netstandard.dll")));
     }
 
