@@ -36,6 +36,9 @@
     <EmbeddedResource Include="Resources\MetadataVersion1\console.complog">
         <LogicalName>MetadataVersion1.console.complog</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Resources\linux-console.complog">
+        <LogicalName>linux-console.complog</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

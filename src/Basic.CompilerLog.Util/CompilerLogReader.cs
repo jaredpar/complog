@@ -25,27 +25,34 @@ using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
 
-public abstract class CompilerLogReader : IDisposable
+public sealed class CompilerLogReader : IDisposable
 {
     public static int LatestMetadataVersion => Metadata.LatestMetadataVersion;
+
+    /// <summary>
+    /// Stores the underlying archive this reader is using. Do not use directly. Instead 
+    /// use <see cref="ZipArchive"/>  which will throw if the reader is disposed
+    /// </summary>
+    private ZipArchive _zipArchiveCore;
 
     private readonly Dictionary<Guid, MetadataReference> _refMap = new();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new();
     private readonly bool _ownsCompilerLogState;
-    private readonly Dictionary<int, object> _compilationInfoMap = new();
+    private readonly Dictionary<int, CompilationInfoPack> _compilationInfoMap = new();
 
     public BasicAnalyzerHostOptions BasicAnalyzerHostOptions { get; }
     internal CompilerLogState CompilerLogState { get; }
-    internal ZipArchive ZipArchive { get; private set; }
     internal Metadata Metadata { get; }
     internal int Count => Metadata.Count;
     public int MetadataVersion => Metadata.MetadataVersion;
     public bool IsWindowsLog => Metadata.IsWindows == true;
+    public bool IsDisposed => _zipArchiveCore is null;
+    internal ZipArchive ZipArchive => !IsDisposed ? _zipArchiveCore : throw new ObjectDisposedException(nameof(CompilerLogReader));
 
-    internal CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions basicAnalyzersOptions, CompilerLogState? state)
+    private CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions basicAnalyzersOptions, CompilerLogState? state)
     {
-        ZipArchive = zipArchive;
+        _zipArchiveCore = zipArchive;
         CompilerLogState = state ?? new CompilerLogState();
         _ownsCompilerLogState = state is null;
         BasicAnalyzerHostOptions = basicAnalyzersOptions;
@@ -77,8 +84,8 @@ public abstract class CompilerLogReader : IDisposable
             var zipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);
             var metadata = ReadMetadata();
             return metadata.MetadataVersion switch {
-                1 => new CompilerLogReaderVersion1(zipArchive, metadata, options, state),
-                2 => new CompilerLogReaderVersion2(zipArchive, metadata, options, state),
+                1 => throw new ArgumentException("Version 1 compiler logs are no longer supported"),
+                2 => new CompilerLogReader(zipArchive, metadata, options, state),
                 _ => throw GetInvalidCompilerLogFileException(),
             };
 
@@ -108,15 +115,73 @@ public abstract class CompilerLogReader : IDisposable
         return Create(stream, leaveOpen: false, options, state);
     }
 
-    private protected abstract object ReadCompilationInfo(int index);
+    private CompilationInfoPack ReadCompilationInfo(int index)
+    {
+        using var stream = ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index));
+        return MessagePackSerializer.Deserialize<CompilationInfoPack>(stream);
+    }
 
-    private protected abstract CompilerCall ReadCompilerCallCore(int index, object rawInfo);
+    private CompilerCall ReadCompilerCallCore(int index, CompilationInfoPack pack)
+    {
+        return new CompilerCall(
+            pack.ProjectFilePath,
+            pack.CompilerCallKind,
+            pack.TargetFramework,
+            pack.IsCSharp,
+            new Lazy<string[]>(() => GetContentPack<string[]>(pack.CommandLineArgsHash)),
+            index);
+    }
 
-    private protected abstract RawCompilationData ReadRawCompilationDataCore(int index, object rawInfo);
+    private RawCompilationData ReadRawCompilationDataCore(int index, CompilationInfoPack pack)
+    {
+        var dataPack = GetContentPack<CompilationDataPack>(pack.CompilationDataPackHash);
 
-    private protected abstract (EmitOptions, ParseOptions, CompilationOptions) ReadCompilerOptionsCore(int index, object rawInfo);
+        var references = dataPack
+            .References
+            .Select(x => new RawReferenceData(x.Mvid, x.Aliases, x.EmbedInteropTypes))
+            .ToList();
+        var analyzers = dataPack
+            .Analyzers
+            .Select(x => new RawAnalyzerData(x.Mvid, x.FilePath))
+            .ToList();
+        var contents = dataPack
+            .ContentList
+            .Select(x => new RawContent(x.Item2.FilePath, x.Item2.ContentHash, (RawContentKind)x.Item1))
+            .ToList();
+        var resources = dataPack
+            .Resources
+            .Select(x => new RawResourceData(x.ContentHash, CreateResourceDescription(this, x)))
+            .ToList();
 
-    private object GetOrReadCompilationInfo(int index)
+        return new RawCompilationData(
+            index,
+            compilationName: dataPack.ValueMap["compilationName"],
+            assemblyFileName: dataPack.ValueMap["assemblyFileName"]!,
+            xmlFilePath: dataPack.ValueMap["xmlFilePath"],
+            outputDirectory: dataPack.ValueMap["outputDirectory"],
+            dataPack.ChecksumAlgorithm,
+            references,
+            analyzers,
+            contents,
+            resources,
+            pack.IsCSharp,
+            dataPack.IncludesGeneratedText);
+
+        static ResourceDescription CreateResourceDescription(CompilerLogReader reader, ResourcePack pack)
+        {
+            var dataProvider = () =>
+            {
+                var bytes = reader.GetContentBytes(pack.ContentHash);
+                return new MemoryStream(bytes);
+            };
+
+            return string.IsNullOrEmpty(pack.FileName)
+                ? new ResourceDescription(pack.Name, dataProvider, pack.IsPublic)
+                : new ResourceDescription(pack.Name, pack.FileName, dataProvider, pack.IsPublic);
+        }
+    }
+
+    private CompilationInfoPack GetOrReadCompilationInfo(int index)
     {
         if (!_compilationInfoMap.TryGetValue(index, out var info))
         {
@@ -154,8 +219,33 @@ public abstract class CompilerLogReader : IDisposable
     public (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);
-        var info = GetOrReadCompilationInfo(index);
-        return ReadCompilerOptionsCore(index, info);
+        var pack = GetOrReadCompilationInfo(index);
+        return ReadCompilerOptions(pack);
+    }
+
+    private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)
+    {
+        var emitOptions = MessagePackUtil.CreateEmitOptions(GetContentPack<EmitOptionsPack>(pack.EmitOptionsHash));
+        ParseOptions parseOptions;
+        CompilationOptions compilationOptions;
+        if (pack.IsCSharp)
+        {
+            var parseTuple = GetContentPack<(ParseOptionsPack, CSharpParseOptionsPack)>(pack.ParseOptionsHash);
+            parseOptions = MessagePackUtil.CreateCSharpParseOptions(parseTuple.Item1, parseTuple.Item2);
+
+            var optionsTuple = GetContentPack<(CompilationOptionsPack, CSharpCompilationOptionsPack)>(pack.CompilationOptionsHash);
+            compilationOptions = MessagePackUtil.CreateCSharpCompilationOptions(optionsTuple.Item1, optionsTuple.Item2);
+        }
+        else
+        {
+            var parseTuple = GetContentPack<(ParseOptionsPack, VisualBasicParseOptionsPack)>(pack.ParseOptionsHash);
+            parseOptions = MessagePackUtil.CreateVisualBasicParseOptions(parseTuple.Item1, parseTuple.Item2);
+
+            var optionsTuple = GetContentPack<(CompilationOptionsPack, VisualBasicCompilationOptionsPack, ParseOptionsPack, VisualBasicParseOptionsPack)>(pack.CompilationOptionsHash);
+            compilationOptions = MessagePackUtil.CreateVisualBasicCompilationOptions(optionsTuple.Item1, optionsTuple.Item2, optionsTuple.Item3, optionsTuple.Item4);
+        }
+
+        return (emitOptions, parseOptions, compilationOptions);
     }
 
     public CompilationData ReadCompilationData(int index) =>
@@ -163,11 +253,10 @@ public abstract class CompilerLogReader : IDisposable
 
     public CompilationData ReadCompilationData(CompilerCall compilerCall)
     {
-        var index = GetIndex(compilerCall);
-        var info = GetOrReadCompilationInfo(index);
+        var pack = GetOrReadCompilationInfo(GetIndex(compilerCall));
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = GetMetadataReferences(rawCompilationData.References);
-        var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptionsCore(index, info);
+        var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(pack);
 
         var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
@@ -606,13 +695,13 @@ public abstract class CompilerLogReader : IDisposable
 
     public void Dispose()
     {
-        if (ZipArchive is null)
+        if (IsDisposed)
         {
             return;
         }
 
         ZipArchive.Dispose();
-        ZipArchive = null!;
+        _zipArchiveCore = null!;
 
         if (_ownsCompilerLogState)
         {

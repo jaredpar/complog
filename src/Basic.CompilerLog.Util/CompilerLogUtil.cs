@@ -109,18 +109,6 @@ public static class CompilerLogUtil
         return new ConvertBinaryLogResult(success, included, diagnostics);
     }
 
-    public static List<CompilerCall> ReadAllCompilerCalls(string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
-    {
-        using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return ReadAllCompilerCalls(compilerLogStream, predicate);
-    }
-
-    public static List<CompilerCall> ReadAllCompilerCalls(Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
-    {
-        using var reader = CompilerLogReader.Create(compilerLogStream);
-        return reader.ReadAllCompilerCalls(predicate);
-    }
-
     private static Exception CreateException(string message, IEnumerable<string> diagnostics)
     {
         var builder = new StringBuilder();
