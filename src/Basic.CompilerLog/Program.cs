@@ -384,7 +384,7 @@ int RunResponseFile(IEnumerable<string> args)
         else
         {
             Debug.Assert(ext is ".complog");
-            var reader = CompilerLogReader.Create(stream, leaveOpen: false);
+            var reader = GetCompilerLogReader(stream, leaveOpen: false);
             return (reader, reader.ReadAllCompilerCalls(predicate));
         }
     }

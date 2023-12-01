@@ -299,6 +299,19 @@ public sealed class ProgramTests : TestBase
         Assert.Contains("complog rsp [OPTIONS]", output);
     }
 
+    [Fact]
+    public void ResponseLinuxComplog()
+    {
+        var path = Path.Combine(RootDirectory, "console.complog");
+        File.WriteAllBytes(path, ResourceLoader.GetResourceBlob("linux-console.complog"));
+        var (exitCode, output) = RunCompLogEx($"rsp {path}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.Contains("generated on different operating system", output);
+        }
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("--exclude-analyzers")]
