@@ -357,4 +357,12 @@ public sealed class CompilerLogReaderTests : TestBase
             Assert.Throws<ArgumentException>(() => CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None));
         }
     }
+
+    [Fact]
+    public void Disposed()
+    {
+        var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        reader.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => reader.ReadCompilationData(0));
+    }
 }

@@ -258,6 +258,22 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void ResponseOnCompilerLog()
+    {
+        var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Fixture.SolutionBinaryLogPath, complogPath));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"rsp {complogPath} -p console.csproj"));
+    }
+
+    [Fact]
+    public void ResponseOnInvalidFileType()
+    {
+        var (exitCode, output) = RunCompLogEx($"rsp data.txt -p console.csproj");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains("Not a valid log", output);
+    }
+
+    [Fact]
     public void ResponseAll()
     {
         var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath}");

@@ -59,6 +59,20 @@ public sealed class UsingAllCompilerLogTests : TestBase
         }
     }
 
+    [Fact]
+    public async Task CommandLineArguments()
+    {
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        {
+            TestOutputHelper.WriteLine(complogPath);
+            using var reader = CompilerLogReader.Create(complogPath, options: BasicAnalyzerHostOptions.None);
+            foreach (var data in reader.ReadAllCompilerCalls())
+            {
+                Assert.NotEmpty(data.GetArguments());
+            }
+        }
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

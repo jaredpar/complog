@@ -3,6 +3,7 @@ using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
 using StructuredLogViewer;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
@@ -11,22 +12,13 @@ using static Constants;
 var (command, rest) = args.Length == 0
     ? ("help", Enumerable.Empty<string>())
     : (args[0], args.Skip(1));
-// a CancellationToken that is canceled when the user hits Ctrl+C.
-var cts = new CancellationTokenSource();
-
-Console.CancelKeyPress += (s, e) =>
-{
-    WriteLine("Canceling...");
-    cts.Cancel();
-    e.Cancel = true;
-};
 
 try
 {
     return command.ToLower() switch
     {
         "create" => RunCreate(rest),
-        "replay" => RunReplay(rest, cts.Token),
+        "replay" => RunReplay(rest),
         "export" => RunExport(rest),
         "ref" => RunReferences(rest),
         "rsp" => RunResponseFile(rest),
@@ -35,8 +27,8 @@ try
         "help" => RunHelp(rest),
 
         // Older option names
-        "diagnostics" => RunReplay(rest, cts.Token),
-        "emit" => RunReplay(rest, cts.Token),
+        "diagnostics" => RunReplay(rest),
+        "emit" => RunReplay(rest),
         _ => RunBadCommand(command)
     };
 }
@@ -170,9 +162,8 @@ int RunPrint(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        var compilerCalls = CompilerLogUtil.ReadAllCompilerCalls(
-            compilerLogStream,
-            options.FilterCompilerCalls);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         foreach (var compilerCall in compilerCalls)
         {
@@ -350,7 +341,7 @@ int RunResponseFile(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        var compilerCalls = GetCompilerCalls(extra, options.FilterCompilerCalls);
+        var (disposable, compilerCalls) = GetCompilerCalls(extra, options.FilterCompilerCalls);
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Generating response files in {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
@@ -365,6 +356,7 @@ int RunResponseFile(IEnumerable<string> args)
             ExportUtil.ExportRsp(compilerCall, writer, singleLine);
         }
 
+        disposable.Dispose();
         return ExitSuccess;
     }
     catch (OptionException e)
@@ -379,9 +371,26 @@ int RunResponseFile(IEnumerable<string> args)
         WriteLine("complog rsp [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
+
+    (IDisposable disposable, List<CompilerCall>) GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>? predicate)
+    {
+        var logFilePath = GetLogFilePath(extra);
+        var stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var ext = Path.GetExtension(logFilePath);
+        if (ext is ".binlog")
+        {
+            return (stream, BinaryLogUtil.ReadAllCompilerCalls(stream, new(), predicate));
+        }
+        else
+        {
+            Debug.Assert(ext is ".complog");
+            var reader = CompilerLogReader.Create(stream, leaveOpen: false);
+            return (reader, reader.ReadAllCompilerCalls(predicate));
+        }
+    }
 }
 
-int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
+int RunReplay(IEnumerable<string> args)
 {
     var baseOutputPath = "";
     var severity = DiagnosticSeverity.Warning;
@@ -428,8 +437,6 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
 
         for (int i = 0; i < compilerCalls.Count; i++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
             var compilerCall = compilerCalls[i];
 
             Write($"{compilerCall.GetDiagnosticName()} ...");
@@ -442,11 +449,11 @@ int RunReplay(IEnumerable<string> args, CancellationToken cancellationToken)
             {
                 var path = GetOutputPath(baseOutputPath, compilerCalls, i, "emit");
                 Directory.CreateDirectory(path);
-                emitResult = compilationData.EmitToDisk(path, cancellationToken);
+                emitResult = compilationData.EmitToDisk(path);
             }
             else
             {
-                emitResult = compilationData.EmitToMemory(cancellationToken);
+                emitResult = compilationData.EmitToMemory();
             }
 
             WriteLine(emitResult.Success ? "Success" : "Error");
@@ -531,22 +538,6 @@ int RunHelp(IEnumerable<string>? args)
     }
 
     return ExitSuccess;
-}
-
-List<CompilerCall> GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>? predicate)
-{
-    var logFilePath = GetLogFilePath(extra);
-    using var stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-    var ext = Path.GetExtension(logFilePath);
-    switch (ext)
-    {
-        case ".binlog":
-            return BinaryLogUtil.ReadAllCompilerCalls(stream, new(), predicate);
-        case ".complog":
-            return CompilerLogUtil.ReadAllCompilerCalls(stream, predicate);
-        default:
-            throw new Exception($"Unrecognized file extension: {ext}");
-    }
 }
 
 CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerHostOptions? options = null)

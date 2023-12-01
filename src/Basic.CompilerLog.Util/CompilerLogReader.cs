@@ -29,6 +29,12 @@ public sealed class CompilerLogReader : IDisposable
 {
     public static int LatestMetadataVersion => Metadata.LatestMetadataVersion;
 
+    /// <summary>
+    /// Stores the underlying archive this reader is using. Do not use directly. Instead 
+    /// use <see cref="ZipArchive"/>  which will throw if the reader is disposed
+    /// </summary>
+    private ZipArchive _zipArchiveCore;
+
     private readonly Dictionary<Guid, MetadataReference> _refMap = new();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new();
@@ -37,15 +43,16 @@ public sealed class CompilerLogReader : IDisposable
 
     public BasicAnalyzerHostOptions BasicAnalyzerHostOptions { get; }
     internal CompilerLogState CompilerLogState { get; }
-    internal ZipArchive ZipArchive { get; private set; }
     internal Metadata Metadata { get; }
     internal int Count => Metadata.Count;
     public int MetadataVersion => Metadata.MetadataVersion;
     public bool IsWindowsLog => Metadata.IsWindows == true;
+    public bool IsDisposed => _zipArchiveCore is null;
+    internal ZipArchive ZipArchive => !IsDisposed ? _zipArchiveCore : throw new ObjectDisposedException(nameof(CompilerLogReader));
 
     private CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions basicAnalyzersOptions, CompilerLogState? state)
     {
-        ZipArchive = zipArchive;
+        _zipArchiveCore = zipArchive;
         CompilerLogState = state ?? new CompilerLogState();
         _ownsCompilerLogState = state is null;
         BasicAnalyzerHostOptions = basicAnalyzersOptions;
@@ -688,13 +695,13 @@ public sealed class CompilerLogReader : IDisposable
 
     public void Dispose()
     {
-        if (ZipArchive is null)
+        if (IsDisposed)
         {
             return;
         }
 
         ZipArchive.Dispose();
-        ZipArchive = null!;
+        _zipArchiveCore = null!;
 
         if (_ownsCompilerLogState)
         {
