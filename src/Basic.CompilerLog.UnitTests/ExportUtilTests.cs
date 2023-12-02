@@ -46,9 +46,9 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
 #if NETCOREAPP
-        var sdkDirs = DotnetUtil.GetSdkDirectories();
+        var sdkDirs = SdkUtil.GetSdkDirectories();
 #else
-        var sdkDirs = DotnetUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
+        var sdkDirs = SdkUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
 #endif
         var exportUtil = new ExportUtil(reader, includeAnalyzers);
         var count = 0;
