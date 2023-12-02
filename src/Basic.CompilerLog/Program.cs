@@ -298,7 +298,7 @@ int RunExport(IEnumerable<string> args)
         WriteLine($"Exporting to {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
 
-        var sdkDirs = DotnetUtil.GetSdkDirectories();
+        var sdkDirs = SdkUtil.GetSdkDirectories();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
@@ -432,7 +432,7 @@ int RunReplay(IEnumerable<string> args)
         using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, analyzerHostOptions);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: analyzerHostOptions.Kind != BasicAnalyzerKind.None);
-        var sdkDirs = DotnetUtil.GetSdkDirectories();
+        var sdkDirs = SdkUtil.GetSdkDirectories();
         var success = true;
 
         for (int i = 0; i < compilerCalls.Count; i++)

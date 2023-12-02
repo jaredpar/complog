@@ -46,9 +46,9 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
 #if NETCOREAPP
-        var sdkDirs = DotnetUtil.GetSdkDirectories();
+        var sdkDirs = SdkUtil.GetSdkDirectories();
 #else
-        var sdkDirs = DotnetUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
+        var sdkDirs = SdkUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
 #endif
         var exportUtil = new ExportUtil(reader, includeAnalyzers);
         var count = 0;
@@ -159,6 +159,24 @@ public sealed class ExportUtilTests : TestBase
     public void StrongNameKey()
     {
         TestExport(Fixture.ConsoleSignedComplogPath.Value, expectedCount: 1, runBuild: false);
+    }
+
+    [Fact]
+    public void ExportAll()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath.Value);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
+        exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkDirectories());
+        Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
+        Assert.True(Directory.Exists(Path.Combine(RootDirectory, "1")));
+    }
+
+    [Fact]
+    public void ExportAllBadPath()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath.Value);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
     }
 
     private void EmbedLineCore(string contentFilePath)

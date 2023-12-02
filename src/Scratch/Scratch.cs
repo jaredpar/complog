@@ -156,7 +156,7 @@ void ExportTest(CompilerLogReader reader)
     var dest = @"c:\users\jaredpar\temp\export";
     EmptyDirectory(dest);
 
-    var d = DotnetUtil.GetSdkDirectories();
+    var d = SdkUtil.GetSdkDirectories();
     var util = new ExportUtil(reader);
     util.ExportAll(dest, d);
 }
