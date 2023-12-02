@@ -25,7 +25,6 @@ public sealed class ExportUtil
         internal string EmbeddedResourceDirectory { get; }
         internal string OriginalProjectFilePath { get; }
         internal string OriginalProjectDirectory { get; }
-        internal string ProjectName { get; }
         internal ResilientDirectory MiscDirectory { get; }
         internal ResilientDirectory AnalyzerDirectory { get; }
         internal ResilientDirectory GeneratedCodeDirectory { get; }
@@ -36,7 +35,6 @@ public sealed class ExportUtil
             DestinationDirectory = destinationDirectory;
             OriginalProjectFilePath = originalProjectFilePath;
             OriginalProjectDirectory = Path.GetDirectoryName(OriginalProjectFilePath)!;
-            ProjectName = Path.GetFileName(OriginalProjectFilePath);
             SourceDirectory = Path.Combine(destinationDirectory, "src");
             EmbeddedResourceDirectory = Path.Combine(destinationDirectory, "resources");
             MiscDirectory = new(Path.Combine(destinationDirectory, "misc"));
@@ -67,34 +65,11 @@ public sealed class ExportUtil
         /// Writes the content to the new directory structure and returns the full path of the 
         /// file that was written.
         /// </summary>
-        internal string WriteContent(string originalFilePath, byte[] content)
-        {
-            var newFilePath = GetNewSourcePath(originalFilePath);
-            File.WriteAllBytes(newFilePath, content);
-            return newFilePath;
-        }
-
-        /// <summary>
-        /// Writes the content to the new directory structure and returns the full path of the 
-        /// file that was written.
-        /// </summary>
         internal string WriteContent(string originalFilePath, Stream stream)
         {
             var newFilePath = GetNewSourcePath(originalFilePath);
             using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             stream.CopyTo(fileStream);
-            return newFilePath;
-        }
-
-        /// <summary>
-        /// Writes the content to the new directory structure and returns the full path of the 
-        /// file that was written.
-        /// </summary>
-        internal string WriteContent(string originalFilePath, Action<Stream> action)
-        {
-            var newFilePath = GetNewSourcePath(originalFilePath);
-            using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            action(fileStream);
             return newFilePath;
         }
     }

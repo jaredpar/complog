@@ -161,6 +161,24 @@ public sealed class ExportUtilTests : TestBase
         TestExport(Fixture.ConsoleSignedComplogPath.Value, expectedCount: 1, runBuild: false);
     }
 
+    [Fact]
+    public void ExportAll()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath.Value);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
+        exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkDirectories());
+        Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
+        Assert.True(Directory.Exists(Path.Combine(RootDirectory, "1")));
+    }
+
+    [Fact]
+    public void ExportAllBadPath()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath.Value);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
+    }
+
     private void EmbedLineCore(string contentFilePath)
     {
         RunDotNet($"new console --name example --output .");
