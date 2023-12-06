@@ -29,6 +29,8 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
     internal string ClassLibProjectPath { get; }
 
+    internal string ClassLibMultiProjectPath { get; }
+
     internal string ConsoleWithDiagnosticsBinaryLogPath { get; }
 
     internal string ConsoleWithDiagnosticsProjectPath { get; }
@@ -69,6 +71,22 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         {
             RunDotnetCommand("new classlib --name classlib -o .", dir);
             return Path.Combine(dir, "classlib.csproj");
+        });
+
+        ClassLibMultiProjectPath = WithProject("classlibmulti", string (string dir) =>
+        {
+            RunDotnetCommand("new classlib --name classlibmulti -o .", dir);
+            var projectFileContent = """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                  </PropertyGroup>
+                </Project>
+                """;
+            File.WriteAllText(Path.Combine(dir, "classlibmulti.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            return Path.Combine(dir, "classlibmulti.csproj");
         });
 
         string WithProject(string name, Func<string, string> func)
