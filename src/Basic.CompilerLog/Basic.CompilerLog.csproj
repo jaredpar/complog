@@ -19,6 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
     <PackageReference Include="Mono.Options" Version="6.12.0.148" />

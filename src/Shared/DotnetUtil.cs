@@ -61,28 +61,4 @@ internal static class DotnetUtil
             workingDirectory: workingDirectory,
             environment: env);
     }
-
-    internal static void CommandOrThrow(string args, string? workingDirectory = null)
-    {
-        if (!Command(args, workingDirectory).Succeeded)
-        {
-            throw new Exception("Command failed");
-        }
-    }
-
-    internal static void AddProjectProperty(string property, string workingDirectory)
-    {
-        var projectFile = Directory.EnumerateFiles(workingDirectory, "*proj").Single();
-        var lines = File.ReadAllLines(projectFile);
-        using var writer = new StreamWriter(projectFile, append: false);
-        foreach (var line in lines)
-        {
-            if (line.Contains("</PropertyGroup>"))
-            {
-                writer.WriteLine(property);
-            }
-
-            writer.WriteLine(line);
-        }
-    }
 }

@@ -56,7 +56,19 @@ public abstract class TestBase : IDisposable
 
     protected void AddProjectProperty(string property, string? workingDirectory = null)
     {
-        DotnetUtil.AddProjectProperty(property, workingDirectory ?? RootDirectory);
+        workingDirectory ??= RootDirectory;
+        var projectFile = Directory.EnumerateFiles(workingDirectory, "*proj").Single();
+        var lines = File.ReadAllLines(projectFile);
+        using var writer = new StreamWriter(projectFile, append: false);
+        foreach (var line in lines)
+        {
+            if (line.Contains("</PropertyGroup>"))
+            {
+                writer.WriteLine(property);
+            }
+
+            writer.WriteLine(line);
+        }
     }
 
     protected string GetBinaryLogFullPath(string? workingDirectory = null) =>

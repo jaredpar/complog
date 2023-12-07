@@ -284,6 +284,32 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void ResponseMultiTarget()
+    {
+        var exitCode = RunCompLog($"rsp {Fixture.ClassLibMultiProjectPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "classlibmulti-net6.0", "build.rsp")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "classlibmulti-net7.0", "build.rsp")));
+    }
+
+    [Fact]
+    public void ResponseNoLogArgument()
+    {
+        var (exitCode, output) = RunCompLogEx($"rsp -o {RootDirectory}", Path.GetDirectoryName(Fixture.ConsoleProjectPath)!);
+        TestOutputHelper.WriteLine(output);
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.True(File.Exists(Path.Combine(RootDirectory, "console", "build.rsp")));
+    }
+
+    [Fact]
+    public void ResponseNoLogAvailable()
+    {
+        var dir = Root.NewDirectory("empty");
+        var exitCode = RunCompLog($"rsp", dir);
+        Assert.Equal(Constants.ExitFailure, exitCode);
+    }
+
+    [Fact]
     public void ResponseHelp()
     {
         var (exitCode, output) = RunCompLogEx($"rsp -h");

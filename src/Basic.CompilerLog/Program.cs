@@ -635,10 +635,10 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
         }
 
         var tag = buildArgs.Any() ? "" : "-t:Rebuild";
-        var args = $"build {path} -bl:build.binlog {tag} {string.Join(' ', buildArgs)}";
+        var args = $"build {path} -bl:build.binlog -nr:false {tag} {string.Join(' ', buildArgs)}";
         WriteLine($"Building {path}");
         WriteLine($"dotnet {args}");
-        var result = ProcessUtil.Run("dotnet", args, baseDirectory);
+        var result = DotnetUtil.Command(args, baseDirectory);
         WriteLine(result.StandardOut);
         WriteLine(result.StandardError);
         if (!result.Succeeded)
