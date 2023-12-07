@@ -295,7 +295,8 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void ResponseNoLogArgument()
     {
-        var exitCode = RunCompLog($"rsp -o {RootDirectory}", Path.GetDirectoryName(Fixture.ConsoleProjectPath)!);
+        var (exitCode, output) = RunCompLogEx($"rsp -o {RootDirectory}", Path.GetDirectoryName(Fixture.ConsoleProjectPath)!);
+        TestOutputHelper.WriteLine(output);
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.True(File.Exists(Path.Combine(RootDirectory, "console", "build.rsp")));
     }
