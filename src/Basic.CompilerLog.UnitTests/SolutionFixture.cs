@@ -101,7 +101,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
         ProjectPaths = builder.ToImmutableArray();
         SolutionBinaryLogPath = Path.Combine(binlogDir, "msbuild.binlog");
-        DotnetUtil.CommandOrThrow($"dotnet build -bl:{SolutionBinaryLogPath} -nr:false", StorageDirectory);
+        RunDotnetCommand($"build -bl:{SolutionBinaryLogPath} -nr:false", StorageDirectory);
 
         (RemovedConsoleProjectPath, RemovedBinaryLogPath) = CreateRemovedProject();
         (ConsoleWithDiagnosticsProjectPath, ConsoleWithDiagnosticsBinaryLogPath) = CreateConsoleWithDiagnosticsProject();
@@ -114,7 +114,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
             var projectPath = Path.Combine(dir, "removed-console.csproj");
             var binlogFilePath = Path.Combine(binlogDir, "removed-console.binlog");
 
-            DotnetUtil.CommandOrThrow($"dotnet build -bl:{binlogFilePath} -nr:false", dir);
+            RunDotnetCommand($"build -bl:{binlogFilePath} -nr:false", dir);
             Directory.Delete(dir, recursive: true);
             return (projectPath, binlogFilePath);
         }
