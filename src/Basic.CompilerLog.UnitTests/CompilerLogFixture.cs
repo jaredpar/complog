@@ -43,6 +43,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     internal Lazy<string> ClassLibComplogPath { get; }
 
+    internal Lazy<string> ClassLibRefOnlyComplogPath { get; }
+
     /// <summary>
     /// A multi-targeted class library
     /// </summary>
@@ -131,6 +133,29 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
+        ClassLibRefOnlyComplogPath = WithBuild("classlibrefonly.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand($"new classlib --name classlibrefonly --output .", scratchPath);
+            var projectFileContent = """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                    <ProduceOnlyReferenceAssembly>true</ProduceOnlyReferenceAssembly>
+                  </PropertyGroup>
+                </Project>
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "classlibrefonly.csproj"), projectFileContent, TestBase.DefaultEncoding);
+            var program = """
+                public class Util {
+                    public void M() { }
+                }
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "Util.cs"), program, TestBase.DefaultEncoding);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+        }, expectDiagnosticMessages: true);
+
         ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
@@ -158,6 +183,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     <CodeAnalysisRuleset>{scratchPath}\example.ruleset</CodeAnalysisRuleset>
                     <Win32Manifest>resource.txt</Win32Manifest>
                     <KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>
+                    <DocumentationFile>console-complex.xml</DocumentationFile>
                   </PropertyGroup>
                   <ItemGroup>
                     <EmbeddedResource Include="resource.txt" />
@@ -241,7 +267,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         }
 
         _allCompLogs = builder.ToImmutable();
-        Lazy<string> WithBuild(string name, Action<string> action)
+        Lazy<string> WithBuild(string name, Action<string> action, bool expectDiagnosticMessages = false)
         {
             var lazy = new Lazy<string>(() =>
             {
@@ -268,7 +294,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         File.Copy(binlogFilePath, Path.Combine(testArtifactsDir, Path.ChangeExtension(name, ".binlog")));
                     }
 
-                    Assert.Empty(diagnostics);
+                    if (!expectDiagnosticMessages)
+                    {
+                        Assert.Empty(diagnostics);
+                    }
+
                     VerifyOptions();
 
                     Directory.Delete(scratchPath, recursive: true);

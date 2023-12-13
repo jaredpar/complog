@@ -1,25 +1,15 @@
 ﻿using Basic.CompilerLog.Util.Impl;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
-using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
-using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
-using System.Buffers;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
-using System.Reflection.Emit;
-using System.Reflection.Metadata;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using static Basic.CompilerLog.Util.CommonUtil;
 

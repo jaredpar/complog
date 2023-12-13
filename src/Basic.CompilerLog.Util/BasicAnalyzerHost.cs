@@ -191,7 +191,6 @@ public abstract class BasicAnalyzerHost : IDisposable
     /// execution which can happen in parallel to analysis.
     /// </summary>
     public List<Diagnostic> GetDiagnostics() => _diagnostics.ToList();
-    
 
     public static bool IsSupported(BasicAnalyzerKind kind)
     {
