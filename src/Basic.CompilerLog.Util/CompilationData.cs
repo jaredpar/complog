@@ -213,7 +213,7 @@ public abstract class CompilationData
                 xmlStream,
                 EmitData.Win32ResourceStream,
                 EmitData.Resources,
-                EmitOptions,
+                emitOptions,
                 debugEntryPoint: null,
                 EmitData.SourceLinkStream,
                 EmitData.EmbeddedTexts,
