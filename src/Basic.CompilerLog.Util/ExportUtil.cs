@@ -333,7 +333,7 @@ public sealed class ExportUtil
                 // The name of file resources isn't that important. It doesn't contribute to the compilation 
                 // output. What is important is all the other parts of the string. Just need to create a
                 // unique name inside the embedded resource folder
-                var d = resourceData.ResourceDescription;
+                var d = Reader.ReadResourceDescription(resourceData);
                 var originalFileName = d.GetFileName();
                 var resourceName = d.GetResourceName();
                 var filePath = Path.Combine(builder.EmbeddedResourceDirectory, resourceData.ContentHash, originalFileName ?? resourceName);

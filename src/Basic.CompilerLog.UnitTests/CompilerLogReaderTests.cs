@@ -60,7 +60,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var d = rawData.Resources.Single();
-        Assert.Equal("console-complex.resource.txt", d.ResourceDescription.GetResourceName());
+        Assert.Equal("console-complex.resource.txt", reader.ReadResourceDescription(d).GetResourceName());
     }
 
     [Fact]

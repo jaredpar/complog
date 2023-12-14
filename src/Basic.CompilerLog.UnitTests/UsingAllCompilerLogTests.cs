@@ -60,6 +60,28 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Fact]
+    public async Task EmitToMemoryWithSeparateState()
+    {
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        {
+            TestOutputHelper.WriteLine(complogPath);
+            using var state = new CompilerLogState(cryptoKeyFileDirectoryBase: Root.NewDirectory());
+            foreach (var data in ReadAll(complogPath, state))
+            {
+                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
+                var emitResult = data.EmitToMemory();
+                Assert.True(emitResult.Success);
+            }
+        }
+
+        static List<CompilationData> ReadAll(string complogPath, CompilerLogState state)
+        {
+            using var reader = CompilerLogReader.Create(complogPath, options: BasicAnalyzerHostOptions.None, state: state);
+            return reader.ReadAllCompilationData();
+        }
+    }
+
+    [Fact]
     public async Task CommandLineArguments()
     {
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))

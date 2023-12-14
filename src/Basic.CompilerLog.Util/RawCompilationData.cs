@@ -63,13 +63,17 @@ internal readonly struct RawReferenceData
 
 internal readonly struct RawResourceData
 {
+    internal readonly string Name;
+    internal readonly string? FileName;
+    internal readonly bool IsPublic;
     internal readonly string ContentHash; 
-    internal readonly ResourceDescription ResourceDescription;
 
-    internal RawResourceData(string contentHash, ResourceDescription d)
+    internal RawResourceData(string name, string? fileName, bool isPublic, string contentHash)
     {
+        Name = name;
+        FileName = fileName;
+        IsPublic = isPublic;
         ContentHash = contentHash;
-        ResourceDescription = d;
     }
 }
 
