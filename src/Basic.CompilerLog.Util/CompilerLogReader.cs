@@ -175,8 +175,8 @@ public sealed class CompilerLogReader : IDisposable
 
     public CompilerCall ReadCompilerCall(int index)
     {
-        if (index >= Count)
-            throw new InvalidOperationException();
+        if (index < 0 || index >= Count)
+            throw new ArgumentException("Invalid index", nameof(index));
 
         return ReadCompilerCallCore(index, GetOrReadCompilationInfo(index));
     }
@@ -452,7 +452,7 @@ public sealed class CompilerLogReader : IDisposable
 
     internal int GetIndex(CompilerCall compilerCall)
     {
-        if (compilerCall.Index is int i && i < Count)
+        if (compilerCall.Index is int i && i >= 0 && i < Count)
         {
             return i;
         }
@@ -614,12 +614,6 @@ public sealed class CompilerLogReader : IDisposable
 
     internal Stream GetContentStream(string contentHash) =>
         ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
-
-    internal void CopyContentTo(string contentHash, Stream destination)
-    {
-        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
-        stream.CopyTo(destination);
-    }
 
     internal ResourceDescription ReadResourceDescription(RawResourceData data)
     {

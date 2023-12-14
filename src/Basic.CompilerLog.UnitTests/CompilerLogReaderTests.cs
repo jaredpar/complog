@@ -298,6 +298,24 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Equal(BasicAnalyzerHostNone.CannotReadGeneratedFiles.Id, diagnostics[0].Id);
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100)]
+    public void ReadCompilerCallBadIndex(int index)
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        Assert.Throws<ArgumentException>(() => reader.ReadCompilerCall(index));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100)]
+    public void ReadCompilationDataBadIndex(int index)
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(index));
+    }
+
     [Fact]
     public void KindWpf()
     {
