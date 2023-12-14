@@ -184,6 +184,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     <Win32Manifest>resource.txt</Win32Manifest>
                     <KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>
                     <DocumentationFile>console-complex.xml</DocumentationFile>
+                    <SourceLink>example.sourcelink</SourceLink>
                   </PropertyGroup>
                   <ItemGroup>
                     <EmbeddedResource Include="resource.txt" />
@@ -237,6 +238,14 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         <Rule Id="CA2217" Action="Warning" />
                     </Rules>
                 </RuleSet>
+                """);
+
+            File.WriteAllText(Path.Combine(scratchPath, "example.sourcelink"), """
+                {
+                    "documents": {
+                        "C:\\src\\complog\\*": "https://raw.githubusercontent.com/dotnet/complog/bcc51178e1a82fb2edaf47285f6e577989a7333f/*"
+                    }
+                }
                 """);
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });

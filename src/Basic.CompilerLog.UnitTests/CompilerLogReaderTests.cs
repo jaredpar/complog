@@ -60,7 +60,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var d = rawData.Resources.Single();
-        Assert.Equal("console-complex.resource.txt", d.ResourceDescription.GetResourceName());
+        Assert.Equal("console-complex.resource.txt", reader.ReadResourceDescription(d).GetResourceName());
     }
 
     [Fact]
@@ -296,6 +296,24 @@ public sealed class CompilerLogReaderTests : TestBase
         var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
         Assert.Single(diagnostics);
         Assert.Equal(BasicAnalyzerHostNone.CannotReadGeneratedFiles.Id, diagnostics[0].Id);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100)]
+    public void ReadCompilerCallBadIndex(int index)
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        Assert.Throws<ArgumentException>(() => reader.ReadCompilerCall(index));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(100)]
+    public void ReadCompilationDataBadIndex(int index)
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(index));
     }
 
     [Fact]

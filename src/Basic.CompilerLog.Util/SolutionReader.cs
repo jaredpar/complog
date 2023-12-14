@@ -120,7 +120,7 @@ public sealed class SolutionReader : IDisposable
         // here and setup in the Workspace
         var projectReferences = new List<ProjectReference>();
 
-        var referenceList = Reader.GetMetadataReferences(FilterToUnique(rawCompilationData.References));
+        var referenceList = Reader.RenameMetadataReferences(FilterToUnique(rawCompilationData.References));
         var analyzers = Reader.ReadAnalyzers(rawCompilationData);
         var options = Reader.ReadCompilerOptions(compilerCall);
         var projectInfo = ProjectInfo.Create(

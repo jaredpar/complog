@@ -28,8 +28,12 @@ public sealed class CompilerLogReader : IDisposable
     private readonly Dictionary<Guid, MetadataReference> _refMap = new();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new();
-    private readonly bool _ownsCompilerLogState;
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoMap = new();
+
+    /// <summary>
+    /// Is this reader responsible for disposing the <see cref="CompilerLogState"/> instance
+    /// </summary>
+    public bool OwnsCompilerLogState { get; }
 
     public BasicAnalyzerHostOptions BasicAnalyzerHostOptions { get; }
     internal CompilerLogState CompilerLogState { get; }
@@ -43,8 +47,8 @@ public sealed class CompilerLogReader : IDisposable
     private CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerHostOptions basicAnalyzersOptions, CompilerLogState? state)
     {
         _zipArchiveCore = zipArchive;
+        OwnsCompilerLogState = state is null;
         CompilerLogState = state ?? new CompilerLogState();
-        _ownsCompilerLogState = state is null;
         BasicAnalyzerHostOptions = basicAnalyzersOptions;
         Metadata = metadata;
         ReadAssemblyInfo();
@@ -140,7 +144,7 @@ public sealed class CompilerLogReader : IDisposable
             .ToList();
         var resources = dataPack
             .Resources
-            .Select(x => new RawResourceData(x.ContentHash, CreateResourceDescription(this, x)))
+            .Select(x => new RawResourceData(x.Name, x.FileName, x.IsPublic, x.ContentHash))
             .ToList();
 
         return new RawCompilationData(
@@ -156,19 +160,6 @@ public sealed class CompilerLogReader : IDisposable
             resources,
             pack.IsCSharp,
             dataPack.IncludesGeneratedText);
-
-        static ResourceDescription CreateResourceDescription(CompilerLogReader reader, ResourcePack pack)
-        {
-            var dataProvider = () =>
-            {
-                var bytes = reader.GetContentBytes(pack.ContentHash);
-                return new MemoryStream(bytes);
-            };
-
-            return string.IsNullOrEmpty(pack.FileName)
-                ? new ResourceDescription(pack.Name, dataProvider, pack.IsPublic)
-                : new ResourceDescription(pack.Name, pack.FileName, dataProvider, pack.IsPublic);
-        }
     }
 
     private CompilationInfoPack GetOrReadCompilationInfo(int index)
@@ -184,8 +175,8 @@ public sealed class CompilerLogReader : IDisposable
 
     public CompilerCall ReadCompilerCall(int index)
     {
-        if (index >= Count)
-            throw new InvalidOperationException();
+        if (index < 0 || index >= Count)
+            throw new ArgumentException("Invalid index", nameof(index));
 
         return ReadCompilerCallCore(index, GetOrReadCompilationInfo(index));
     }
@@ -245,7 +236,7 @@ public sealed class CompilerLogReader : IDisposable
     {
         var pack = GetOrReadCompilationInfo(GetIndex(compilerCall));
         var rawCompilationData = ReadRawCompilationData(compilerCall);
-        var referenceList = GetMetadataReferences(rawCompilationData.References);
+        var referenceList = RenameMetadataReferences(rawCompilationData.References);
         var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(pack);
 
         var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
@@ -257,7 +248,7 @@ public sealed class CompilerLogReader : IDisposable
         Stream? sourceLinkStream = null;
         List<ResourceDescription>? resources = rawCompilationData.Resources.Count == 0
             ? null
-            : rawCompilationData.Resources.Select(x => x.ResourceDescription).ToList();
+            : rawCompilationData.Resources.Select(x => ReadResourceDescription(x)).ToList();
         List<EmbeddedText>? embeddedTexts = null;
 
         foreach (var rawContent in rawCompilationData.Contents)
@@ -282,10 +273,10 @@ public sealed class CompilerLogReader : IDisposable
                     HandleCryptoKeyFile(rawContent.ContentHash);
                     break;
                 case RawContentKind.SourceLink:
-                    sourceLinkStream = GetStateAwareContentStream(rawContent.ContentHash);
+                    sourceLinkStream = GetContentBytes(rawContent.ContentHash).AsSimpleMemoryStream(writable: false);
                     break;
                 case RawContentKind.Win32Resource:
-                    win32ResourceStream = GetStateAwareContentStream(rawContent.ContentHash);
+                    win32ResourceStream = GetContentBytes(rawContent.ContentHash).AsSimpleMemoryStream(writable: false);
                     break;
                 case RawContentKind.Embed:
                 {
@@ -461,7 +452,7 @@ public sealed class CompilerLogReader : IDisposable
 
     internal int GetIndex(CompilerCall compilerCall)
     {
-        if (compilerCall.Index is int i && i < Count)
+        if (compilerCall.Index is int i && i >= 0 && i < Count)
         {
             return i;
         }
@@ -572,7 +563,7 @@ public sealed class CompilerLogReader : IDisposable
         throw new ArgumentException($"{mvid} is not a valid MVID");
     }
 
-    internal MetadataReference GetMetadataReference(Guid mvid)
+    internal MetadataReference ReadMetadataReference(Guid mvid)
     {
         if (_refMap.TryGetValue(mvid, out var metadataReference))
         {
@@ -586,9 +577,9 @@ public sealed class CompilerLogReader : IDisposable
         return metadataReference;
     }
 
-    internal MetadataReference GetMetadataReference(in RawReferenceData data)
+    internal MetadataReference RenameMetadataReference(in RawReferenceData data)
     {
-        var reference = GetMetadataReference(data.Mvid);
+        var reference = ReadMetadataReference(data.Mvid);
         if (data.EmbedInteropTypes)
         {
             reference = reference.WithEmbedInteropTypes(true);
@@ -602,12 +593,12 @@ public sealed class CompilerLogReader : IDisposable
         return reference;
     }
 
-    internal List<MetadataReference> GetMetadataReferences(List<RawReferenceData> referenceDataList)
+    internal List<MetadataReference> RenameMetadataReferences(List<RawReferenceData> referenceDataList)
     {
         var list = new List<MetadataReference>(capacity: referenceDataList.Count);
         foreach (var referenceData in referenceDataList)
         {
-            list.Add(GetMetadataReference(referenceData));
+            list.Add(RenameMetadataReference(referenceData));
         }
         return list;
     }
@@ -624,27 +615,13 @@ public sealed class CompilerLogReader : IDisposable
     internal Stream GetContentStream(string contentHash) =>
         ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
 
-    internal void CopyContentTo(string contentHash, Stream destination)
+    internal ResourceDescription ReadResourceDescription(RawResourceData data)
     {
-        using var stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
-        stream.CopyTo(destination);
-    }
-
-    /// <summary>
-    /// This gets a content <see cref="Stream"/> instance that is aware of the state
-    /// lifetime. If the <see cref="CompilerLogState" /> is owned by this instance then 
-    /// it's safe to expose streams into the underlying zip. Otherwise a copy is created
-    /// to ensure it's safe to use after this zip is closed
-    /// </summary>
-    internal Stream GetStateAwareContentStream(string contentHash)
-    {
-        if (_ownsCompilerLogState)
-        {
-            return GetContentStream(contentHash);
-        }
-
-        var bytes = GetContentBytes(contentHash);
-        return bytes.AsSimpleMemoryStream(writable: false);
+        var stream = GetContentBytes(data.ContentHash).AsSimpleMemoryStream(writable: false);
+        var dataProvider = () => stream;
+        return string.IsNullOrEmpty(data.FileName)
+            ? new ResourceDescription(data.Name, dataProvider, data.IsPublic)
+            : new ResourceDescription(data.Name, data.FileName, dataProvider, data.IsPublic);
     }
 
     internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded = false)
@@ -693,7 +670,7 @@ public sealed class CompilerLogReader : IDisposable
         ZipArchive.Dispose();
         _zipArchiveCore = null!;
 
-        if (_ownsCompilerLogState)
+        if (OwnsCompilerLogState)
         {
             CompilerLogState.Dispose();
         }
