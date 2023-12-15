@@ -287,17 +287,5 @@
             <paramref name="filePath"/>
             </summary>
         </member>
-        <member name="T:System.Diagnostics.CodeAnalysis.NotNullWhenAttribute">
-            <summary>Specifies that when a method returns <see cref="P:System.Diagnostics.CodeAnalysis.NotNullWhenAttribute.ReturnValue"/>, the parameter will not be null even if the corresponding type allows it.</summary>
-        </member>
-        <member name="M:System.Diagnostics.CodeAnalysis.NotNullWhenAttribute.#ctor(System.Boolean)">
-            <summary>Initializes the attribute with the specified return value condition.</summary>
-            <param name="returnValue">
-            The return value condition. If the method returns this value, the associated parameter will not be null.
-            </param>
-        </member>
-        <member name="P:System.Diagnostics.CodeAnalysis.NotNullWhenAttribute.ReturnValue">
-            <summary>Gets the return value condition.</summary>
-        </member>
     </members>
 </doc>

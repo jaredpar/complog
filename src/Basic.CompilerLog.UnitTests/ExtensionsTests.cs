@@ -22,7 +22,7 @@ public sealed class ExtensionsTests : TestBase
     public void CheckEmitFlags()
     {
         EmitFlags.Default.CheckEmitFlags();
-        Assert.Throws<ArgumentException>(void () => ((EmitFlags)42).CheckEmitFlags());
+        Assert.Throws<ArgumentException>(void () => (EmitFlags.IncludePdbStream | EmitFlags.MetadataOnly).CheckEmitFlags());
     }
 
     [Fact]
