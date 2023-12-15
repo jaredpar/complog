@@ -52,6 +52,7 @@ public abstract class CompilationData
     public bool IsCSharp => Compilation is CSharpCompilation;
     public bool VisualBasic => !IsCSharp;
     public CompilerCallKind Kind => CompilerCall.Kind;
+    public AnalyzerOptions AnalyzerOptions => new AnalyzerOptions(AdditionalTexts, AnalyzerConfigOptionsProvider);
 
     public EmitFlags EmitFlags
     {
@@ -163,6 +164,26 @@ public abstract class CompilationData
 
     protected abstract GeneratorDriver CreateGeneratorDriver();
 
+    /// <summary>
+    /// This gets diagnostics from the compiler (does not include analyzers)
+    /// </summary>
+    public ImmutableArray<Diagnostic> GetDiagnostics(CancellationToken cancellationToken = default)
+    {
+        var diagnostics = GetCompilationAfterGenerators(out var hostDiagnostics, cancellationToken).GetDiagnostics();
+        return diagnostics.AddRange(hostDiagnostics);
+    }
+
+    /// <summary>
+    /// This gets diagnostics from the compiler and any attached analyzers.
+    /// </summary>
+    public async Task<ImmutableArray<Diagnostic>> GetAllDiagnosticsAsync(CancellationToken cancellationToken = default)
+    {
+        var compilation = GetCompilationAfterGenerators(out var hostDiagnostics, cancellationToken);
+        var cwa = new CompilationWithAnalyzers(compilation, GetAnalyzers(), AnalyzerOptions);
+        var diagnostics = await cwa.GetAllDiagnosticsAsync().ConfigureAwait(false);
+        return diagnostics.AddRange(hostDiagnostics);
+    }
+
     public EmitDiskResult EmitToDisk(string directory, CancellationToken cancellationToken = default) =>
         EmitToDisk(directory, EmitFlags, EmitOptions, cancellationToken);
 
@@ -245,17 +266,16 @@ public abstract class CompilationData
     }
 
     public EmitMemoryResult EmitToMemory(
-        EmitFlags emitFlags = EmitFlags.Default,
+        EmitFlags? emitFlags = null,
         EmitOptions? emitOptions = null,
         CancellationToken cancellationToken = default)
     {
-        emitOptions ??= EmitOptions;
         var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
         var emitResult = compilation.EmitToMemory(
-            emitFlags,
+            emitFlags ?? EmitFlags,
             win32ResourceStream: EmitData.Win32ResourceStream,
             manifestResources: EmitData.Resources,
-            emitOptions: emitOptions,
+            emitOptions: emitOptions ?? EmitOptions,
             sourceLinkStream: EmitData.SourceLinkStream,
             embeddedTexts: EmitData.EmbeddedTexts,
             cancellationToken: cancellationToken);

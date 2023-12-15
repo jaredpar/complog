@@ -3,9 +3,12 @@
   <PropertyGroup>
     <TargetFrameworks>net7.0;net472;netstandard2.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DocumentationFile>Basic.CompilerLog.Util.xml</DocumentationFile>
+    <DebugType>embedded</DebugType>
+    <EmbedAllSources>true</EmbedAllSources>
     <Nullable>enable</Nullable>
     <Packable>true</Packable>
-    <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <NoWarn>$(NoWarn);RS2008;CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -137,10 +137,7 @@ static void Sarif()
     using var reader = CompilerLogReader.Create(binlogPath);
     var cc = reader.ReadAllCompilerCalls().Single(x => x.ProjectFilePath.Contains("BlazorWebApp.csproj"));
     var data = reader.ReadCompilationData(cc);
-    var compilation = data.GetCompilationAfterGenerators();
-    var analyzerOptions = new AnalyzerOptions(data.AdditionalTexts, data.AnalyzerConfigOptionsProvider);
-    var cwa = new CompilationWithAnalyzers(compilation, data.GetAnalyzers(), analyzerOptions);
-    var diagnostics = cwa.GetAllDiagnosticsAsync().GetAwaiter().GetResult();
+    var diagnostics = data.GetAllDiagnosticsAsync().GetAwaiter().GetResult();
     foreach (var d in diagnostics)
     {
         Console.WriteLine(d.Location.GetLineSpan());

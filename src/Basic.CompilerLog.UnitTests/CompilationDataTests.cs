@@ -91,6 +91,22 @@ public sealed class CompilationDataTests : TestBase
     }
 
     [Fact]
+    public void GetDiagnostics()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, BasicAnalyzerHostOptions.Default);
+        var data = reader.ReadCompilationData(0);
+        Assert.NotEmpty(data.GetDiagnostics());
+    }
+
+    [Fact]
+    public async Task GetAllDiagnostics()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, BasicAnalyzerHostOptions.Default);
+        var data = reader.ReadCompilationData(0);
+        Assert.NotEmpty(await data.GetAllDiagnosticsAsync());
+    }
+
+    [Fact]
     public void GetCompilationAfterGeneratorsDiagnostics()
     {
         var options = new BasicAnalyzerHostOptions(BasicAnalyzerKind.InMemory, cacheable: true);
