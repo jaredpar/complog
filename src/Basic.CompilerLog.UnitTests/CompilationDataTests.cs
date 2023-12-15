@@ -17,12 +17,6 @@ public sealed class CompilationDataTests : TestBase
         Fixture = fixture;
     }
 
-    private void AssertHasData(MemoryStream? stream)
-    {
-        Assert.NotNull(stream);
-        Assert.True(stream.Length > 0);
-    }
-
     [Fact]
     public void EmitToMemoryCombinations()
     {
@@ -31,35 +25,35 @@ public sealed class CompilationDataTests : TestBase
 
         var emitResult = data.EmitToMemory();
         Assert.True(emitResult.Success);
-        AssertHasData(emitResult.AssemblyStream);
-        AssertHasData(emitResult.PdbStream);
+        AssertEx.HasData(emitResult.AssemblyStream);
+        AssertEx.HasData(emitResult.PdbStream);
         Assert.Null(emitResult.XmlStream);
-        AssertHasData(emitResult.MetadataStream);
+        AssertEx.HasData(emitResult.MetadataStream);
 
         emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream);
         Assert.True(emitResult.Success);
-        AssertHasData(emitResult.AssemblyStream);
-        AssertHasData(emitResult.PdbStream);
+        AssertEx.HasData(emitResult.AssemblyStream);
+        AssertEx.HasData(emitResult.PdbStream);
         Assert.Null(emitResult.XmlStream);
         Assert.Null(emitResult.MetadataStream);
 
         emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream);
         Assert.True(emitResult.Success);
-        AssertHasData(emitResult.AssemblyStream);
-        AssertHasData(emitResult.PdbStream);
-        AssertHasData(emitResult.XmlStream);
+        AssertEx.HasData(emitResult.AssemblyStream);
+        AssertEx.HasData(emitResult.PdbStream);
+        AssertEx.HasData(emitResult.XmlStream);
         Assert.Null(emitResult.MetadataStream);
 
         emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream | EmitFlags.IncludeMetadataStream);
         Assert.True(emitResult.Success);
-        AssertHasData(emitResult.AssemblyStream);
-        AssertHasData(emitResult.PdbStream);
-        AssertHasData(emitResult.XmlStream);
-        AssertHasData(emitResult.MetadataStream);
+        AssertEx.HasData(emitResult.AssemblyStream);
+        AssertEx.HasData(emitResult.PdbStream);
+        AssertEx.HasData(emitResult.XmlStream);
+        AssertEx.HasData(emitResult.MetadataStream);
 
         emitResult = data.EmitToMemory(EmitFlags.MetadataOnly);
         Assert.True(emitResult.Success);
-        AssertHasData(emitResult.AssemblyStream);
+        AssertEx.HasData(emitResult.AssemblyStream);
         Assert.Null(emitResult.PdbStream);
         Assert.Null(emitResult.XmlStream);
         Assert.Null(emitResult.MetadataStream);

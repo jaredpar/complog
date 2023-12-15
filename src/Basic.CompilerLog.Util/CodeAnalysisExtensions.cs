@@ -23,16 +23,6 @@ public static class CodeAnalysisExtensions
 
     public static EmitMemoryResult EmitToMemory(
         this Compilation compilation,
-        EmitFlags emitFlags,
-        CancellationToken cancellationToken = default) =>
-        EmitToMemory(
-            compilation,
-            emitFlags,
-            emitOptions: DefaultEmitOptions,
-            cancellationToken: cancellationToken);
-
-    public static EmitMemoryResult EmitToMemory(
-        this Compilation compilation,
         EmitFlags emitFlags = EmitFlags.Default,
         Stream? win32ResourceStream = null,
         IEnumerable<ResourceDescription>? manifestResources = null,
