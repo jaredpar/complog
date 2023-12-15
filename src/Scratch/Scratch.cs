@@ -7,6 +7,7 @@ using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Diagnostics.Tracing.Parsers.JScript;
 using Scratch;
@@ -16,7 +17,7 @@ using TraceReloggerLib;
 
 //  var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.complog";
-var filePath = @"C:\Users\jaredpar\code\vs-threading\msbuild.binlog";
+// var filePath = @"C:\Users\jaredpar\code\vs-threading\msbuild.binlog";
 // var filePath = @"c:\users\jaredpar\temp\Build.complog";
 // var filePath = @"C:\Users\jaredpar\code\MudBlazor\src\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog";
@@ -33,8 +34,10 @@ var filePath = @"C:\Users\jaredpar\code\vs-threading\msbuild.binlog";
 
 // Profile();
 
+RoslynScratch();
+Sarif();
 // var timeSpan = DateTime.UtcNow;
-RunComplog($"rsp {filePath} --project Microsoft.VisualStudio.Threading.Tests");
+// RunComplog($"rsp {filePath} --project Microsoft.VisualStudio.Threading.Tests");
 // Console.WriteLine(DateTime.UtcNow - timeSpan);
 
 /*
@@ -82,11 +85,14 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
 static void RoslynScratch()
 {
     var code = """
-        using System.Reflection;
-        sealed class C
-        {
-           static void C(Assembly assembly) { }
+        using System;
+        public class C {
+            public void M() {
+        #line (7,2)-(7,6) 24 "C:\SomeProject\SomeRazorFile.razor"
+        Console.WriteLine("hello world");
+            }
         }
+
         """;
 
     var syntaxTree = CSharpSyntaxTree.ParseText(code);
@@ -96,11 +102,18 @@ static void RoslynScratch()
         Basic.Reference.Assemblies.Net60.All);
 
     var context = compilation.GetSemanticModel(syntaxTree);
-    var node = syntaxTree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
+    var token = syntaxTree
+        .GetRoot()
+        .DescendantTokens()
+        .First(x => x.Text == "Console");
+
+    /*
+    var node = syntaxTree.GetRoot().DescendantNodes().OfType<IdentifierNameSyntax>().Single();
     var cType = context.GetDeclaredSymbol(node);
     var enumerableType = compilation.GetSpecialType(SpecialType.System_Collections_IEnumerable);
     var conversion = compilation.ClassifyConversion(cType!, enumerableType);
     Console.WriteLine(conversion.Exists);
+    */
 
 
     /*
@@ -116,6 +129,23 @@ static void RoslynScratch()
     }
     */
 
+}
+
+static void Sarif()
+{
+    var binlogPath = @"C:\Users\jaredpar\Downloads\BlazorWebApp\BlazorWebApp\msbuild.binlog";
+    using var reader = CompilerLogReader.Create(binlogPath);
+    var cc = reader.ReadAllCompilerCalls().Single(x => x.ProjectFilePath.Contains("BlazorWebApp.csproj"));
+    var data = reader.ReadCompilationData(cc);
+    var compilation = data.GetCompilationAfterGenerators();
+    var analyzerOptions = new AnalyzerOptions(data.AdditionalTexts, data.AnalyzerConfigOptionsProvider);
+    var cwa = new CompilationWithAnalyzers(compilation, data.GetAnalyzers(), analyzerOptions);
+    var diagnostics = cwa.GetAllDiagnosticsAsync().GetAwaiter().GetResult();
+    foreach (var d in diagnostics)
+    {
+        Console.WriteLine(d.Location.GetLineSpan());
+        Console.WriteLine(d.Location.GetMappedLineSpan());
+    }
 }
 
 void Profile()

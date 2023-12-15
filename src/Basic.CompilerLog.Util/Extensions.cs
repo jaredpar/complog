@@ -12,6 +12,15 @@ namespace Basic.CompilerLog.Util;
 
 internal static class Extensions
 {
+    internal static void CheckEmitFlags(this EmitFlags flags)
+    {
+        if ((flags & EmitFlags.IncludePdbStream) != 0 &&
+            (flags & EmitFlags.MetadataOnly) != 0)
+        {
+            throw new ArgumentException($"Cannot mix {EmitFlags.MetadataOnly} and {EmitFlags.IncludePdbStream}");
+        }
+    }
+
     internal static ZipArchiveEntry GetEntryOrThrow(this ZipArchive zipArchive, string name)
     {
         var entry = zipArchive.GetEntry(name);

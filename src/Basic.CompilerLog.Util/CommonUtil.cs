@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 using MessagePack;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Emit;
+
 #if NETCOREAPP
 using System.Runtime.Loader;
 #endif
