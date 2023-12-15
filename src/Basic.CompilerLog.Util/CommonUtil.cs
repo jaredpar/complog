@@ -53,7 +53,6 @@ internal static class CommonUtil
         string name = arguments.CompilationName ?? "app";
         return Path.GetExtension(name) switch
         {
-            ".exe" => name,
             ".dll" => name,
             ".netmodule" => name,
             _ => $"{name}{GetStandardAssemblyExtension()}"
