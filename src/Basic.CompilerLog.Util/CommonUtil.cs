@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 using MessagePack;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Emit;
+
 #if NETCOREAPP
 using System.Runtime.Loader;
 #endif
@@ -51,7 +53,6 @@ internal static class CommonUtil
         string name = arguments.CompilationName ?? "app";
         return Path.GetExtension(name) switch
         {
-            ".exe" => name,
             ".dll" => name,
             ".netmodule" => name,
             _ => $"{name}{GetStandardAssemblyExtension()}"

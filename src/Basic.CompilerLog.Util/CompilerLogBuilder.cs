@@ -406,7 +406,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     }
 
     /// <summary>
-    /// Add the <see cref="value"/> as content using message pack serialization
+    /// Add the <paramref name="value"/> as content using message pack serialization
     /// </summary>
     private string AddContentMessagePack<T>(T value)
     {

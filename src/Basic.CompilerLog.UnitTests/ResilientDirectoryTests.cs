@@ -11,7 +11,7 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class ResilientDirectoryTests
 {
-    public string RootPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+    public static string RootPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
         ? @"c:\"
         : "/";
 

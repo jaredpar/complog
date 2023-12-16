@@ -14,7 +14,7 @@ namespace Basic.CompilerLog.Util;
 [Flags]
 public enum EmitFlags
 {
-    None = 0,
+    Default = 0,
     IncludePdbStream = 0b0001,
     IncludeMetadataStream = 0b0010,
     IncludeXmlStream = 0b0100,
@@ -52,12 +52,13 @@ public abstract class CompilationData
     public bool IsCSharp => Compilation is CSharpCompilation;
     public bool VisualBasic => !IsCSharp;
     public CompilerCallKind Kind => CompilerCall.Kind;
+    public AnalyzerOptions AnalyzerOptions => new AnalyzerOptions(AdditionalTexts, AnalyzerConfigOptionsProvider);
 
     public EmitFlags EmitFlags
     {
         get
         {
-            var flags = EmitFlags.None;
+            var flags = EmitFlags.Default;
             if (IncludePdbStream())
             {
                 flags |= EmitFlags.IncludePdbStream;
@@ -163,6 +164,26 @@ public abstract class CompilationData
 
     protected abstract GeneratorDriver CreateGeneratorDriver();
 
+    /// <summary>
+    /// This gets diagnostics from the compiler (does not include analyzers)
+    /// </summary>
+    public ImmutableArray<Diagnostic> GetDiagnostics(CancellationToken cancellationToken = default)
+    {
+        var diagnostics = GetCompilationAfterGenerators(out var hostDiagnostics, cancellationToken).GetDiagnostics();
+        return diagnostics.AddRange(hostDiagnostics);
+    }
+
+    /// <summary>
+    /// This gets diagnostics from the compiler and any attached analyzers.
+    /// </summary>
+    public async Task<ImmutableArray<Diagnostic>> GetAllDiagnosticsAsync(CancellationToken cancellationToken = default)
+    {
+        var compilation = GetCompilationAfterGenerators(out var hostDiagnostics, cancellationToken);
+        var cwa = new CompilationWithAnalyzers(compilation, GetAnalyzers(), AnalyzerOptions);
+        var diagnostics = await cwa.GetAllDiagnosticsAsync().ConfigureAwait(false);
+        return diagnostics.AddRange(hostDiagnostics);
+    }
+
     public EmitDiskResult EmitToDisk(string directory, CancellationToken cancellationToken = default) =>
         EmitToDisk(directory, EmitFlags, EmitOptions, cancellationToken);
 
@@ -244,61 +265,32 @@ public abstract class CompilationData
         }
     }
 
-    public EmitMemoryResult EmitToMemory(EmitOptions? emitOptions = null, CancellationToken cancellationToken = default) =>
-        EmitToMemory(EmitFlags, emitOptions, cancellationToken);
-
     public EmitMemoryResult EmitToMemory(
-        EmitFlags emitFlags,
+        EmitFlags? emitFlags = null,
         EmitOptions? emitOptions = null,
         CancellationToken cancellationToken = default)
     {
         var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
-        emitOptions ??= EmitOptions;
-        MemoryStream assemblyStream = new MemoryStream();
-        MemoryStream? pdbStream = null;
-        MemoryStream? xmlStream = null;
-        MemoryStream? metadataStream = null;
-
-        if ((emitFlags & EmitFlags.IncludePdbStream) != 0)
-        {
-            pdbStream = new MemoryStream();
-        }
-
-        if ((emitFlags & EmitFlags.IncludeXmlStream) != 0)
-        {
-            xmlStream = new MemoryStream();
-        }
-
-        if ((emitFlags & EmitFlags.IncludeMetadataStream) != 0)
-        {
-            metadataStream = new MemoryStream();
-        }
-
-        if ((emitFlags & EmitFlags.MetadataOnly) != 0)
-        {
-            emitOptions = EmitOptions.WithEmitMetadataOnly(true);
-        }
-
-        var result = compilation.Emit(
-            assemblyStream,
-            pdbStream,
-            xmlStream,
-            EmitData.Win32ResourceStream,
-            EmitData.Resources,
-            emitOptions,
-            debugEntryPoint: null,
-            EmitData.SourceLinkStream,
-            EmitData.EmbeddedTexts,
-            metadataPEStream: metadataStream,
+        var emitResult = compilation.EmitToMemory(
+            emitFlags ?? EmitFlags,
+            win32ResourceStream: EmitData.Win32ResourceStream,
+            manifestResources: EmitData.Resources,
+            emitOptions: emitOptions ?? EmitOptions,
+            sourceLinkStream: EmitData.SourceLinkStream,
+            embeddedTexts: EmitData.EmbeddedTexts,
             cancellationToken: cancellationToken);
-        diagnostics = diagnostics.Concat(result.Diagnostics).ToImmutableArray();
-        return new EmitMemoryResult(
-            result.Success,
-            assemblyStream,
-            pdbStream,
-            xmlStream,
-            metadataStream,
-            diagnostics);
+        if (!diagnostics.IsDefaultOrEmpty)
+        {
+            emitResult = new EmitMemoryResult(
+                emitResult.Success,
+                emitResult.AssemblyStream,
+                emitResult.PdbStream,
+                emitResult.XmlStream,
+                emitResult.MetadataStream,
+                emitResult.Diagnostics.AddRange(diagnostics));
+        }
+
+        return emitResult;
     }
 
     private bool IncludePdbStream() =>
