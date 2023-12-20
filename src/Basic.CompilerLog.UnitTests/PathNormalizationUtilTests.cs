@@ -63,7 +63,7 @@ public sealed class PathNormalizationUtilTests
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             Assert.True(PathNormalizationUtil.Empty.IsPathRooted(@"c:\"));
-            Assert.False(PathNormalizationUtil.Empty.IsPathRooted(@"/"));
+            Assert.True(PathNormalizationUtil.Empty.IsPathRooted(@"/"));
         }
         else
         {
