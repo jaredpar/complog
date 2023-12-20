@@ -76,6 +76,7 @@ public sealed class ExportUtil
 
     public CompilerLogReader Reader { get; }
     public bool IncludeAnalyzers { get; }
+    internal PathNormalizationUtil PathNormalizationUtil => Reader.PathNormalizationUtil;
 
     public ExportUtil(CompilerLogReader reader, bool includeAnalyzers = true)
     {
@@ -207,7 +208,7 @@ public sealed class ExportUtil
                 {
                     var index = span.IndexOf(':');
                     var argName = span.Slice(0, index).ToString();
-                    var originalValue = span.Slice(index + 1).ToString();
+                    var originalValue = PathNormalizationUtil.NormalizePath(span.Slice(index + 1).ToString());
                     var newValue = builder.BuildOutput.GetNewFilePath(originalValue);
                     commandLineList.Add($@"/{argName}:{FormatPathArgument(newValue)}");
 

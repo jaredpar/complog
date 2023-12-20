@@ -13,12 +13,12 @@ internal sealed class Metadata
 
     internal int MetadataVersion { get; }
     internal int Count { get; }
-    internal bool? IsWindows { get; }
+    internal bool IsWindows { get; }
 
     private Metadata(
         int metadataVersion,
         int count, 
-        bool? isWindows)
+        bool isWindows)
     {
         MetadataVersion = metadataVersion;
         Count = count;
@@ -40,7 +40,7 @@ internal sealed class Metadata
             {
                 // This is a version 0, there is just a count method
                 var count = ParseLine(line, "count", int.Parse);
-                return new Metadata(metadataVersion: 0, count, isWindows: null);
+                return new Metadata(metadataVersion: 0, count, isWindows: true);
             }
             else
             {

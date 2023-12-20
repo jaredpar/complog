@@ -13,6 +13,8 @@
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
     <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" />
     <PackageReference Include="Basic.Reference.Assemblies.Net60" Version="1.2.4" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="$(NuGetVersionRoslyn)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Features" Version="$(NuGetVersionRoslyn)" />
   </ItemGroup>
 
 </Project>

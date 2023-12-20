@@ -1,10 +1,12 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
+using System.Threading.Tasks;
 using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using BenchmarkDotNet.Environments;
-using Microsoft.Build.Logging.StructuredLogger;
+//using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Classification;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -34,8 +36,10 @@ using TraceReloggerLib;
 
 // Profile();
 
-RoslynScratch();
-Sarif();
+ExportScratch();
+// await WorkspaceScratch();
+// RoslynScratch();
+// Sarif();
 // var timeSpan = DateTime.UtcNow;
 // RunComplog($"rsp {filePath} --project Microsoft.VisualStudio.Threading.Tests");
 // Console.WriteLine(DateTime.UtcNow - timeSpan);
@@ -81,6 +85,37 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
 */
+
+static async Task WorkspaceScratch()
+{
+    var filePath = @"/mnt/c/Users/jaredpar/temp/console/msbuild.complog";
+    using var reader = SolutionReader.Create(filePath, BasicAnalyzerHostOptions.None);
+    using var workspace = new AdhocWorkspace();
+    workspace.AddSolution(reader.ReadSolutionInfo());
+    foreach (var project in workspace.CurrentSolution.Projects)
+    {
+        foreach (var document in project.Documents)
+        {
+            var text = await document.GetTextAsync();
+            var textSpan = new TextSpan(0, text.Length);
+            _ = await Classifier.GetClassifiedSpansAsync(document, textSpan);
+        }
+    }
+}
+
+static void ExportScratch()
+{
+    var filePath = @"/mnt/c/Users/jaredpar/temp/console/msbuild.complog";
+    var dest = "/home/jaredpar/temp/export";
+    if (Directory.Exists(dest))
+    {
+        Directory.Delete(dest, recursive: true);
+    }
+
+    using var reader = CompilerLogReader.Create(filePath, BasicAnalyzerHostOptions.None);
+    var exportUtil = new ExportUtil(reader);
+    exportUtil.ExportAll(dest, SdkUtil.GetSdkDirectories());
+}
 
 static void RoslynScratch()
 {

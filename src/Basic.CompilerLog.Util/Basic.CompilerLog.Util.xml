@@ -233,6 +233,36 @@
             <see cref="T:Microsoft.CodeAnalysis.Diagnostics.AnalyzerFileReference"/> instances
             </summary>
         </member>
+        <member name="M:Basic.CompilerLog.Util.PathNormalizationUtil.IsPathRooted(System.String)">
+            <summary>
+            Is the path rooted in the "from" platform
+            </summary>
+            <param name="path"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Basic.CompilerLog.Util.PathNormalizationUtil.NormalizePath(System.String)">
+            <summary>
+            Normalize the path from the "from" platform to the "to" platform
+            </summary>
+            <param name="path"></param>
+            <returns></returns>
+        </member>
+        <member name="T:Basic.CompilerLog.Util.WindowsToUnixNormalizationUtil">
+            <summary>
+            This will normalize paths from Unix to Windows
+            </summary>
+        </member>
+        <member name="M:Basic.CompilerLog.Util.WindowsToUnixNormalizationUtil.#ctor(System.String)">
+            <summary>
+            This will normalize paths from Unix to Windows
+            </summary>
+        </member>
+        <member name="T:Basic.CompilerLog.Util.EmtpyNormalizationUtil">
+            <summary>
+            This is used when the current platform is the same as the platform that generated the log
+            hence no normalization is needed.
+            </summary>
+        </member>
         <member name="F:Basic.CompilerLog.Util.RawContentKind.EmbedLine">
             <summary>
             This represents a #line directive target in a file that was embedded. These are different

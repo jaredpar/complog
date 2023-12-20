@@ -20,6 +20,8 @@
     </PackageReference>
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
     <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" Condition="'$(TargetFramework)' == 'net7.0'" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="$(NuGetVersionRoslyn)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Features" Version="$(NuGetVersionRoslyn)" />
     <PackageReference Include="System.Buffers" Version="4.5.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
     <PackageReference Include="xunit" Version="2.4.2" />
@@ -38,6 +40,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Resources\linux-console.complog">
         <LogicalName>linux-console.complog</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\windows-console.complog">
+        <LogicalName>windows-console.complog</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 
