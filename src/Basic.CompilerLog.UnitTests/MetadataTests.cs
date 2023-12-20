@@ -25,7 +25,7 @@ public sealed class MetadataTests
         var metadata = Parse(content);
         Assert.Equal(0, metadata.MetadataVersion);
         Assert.Equal(50, metadata.Count);
-        Assert.Null(metadata.IsWindows);
+        Assert.True(metadata.IsWindows);
     }
 
     [Fact]

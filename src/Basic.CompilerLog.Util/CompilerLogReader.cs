@@ -43,7 +43,7 @@ public sealed class CompilerLogReader : IDisposable
     internal PathNormalizationUtil PathNormalizationUtil { get; }
     internal int Count => Metadata.Count;
     public int MetadataVersion => Metadata.MetadataVersion;
-    public bool IsWindowsLog => Metadata.IsWindows == true;
+    public bool IsWindowsLog => Metadata.IsWindows;
     public bool IsDisposed => _zipArchiveCore is null;
     internal ZipArchive ZipArchive => !IsDisposed ? _zipArchiveCore : throw new ObjectDisposedException(nameof(CompilerLogReader));
 
@@ -58,7 +58,6 @@ public sealed class CompilerLogReader : IDisposable
 
         PathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
         {
-            (null, _) => PathNormalizationUtil.Empty,
             (true, true) => PathNormalizationUtil.Empty,
             (true, false) => PathNormalizationUtil.WindowsToUnix,
             (false, true) => PathNormalizationUtil.UnixToWindows,

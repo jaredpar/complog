@@ -233,6 +233,20 @@
             <see cref="T:Microsoft.CodeAnalysis.Diagnostics.AnalyzerFileReference"/> instances
             </summary>
         </member>
+        <member name="M:Basic.CompilerLog.Util.PathNormalizationUtil.IsPathRooted(System.String)">
+            <summary>
+            Is the path rooted in the "from" platform
+            </summary>
+            <param name="path"></param>
+            <returns></returns>
+        </member>
+        <member name="M:Basic.CompilerLog.Util.PathNormalizationUtil.NormalizePath(System.String)">
+            <summary>
+            Normalize the path from the "from" platform to the "to" platform
+            </summary>
+            <param name="path"></param>
+            <returns></returns>
+        </member>
         <member name="T:Basic.CompilerLog.Util.WindowsToUnixNormalizationUtil">
             <summary>
             This will normalize paths from Unix to Windows

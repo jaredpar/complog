@@ -11,8 +11,18 @@ internal abstract class PathNormalizationUtil
     internal static PathNormalizationUtil WindowsToUnix { get; } = new WindowsToUnixNormalizationUtil(@"/code");
     internal static PathNormalizationUtil UnixToWindows { get; } = new UnixToWindowsNormalizationUtil(@"c:\code\");
 
+    /// <summary>
+    /// Is the path rooted in the "from" platform
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
     internal abstract bool IsPathRooted([NotNullWhen(true)] string? path);
 
+    /// <summary>
+    /// Normalize the path from the "from" platform to the "to" platform
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
     [return: NotNullIfNotNull("path")]
     internal abstract string? NormalizePath(string? path);
 }

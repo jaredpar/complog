@@ -1,4 +1,5 @@
 
+using System.Runtime.InteropServices;
 using Basic.CompilerLog.Util;
 using Xunit;
 
@@ -11,7 +12,8 @@ public sealed class PathNormalizationUtilTests
     [InlineData(@"c:\\", "/code/")]
     [InlineData(@"c:\src\blah.cs", "/code/src/blah.cs")]
     [InlineData(@"c:\src\..\blah.cs", "/code/src/../blah.cs")]
-    public void WindowsToUnixNormalize(string path, string expected)
+    [InlineData(null, null)]
+    public void WindowsToUnixNormalize(string? path, string? expected)
     {
         var actual = PathNormalizationUtil.WindowsToUnix.NormalizePath(path);
         Assert.Equal(expected, actual);
@@ -23,7 +25,8 @@ public sealed class PathNormalizationUtilTests
     [InlineData("/example/", @"c:\code\example\")]
     [InlineData("/example/blah.cs", @"c:\code\example\blah.cs")]
     [InlineData("/example/../blah.cs", @"c:\code\example\..\blah.cs")]
-    public void UnixToWindowsNormalize(string path, string expected)
+    [InlineData(null, null)]
+    public void UnixToWindowsNormalize(string? path, string? expected)
     {
         var actual = PathNormalizationUtil.UnixToWindows.NormalizePath(path);
         Assert.Equal(expected, actual);
@@ -36,7 +39,8 @@ public sealed class PathNormalizationUtilTests
     [InlineData(@"c:\..\", true)]
     [InlineData(@"\..\", false)]
     [InlineData(@"example\blah.cs", false)]
-    public void WindowsIsRooted(string path, bool expected)
+    [InlineData(null, false)]
+    public void WindowsIsRooted(string? path, bool expected)
     {
         Assert.Equal(expected, PathNormalizationUtil.WindowsToUnix.IsPathRooted(path));
     }
@@ -47,8 +51,24 @@ public sealed class PathNormalizationUtilTests
     [InlineData(@"/code/blah.cs", true)]
     [InlineData(@"../", false)]
     [InlineData(@"example/blah.cs", false)]
-    public void UnixIsRooted(string path, bool expected)
+    [InlineData(null, false)]
+    public void UnixIsRooted(string? path, bool expected)
     {
         Assert.Equal(expected, PathNormalizationUtil.UnixToWindows.IsPathRooted(path));
+    }
+
+    [Fact]
+    public void EmptyIsRooted()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.True(PathNormalizationUtil.Empty.IsPathRooted(@"c:\"));
+            Assert.False(PathNormalizationUtil.Empty.IsPathRooted(@"/"));
+        }
+        else
+        {
+            Assert.False(PathNormalizationUtil.Empty.IsPathRooted(@"c:\"));
+            Assert.True(PathNormalizationUtil.Empty.IsPathRooted(@"/"));
+        }
     }
 }
