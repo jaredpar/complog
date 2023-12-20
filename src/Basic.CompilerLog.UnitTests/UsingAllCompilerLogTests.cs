@@ -2,6 +2,8 @@
 using System.Configuration;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Classification;
+using Microsoft.CodeAnalysis.Text;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -91,6 +93,29 @@ public sealed class UsingAllCompilerLogTests : TestBase
             foreach (var data in reader.ReadAllCompilerCalls())
             {
                 Assert.NotEmpty(data.GetArguments());
+            }
+        }
+    }
+
+    /// <summary>
+    /// The classification path exercises a lot of items like analyzer options. 
+    /// </summary>
+    [Fact]
+    public async Task ClassifyAll()
+    {
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        {
+            using var reader = SolutionReader.Create(complogPath, BasicAnalyzerHostOptions.None);
+            using var workspace = new AdhocWorkspace();
+            workspace.AddSolution(reader.ReadSolutionInfo());
+            foreach (var project in workspace.CurrentSolution.Projects)
+            {
+                foreach (var document in project.Documents)
+                {
+                    var text = await document.GetTextAsync();
+                    var textSpan = new TextSpan(0, text.Length);
+                    _ = await Classifier.GetClassifiedSpansAsync(document, textSpan);
+                }
             }
         }
     }

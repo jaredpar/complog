@@ -23,7 +23,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/artifacts/bin/Scratch/Debug/Scratch.dll",
+            "program": "${workspaceFolder}/artifacts/bin/Scratch/debug/Scratch.dll",
             "args": [],
             "cwd": "${workspaceFolder}/src/Scratch",
             "console": "internalConsole",

@@ -8,8 +8,10 @@ using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using static Basic.CompilerLog.Util.CommonUtil;
 
@@ -38,6 +40,7 @@ public sealed class CompilerLogReader : IDisposable
     public BasicAnalyzerHostOptions BasicAnalyzerHostOptions { get; }
     internal CompilerLogState CompilerLogState { get; }
     internal Metadata Metadata { get; }
+    internal PathNormalizationUtil PathNormalizationUtil { get; }
     internal int Count => Metadata.Count;
     public int MetadataVersion => Metadata.MetadataVersion;
     public bool IsWindowsLog => Metadata.IsWindows == true;
@@ -52,6 +55,15 @@ public sealed class CompilerLogReader : IDisposable
         BasicAnalyzerHostOptions = basicAnalyzersOptions;
         Metadata = metadata;
         ReadAssemblyInfo();
+
+        PathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
+        {
+            (null, _) => PathNormalizationUtil.Empty,
+            (true, true) => PathNormalizationUtil.Empty,
+            (true, false) => PathNormalizationUtil.WindowsToUnix,
+            (false, true) => PathNormalizationUtil.UnixToWindows,
+            (false, false) => PathNormalizationUtil.Empty,
+        };
 
         void ReadAssemblyInfo()
         {
@@ -118,7 +130,7 @@ public sealed class CompilerLogReader : IDisposable
     private CompilerCall ReadCompilerCallCore(int index, CompilationInfoPack pack)
     {
         return new CompilerCall(
-            pack.ProjectFilePath,
+            NormalizePath(pack.ProjectFilePath),
             pack.CompilerCallKind,
             pack.TargetFramework,
             pack.IsCSharp,
@@ -136,11 +148,11 @@ public sealed class CompilerLogReader : IDisposable
             .ToList();
         var analyzers = dataPack
             .Analyzers
-            .Select(x => new RawAnalyzerData(x.Mvid, x.FilePath))
+            .Select(x => new RawAnalyzerData(x.Mvid, NormalizePath(x.FilePath)))
             .ToList();
         var contents = dataPack
             .ContentList
-            .Select(x => new RawContent(x.Item2.FilePath, x.Item2.ContentHash, (RawContentKind)x.Item1))
+            .Select(x => new RawContent(NormalizePath(x.Item2.FilePath), x.Item2.ContentHash, (RawContentKind)x.Item1))
             .ToList();
         var resources = dataPack
             .Resources
@@ -151,8 +163,8 @@ public sealed class CompilerLogReader : IDisposable
             index,
             compilationName: dataPack.ValueMap["compilationName"],
             assemblyFileName: dataPack.ValueMap["assemblyFileName"]!,
-            xmlFilePath: dataPack.ValueMap["xmlFilePath"],
-            outputDirectory: dataPack.ValueMap["outputDirectory"],
+            xmlFilePath: NormalizePath(dataPack.ValueMap["xmlFilePath"]),
+            outputDirectory: NormalizePath(dataPack.ValueMap["outputDirectory"]),
             dataPack.ChecksumAlgorithm,
             references,
             analyzers,
@@ -659,6 +671,9 @@ public sealed class CompilerLogReader : IDisposable
         using var stream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         stream.CopyTo(destination);
     }
+
+    [return: NotNullIfNotNull("path")]
+    private string? NormalizePath(string? path) => PathNormalizationUtil.NormalizePath(path);
 
     public void Dispose()
     {

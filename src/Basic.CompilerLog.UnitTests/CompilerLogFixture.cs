@@ -275,6 +275,9 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             });
         }
 
+        WithResource("linux-console.complog");
+        WithResource("windows-console.complog");
+
         _allCompLogs = builder.ToImmutable();
         Lazy<string> WithBuild(string name, Action<string> action, bool expectDiagnosticMessages = false)
         {
@@ -354,6 +357,13 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
             builder.Add(lazy);
             return lazy;
+        }
+
+        void WithResource(string name)
+        {
+            var filePath = Path.Combine(ComplogDirectory, name);
+            File.WriteAllBytes(filePath, ResourceLoader.GetResourceBlob(name));
+            builder.Add(new Lazy<string>(() => filePath));
         }
     }
 

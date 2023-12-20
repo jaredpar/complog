@@ -4,5 +4,7 @@
     <DebugType>embedded</DebugType>
     <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+
+    <NuGetVersionRoslyn>4.8.0</NuGetVersionRoslyn>
   </PropertyGroup>
 </Project>
