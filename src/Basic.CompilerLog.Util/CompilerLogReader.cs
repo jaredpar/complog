@@ -252,6 +252,7 @@ public sealed class CompilerLogReader : IDisposable
 
         var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
         var sourceTextList = new List<(SourceText SourceText, string Path)>();
+        var generatedTextList = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var additionalTextList = new List<AdditionalText>();
 
@@ -270,7 +271,10 @@ public sealed class CompilerLogReader : IDisposable
                     sourceTextList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.GeneratedText:
-                    // Handled when creating the analyzer host
+                    if (BasicAnalyzerHostOptions.ResolvedKind == BasicAnalyzerKind.None)
+                    {
+                        generatedTextList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
+                    }
                     break;
                 case RawContentKind.AnalyzerConfig:
                     analyzerConfigList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
@@ -317,6 +321,9 @@ public sealed class CompilerLogReader : IDisposable
                     throw new InvalidOperationException();
             }
         }
+
+        // Generated source code should appear last to match the compiler behavior.
+        sourceTextList.AddRange(generatedTextList);
 
         var emitData = new EmitData(
             rawCompilationData.AssemblyFileName,

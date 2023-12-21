@@ -22,19 +22,35 @@ public sealed class SolutionReaderTests : TestBase
         Fixture = fixture;
     }
 
-    [Theory]
-    [InlineData(BasicAnalyzerKind.Default)]
-    [InlineData(BasicAnalyzerKind.None)]
-    public async Task DocumentsHaveGeneratedTextWithAnalyzers(BasicAnalyzerKind kind)
+    [Fact]
+    public async Task DocumentsGeneratedDefaultHost()
     {
-        var host = new BasicAnalyzerHostOptions(kind);
+        var host = new BasicAnalyzerHostOptions(BasicAnalyzerKind.Default);
         using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath.Value, host);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());
         var project = solution.Projects.Single();
         Assert.NotEmpty(project.AnalyzerReferences);
-        var docs = await project.GetSourceGeneratedDocumentsAsync();
-        var doc = docs.First(x => x.Name == "RegexGenerator.g.cs");
-        Assert.NotNull(doc);
+        var docs = project.Documents.ToList();
+        var generatedDocs = (await project.GetSourceGeneratedDocumentsAsync()).ToList();
+        Assert.Null(docs.FirstOrDefault(x => x.Name == "RegexGenerator.g.cs"));
+        Assert.Single(generatedDocs);
+        Assert.NotNull(generatedDocs.First(x => x.Name == "RegexGenerator.g.cs"));
+    }
+
+    [Fact]
+    public async Task DocumentsGeneratedNoneHost()
+    {
+        var host = new BasicAnalyzerHostOptions(BasicAnalyzerKind.None);
+        using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath.Value, host);
+        var workspace = new AdhocWorkspace();
+        var solution = workspace.AddSolution(reader.ReadSolutionInfo());
+        var project = solution.Projects.Single();
+        Assert.Empty(project.AnalyzerReferences);
+        var docs = project.Documents.ToList();
+        var generatedDocs = (await project.GetSourceGeneratedDocumentsAsync()).ToList();
+        Assert.Equal(5, docs.Count);
+        Assert.Equal("RegexGenerator.g.cs", docs.Last().Name);
+        Assert.Empty(generatedDocs);
     }
 }

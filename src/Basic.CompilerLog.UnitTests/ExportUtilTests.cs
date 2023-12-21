@@ -125,7 +125,7 @@ public sealed class ExportUtilTests : TestBase
             Assert.True(foundPath);
 
             var analyzers = Directory.GetFiles(Path.Combine(tempPath, "analyzers"), "*.dll", SearchOption.AllDirectories).ToList();
-            Assert.Equal(7, analyzers.Count);
+            Assert.Empty(analyzers);
         }, runBuild: false);
     }
 

@@ -245,14 +245,14 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void NoneHostAddsFakeGeneratorForGeneratedSource()
+    public void NoneHostHasNoGenerators()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, BasicAnalyzerHostOptions.None);
         var data = reader.ReadCompilationData(0);
         var compilation1 = data.Compilation;
         var compilation2 = data.GetCompilationAfterGenerators();
-        Assert.NotSame(compilation1, compilation2);
-        Assert.Single(data.AnalyzerReferences);
+        Assert.Same(compilation1, compilation2);
+        Assert.Empty(data.AnalyzerReferences);
     }
 
     [Fact]
