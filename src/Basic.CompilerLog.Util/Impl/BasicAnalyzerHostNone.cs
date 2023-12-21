@@ -29,9 +29,12 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
     {
         ReadGeneratedFiles = readGeneratedFiles;
         GeneratedSourceTexts = generatedSourceTexts;
-        AnalyzerReferencesCore = readGeneratedFiles && generatedSourceTexts.Length == 0
-            ? ImmutableArray<AnalyzerReference>.Empty
-            : ImmutableArray.Create<AnalyzerReference>(new NoneAnalyzerReference(readGeneratedFiles, generatedSourceTexts));
+        AnalyzerReferencesCore = ImmutableArray<AnalyzerReference>.Empty;
+
+        if (!ReadGeneratedFiles)
+        {
+            AddDiagnostic(Diagnostic.Create(CannotReadGeneratedFiles, Location.None));
+        }
     }
 
     protected override void DisposeCore()

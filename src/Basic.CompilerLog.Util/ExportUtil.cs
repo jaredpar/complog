@@ -258,16 +258,17 @@ public sealed class ExportUtil
 
         void WriteAnalyzers()
         {
+            if (!IncludeAnalyzers)
+            {
+                return;
+            }
+
             foreach (var analyzer in data.Analyzers)
             {
                 using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
                 var filePath = builder.AnalyzerDirectory.WriteContent(analyzer.FilePath, analyzerStream);
-
-                if (IncludeAnalyzers)
-                {
-                    var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""";
-                    commandLineList.Add(arg);
-                }
+                var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""";
+                commandLineList.Add(arg);
             }
         }
 

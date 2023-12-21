@@ -81,7 +81,12 @@ public sealed class SolutionReader : IDisposable
                     Add(documents);
                     break;
                 case RawContentKind.GeneratedText:
-                    // Handled when creating analyzer host.
+                    // When the host has generators these will be added as generators are run. If the host 
+                    // doesn't have generators then we need to add them as documents now.
+                    if (Reader.BasicAnalyzerHostOptions.Kind == BasicAnalyzerKind.None)
+                    {
+                        Add(documents);
+                    }
                     break;
                 case RawContentKind.AdditionalText:
                     Add(additionalDocuments);
