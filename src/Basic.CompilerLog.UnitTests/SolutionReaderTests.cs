@@ -49,7 +49,8 @@ public sealed class SolutionReaderTests : TestBase
         Assert.Empty(project.AnalyzerReferences);
         var docs = project.Documents.ToList();
         var generatedDocs = (await project.GetSourceGeneratedDocumentsAsync()).ToList();
-        Assert.NotNull(docs.First(x => x.Name == "RegexGenerator.g.cs"));
+        Assert.Equal(5, docs.Count);
+        Assert.Equal("RegexGenerator.g.cs", docs.Last().Name);
         Assert.Empty(generatedDocs);
     }
 }

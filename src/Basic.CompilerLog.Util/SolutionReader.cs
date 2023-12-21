@@ -72,6 +72,7 @@ public sealed class SolutionReader : IDisposable
         var documents = new List<DocumentInfo>();
         var additionalDocuments = new List<DocumentInfo>();
         var analyzerConfigDocuments = new List<DocumentInfo>();
+        var generatedFiles = new List<DocumentInfo>();
 
         foreach (var tuple in rawCompilationData.Contents)
         {
@@ -85,7 +86,7 @@ public sealed class SolutionReader : IDisposable
                     // doesn't have generators then we need to add them as documents now.
                     if (Reader.BasicAnalyzerHostOptions.Kind == BasicAnalyzerKind.None)
                     {
-                        Add(documents);
+                        Add(generatedFiles);
                     }
                     break;
                 case RawContentKind.AdditionalText:
@@ -119,6 +120,9 @@ public sealed class SolutionReader : IDisposable
                     filePath: tuple.FilePath));
             }
         }
+
+        // Generated files should appear last
+        documents.AddRange(generatedFiles);
 
         // https://github.com/jaredpar/complog/issues/24
         // Need to store project reference information at the builder point so they can be properly repacked

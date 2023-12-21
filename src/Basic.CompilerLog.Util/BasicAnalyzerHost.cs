@@ -120,8 +120,8 @@ public enum BasicAnalyzerKind
 
     /// <summary>
     /// Analyzers and generators from the original are not loaded at all. In the case 
-    /// the original build had generated files they will be added through an in 
-    /// memory analyzer that just adds them directly.
+    /// the original build had generated files they are just added directly to the
+    /// compilation.
     /// </summary>
     /// <remarks>
     /// This option avoids loading third party analyzers and generators.
