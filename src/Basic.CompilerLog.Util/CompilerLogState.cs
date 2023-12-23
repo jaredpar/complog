@@ -20,6 +20,8 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed class CompilerLogState : IDisposable
 {
+    internal string BaseDirectory { get; }
+
     /// <summary>
     /// The compiler supports strong named keys that exist on disk. In order for compilation to succeed at the 
     /// Emit section, even for some binding purposes, that file must continue to exist on disk when the project
@@ -42,9 +44,9 @@ public sealed class CompilerLogState : IDisposable
     /// and <see cref="AnalyzerDirectory"/> paths</param>
     public CompilerLogState(string? baseDir = null)
     {
-        var basePath = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
-        CryptoKeyFileDirectory = Path.Combine(basePath, "CryptoKeys");
-        AnalyzerDirectory = Path.Combine(basePath, "Analyzers");
+        BaseDirectory = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
+        CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");
+        AnalyzerDirectory = Path.Combine(BaseDirectory, "Analyzers");
     }
 
     public void Dispose()
@@ -56,14 +58,9 @@ public sealed class CompilerLogState : IDisposable
 
         try
         {
-            if (Directory.Exists(CryptoKeyFileDirectory))
+            if (Directory.Exists(BaseDirectory))
             {
-                Directory.Delete(CryptoKeyFileDirectory, recursive: true);
-            }
-
-            if (Directory.Exists(CryptoKeyFileDirectory))
-            {
-                Directory.Delete(CryptoKeyFileDirectory, recursive: true);
+                Directory.Delete(BaseDirectory, recursive: true);
             }
         }
         catch (Exception)
