@@ -31,7 +31,7 @@ public sealed class BasicAnalyzerHostTests
     }
 
     [Fact]
-    public void Dispose()
+    public void NoneDispose()
     {
         var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty, BasicAnalyzerHostOptions.None);
         host.Dispose();
@@ -39,12 +39,13 @@ public sealed class BasicAnalyzerHostTests
     }
 
     [Fact]
-    public void Props()
+    public void NoneProps()
     {
         var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty, BasicAnalyzerHostOptions.None);
         host.Dispose();
         Assert.Equal(BasicAnalyzerKind.None, host.Kind);
         Assert.Same(BasicAnalyzerHostOptions.None, host.Options);
+        Assert.Empty(host.GeneratedSourceTexts);
     }
 
 }

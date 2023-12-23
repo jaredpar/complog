@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Basic.CompilerLog.Util;
 
@@ -19,6 +20,8 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed class CompilerLogState : IDisposable
 {
+    internal string BaseDirectory { get; }
+
     /// <summary>
     /// The compiler supports strong named keys that exist on disk. In order for compilation to succeed at the 
     /// Emit section, even for some binding purposes, that file must continue to exist on disk when the project
@@ -26,24 +29,43 @@ public sealed class CompilerLogState : IDisposable
     /// </summary>
     public string CryptoKeyFileDirectory { get; }
 
+    /// <summary>
+    /// In the case analyzers are realized on disk for evaluation this is the base directory they should 
+    /// be in.
+    /// </summary>
+    public string AnalyzerDirectory { get; }
+
     internal List<BasicAnalyzerHost> BasicAnalyzerHosts { get; } = new();
 
-    public CompilerLogState(string? cryptoKeyFileDirectoryBase = null)
+    /// <summary>
+    /// Create a new instance of the compiler log state
+    /// </summary>
+    /// <param name="baseDir">The base path that should be used to create <see cref="CryptoKeyFileDirectory"/>
+    /// and <see cref="AnalyzerDirectory"/> paths</param>
+    public CompilerLogState(string? baseDir = null)
     {
-        cryptoKeyFileDirectoryBase ??= Path.GetTempPath();
-        CryptoKeyFileDirectory = Path.Combine(cryptoKeyFileDirectoryBase, "Basic.CompilerLog", Guid.NewGuid().ToString());
+        BaseDirectory = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
+        CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");
+        AnalyzerDirectory = Path.Combine(BaseDirectory, "Analyzers");
     }
 
     public void Dispose()
     {
-        if (Directory.Exists(CryptoKeyFileDirectory))
-        {
-            Directory.Delete(CryptoKeyFileDirectory, recursive: true);
-        }
-
         foreach (var host in BasicAnalyzerHosts)
         {
             host.Dispose();
+        }
+
+        try
+        {
+            if (Directory.Exists(BaseDirectory))
+            {
+                Directory.Delete(BaseDirectory, recursive: true);
+            }
+        }
+        catch (Exception)
+        {
+            // Nothing to do if we can't delete the directories
         }
     }
 }

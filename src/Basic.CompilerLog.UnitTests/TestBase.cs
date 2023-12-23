@@ -25,7 +25,7 @@ public abstract class TestBase : IDisposable
     {
         TestOutputHelper = testOutputHelper;
         Root = new TempDir(name);
-        State = new CompilerLogState(Root.NewDirectory("crypto-keys"));
+        State = new CompilerLogState(Root.NewDirectory("state"));
     }
 
     public void Dispose()

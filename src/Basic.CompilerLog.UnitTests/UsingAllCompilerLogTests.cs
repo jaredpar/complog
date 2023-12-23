@@ -34,7 +34,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                     using var testDir = new TempDir();
                     TestOutputHelper.WriteLine($"{Path.GetFileName(complogPath)}: {data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
                     var emitResult = data.EmitToDisk(testDir.DirectoryPath);
-                    Assert.True(emitResult.Success);
+                    AssertEx.Success(TestOutputHelper, emitResult);
                 }
             });
 
@@ -56,7 +56,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
                 var emitResult = data.EmitToMemory();
-                Assert.True(emitResult.Success);
+                AssertEx.Success(TestOutputHelper, emitResult);
             }
         }
     }
@@ -67,12 +67,12 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
-            using var state = new CompilerLogState(cryptoKeyFileDirectoryBase: Root.NewDirectory());
+            using var state = new CompilerLogState(baseDir: Root.NewDirectory());
             foreach (var data in ReadAll(complogPath, state))
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
                 var emitResult = data.EmitToMemory();
-                Assert.True(emitResult.Success);
+                AssertEx.Success(TestOutputHelper, emitResult);
             }
         }
 
