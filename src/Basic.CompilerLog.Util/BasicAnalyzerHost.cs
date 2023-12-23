@@ -41,12 +41,6 @@ public sealed class BasicAnalyzerHostOptions
     public BasicAnalyzerKind Kind { get; }
 
     /// <summary>
-    /// In the case analyzers are realized on disk for evaluation this is the base directory they should 
-    /// be in.
-    /// </summary>
-    public string? AnalyzerDirectory { get; }
-
-    /// <summary>
     /// When true requests for the exact same set of analyzers will return 
     /// the same <see cref="BasicAnalyzerHost"/> instance.
     /// </summary>
@@ -65,11 +59,9 @@ public sealed class BasicAnalyzerHostOptions
     public BasicAnalyzerHostOptions(
         AssemblyLoadContext compilerLoadContext,
         BasicAnalyzerKind kind,
-        string? analyzerDirectory = null,
         bool cacheable = true)
     {
         Kind = kind;
-        AnalyzerDirectory = analyzerDirectory;
         CompilerLoadContext = compilerLoadContext;
         Cacheable = cacheable;
     }
@@ -82,18 +74,11 @@ public sealed class BasicAnalyzerHostOptions
         bool cacheable = true)
     {
         Kind = kind;
-        AnalyzerDirectory = analyzerDirectory;
         Cacheable = cacheable;
 
 #if NETCOREAPP
         CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(null);
 #endif
-    }
-
-    public string GetAnalyzerDirectory(string name)
-    {
-        var basePath = AnalyzerDirectory ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog");
-        return Path.Combine(basePath, name);
     }
 }
 

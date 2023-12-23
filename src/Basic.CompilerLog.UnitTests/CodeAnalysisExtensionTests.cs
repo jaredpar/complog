@@ -23,14 +23,14 @@ public sealed class CodeAnalysisExtensionsTests : TestBase
         var data = GetCompilationData(Fixture.ClassLibComplogPath.Value);
         var compilation = data.GetCompilationAfterGenerators();
         var result = compilation.EmitToMemory(EmitFlags.Default);
-        Assert.True(result.Success);
+        AssertEx.Success(TestOutputHelper, result);
         AssertEx.HasData(result.AssemblyStream);
         Assert.Null(result.PdbStream);
         Assert.Null(result.XmlStream);
         Assert.Null(result.MetadataStream);
 
         result = compilation.EmitToMemory(EmitFlags.IncludePdbStream);
-        Assert.True(result.Success);
+        AssertEx.Success(TestOutputHelper, result);
         AssertEx.HasData(result.AssemblyStream);
         AssertEx.HasData(result.PdbStream);
         Assert.Null(result.XmlStream);
