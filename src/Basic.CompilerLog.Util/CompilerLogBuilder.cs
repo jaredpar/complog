@@ -175,17 +175,13 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     }
 
-    private void EnsureOpen()
+    public void Close()
     {
         if (IsClosed)
             throw new InvalidOperationException();
-    }
 
-    public void Close()
-    {
         try
         {
-            EnsureOpen();
             WriteMetadata();
             WriteAssemblyInfo();
             ZipArchive.Dispose();
