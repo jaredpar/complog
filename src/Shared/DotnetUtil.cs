@@ -42,23 +42,4 @@ internal static class DotnetUtil
             args,
             workingDirectory: workingDirectory,
             environment: _lazyDotnetEnvironmentVariables.Value);
-
-    internal static ProcessResult Command(string args, string? workingDirectory = null, (string Name, string Value)[]? extraEnvironmentVariables = null)
-    {
-        var env = _lazyDotnetEnvironmentVariables.Value;
-        if (extraEnvironmentVariables is not null)
-        {
-            env = new(env, StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in extraEnvironmentVariables)
-            {
-                env[pair.Name] = pair.Value;
-            }
-        }
-
-        return ProcessUtil.Run(
-            "dotnet",
-            args,
-            workingDirectory: workingDirectory,
-            environment: env);
-    }
 }

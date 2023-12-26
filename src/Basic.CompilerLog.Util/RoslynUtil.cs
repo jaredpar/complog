@@ -12,12 +12,6 @@ namespace Basic.CompilerLog.Util;
 
 internal static class RoslynUtil
 {
-    internal static SourceText GetSourceText(string filePath, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded)
-    {
-        var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return GetSourceText(stream, checksumAlgorithm, canBeEmbedded);
-    }
-
     /// <summary>
     /// Get a source text 
     /// </summary>
@@ -27,14 +21,6 @@ internal static class RoslynUtil
     /// </remarks>
     internal static SourceText GetSourceText(Stream stream, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded) =>
         SourceText.From(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
-
-    internal static SyntaxTree[] ParseAll(IReadOnlyList<(SourceText SourceText, string Path)> sourceTextList, ParseOptions parseOptions) =>
-        parseOptions switch
-        {
-            CSharpParseOptions csharp => ParseAllCSharp(sourceTextList, csharp),
-            VisualBasicParseOptions vb => ParseAllVisualBasic(sourceTextList, vb),
-            _ => throw new ArgumentException(nameof(parseOptions)),
-        };
 
     internal static VisualBasicSyntaxTree[] ParseAllVisualBasic(IReadOnlyList<(SourceText SourceText, string Path)> sourceTextList, VisualBasicParseOptions parseOptions)
     {
