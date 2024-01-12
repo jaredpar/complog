@@ -23,10 +23,10 @@
     <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
-    <PackageReference Include="Mono.Options" Version="6.12.0.148" />
-    <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
     <Content Include="..\..\README.md" PackagePath="contentFiles\README.md" />
     <Content Include="..\..\LICENSE" PackagePath="contentFiles\LICENSE" />
+    <PackageReference Include="Mono.Options" />
+    <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 
 </Project>
