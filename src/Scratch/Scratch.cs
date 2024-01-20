@@ -17,6 +17,8 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
+PrintGeneratedFiles();
+
 //  var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.complog";
 // var filePath = @"C:\Users\jaredpar\code\vs-threading\msbuild.binlog";
@@ -85,6 +87,39 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
 */
+
+static void Test(ITypeSymbol symbol)
+{
+    if (symbol is not INamedTypeSymbol { IsGenericType: true } nt)
+    {
+        return;
+    }
+
+    Console.WriteLine(nt.Name);
+}
+
+static void PrintGeneratedFiles()
+{
+    var binlogPath = @"C:\Users\jaredpar\code\roslyn\msbuild.binlog";
+    using var reader = CompilerLogReader.Create(binlogPath);
+    foreach (var cc in reader.ReadAllCompilerCalls())
+    {
+        var data = reader.ReadRawCompilationData(cc);
+        var generatedFiles = data
+            .Contents
+            .Where(x => x.Kind == RawContentKind.GeneratedText);
+        if (!generatedFiles.Any())
+        {
+            continue;
+        }
+
+        Console.WriteLine(cc.GetDiagnosticName());
+        foreach (var file in generatedFiles)
+        {
+            Console.WriteLine($"  {file.FilePath}");
+        }
+    }
+}
 
 static async Task WorkspaceScratch()
 {

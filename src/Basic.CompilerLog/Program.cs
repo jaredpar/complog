@@ -401,8 +401,8 @@ int RunReplay(IEnumerable<string> args)
     {
         { "severity=", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
         { "export", "export failed compilation", e => export = e is not null },
-        { "emit", "emit compilation", e => emit = e is not null },
-        { "analyzers", "use actual analyzers / generators (default uses generated files)", a => analyzers = a is not null },
+        { "emit", "emit the compilation(s) to disk", e => emit = e is not null },
+        { "analyzers", "use actual analyzers / generators (default no)", a => analyzers = a is not null },
         { "o|out=", "path to export to ", b => baseOutputPath = b },
     };
 
@@ -515,12 +515,12 @@ int RunHelp(IEnumerable<string>? args)
         complog [command] [args]
         Commands
           create        Create a compiler log file 
-          diagnostics   Print diagnostics for a compilation
+          replay        Replay compilations from the log
           export        Export compilation contents, rsp and build files to disk
           rsp           Generate compiler response file projects on this machine
           ref           Copy all references and analyzers to a single directory
-          emit          Emit all binaries from the log
-          analyzers     Print analyzers used by a compilation
+          diagnostics   Print diagnostics for a compilation
+          analyzers     Print analyzers / generators used by a compilation
           print         Print summary of entries in the log
           help          Print help
         """);
