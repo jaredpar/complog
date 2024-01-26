@@ -15,8 +15,8 @@
     <Version>0.1.2</Version>
     <PackageProjectUrl>https://github.com/jaredpar/basic-compiler-logger</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jaredpar/basic-compiler-logger</RepositoryUrl>
-    <PackageReadmeFile>contentFiles\README.md</PackageReadmeFile>
-    <PackageLicenseFile>contentFiles\README.md</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
   </PropertyGroup>
 
   <ItemGroup>
