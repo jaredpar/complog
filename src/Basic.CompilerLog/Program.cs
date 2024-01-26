@@ -310,7 +310,7 @@ int RunExport(IEnumerable<string> args)
     }
     catch (Exception e)
     {
-        WriteLine(e.Message);
+        WriteLine(e.GetFailureString());
         PrintUsage();
         return ExitFailure;
     }

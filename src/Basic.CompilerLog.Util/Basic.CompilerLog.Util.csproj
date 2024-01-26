@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="..\..\README.md" PackagePath="\" />
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Microsoft.CodeAnalysis" />
