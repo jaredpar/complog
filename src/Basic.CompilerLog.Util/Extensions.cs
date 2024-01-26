@@ -62,6 +62,24 @@ internal static class Extensions
         }
     }
 
+    internal static string GetFailureString(this Exception ex)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(ex.Message);
+        builder.AppendLine(ex.StackTrace);
+
+        while (ex.InnerException is { } inner)
+        {
+            builder.AppendLine();
+            builder.AppendLine("Inner exception:");
+            builder.AppendLine(inner.Message);
+            builder.AppendLine(inner.StackTrace);
+            ex = inner;
+        }
+
+        return builder.ToString();
+    }
+
     /// <summary>
     /// Creates a <see cref="MemoryStream"/> that is a simple wrapper around the array. The intent
     /// is for consumers to be able to access the underlying array via <see cref="MemoryStream.TryGetBuffer(out ArraySegment{byte})"/>
