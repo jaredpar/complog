@@ -35,11 +35,13 @@ public sealed class ExtensionsTests : TestBase
     }
 
 #if NETCOREAPP
+
     [Fact]
     public void GetFailureString()
     {
         var ex = new Exception("Hello, world!", new Exception("Inner exception"));
         Assert.NotEmpty(ex.GetFailureString());
     }
+
 #endif
 }

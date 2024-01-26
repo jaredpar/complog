@@ -9,6 +9,7 @@
     <Nullable>enable</Nullable>
     <Packable>true</Packable>
     <NoWarn>$(NoWarn);RS2008;CS1591</NoWarn>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
