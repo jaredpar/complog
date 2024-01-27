@@ -12,7 +12,7 @@ namespace Basic.CompilerLog.Util;
 
 public static class BinaryLogUtil
 {
-    private sealed class MSBuildProjectData
+    internal sealed class MSBuildProjectData
     {
         private readonly Dictionary<int, CompilationTaskData> _targetMap = new();
         public readonly string ProjectFile;
@@ -63,7 +63,7 @@ public static class BinaryLogUtil
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
     }
 
-    private sealed class CompilationTaskData
+    internal sealed class CompilationTaskData
     {
         public readonly MSBuildProjectData ProjectData;
         public int TargetId;
@@ -121,6 +121,8 @@ public static class BinaryLogUtil
         {
             ProjectFile = projectFile;
         }
+
+        [ExcludeFromCodeCoverage]
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
     }
 
