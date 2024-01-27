@@ -372,10 +372,12 @@ public sealed class ProgramTests : TestBase
         Assert.Contains("complog export [OPTIONS]", output);
     }
 
-    [Fact]
-    public void Help()
+    [Theory]
+    [InlineData("help")]
+    [InlineData("")]
+    public void Help(string arg)
     {
-        var (exitCode, output) = RunCompLogEx($"help");
+        var (exitCode, output) = RunCompLogEx(arg);
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.StartsWith("complog [command] [args]", output);
     }
@@ -506,5 +508,62 @@ public sealed class ProgramTests : TestBase
         Assert.Contains("complog print [OPTIONS]", output);
     }
 
+    [WindowsFact]
+    public void PrintKinds()
+    {
+        Debug.Assert(Fixture.WpfAppProjectPath is not null);
+        var (exitCode, output) = RunCompLogEx($"print --include {Fixture.WpfAppProjectPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("WpfTemporaryCompile", output);
+
+        (exitCode, output) = RunCompLogEx($"print {Fixture.WpfAppProjectPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.DoesNotContain("WpfTemporaryCompile", output);
+    }
+
+    [Fact]
+    public void PrintFrameworks()
+    {
+        var (exitCode, output) = RunCompLogEx($"print --include {Fixture.ClassLibMultiProjectPath} --framework net7.0");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("(net7.0)", output);
+    }
+
+    [Fact]
+    public void PrintBadFile()
+    {
+        var dir = Root.NewDirectory(Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "example.proj");
+        var (exitCode, _) = RunCompLogEx($"print {file}");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+    }
+
+    [Fact]
+    public void PrintOldMetadata()
+    {
+        var dir = Root.NewDirectory("metadata");
+        var filePath = Path.Combine(dir, "old.complog");
+        Create();
+
+        var (exitCode, output) = RunCompLogEx($"print {filePath}");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains("compiler logs are no longer supported", output);
+
+        void Create()
+        {
+            using var binlogStream = new FileStream(Fixture.ConsoleWithDiagnosticsBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var complogStream = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+            var result = CompilerLogUtil.TryConvertBinaryLog(binlogStream, complogStream, predicate: null, metadataVersion: Basic.CompilerLog.Util.Metadata.LatestMetadataVersion - 1);
+            Assert.True(result.Succeeded);
+        }
+    }
+
+    [Fact]
+    public void PrintEmptyDirectory()
+    {
+        var dir = Root.NewDirectory("empty");
+        var (exitCode, output) = RunCompLogEx($"print {dir}");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+    }
 }
 #endif

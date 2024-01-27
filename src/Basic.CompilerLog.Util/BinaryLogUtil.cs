@@ -126,6 +126,9 @@ public static class BinaryLogUtil
 
     public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, List<string> diagnosticList, Func<CompilerCall, bool>? predicate = null)
     {
+        // https://github.com/KirillOsenkov/MSBuildStructuredLog/issues/752
+        Microsoft.Build.Logging.StructuredLogger.Strings.Initialize();
+
         predicate ??= static _ => true;
         var list = new List<CompilerCall>();
         var records = BinaryLog.ReadRecords(stream);

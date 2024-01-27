@@ -316,18 +316,15 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(index));
     }
 
-    [Fact]
+    [WindowsFact]
     public void KindWpf()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            Assert.NotNull(Fixture.WpfAppComplogPath);
-            using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath.Value);
-            var list = reader.ReadAllCompilationData();
-            Assert.Equal(2, list.Count);
-            Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
-            Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
-        }
+        Assert.NotNull(Fixture.WpfAppComplogPath);
+        using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath.Value);
+        var list = reader.ReadAllCompilationData();
+        Assert.Equal(2, list.Count);
+        Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
+        Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
     }
 
     /// <summary>

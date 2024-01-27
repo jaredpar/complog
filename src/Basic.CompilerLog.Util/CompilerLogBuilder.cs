@@ -51,14 +51,16 @@ internal sealed class CompilerLogBuilder : IDisposable
     private int _compilationCount;
     private bool _closed;
 
+    internal int MetadataVersion { get; }
     internal List<string> Diagnostics { get; }
-    internal ZipArchive ZipArchive { get; set; }
+    internal ZipArchive ZipArchive { get; private set; }
 
     internal bool IsOpen => !_closed;
     internal bool IsClosed => _closed;
 
-    internal CompilerLogBuilder(Stream stream, List<string> diagnostics)
+    internal CompilerLogBuilder(Stream stream, List<string> diagnostics, int? metadataVersion = null)
     {
+        MetadataVersion = metadataVersion ?? Metadata.LatestMetadataVersion;
         ZipArchive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true);
         Diagnostics = diagnostics;
     }
@@ -196,7 +198,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Fastest);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
-            Metadata.Create(_compilationCount).Write(writer);
+            Metadata.Create(_compilationCount, MetadataVersion).Write(writer);
         }
 
         void WriteAssemblyInfo()

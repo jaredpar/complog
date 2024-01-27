@@ -89,7 +89,7 @@ public sealed class CompilerLogReader : IDisposable
             var zipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);
             var metadata = ReadMetadata();
             return metadata.MetadataVersion switch {
-                1 => throw new ArgumentException("Version 1 compiler logs are no longer supported"),
+                1 => throw new CompilerLogException("Version 1 compiler logs are no longer supported"),
                 2 => new CompilerLogReader(zipArchive, metadata, options, state),
                 _ => throw GetInvalidCompilerLogFileException(),
             };

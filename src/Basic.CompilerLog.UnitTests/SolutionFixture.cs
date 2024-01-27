@@ -1,5 +1,6 @@
 
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
 using Xunit;
 using Xunit.Abstractions;
@@ -34,6 +35,8 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
     internal string ConsoleWithDiagnosticsBinaryLogPath { get; }
 
     internal string ConsoleWithDiagnosticsProjectPath { get; }
+
+    internal string? WpfAppProjectPath { get; }
 
     internal string ConsoleWithDiagnosticsProjectName => Path.GetFileName(ConsoleWithDiagnosticsProjectPath);
 
@@ -88,6 +91,15 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
             File.WriteAllText(Path.Combine(dir, "classlibmulti.csproj"), projectFileContent, TestBase.DefaultEncoding);
             return Path.Combine(dir, "classlibmulti.csproj");
         });
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            WpfAppProjectPath = WithProject("wpfapp", string (string dir) =>
+            {
+                RunDotnetCommand("new wpf --name wpfapp2 -o .", dir);
+                return Path.Combine(dir, "wpfapp2.csproj");
+            });
+        }
 
         string WithProject(string name, Func<string, string> func)
         {
