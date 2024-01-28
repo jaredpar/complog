@@ -13,7 +13,7 @@ internal class BasicSyntaxTreeOptionsProvider : SyntaxTreeOptionsProvider
     internal static readonly ImmutableDictionary<string, ReportDiagnostic> EmptyDiagnosticOptions =
         ImmutableDictionary.Create<string, ReportDiagnostic>(CaseInsensitiveComparison.Comparer);
 
-    private readonly struct Options
+    internal readonly struct Options
     {
         public readonly GeneratedKind IsGenerated;
         public readonly ImmutableDictionary<string, ReportDiagnostic> DiagnosticOptions;
@@ -50,6 +50,8 @@ internal class BasicSyntaxTreeOptionsProvider : SyntaxTreeOptionsProvider
     private readonly ImmutableDictionary<SyntaxTree, Options> _options;
 
     private readonly AnalyzerConfigOptionsResult _globalOptions;
+
+    internal bool IsEmpty => _options.IsEmpty;
 
     internal BasicSyntaxTreeOptionsProvider(
         bool isConfigEmpty,
