@@ -167,17 +167,6 @@ public class ContentPack
     public string ContentHash { get; set; }
     [Key(1)]
     public string FilePath { get; set; }
-
-    public ContentPack()
-    {
-
-    }
-
-    public ContentPack(string contentHash, string filePath = null)
-    {
-        FilePath = filePath;
-        ContentHash = contentHash;
-    }
 }
 
 [MessagePackObject]

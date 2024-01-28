@@ -349,6 +349,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var list = reader.ReadAllCompilationData();
         Assert.Equal(2, list.Count);
         Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
+        Assert.Contains(nameof(CompilerCallKind.WpfTemporaryCompile), list[0].CompilerCall.GetDiagnosticName());
         Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
     }
 
@@ -412,5 +413,6 @@ public sealed class CompilerLogReaderTests : TestBase
         var reader = CompilerLogReader.Create(Fixture.ConsoleVisualBasicComplogPath.Value);
         var data = reader.ReadCompilationData(0);
         Assert.True(data.IsVisualBasic);
+        Assert.True(data.CompilerCall.IsVisualBasic);
     }
 }

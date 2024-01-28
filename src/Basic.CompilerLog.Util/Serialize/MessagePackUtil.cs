@@ -17,15 +17,8 @@ internal static class MessagePackUtil
 
     private static PropertyInfo? GetDebugPlusPropertyInfo()
     {
-        try
-        {
-            var type = typeof(CompilationOptions);
-            return type.GetProperty("DebugPlusMode", BindingFlags.NonPublic | BindingFlags.Instance);
-        }
-        catch
-        {
-            return null;
-        }
+        var type = typeof(CompilationOptions);
+        return type.GetProperty("DebugPlusMode", BindingFlags.NonPublic | BindingFlags.Instance);
     }
 
     private static void SetDebugPlusMode(CompilationOptions options, bool debugPlusMode)

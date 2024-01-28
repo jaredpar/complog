@@ -212,13 +212,21 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         var contentHash = AddContent(stream);
 
-        dataPack.ContentList.Add(((int)kind, new ContentPack(contentHash, filePath)));
+        dataPack.ContentList.Add(((int)kind, new ContentPack()
+        {
+            ContentHash = contentHash,
+            FilePath = filePath
+        }));
     }
 
     private void AddContentCore(CompilationDataPack dataPack, RawContentKind kind, string filePath)
     {
         var contentHash = AddContent(filePath);
-        dataPack.ContentList.Add(((int)kind, new ContentPack(contentHash, filePath)));
+        dataPack.ContentList.Add(((int)kind, new ContentPack()
+        {
+            ContentHash = contentHash,
+            FilePath = filePath
+        }));
     }
 
     private void AddAnalyzerConfigs(CompilationDataPack dataPack, CommandLineArguments args)
