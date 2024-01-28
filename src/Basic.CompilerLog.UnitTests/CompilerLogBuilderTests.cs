@@ -46,7 +46,7 @@ public sealed class CompilerLogBuilderTests : TestBase
         using var complogStream = new MemoryStream();
         using var binlogStream = new FileStream(Path.Combine(RootDirectory, "msbuild.binlog"), FileMode.Open, FileAccess.Read, FileShare.Read); 
         var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogStream, complogStream);
-        Assert.Contains(diagnostics, x => x.Contains("Cant' find portable pdb"));
+        Assert.Contains(diagnostics, x => x.Contains("Can't find portable pdb"));
     }
 
     [Fact]

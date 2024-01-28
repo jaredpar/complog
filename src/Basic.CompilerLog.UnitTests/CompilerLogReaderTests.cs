@@ -1,5 +1,6 @@
 ﻿using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
+using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
@@ -53,6 +54,22 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Equal("84C9FAFCF8C92F347B96D26B149295128B08B07A3C4385789FE4758A2B520FDE", extraData.ContentHash);
         var contentBytes = reader.GetContentBytes(extraData.ContentHash);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
+    }
+
+    [Fact]
+    public void CreateInvalidZipFile()
+    {
+        using var stream = new MemoryStream();
+        stream.Write([1, 2, 3, 4, 5], 0, 0);
+        stream.Position = 0;
+        Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None));
+    }
+
+    [Fact]
+    public void MetadataVersion()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        Assert.Equal(Util.Metadata.LatestMetadataVersion, reader.MetadataVersion);
     }
 
     [Fact]

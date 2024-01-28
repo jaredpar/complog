@@ -19,8 +19,6 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class CompilerLogReader : IDisposable
 {
-    public static int LatestMetadataVersion => Metadata.LatestMetadataVersion;
-
     /// <summary>
     /// Stores the underlying archive this reader is using. Do not use directly. Instead 
     /// use <see cref="ZipArchive"/>  which will throw if the reader is disposed
