@@ -24,9 +24,6 @@ internal sealed class FilterOptionSet : OptionSet
         }
     }
 
-    internal BasicAnalyzerHostOptions? CreateHostOptions() =>
-        UseNoneHost ? BasicAnalyzerHostOptions.None : null;
-
     internal bool FilterCompilerCalls(CompilerCall compilerCall)
     {
         if (compilerCall.Kind != CompilerCallKind.Regular && !IncludeAllKinds)

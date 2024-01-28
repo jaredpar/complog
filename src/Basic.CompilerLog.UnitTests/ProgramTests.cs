@@ -538,8 +538,10 @@ public sealed class ProgramTests : TestBase
         Assert.Equal(Constants.ExitFailure, exitCode);
     }
 
-    [Fact]
-    public void PrintOldMetadata()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(100)]
+    public void PrintDiffMetadata(int metadataVersion)
     {
         var dir = Root.NewDirectory("metadata");
         var filePath = Path.Combine(dir, "old.complog");
@@ -547,13 +549,13 @@ public sealed class ProgramTests : TestBase
 
         var (exitCode, output) = RunCompLogEx($"print {filePath}");
         Assert.Equal(Constants.ExitFailure, exitCode);
-        Assert.Contains("compiler logs are no longer supported", output);
+        Assert.Contains("supported", output);
 
         void Create()
         {
             using var binlogStream = new FileStream(Fixture.ConsoleWithDiagnosticsBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             using var complogStream = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
-            var result = CompilerLogUtil.TryConvertBinaryLog(binlogStream, complogStream, predicate: null, metadataVersion: Basic.CompilerLog.Util.Metadata.LatestMetadataVersion - 1);
+            var result = CompilerLogUtil.TryConvertBinaryLog(binlogStream, complogStream, predicate: null, metadataVersion: metadataVersion);
             Assert.True(result.Succeeded);
         }
     }

@@ -91,7 +91,7 @@ public sealed class CompilerLogReader : IDisposable
             return metadata.MetadataVersion switch {
                 1 => throw new CompilerLogException("Version 1 compiler logs are no longer supported"),
                 2 => new CompilerLogReader(zipArchive, metadata, options, state),
-                _ => throw GetInvalidCompilerLogFileException(),
+                _ => throw new CompilerLogException($"Version {metadata.MetadataVersion} is higher than the max supported version {Metadata.LatestMetadataVersion}"),
             };
 
             Metadata ReadMetadata()
@@ -108,7 +108,7 @@ public sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
-        static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
+        static Exception GetInvalidCompilerLogFileException() => new CompilerLogException("Provided stream is not a compiler log file");
     } 
 
     public static CompilerLogReader Create(

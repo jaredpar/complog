@@ -369,7 +369,7 @@ public sealed class CompilerLogReaderTests : TestBase
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             using var stream = ResourceLoader.GetResourceStream(resourceName);
-            Assert.Throws<ArgumentException>(() => CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None));
+            Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None));
         }
     }
 
