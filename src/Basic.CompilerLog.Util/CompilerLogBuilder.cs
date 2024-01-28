@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis.VisualBasic.Syntax;
 using Microsoft.Extensions.ObjectPool;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
@@ -128,13 +129,14 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void AddContentIf(CompilationDataPack dataPack, RawContentKind kind, string? filePath)
         {
-            if (TryResolve(filePath) is { } resolvedFilePath)
+            if (Resolve(filePath) is { } resolvedFilePath)
             {
                 AddContentCore(dataPack, kind, resolvedFilePath);
             }
         }
 
-        string? TryResolve(string? filePath)
+        [return: NotNullIfNotNull("filePath")]
+        string? Resolve(string? filePath)
         {
             if (filePath is null)
             {
@@ -146,13 +148,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 return filePath;
             }
 
-            var resolved = Path.Combine(compilerCall.ProjectDirectory, filePath);
-            if (File.Exists(resolved))
-            {
-                return resolved;
-            }
-
-            return null;
+            return Path.Combine(compilerCall.ProjectDirectory, filePath);
         }
 
         void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)
@@ -307,12 +303,6 @@ internal sealed class CompilerLogBuilder : IDisposable
                 }
 
                 return true;
-
-            }
-            catch (Exception ex)
-            {
-                Diagnostics.Add($"Error embedding generated files {compilerCall.GetDiagnosticName()}): {ex.Message}");
-                return false;
             }
             finally
             {

@@ -165,6 +165,27 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         ConsoleVisualBasicComplogPath = WithBuild("console-vb.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console-vb --language VB --output .", scratchPath);
+            File.WriteAllText(Path.Combine(scratchPath, "Extra.vb"), """
+                Module M
+
+                #ExternalSource("line.txt", 0)
+                    Sub G()
+
+                    End Sub
+                #End ExternalSource
+                End Module
+                """, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "console-vb.vbproj"), """
+                <Project Sdk="Microsoft.NET.Sdk">
+                    <PropertyGroup>
+                        <OutputType>Exe</OutputType>
+                        <RootNamespace>vbconsole</RootNamespace>
+                        <TargetFramework>net7.0</TargetFramework>
+                        <EmbedAllSources>true</EmbedAllSources>
+                    </PropertyGroup>
+                </Project>
+                """, TestBase.DefaultEncoding);
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
         
@@ -199,7 +220,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 using System;
                 using System.Text.RegularExpressions;
 
-                // File that does not exsit
+                // File that does exsit
                 #line 42 "line.txt"
                 class C { }
                 """, TestBase.DefaultEncoding);

@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
 using System.Diagnostics;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Runtime.InteropServices;
 #if NETCOREAPP
@@ -24,7 +25,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public CompilerLogFixture Fixture { get; }
 
     public CompilerLogReaderTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilerLogReader))
+        : base(testOutputHelper, nameof(CompilerLogReaderTests))
     {
         Fixture = fixture;
     }
@@ -107,6 +108,13 @@ public sealed class CompilerLogReaderTests : TestBase
         var data = reader.ReadCompilationData(0);
         Assert.Single(data.AdditionalTexts);
         Assert.Equal("additional.txt", Path.GetFileName(data.AdditionalTexts[0].Path));
+
+        var additionalText = data.AdditionalTexts[0]!;
+        var text = additionalText.GetText()!;
+        Assert.Contains("This is an additional file", text.ToString());
+
+        var options = data.AnalyzerConfigOptionsProvider.GetOptions(additionalText);
+        Assert.NotNull(options);
     }
 
     [Fact]
@@ -379,5 +387,13 @@ public sealed class CompilerLogReaderTests : TestBase
         var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
         reader.Dispose();
         Assert.Throws<ObjectDisposedException>(() => reader.ReadCompilationData(0));
+    }
+
+    [Fact]
+    public void VisualBasic()
+    {
+        var reader = CompilerLogReader.Create(Fixture.ConsoleVisualBasicComplogPath.Value);
+        var data = reader.ReadCompilationData(0);
+        Assert.True(data.IsVisualBasic);
     }
 }
