@@ -14,10 +14,10 @@ namespace Basic.CompilerLog.Util;
 
 public static class SdkUtil
 {
-    public static List<string> GetSdkDirectories()
+    public static string GetDotnetDirectory(string? path = null)
     {
         // TODO: has to be a better way to find the runtime directory but this works for the moment
-        var path = Path.GetDirectoryName(typeof(object).Assembly.Location);
+        path ??= Path.GetDirectoryName(typeof(object).Assembly.Location);
         while (path is not null && !IsDotNetDir(path))
         {
             path = Path.GetDirectoryName(path);
@@ -28,7 +28,7 @@ public static class SdkUtil
             throw new Exception("Could not find dotnet directory");
         }
 
-        return GetSdkDirectories(path);
+        return path;
 
         static bool IsDotNetDir(string path)
         {
@@ -43,8 +43,9 @@ public static class SdkUtil
         }
     }
 
-    public static List<string> GetSdkDirectories(string dotnetDirectory)
+    public static List<string> GetSdkDirectories(string? dotnetDirectory = null)
     {
+        dotnetDirectory ??= GetDotnetDirectory();
         var sdk = Path.Combine(dotnetDirectory, "sdk");
         var sdks = new List<string>();
         foreach (var dir in Directory.EnumerateDirectories(sdk))

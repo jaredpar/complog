@@ -41,4 +41,35 @@ public sealed class MetadataTests
         Assert.Equal(50, metadata.Count);
         Assert.True(metadata.IsWindows);
     }
+
+    [Fact]
+    public void ParseBadVersion()
+    {
+        var content = """
+            version:true
+            count:50
+            windows:true
+            """;
+        Assert.Throws<InvalidOperationException>(() => Parse(content));
+    }
+
+    [Fact]
+    public void ParseBadCount()
+    {
+        var content = """
+            version:1
+            count:true
+            windows:true
+            """;
+        Assert.Throws<InvalidOperationException>(() => Parse(content));
+    }
+
+    [Fact]
+    public void ParseBadFormat()
+    {
+        var content = """
+            version
+            """;
+        Assert.Throws<InvalidOperationException>(() => Parse(content));
+    }
 }
