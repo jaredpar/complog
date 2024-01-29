@@ -33,12 +33,8 @@ internal static class CommonUtil
             return context;
         }
 
-        if (AssemblyLoadContext.GetLoadContext(typeof(CommonUtil).Assembly) is { } current)
-        {
-            return current;
-        }
-
-        return AssemblyLoadContext.Default;
+        // This code path is only valid in a runtime context so this will be non-null.
+        return AssemblyLoadContext.GetLoadContext(typeof(CommonUtil).Assembly)!;
     }
 
 #endif
@@ -51,12 +47,7 @@ internal static class CommonUtil
         }
 
         string name = arguments.CompilationName ?? "app";
-        return Path.GetExtension(name) switch
-        {
-            ".dll" => name,
-            ".netmodule" => name,
-            _ => $"{name}{GetStandardAssemblyExtension()}"
-        };
+        return $"{name}{GetStandardAssemblyExtension()}";
 
         string GetStandardAssemblyExtension() => arguments.CompilationOptions.OutputKind switch
         {

@@ -31,6 +31,7 @@ internal sealed class BasicAnalyzerConfigOptionsProvider : AnalyzerConfigOptions
 
     private readonly Dictionary<object, BasicAnalyzerConfigOptions> _optionMap;
 
+    public bool IsEmpty => _optionMap.Count == 0;
     public override AnalyzerConfigOptions GlobalOptions { get; }
 
     internal BasicAnalyzerConfigOptionsProvider(

@@ -32,6 +32,7 @@ public sealed class ResilientDirectoryTests
     {
         using var tempDir = new TempDir();
         var dir = new ResilientDirectory(tempDir.DirectoryPath, flatten: true);
+        Assert.True(dir.Flatten);
         var originalPath = Path.Combine(RootPath, "temp", "resource.txt");
         var path1 = dir.GetNewFilePath(originalPath);
         var path2 = dir.GetNewFilePath(originalPath);

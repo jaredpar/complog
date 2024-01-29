@@ -25,9 +25,9 @@ internal sealed class Metadata
         IsWindows = isWindows;
     }
 
-    internal static Metadata Create(int count) =>
+    internal static Metadata Create(int count, int version) =>
         new Metadata(
-            LatestMetadataVersion,
+            version,
             count,
             RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
 

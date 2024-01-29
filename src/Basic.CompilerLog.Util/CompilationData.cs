@@ -50,7 +50,7 @@ public abstract class CompilationData
 
     public CompilationOptions CompilationOptions => Compilation.Options;
     public bool IsCSharp => Compilation is CSharpCompilation;
-    public bool VisualBasic => !IsCSharp;
+    public bool IsVisualBasic => !IsCSharp;
     public CompilerCallKind Kind => CompilerCall.Kind;
     public AnalyzerOptions AnalyzerOptions => new AnalyzerOptions(AdditionalTexts, AnalyzerConfigOptionsProvider);
 

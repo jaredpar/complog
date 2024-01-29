@@ -19,8 +19,6 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class CompilerLogReader : IDisposable
 {
-    public static int LatestMetadataVersion => Metadata.LatestMetadataVersion;
-
     /// <summary>
     /// Stores the underlying archive this reader is using. Do not use directly. Instead 
     /// use <see cref="ZipArchive"/>  which will throw if the reader is disposed
@@ -89,9 +87,9 @@ public sealed class CompilerLogReader : IDisposable
             var zipArchive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen);
             var metadata = ReadMetadata();
             return metadata.MetadataVersion switch {
-                1 => throw new ArgumentException("Version 1 compiler logs are no longer supported"),
+                1 => throw new CompilerLogException("Version 1 compiler logs are no longer supported"),
                 2 => new CompilerLogReader(zipArchive, metadata, options, state),
-                _ => throw GetInvalidCompilerLogFileException(),
+                _ => throw new CompilerLogException($"Version {metadata.MetadataVersion} is higher than the max supported version {Metadata.LatestMetadataVersion}"),
             };
 
             Metadata ReadMetadata()
@@ -108,7 +106,7 @@ public sealed class CompilerLogReader : IDisposable
             throw GetInvalidCompilerLogFileException();
         }
 
-        static Exception GetInvalidCompilerLogFileException() => new ArgumentException("Provided stream is not a compiler log file");
+        static Exception GetInvalidCompilerLogFileException() => new CompilerLogException("Provided stream is not a compiler log file");
     } 
 
     public static CompilerLogReader Create(

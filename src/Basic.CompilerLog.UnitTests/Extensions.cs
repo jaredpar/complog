@@ -29,4 +29,12 @@ internal static class Extensions
     {
         messageSink.OnMessage(new DiagnosticMessage(message));
     }
+
+    internal static void ForEach<T>(this IEnumerable<T> enumerable, Action<T> action)
+    {
+        foreach (var item in enumerable)
+        {
+            action(item);
+        }
+    }
 }

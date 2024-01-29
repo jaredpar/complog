@@ -82,14 +82,17 @@ public static class CompilerLogUtil
         return TryConvertBinaryLog(binaryLogStream, compilerLogStream, predicate);
     }
 
-    public static ConvertBinaryLogResult TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null)
+    public static ConvertBinaryLogResult TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null) =>
+        TryConvertBinaryLog(binaryLogStream, compilerLogStream, predicate, metadataVersion: null);
+
+    internal static ConvertBinaryLogResult TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null, int? metadataVersion = null)
     {
         predicate ??= static _ => true;
         var diagnostics = new List<string>();
         var included = new List<CompilerCall>();
 
         var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, diagnostics);
-        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics);
+        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
         var success = true;
         foreach (var compilerInvocation in list)
         {

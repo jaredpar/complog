@@ -10,6 +10,10 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
+#if NETCOREAPP
+using System.Runtime.Loader;
+#endif
+
 namespace Basic.CompilerLog.UnitTests;
 
 public sealed class BasicAnalyzerHostTests
@@ -47,5 +51,4 @@ public sealed class BasicAnalyzerHostTests
         Assert.Same(BasicAnalyzerHostOptions.None, host.Options);
         Assert.Empty(host.GeneratedSourceTexts);
     }
-
 }

@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis.VisualBasic.Syntax;
 using Microsoft.Extensions.ObjectPool;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
@@ -51,14 +52,16 @@ internal sealed class CompilerLogBuilder : IDisposable
     private int _compilationCount;
     private bool _closed;
 
+    internal int MetadataVersion { get; }
     internal List<string> Diagnostics { get; }
-    internal ZipArchive ZipArchive { get; set; }
+    internal ZipArchive ZipArchive { get; private set; }
 
     internal bool IsOpen => !_closed;
     internal bool IsClosed => _closed;
 
-    internal CompilerLogBuilder(Stream stream, List<string> diagnostics)
+    internal CompilerLogBuilder(Stream stream, List<string> diagnostics, int? metadataVersion = null)
     {
+        MetadataVersion = metadataVersion ?? Metadata.LatestMetadataVersion;
         ZipArchive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true);
         Diagnostics = diagnostics;
     }
@@ -126,13 +129,14 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void AddContentIf(CompilationDataPack dataPack, RawContentKind kind, string? filePath)
         {
-            if (TryResolve(filePath) is { } resolvedFilePath)
+            if (Resolve(filePath) is { } resolvedFilePath)
             {
                 AddContentCore(dataPack, kind, resolvedFilePath);
             }
         }
 
-        string? TryResolve(string? filePath)
+        [return: NotNullIfNotNull("filePath")]
+        string? Resolve(string? filePath)
         {
             if (filePath is null)
             {
@@ -144,13 +148,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 return filePath;
             }
 
-            var resolved = Path.Combine(compilerCall.ProjectDirectory, filePath);
-            if (File.Exists(resolved))
-            {
-                return resolved;
-            }
-
-            return null;
+            return Path.Combine(compilerCall.ProjectDirectory, filePath);
         }
 
         void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)
@@ -196,7 +194,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Fastest);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
-            Metadata.Create(_compilationCount).Write(writer);
+            Metadata.Create(_compilationCount, MetadataVersion).Write(writer);
         }
 
         void WriteAssemblyInfo()
@@ -214,13 +212,21 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         var contentHash = AddContent(stream);
 
-        dataPack.ContentList.Add(((int)kind, new ContentPack(contentHash, filePath)));
+        dataPack.ContentList.Add(((int)kind, new ContentPack()
+        {
+            ContentHash = contentHash,
+            FilePath = filePath
+        }));
     }
 
     private void AddContentCore(CompilationDataPack dataPack, RawContentKind kind, string filePath)
     {
         var contentHash = AddContent(filePath);
-        dataPack.ContentList.Add(((int)kind, new ContentPack(contentHash, filePath)));
+        dataPack.ContentList.Add(((int)kind, new ContentPack()
+        {
+            ContentHash = contentHash,
+            FilePath = filePath
+        }));
     }
 
     private void AddAnalyzerConfigs(CompilationDataPack dataPack, CommandLineArguments args)
@@ -305,12 +311,6 @@ internal sealed class CompilerLogBuilder : IDisposable
                 }
 
                 return true;
-
-            }
-            catch (Exception ex)
-            {
-                Diagnostics.Add($"Error embedding generated files {compilerCall.GetDiagnosticName()}): {ex.Message}");
-                return false;
             }
             finally
             {

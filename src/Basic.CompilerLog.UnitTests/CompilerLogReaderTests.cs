@@ -1,11 +1,13 @@
 ﻿using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
+using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
 using System.Diagnostics;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Runtime.InteropServices;
 #if NETCOREAPP
@@ -24,7 +26,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public CompilerLogFixture Fixture { get; }
 
     public CompilerLogReaderTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilerLogReader))
+        : base(testOutputHelper, nameof(CompilerLogReaderTests))
     {
         Fixture = fixture;
     }
@@ -52,6 +54,22 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Equal("84C9FAFCF8C92F347B96D26B149295128B08B07A3C4385789FE4758A2B520FDE", extraData.ContentHash);
         var contentBytes = reader.GetContentBytes(extraData.ContentHash);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
+    }
+
+    [Fact]
+    public void CreateInvalidZipFile()
+    {
+        using var stream = new MemoryStream();
+        stream.Write([1, 2, 3, 4, 5], 0, 0);
+        stream.Position = 0;
+        Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None));
+    }
+
+    [Fact]
+    public void MetadataVersion()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        Assert.Equal(Util.Metadata.LatestMetadataVersion, reader.MetadataVersion);
     }
 
     [Fact]
@@ -107,6 +125,13 @@ public sealed class CompilerLogReaderTests : TestBase
         var data = reader.ReadCompilationData(0);
         Assert.Single(data.AdditionalTexts);
         Assert.Equal("additional.txt", Path.GetFileName(data.AdditionalTexts[0].Path));
+
+        var additionalText = data.AdditionalTexts[0]!;
+        var text = additionalText.GetText()!;
+        Assert.Contains("This is an additional file", text.ToString());
+
+        var options = data.AnalyzerConfigOptionsProvider.GetOptions(additionalText);
+        Assert.NotNull(options);
     }
 
     [Fact]
@@ -316,18 +341,16 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(index));
     }
 
-    [Fact]
+    [WindowsFact]
     public void KindWpf()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            Assert.NotNull(Fixture.WpfAppComplogPath);
-            using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath.Value);
-            var list = reader.ReadAllCompilationData();
-            Assert.Equal(2, list.Count);
-            Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
-            Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
-        }
+        Assert.NotNull(Fixture.WpfAppComplogPath);
+        using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath.Value);
+        var list = reader.ReadAllCompilationData();
+        Assert.Equal(2, list.Count);
+        Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
+        Assert.Contains(nameof(CompilerCallKind.WpfTemporaryCompile), list[0].CompilerCall.GetDiagnosticName());
+        Assert.Equal(CompilerCallKind.Regular, list[1].Kind);
     }
 
     /// <summary>
@@ -372,7 +395,7 @@ public sealed class CompilerLogReaderTests : TestBase
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             using var stream = ResourceLoader.GetResourceStream(resourceName);
-            Assert.Throws<ArgumentException>(() => CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None));
+            Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, leaveOpen: true, BasicAnalyzerHostOptions.None));
         }
     }
 
@@ -382,5 +405,14 @@ public sealed class CompilerLogReaderTests : TestBase
         var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
         reader.Dispose();
         Assert.Throws<ObjectDisposedException>(() => reader.ReadCompilationData(0));
+    }
+
+    [Fact]
+    public void VisualBasic()
+    {
+        var reader = CompilerLogReader.Create(Fixture.ConsoleVisualBasicComplogPath.Value);
+        var data = reader.ReadCompilationData(0);
+        Assert.True(data.IsVisualBasic);
+        Assert.True(data.CompilerCall.IsVisualBasic);
     }
 }

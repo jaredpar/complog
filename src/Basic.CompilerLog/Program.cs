@@ -543,13 +543,6 @@ int RunHelp(IEnumerable<string>? args)
 CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerHostOptions? options = null)
 {
     var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen, options);
-    if (reader.MetadataVersion > CompilerLogReader.LatestMetadataVersion)
-    {
-        WriteLine($"Compiler log version newer than toolset: {reader.MetadataVersion}");
-        WriteLine($"Consider upgrading to latest compiler log toolset");
-        WriteLine("dotnet tool update --global complog");
-    }
-
     if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
         WriteLine($"Compiler log generated on different operating system");
@@ -624,16 +617,9 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
             ? FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj")
             : FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj");
 
-    static string GetLogFilePathAfterBuild(string baseDirectory, string? buildFileName, IEnumerable<string> buildArgs)
+    static string GetLogFilePathAfterBuild(string baseDirectory, string buildFileName, IEnumerable<string> buildArgs)
     {
-        var path = buildFileName is not null
-            ? GetResolvedPath(baseDirectory, buildFileName)
-            : FindFirstFileWithPattern(baseDirectory, "*.sln", "*.csproj", ".vbproj");
-        if (path is null)
-        {
-            throw CreateOptionException();
-        }
-
+        var path = GetResolvedPath(baseDirectory, buildFileName);
         var tag = buildArgs.Any() ? "" : "-t:Rebuild";
         var args = $"build {path} -bl:build.binlog -nr:false {tag} {string.Join(' ', buildArgs)}";
         WriteLine($"Building {path}");
@@ -703,10 +689,6 @@ string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
         if (!string.IsNullOrEmpty(compilerCall.TargetFramework))
         {
             name += "-" + compilerCall.TargetFramework;
-        }
-        else
-        {
-            name += index.ToString();
         }
     }
 

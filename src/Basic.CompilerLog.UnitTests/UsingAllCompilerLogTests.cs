@@ -35,6 +35,25 @@ public sealed class UsingAllCompilerLogTests : TestBase
                     TestOutputHelper.WriteLine($"{Path.GetFileName(complogPath)}: {data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
                     var emitResult = data.EmitToDisk(testDir.DirectoryPath);
                     AssertEx.Success(TestOutputHelper, emitResult);
+                    Assert.NotEmpty(emitResult.Directory);
+                    Assert.NotEmpty(emitResult.AssemblyFileName);
+                    Assert.NotEmpty(emitResult.AssemblyFilePath);
+
+                    var emitFlags = data.EmitFlags;
+                    if ((emitFlags & EmitFlags.IncludePdbStream) != 0)
+                    {
+                        Assert.NotNull(emitResult.PdbFilePath);
+                    }
+
+                    if ((emitFlags & EmitFlags.IncludeXmlStream) != 0)
+                    {
+                        Assert.NotNull(emitResult.XmlFilePath);
+                    }
+
+                    if ((emitFlags & EmitFlags.IncludeMetadataStream) != 0)
+                    {
+                        Assert.NotNull(emitResult.MetadataFilePath);
+                    }
                 }
             });
 

@@ -12,6 +12,7 @@
   <ItemGroup>
     <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
     <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
+    <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
     <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" Condition="'$(TargetFramework)' == 'net7.0'" />
