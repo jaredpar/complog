@@ -108,6 +108,7 @@ public sealed class RoslynUtilTests
                 "\r",
                 "\u2028",
                 "\u2029",
+                $"{(char)0x85}"
             ];
 
             foreach (var newLine in newLines)
