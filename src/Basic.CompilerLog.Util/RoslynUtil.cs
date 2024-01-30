@@ -64,7 +64,7 @@ internal static class RoslynUtil
         return syntaxTrees;
     }
 
-    internal static string RewriteGlobalEditorConfigPaths(SourceText sourceText, Func<string, string> pathMapFunc)
+    internal static string RewriteGlobalEditorConfigSections(SourceText sourceText, Func<string, string> pathMapFunc)
     {
         var builder = new StringBuilder();
         ForEachLine(sourceText, (line, newLine) =>
@@ -98,9 +98,10 @@ internal static class RoslynUtil
         return builder.ToString();
     }
 
-    internal static bool IsGlobalEditorConfig(SourceText sourceText)
+    internal static bool IsGlobalEditorConfigWithSection(SourceText sourceText)
     {
         var isGlobal = false;
+        var hasSection = false;
         ForEachLine(sourceText, (line, _) =>
         {
             SkipWhiteSpace(ref line);
@@ -112,18 +113,19 @@ internal static class RoslynUtil
             if (IsGlobalConfigEntry(line))
             {
                 isGlobal = true;
-                return false;
+                return true;
             }
 
             if (IsSectionStart(line))
             {
+                hasSection = true;
                 return false;
             }
 
             return true;
         });
 
-        return isGlobal;
+        return isGlobal && hasSection;
 
         static bool IsGlobalConfigEntry(ReadOnlySpan<char> span) => 
             IsMatch(ref span, "is_global") &&

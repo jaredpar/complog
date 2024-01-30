@@ -24,9 +24,17 @@ public sealed class RoslynUtilTests
         {
             var index = 0;
             yield return new IsGlobalConfigData(
+                false,
+                """
+                is_global = true
+                """,
+                index++);
+
+            yield return new IsGlobalConfigData(
                 true,
                 """
                 is_global = true
+                [examlpe]
                 """,
                 index++);
 
@@ -42,6 +50,7 @@ public sealed class RoslynUtilTests
                 """
                 is_global = false
                 is_global = true
+                [example]
                 """,
                 index++);
 
@@ -61,6 +70,7 @@ public sealed class RoslynUtilTests
                 """
                 ;is_global = true
                 a = 3
+                [section]
                 """,
                 index++);
 
@@ -105,7 +115,7 @@ public sealed class RoslynUtilTests
     public void IsGlobalConfig(IsGlobalConfigData data)
     {
         var sourceText = SourceText.From(data.Contents);
-        var actual = RoslynUtil.IsGlobalEditorConfig(sourceText);
+        var actual = RoslynUtil.IsGlobalEditorConfigWithSection(sourceText);
         Assert.Equal(data.IsExpect, actual);
     }
 
@@ -137,7 +147,7 @@ public sealed class RoslynUtilTests
         void Core(string content, string expected, Func<string, string> mapFunc)
         {
             var sourceText = SourceText.From(content);
-            var actual = RoslynUtil.RewriteGlobalEditorConfigPaths(sourceText, mapFunc);
+            var actual = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, mapFunc);
             Assert.Equal(expected, actual);
         }
     }

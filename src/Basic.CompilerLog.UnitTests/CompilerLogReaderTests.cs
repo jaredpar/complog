@@ -66,6 +66,18 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
+    public void GlobalConfigPathMap()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
+        var data = reader.ReadCompilationData(0);
+        var provider = (BasicAnalyzerConfigOptionsProvider)data.AnalyzerConfigOptionsProvider;
+        var additonalText = data.AdditionalTexts.Single(x => x.Path.Contains("additional.txt"));
+        var options = provider.GetOptions(additonalText);
+        Assert.True(options.TryGetValue("build_metadata.AdditionalFiles.FixtureKey", out var value));
+        Assert.Equal("true", value);
+    }
+
+    [Fact]
     public void MetadataVersion()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);

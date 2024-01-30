@@ -209,7 +209,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                   </PropertyGroup>
                   <ItemGroup>
                     <EmbeddedResource Include="resource.txt" />
-                    <AdditionalFiles Include="additional.txt" />
+                    <AdditionalFiles Include="additional.txt" FixtureKey="true" />
+                    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="FixtureKey" />
                   </ItemGroup>
                 </Project>
                 """, TestBase.DefaultEncoding);

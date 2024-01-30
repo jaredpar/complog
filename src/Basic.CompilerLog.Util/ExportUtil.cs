@@ -45,7 +45,7 @@ public sealed class ExportUtil
             Directory.CreateDirectory(EmbeddedResourceDirectory);
         }
 
-        private string GetNewSourcePath(string originalFilePath)
+        internal string GetNewSourcePath(string originalFilePath)
         {
             string filePath;
             if (originalFilePath.StartsWith(OriginalProjectDirectory, PathUtil.Comparison))
@@ -59,6 +59,13 @@ public sealed class ExportUtil
             }
 
             return filePath;
+        }
+
+        internal string WriteContent(string originalFilePath, string contents)
+        {
+            var newFilePath = GetNewSourcePath(originalFilePath);
+            File.WriteAllText(newFilePath, contents);
+            return newFilePath;
         }
 
         /// <summary>
@@ -299,8 +306,23 @@ public sealed class ExportUtil
                     continue;
                 }
 
-                using var contentStream = Reader.GetContentStream(tuple.ContentHash);
-                var filePath = builder.WriteContent(tuple.FilePath, contentStream);
+                string? filePath = null;
+                if (tuple.Kind == RawContentKind.AnalyzerConfig)
+                {
+                    var sourceText = Reader.GetSourceText(tuple.ContentHash, data.ChecksumAlgorithm);
+                    if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
+                    {
+                        var content = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, x => builder.GetNewSourcePath(x));
+                        filePath = builder.WriteContent(tuple.FilePath, content);
+                    }
+                }
+
+                if (filePath is null)
+                {
+                    using var contentStream = Reader.GetContentStream(tuple.ContentHash);
+                    filePath = builder.WriteContent(tuple.FilePath, contentStream);
+                }
+
                 commandLineList.Add($@"{prefix}{FormatPathArgument(filePath)}");
             }
         }

@@ -3,6 +3,7 @@ using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
@@ -355,7 +356,16 @@ public sealed class CompilerLogReader : IDisposable
                 var list = new List<AnalyzerConfig>();
                 foreach (var tuple in analyzerConfigList)
                 {
-                    list.Add(AnalyzerConfig.Parse(tuple.SourceText, tuple.Path));
+                    var configText = tuple.SourceText;
+                    if (RoslynUtil.IsGlobalEditorConfigWithSection(configText))
+                    {
+                        var configTextContent = RoslynUtil.RewriteGlobalEditorConfigSections(
+                            configText,
+                            path => NormalizePath(path));
+                        configText = SourceText.From(configTextContent, configText.Encoding);
+                    }
+
+                    list.Add(AnalyzerConfig.Parse(configText, tuple.Path));
                 }
 
                 analyzerConfigSet = AnalyzerConfigSet.Create(list);
