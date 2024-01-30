@@ -129,6 +129,33 @@ public sealed class ExportUtilTests : TestBase
         }, runBuild: false);
     }
 
+    /// <summary>
+    /// Make sure that global configs get their full paths mapped to the new location on disk
+    /// </summary>
+    [Fact]
+    public void GlobalConfigMapsPaths()
+    {
+        TestExport(Fixture.ConsoleComplexComplogPath.Value, expectedCount: 1, verifyExportCallback: void (string path) =>
+        {
+            var configFilePath = Directory
+                .EnumerateFiles(path, "console-complex.GeneratedMSBuildEditorConfig.editorconfig", SearchOption.AllDirectories)
+                .Single();
+            
+            var found = false;
+            var pattern = $"[{path}";
+            foreach (var line in File.ReadAllLines(configFilePath))
+            {
+                if (line.StartsWith(pattern, StringComparison.Ordinal))
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            Assert.True(found);
+        }, runBuild: true);
+    }
+
     [Fact]
     public void ConsoleMultiTarget()
     {
