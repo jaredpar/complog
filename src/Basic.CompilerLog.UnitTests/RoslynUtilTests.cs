@@ -91,6 +91,7 @@ public sealed class RoslynUtilTests
                 ;{new string('a', 1000)}
                 is_global = true
                 a = 3
+                [section]
                 """,
                 index++);
         }
