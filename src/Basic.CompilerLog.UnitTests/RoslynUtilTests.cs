@@ -25,6 +25,11 @@ public sealed class RoslynUtilTests
             var index = 0;
             yield return new IsGlobalConfigData(
                 false,
+                "",
+                index++);
+
+            yield return new IsGlobalConfigData(
+                false,
                 """
                 is_global = true
                 """,
@@ -94,6 +99,25 @@ public sealed class RoslynUtilTests
                 [section]
                 """,
                 index++);
+
+            // Every new line combination
+            string[] newLines = 
+            [
+                "\r\n",
+                "\n",
+                "\r",
+                "\u2028",
+                "\u2029",
+            ];
+
+            foreach (var newLine in newLines)
+            {
+                var content = $"is_global = true{newLine}[section]";
+                yield return new IsGlobalConfigData(
+                    true,
+                    content,
+                    index++);
+            }
         }
     }
 
