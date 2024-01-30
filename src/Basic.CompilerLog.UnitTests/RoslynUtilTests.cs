@@ -1,3 +1,4 @@
+using System.Drawing.Drawing2D;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
@@ -8,75 +9,81 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class RoslynUtilTests
 {
+    public readonly struct IsGlobalConfigData(bool expected, string contents, int id)
+    {
+        public bool IsExpect { get; } = expected;
+        public string Contents { get; } = contents;
+        public override string ToString() => $"{nameof(IsGlobalConfigData)}-{id}";
+    }
+
     public static IEnumerable<object[]> GetIsGlobalConfigData()
     {
-        yield return new object[]
-        { 
-            true,
-            """
-            is_global = true
-            """
-        };
+        return GetRaw().Select(x => new object[] { x });
 
-        yield return new object[]
-        { 
-            false,
-            """
-            is_global = false
-            """
-        };
+        static IEnumerable<IsGlobalConfigData> GetRaw()
+        {
+            var index = 0;
+            yield return new IsGlobalConfigData(
+                true,
+                """
+                is_global = true
+                """,
+                index++);
 
-        yield return new object[]
-        { 
-            true,
-            """
-            is_global = false
-            is_global = true
-            """
-        };
+            yield return new IsGlobalConfigData(
+                false,
+                """
+                is_global = false
+                """,
+                index++);
 
-        // Don't read past the first section
-        yield return new object[]
-        { 
-            false,
-            """
-            [c:\example.cs]
-            is_global = false
-            is_global = true
-            """
-        };
+            yield return new IsGlobalConfigData(
+                true,
+                """
+                is_global = false
+                is_global = true
+                """,
+                index++);
 
-        // ignore comments
-        yield return new object[]
-        { 
-            false,
-            """
-            ;is_global = true
-            a = 3
-            """
-        };
+            // Don't read past the first section
+            yield return new IsGlobalConfigData(
+                false,
+                """
+                [c:\example.cs]
+                is_global = false
+                is_global = true
+                """,
+                index++);
 
-        // Super long lines
-        yield return new object[]
-        { 
-            false,
-            $"""
-            ;{new string('a', 1000)}
-            ;is_global = true
-            a = 3
-            """
-        };
+            // ignore comments
+            yield return new IsGlobalConfigData(
+                false,
+                """
+                ;is_global = true
+                a = 3
+                """,
+                index++);
 
-        // Super long lines
-        yield return new object[]
-        { 
-            true,
-            $"""
-            ;{new string('a', 1000)}
-            is_global = true
-            a = 3
-            """
-        };
+            // Super long lines
+            yield return new IsGlobalConfigData(
+                false,
+                $"""
+                ;{new string('a', 1000)}
+                ;is_global = true
+                a = 3
+                """,
+                index++);
+
+            // Super long lines
+            yield return new IsGlobalConfigData(
+                true,
+                $"""
+                ;{new string('a', 1000)}
+                is_global = true
+                a = 3
+                """,
+                index++);
+        }
     }
 
     [Fact]
@@ -95,10 +102,43 @@ public sealed class RoslynUtilTests
 
     [Theory]
     [MemberData(nameof(GetIsGlobalConfigData))]
-    public void IsGlobalConfig(bool expected, string contents)
+    public void IsGlobalConfig(IsGlobalConfigData data)
     {
-        var sourceText = SourceText.From(contents);
+        var sourceText = SourceText.From(data.Contents);
         var actual = RoslynUtil.IsGlobalEditorConfig(sourceText);
-        Assert.Equal(expected, actual);
+        Assert.Equal(data.IsExpect, actual);
+    }
+
+    [Fact]
+    public void RewriteGlobalEditorConfigPaths()
+    {
+        Core(
+            """
+            is_global = true
+            [c:\example.cs]
+            """,
+            """
+            is_global = true
+            [d:\example.cs]
+            """,
+            x => x.Replace("c:", "d:"));
+
+        Core(
+            """
+            is_global = true
+            [c:\example.cs]
+            """,
+            """
+            is_global = true
+            [c:\test.cs]
+            """,
+            x => x.Replace("example", "test"));
+
+        void Core(string content, string expected, Func<string, string> mapFunc)
+        {
+            var sourceText = SourceText.From(content);
+            var actual = RoslynUtil.RewriteGlobalEditorConfigPaths(sourceText, mapFunc);
+            Assert.Equal(expected, actual);
+        }
     }
 }

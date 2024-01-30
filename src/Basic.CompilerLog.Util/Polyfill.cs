@@ -41,6 +41,14 @@ namespace Basic.CompilerLog.Util
         internal static string[] Split(this string @this, char separator, int count, StringSplitOptions options = StringSplitOptions.None) =>
             @this.Split(new char[] { separator }, count, options);
 
+        internal static void Append(this StringBuilder @this, ReadOnlySpan<char> value)
+        {
+            foreach (var c in value)
+            {
+                @this.Append(c);
+            }
+        }
+
         internal static bool StartsWith(this ReadOnlySpan<char> @this, string value, StringComparison comparisonType) =>
             @this.StartsWith(value.AsSpan(), comparisonType);
 

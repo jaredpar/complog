@@ -64,6 +64,40 @@ internal static class RoslynUtil
         return syntaxTrees;
     }
 
+    internal static string RewriteGlobalEditorConfigPaths(SourceText sourceText, Func<string, string> pathMapFunc)
+    {
+        var builder = new StringBuilder();
+        ForEachLine(sourceText, (line, newLine) =>
+        {
+            if (line.Length == 0)
+            {
+                builder.Append(newLine);
+                return true;
+            }
+
+            if (line[0] == '[')
+            {
+                var index = line.IndexOf(']');
+                if (index > 0)
+                {
+                    var mapped = pathMapFunc(line.Slice(1, index - 1).ToString());
+                    builder.Append('[');
+                    builder.Append(mapped);
+                    builder.Append(line.Slice(index));
+                }
+            }
+            else
+            {
+                builder.Append(line);
+            }
+
+            builder.Append(newLine);
+            return true;
+        });
+
+        return builder.ToString();
+    }
+
     internal static bool IsGlobalEditorConfig(SourceText sourceText)
     {
         var isGlobal = false;
