@@ -70,7 +70,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath, options: BasicAnalyzerHostOptions.None);
+            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None);
             foreach (var data in reader.ReadAllCompilationData())
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
@@ -97,7 +97,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
         static List<CompilationData> ReadAll(string complogPath, CompilerLogState state)
         {
-            using var reader = CompilerLogReader.Create(complogPath, options: BasicAnalyzerHostOptions.None, state: state);
+            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None.WithCompilerLogState(state));
             return reader.ReadAllCompilationData();
         }
     }
@@ -108,7 +108,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath, options: BasicAnalyzerHostOptions.None);
+            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None);
             foreach (var data in reader.ReadAllCompilerCalls())
             {
                 Assert.NotEmpty(data.GetArguments());
@@ -124,7 +124,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     {
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
-            using var reader = SolutionReader.Create(complogPath, BasicAnalyzerHostOptions.None);
+            using var reader = SolutionReader.Create(complogPath, CompilerLogReaderOptions.None);
             using var workspace = new AdhocWorkspace();
             workspace.AddSolution(reader.ReadSolutionInfo());
             foreach (var project in workspace.CurrentSolution.Projects)
@@ -159,7 +159,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [InlineData(false)]
     public async Task LoadAllCore(bool none)
     {
-        var options = none ? BasicAnalyzerHostOptions.None : BasicAnalyzerHostOptions.Default;
+        var options = none ? CompilerLogReaderOptions.None : CompilerLogReaderOptions.Default;
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             using var reader = SolutionReader.Create(complogPath, options);

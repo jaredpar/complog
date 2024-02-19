@@ -1,0 +1,6 @@
+unify the analyzer options on command line
+switch default to run analyzers
+simplify the options, kind, etc ... for loading analyzers
+    - Move caching to the reader as it conttrols that
+    - Move ALC to the reader as it controls that
+    - Host options are just about what host is created, now how the host is managed

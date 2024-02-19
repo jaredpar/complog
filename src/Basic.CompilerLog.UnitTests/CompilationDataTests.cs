@@ -79,7 +79,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetAnalyzersNoHosting()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, BasicAnalyzerHostOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, CompilerLogReaderOptions.None);
         var data = reader.ReadCompilationData(0);
         Assert.Empty(data.GetAnalyzers());
     }
@@ -87,7 +87,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetDiagnostics()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, BasicAnalyzerHostOptions.Default);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, CompilerLogReaderOptions.Default);
         var data = reader.ReadCompilationData(0);
         Assert.NotEmpty(data.GetDiagnostics());
     }
@@ -95,7 +95,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public async Task GetAllDiagnostics()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, BasicAnalyzerHostOptions.Default);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, CompilerLogReaderOptions.Default);
         var data = reader.ReadCompilationData(0);
         Assert.NotEmpty(await data.GetAllDiagnosticsAsync());
     }
@@ -103,13 +103,13 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetCompilationAfterGeneratorsDiagnostics()
     {
-        var options = new BasicAnalyzerHostOptions(BasicAnalyzerKind.InMemory, cacheable: true);
+        var options = new CompilerLogReaderOptions(BasicAnalyzerKind.InMemory, cacheAnalyzers: true);
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var analyzers = rawData.Analyzers
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
             .ToList();
-        var host = new BasicAnalyzerHostInMemory(reader, analyzers, options);
+        var host = new BasicAnalyzerHostInMemory(reader, analyzers);
         var data = (CSharpCompilationData)reader.ReadCompilationData(0);
         data = new CSharpCompilationData(
             data.CompilerCall,

@@ -427,11 +427,11 @@ int RunReplay(IEnumerable<string> args)
             WriteLine($"Outputting to {baseOutputPath}");
         }
 
-        var analyzerHostOptions = analyzers ? BasicAnalyzerHostOptions.Default : BasicAnalyzerHostOptions.None;
+        var analyzerHostOptions = analyzers ? CompilerLogReaderOptions.Default : CompilerLogReaderOptions.None;
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, analyzerHostOptions);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        var exportUtil = new ExportUtil(reader, includeAnalyzers: analyzerHostOptions.Kind != BasicAnalyzerKind.None);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: analyzerHostOptions.BasicAnalyzerKind != BasicAnalyzerKind.None);
         var sdkDirs = SdkUtil.GetSdkDirectories();
         var success = true;
 
@@ -540,7 +540,7 @@ int RunHelp(IEnumerable<string>? args)
     return ExitSuccess;
 }
 
-CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerHostOptions? options = null)
+CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, CompilerLogReaderOptions? options = null)
 {
     var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen, options);
     if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

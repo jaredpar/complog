@@ -25,15 +25,15 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 
     internal string AnalyzerDirectory { get; }
 
-    internal BasicAnalyzerHostOnDisk(CompilerLogReader reader, List<RawAnalyzerData> analyzers, BasicAnalyzerHostOptions options)
-        : base(BasicAnalyzerKind.OnDisk, options)
+    internal BasicAnalyzerHostOnDisk(CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+        : base(BasicAnalyzerKind.OnDisk)
     {
         var dirName = Guid.NewGuid().ToString("N");
         var name =  $"{nameof(BasicAnalyzerHostOnDisk)} {dirName}";
         AnalyzerDirectory = Path.Combine(reader.CompilerLogState.AnalyzerDirectory, dirName);
         Directory.CreateDirectory(AnalyzerDirectory);
 
-        Loader = new OnDiskLoader(name, AnalyzerDirectory, options);
+        Loader = new OnDiskLoader(name, AnalyzerDirectory, reader.CompilerLogState);
 
         // Now create the AnalyzerFileReference. This won't actually pull on any assembly loading
         // until later so it can be done at the same time we're building up the files.
@@ -71,10 +71,10 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
     internal string AnalyzerDirectory { get; }
 
-    internal OnDiskLoader(string name, string analyzerDirectory, BasicAnalyzerHostOptions options)
+    internal OnDiskLoader(string name, string analyzerDirectory, CompilerLogState state)
         : base(name, isCollectible: true)
     {
-        CompilerLoadContext = options.CompilerLoadContext;
+        CompilerLoadContext = state.CompilerLoadContext;
         AnalyzerDirectory = analyzerDirectory;
     }
 
@@ -128,7 +128,7 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
     internal string Name { get; }
     internal string AnalyzerDirectory { get; }
 
-    internal OnDiskLoader(string name, string analyzerDirectory, BasicAnalyzerHostOptions options)
+    internal OnDiskLoader(string name, string analyzerDirectory, CompilerLogState state)
     {
         Name = name;
         AnalyzerDirectory = analyzerDirectory;

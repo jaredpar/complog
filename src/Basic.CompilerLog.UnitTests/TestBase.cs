@@ -37,9 +37,9 @@ public abstract class TestBase : IDisposable
     public CompilationData GetCompilationData(
         string complogFilePath,
         Func<CompilerCall, bool>? predicate = null,
-        BasicAnalyzerHostOptions? options = null)
+        CompilerLogReaderOptions? options = null)
     {
-        using var reader = CompilerLogReader.Create(complogFilePath, options, State);
+        using var reader = CompilerLogReader.Create(complogFilePath, CompilerLogReaderOptions.Create(options, State));
         return reader.ReadAllCompilationData(predicate).Single();
     }
 

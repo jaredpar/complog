@@ -25,7 +25,7 @@ public sealed class SolutionReaderTests : TestBase
     [Fact]
     public async Task DocumentsGeneratedDefaultHost()
     {
-        var host = new BasicAnalyzerHostOptions(BasicAnalyzerKind.Default);
+        var host = CompilerLogReaderOptions.Default;
         using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath.Value, host);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());
@@ -41,7 +41,7 @@ public sealed class SolutionReaderTests : TestBase
     [Fact]
     public async Task DocumentsGeneratedNoneHost()
     {
-        var host = new BasicAnalyzerHostOptions(BasicAnalyzerKind.None);
+        var host = CompilerLogReaderOptions.None;
         using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath.Value, host);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());

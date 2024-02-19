@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+﻿#if NETCOREAPP
+using System.Runtime.Loader;
+#endif
 
 namespace Basic.CompilerLog.Util;
 
@@ -17,6 +14,10 @@ namespace Basic.CompilerLog.Util;
 /// to the lifetime of a <see cref="CompilerLogReader"/> but this can be explicitly
 /// managed in cases where <see cref="CompilationData"/> live longer than the 
 /// underlying reader.
+/// 
+/// This differs from <see cref="CompilerLogReaderOptions"/> in that it holds actual
+/// state. Nothing here is really serializable between compilations. It must be 
+/// created and managed by the caller.
 /// </summary>
 public sealed class CompilerLogState : IDisposable
 {
@@ -37,6 +38,25 @@ public sealed class CompilerLogState : IDisposable
 
     internal List<BasicAnalyzerHost> BasicAnalyzerHosts { get; } = new();
 
+#if NETCOREAPP
+
+    public AssemblyLoadContext CompilerLoadContext { get; }
+
+    /// <summary>
+    /// Create a new instance of the compiler log state
+    /// </summary>
+    /// <param name="baseDir">The base path that should be used to create <see cref="CryptoKeyFileDirectory"/>
+    /// and <see cref="AnalyzerDirectory"/> paths</param>
+    /// <param name="compilerLoadContext">The <see cref="AssemblyLoadContext"/> that should be used to load
+    /// analyzers</param>
+    public CompilerLogState(AssemblyLoadContext? compilerLoadContext, string? baseDir = null)
+        : this(baseDir)
+    {
+        CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(compilerLoadContext);
+    }
+
+#endif
+
     /// <summary>
     /// Create a new instance of the compiler log state
     /// </summary>
@@ -47,6 +67,9 @@ public sealed class CompilerLogState : IDisposable
         BaseDirectory = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
         CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");
         AnalyzerDirectory = Path.Combine(BaseDirectory, "Analyzers");
+#if NETCOREAPP
+        CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(null);
+#endif
     }
 
     public void Dispose()
