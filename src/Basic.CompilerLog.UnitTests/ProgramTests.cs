@@ -20,6 +20,8 @@ namespace Basic.CompilerLog.UnitTests;
 [Collection(SolutionFixtureCollection.Name)]
 public sealed class ProgramTests : TestBase
 {
+    private Action<CompilerLogReader>? _assertCompilerLogReader;
+
     public SolutionFixture Fixture { get; }
 
     public ProgramTests(ITestOutputHelper testOutputHelper, SolutionFixture fixture) 
@@ -28,24 +30,59 @@ public sealed class ProgramTests : TestBase
         Fixture = fixture;
     }
 
+    public override void Dispose()
+    {
+        base.Dispose();
+        Assert.Null(_assertCompilerLogReader);
+    }
+
     public int RunCompLog(string args, string? currentDirectory = null)
     {
         var (exitCode, _) = RunCompLogEx(args, currentDirectory);
         return exitCode;
     }
 
+    private void OnCompilerLogReader(CompilerLogReader reader)
+    {
+        if (_assertCompilerLogReader is { })
+        {
+            try
+            {
+                _assertCompilerLogReader(reader);
+            }
+            finally
+            {
+                _assertCompilerLogReader = null;
+            }
+        }
+    }
+
+    private void AssertCompilerLogReader(Action<CompilerLogReader> action)
+    {
+        _assertCompilerLogReader = action;
+    }
+
     public (int ExitCode, string Output) RunCompLogEx(string args, string? currentDirectory = null)
     {
-        var writer = new System.IO.StringWriter();
-        currentDirectory ??= RootDirectory;
-        Constants.CurrentDirectory = currentDirectory;
-        Constants.Out = writer;
-        var assembly = typeof(FilterOptionSet).Assembly;
-        var program = assembly.GetType("Program", throwOnError: true);
-        var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
-        Assert.NotNull(main);
-        var ret = main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
-        return ((int)ret!, writer.ToString());
+        try
+        {
+            var writer = new System.IO.StringWriter();
+            currentDirectory ??= RootDirectory;
+            Constants.CurrentDirectory = currentDirectory;
+            Constants.Out = writer;
+            Constants.OnCompilerLogReader = OnCompilerLogReader;
+            var assembly = typeof(FilterOptionSet).Assembly;
+            var program = assembly.GetType("Program", throwOnError: true);
+            var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.NotNull(main);
+            var ret = main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
+            return ((int)ret!, writer.ToString());
+        }
+        finally
+        {
+            Constants.Out = Console.Out;
+            Constants.OnCompilerLogReader = _ => { };
+        }
     }
 
     private void RunWithBoth(Action<string> action)
@@ -339,15 +376,17 @@ public sealed class ProgramTests : TestBase
     }
 
     [Theory]
-    [InlineData("", true)]
-    [InlineData("-a none", false)]
-    [InlineData("-a disk", true)]
-    public void ExportCompilerLog(string arg, bool expectAnalyzers)
+    [InlineData("", null)]
+    [InlineData("-a none", BasicAnalyzerKind.None)]
+    [InlineData("-a ondisk", BasicAnalyzerKind.OnDisk)]
+    public void ExportCompilerLog(string arg, BasicAnalyzerKind? expectedKind)
     {
+        expectedKind ??= BasicAnalyzerHost.DefaultKind;
         RunWithBoth(logPath =>
         {
             using var exportDir = new TempDir();
 
+            AssertCompilerLogReader(reader => Assert.Equal(expectedKind.Value, reader.BasicAnalyzerKind));
             Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} {arg} {logPath} ", RootDirectory));
 
             // Now run the generated build.cmd and see if it succeeds;
@@ -356,9 +395,10 @@ public sealed class ProgramTests : TestBase
             Assert.True(buildResult.Succeeded);
 
             // Check that the RSP file matches the analyzer intent
-            var rspPath = Path.Combine(exportDir.DirectoryPath, "build.rsp");
+            var rspPath = Path.Combine(exportPath, "build.rsp");
             var anyAnalyzers = File.ReadAllLines(rspPath)
                 .Any(x => x.StartsWith("/analyzer", StringComparison.Ordinal));
+            var expectAnalyzers = expectedKind.Value != BasicAnalyzerKind.None;
             Assert.Equal(expectAnalyzers, anyAnalyzers);
         });
     }
@@ -399,17 +439,22 @@ public sealed class ProgramTests : TestBase
     }
 
     [Theory]
-    [InlineData("replay", "")]
-    [InlineData("replay", "--none")]
-    [InlineData("replay", "--analyzers inmemory")]
-    [InlineData("replay", "--analyzers ondisk")]
-    [InlineData("replay", "--analyzers none")]
-    [InlineData("replay", "--severity Error")]
-    [InlineData("emit", "--none")]
-    [InlineData("diagnostics", "--none")]
-    public void ReplayWithArgs(string command, string arg)
+    [InlineData("replay", "", null)]
+    [InlineData("replay", "--none", BasicAnalyzerKind.None)]
+    [InlineData("replay", "--analyzers inmemory", BasicAnalyzerKind.InMemory)]
+    [InlineData("replay", "--analyzers ondisk", BasicAnalyzerKind.OnDisk)]
+    [InlineData("replay", "--analyzers none", BasicAnalyzerKind.None)]
+    [InlineData("replay", "--severity Error", null)]
+    [InlineData("emit", "--none", BasicAnalyzerKind.None)]
+    [InlineData("diagnostics", "--none", BasicAnalyzerKind.None)]
+    public void ReplayWithArgs(string command, string arg, BasicAnalyzerKind? kind)
     {
+        kind ??= BasicAnalyzerHost.DefaultKind;
         using var emitDir = new TempDir();
+        AssertCompilerLogReader(reader => 
+        {
+            Assert.Equal(kind.Value, reader.Options.BasicAnalyzerKind);
+        });
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"{command} {arg} {Fixture.SolutionBinaryLogPath}"));
     }
 

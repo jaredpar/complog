@@ -543,6 +543,7 @@ CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen,
         WriteLine($"Compiler log generated on different operating system");
     }
 
+    OnCompilerLogReader(reader);
     return reader;
 }
 

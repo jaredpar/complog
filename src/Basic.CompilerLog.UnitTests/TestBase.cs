@@ -28,7 +28,7 @@ public abstract class TestBase : IDisposable
         State = new CompilerLogState(Root.NewDirectory("state"));
     }
 
-    public void Dispose()
+    public virtual void Dispose()
     {
         TestOutputHelper.WriteLine("Deleting temp directory");
         Root.Dispose();

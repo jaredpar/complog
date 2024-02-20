@@ -42,6 +42,7 @@ public sealed class CompilerLogReader : IDisposable
     internal Metadata Metadata { get; }
     internal PathNormalizationUtil PathNormalizationUtil { get; }
     internal int Count => Metadata.Count;
+    public BasicAnalyzerKind BasicAnalyzerKind => Options.BasicAnalyzerKind;
     public int MetadataVersion => Metadata.MetadataVersion;
     public bool IsWindowsLog => Metadata.IsWindows;
     public bool IsDisposed => _zipArchiveCore is null;
