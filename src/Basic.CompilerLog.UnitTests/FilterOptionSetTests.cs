@@ -12,7 +12,7 @@ public sealed class FilterOptionSetTest
         Assert.Throws<InvalidOperationException>(() => options.IncludeAnalyzers);
 
         options = new FilterOptionSet(analyzers: true);
-        Assert.False(options.IncludeAnalyzers);
+        Assert.True(options.IncludeAnalyzers);
     }
 }
 #endif

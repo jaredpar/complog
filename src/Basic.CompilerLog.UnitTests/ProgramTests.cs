@@ -397,7 +397,7 @@ public sealed class ProgramTests : TestBase
             // Check that the RSP file matches the analyzer intent
             var rspPath = Path.Combine(exportPath, "build.rsp");
             var anyAnalyzers = File.ReadAllLines(rspPath)
-                .Any(x => x.StartsWith("/analyzer", StringComparison.Ordinal));
+                .Any(x => x.StartsWith("/analyzer:", StringComparison.Ordinal));
             var expectAnalyzers = expectedKind.Value != BasicAnalyzerKind.None;
             Assert.Equal(expectAnalyzers, anyAnalyzers);
         });
