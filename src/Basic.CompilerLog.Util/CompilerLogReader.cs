@@ -48,12 +48,12 @@ public sealed class CompilerLogReader : IDisposable
     public bool IsDisposed => _zipArchiveCore is null;
     internal ZipArchive ZipArchive => !IsDisposed ? _zipArchiveCore : throw new ObjectDisposedException(nameof(CompilerLogReader));
 
-    private CompilerLogReader(CompilerLogReaderOptions? options, ZipArchive zipArchive, Metadata metadata)
+    private CompilerLogReader(CompilerLogReaderOptions? options, CompilerLogState? state, ZipArchive zipArchive, Metadata metadata)
     {
         _zipArchiveCore = zipArchive;
         Options = options ?? CompilerLogReaderOptions.Default;
-        OwnsCompilerLogState = Options.CompilerLogState is null;
-        CompilerLogState = Options.CompilerLogState ?? new CompilerLogState();
+        OwnsCompilerLogState = state is null;
+        CompilerLogState = state ?? new CompilerLogState();
         Metadata = metadata;
         ReadAssemblyInfo();
 
@@ -80,8 +80,9 @@ public sealed class CompilerLogReader : IDisposable
 
     public static CompilerLogReader Create(
         Stream stream,
-        bool leaveOpen = false,
-        CompilerLogReaderOptions? options = null)
+        CompilerLogReaderOptions? options,
+        CompilerLogState? state,
+        bool leaveOpen)
     {
         try
         {
@@ -89,7 +90,7 @@ public sealed class CompilerLogReader : IDisposable
             var metadata = ReadMetadata();
             return metadata.MetadataVersion switch {
                 1 => throw new CompilerLogException("Version 1 compiler logs are no longer supported"),
-                2 => new CompilerLogReader(options, zipArchive, metadata),
+                2 => new CompilerLogReader(options, state, zipArchive, metadata),
                 _ => throw new CompilerLogException($"Version {metadata.MetadataVersion} is higher than the max supported version {Metadata.LatestMetadataVersion}"),
             };
 
@@ -112,22 +113,24 @@ public sealed class CompilerLogReader : IDisposable
 
     public static CompilerLogReader Create(
         Stream stream,
-        bool leaveOpen,
-        CompilerLogState state) =>
-        Create(stream, leaveOpen, CompilerLogReaderOptions.Default.WithCompilerLogState(state));
+        CompilerLogReaderOptions? options = null,
+        bool leaveOpen = true) =>
+        Create(stream, options, state: null, leaveOpen);
+
+    public static CompilerLogReader Create(
+        Stream stream,
+        CompilerLogState? state,
+        bool leaveOpen = true) =>
+        Create(stream, options: null, state: state, leaveOpen);
 
     public static CompilerLogReader Create(
         string filePath,
-        CompilerLogReaderOptions? options = null)
+        CompilerLogReaderOptions? options = null,
+        CompilerLogState? state = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return Create(stream, leaveOpen: false, options);
+        return Create(stream, options, state: state, leaveOpen: false);
     }
-
-    public static CompilerLogReader Create(
-        string filePath,
-        CompilerLogState state) =>
-        Create(filePath, CompilerLogReaderOptions.Default.WithCompilerLogState(state));
 
     private CompilationInfoPack ReadCompilationInfo(int index)
     {

@@ -25,8 +25,6 @@ public sealed class CompilerLogReaderOptions
 
     public static CompilerLogReaderOptions None { get; } = new CompilerLogReaderOptions(BasicAnalyzerKind.None, cacheAnalyzers: true);
 
-    public CompilerLogState? CompilerLogState { get; }
-
     public BasicAnalyzerKind BasicAnalyzerKind { get; }
 
     /// <summary>
@@ -37,20 +35,9 @@ public sealed class CompilerLogReaderOptions
 
     public CompilerLogReaderOptions(
         BasicAnalyzerKind basicAnalyzerKind,
-        CompilerLogState? compilerLogState = null,
         bool cacheAnalyzers = true)
     {
         BasicAnalyzerKind = basicAnalyzerKind;
-        CompilerLogState = compilerLogState;
         CacheAnalyzers = cacheAnalyzers;
     }
-
-    public static CompilerLogReaderOptions Create(CompilerLogReaderOptions? options, CompilerLogState? compilerLogState)
-    {
-        options ??= Default;
-        return options.WithCompilerLogState(compilerLogState);
-    }
-
-    public CompilerLogReaderOptions WithCompilerLogState(CompilerLogState? compilerLogState) =>
-        new CompilerLogReaderOptions(BasicAnalyzerKind, compilerLogState, CacheAnalyzers);
 }

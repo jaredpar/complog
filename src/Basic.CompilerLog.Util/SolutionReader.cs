@@ -45,13 +45,13 @@ public sealed class SolutionReader : IDisposable
         Reader.Dispose();
     }
 
-    public static SolutionReader Create(Stream stream, bool leaveOpen = false, CompilerLogReaderOptions? options = null, Func<CompilerCall, bool>? predicate = null) => 
-        new (CompilerLogReader.Create(stream, leaveOpen, options), predicate);
+    public static SolutionReader Create(Stream stream, CompilerLogReaderOptions? options = null, CompilerLogState? state = null, bool leaveOpen = false, Func<CompilerCall, bool>? predicate = null) => 
+        new (CompilerLogReader.Create(stream, options, state, leaveOpen), predicate);
 
-    public static SolutionReader Create(string filePath, CompilerLogReaderOptions? options = null, Func<CompilerCall, bool>? predicate = null)
+    public static SolutionReader Create(string filePath, CompilerLogReaderOptions? options = null, CompilerLogState? state = null, Func<CompilerCall, bool>? predicate = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new(CompilerLogReader.Create(stream, leaveOpen: false, options), predicate);
+        return new(CompilerLogReader.Create(stream, options, state, leaveOpen: false), predicate);
     }
 
     public SolutionInfo ReadSolutionInfo()

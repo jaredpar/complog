@@ -39,7 +39,7 @@ public abstract class TestBase : IDisposable
         Func<CompilerCall, bool>? predicate = null,
         CompilerLogReaderOptions? options = null)
     {
-        using var reader = CompilerLogReader.Create(complogFilePath, CompilerLogReaderOptions.Create(options, State));
+        using var reader = CompilerLogReader.Create(complogFilePath, options, State);
         return reader.ReadAllCompilationData(predicate).Single();
     }
 

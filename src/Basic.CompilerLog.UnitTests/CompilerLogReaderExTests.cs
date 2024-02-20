@@ -57,7 +57,7 @@ public sealed class CompilerLogReaderExTests : TestBase
         builder.Add(compilerCall);
         builder.Close();
         stream.Position = 0;
-        return CompilerLogReader.Create(stream, leaveOpen: false, CompilerLogReaderOptions.Create(options, State));
+        return CompilerLogReader.Create(stream, options, State, leaveOpen: false);
     }
 
     private CompilerLogReader ConvertConsoleArgs(Func<string[], string[]> func, CompilerLogReaderOptions? options = null) => 

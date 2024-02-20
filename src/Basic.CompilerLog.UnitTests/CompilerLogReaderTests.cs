@@ -62,7 +62,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var stream = new MemoryStream();
         stream.Write([1, 2, 3, 4, 5], 0, 0);
         stream.Position = 0;
-        Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, leaveOpen: true, CompilerLogReaderOptions.None));
+        Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, CompilerLogReaderOptions.None, leaveOpen: true));
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var state = new CompilerLogState(tempDir.DirectoryPath);
 
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value, state: state);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value, options: null, state: state);
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
@@ -407,7 +407,7 @@ public sealed class CompilerLogReaderTests : TestBase
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             using var stream = ResourceLoader.GetResourceStream(resourceName);
-            Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, leaveOpen: true, CompilerLogReaderOptions.None));
+            Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, CompilerLogReaderOptions.None, leaveOpen: true));
         }
     }
 

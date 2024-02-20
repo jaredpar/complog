@@ -537,7 +537,7 @@ int RunHelp(IEnumerable<string>? args)
 
 CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, CompilerLogReaderOptions? options = null)
 {
-    var reader = CompilerLogReader.Create(compilerLogStream, leaveOpen, options);
+    var reader = CompilerLogReader.Create(compilerLogStream, options, leaveOpen);
     if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
         WriteLine($"Compiler log generated on different operating system");

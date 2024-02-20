@@ -97,7 +97,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
         static List<CompilationData> ReadAll(string complogPath, CompilerLogState state)
         {
-            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None.WithCompilerLogState(state));
+            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None, state: state);
             return reader.ReadAllCompilationData();
         }
     }
