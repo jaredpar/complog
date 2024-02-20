@@ -13,74 +13,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 
-#if NETCOREAPP
-using System.Runtime.Loader;
-#endif
-
 namespace Basic.CompilerLog.Util;
-
-public sealed class BasicAnalyzerHostOptions
-{
-    public static BasicAnalyzerHostOptions Default { get; } = new BasicAnalyzerHostOptions(BasicAnalyzerKind.Default, cacheable: true);
-
-    public static BasicAnalyzerHostOptions None { get; } = new BasicAnalyzerHostOptions(BasicAnalyzerKind.None, cacheable: true);
-
-    public static BasicAnalyzerKind RuntimeDefaultKind
-    {
-        get
-        {
-#if NETCOREAPP
-            return BasicAnalyzerKind.InMemory;
-#else
-            return BasicAnalyzerKind.OnDisk;
-#endif
-        }
-
-    }
-
-    public BasicAnalyzerKind Kind { get; }
-
-    /// <summary>
-    /// When true requests for the exact same set of analyzers will return 
-    /// the same <see cref="BasicAnalyzerHost"/> instance.
-    /// </summary>
-    public bool Cacheable { get; }
-
-    internal BasicAnalyzerKind ResolvedKind => Kind switch
-    {
-        BasicAnalyzerKind.Default => RuntimeDefaultKind,
-        _ => Kind
-    };
-
-#if NETCOREAPP
-
-    public AssemblyLoadContext CompilerLoadContext { get; }
-
-    public BasicAnalyzerHostOptions(
-        AssemblyLoadContext compilerLoadContext,
-        BasicAnalyzerKind kind,
-        bool cacheable = true)
-    {
-        Kind = kind;
-        CompilerLoadContext = compilerLoadContext;
-        Cacheable = cacheable;
-    }
-
-#endif
-
-    public BasicAnalyzerHostOptions(
-        BasicAnalyzerKind kind,
-        string? analyzerDirectory = null,
-        bool cacheable = true)
-    {
-        Kind = kind;
-        Cacheable = cacheable;
-
-#if NETCOREAPP
-        CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(null);
-#endif
-    }
-}
 
 /// <summary>
 /// Controls how analyzers (and generators) are loaded 
@@ -88,9 +21,14 @@ public sealed class BasicAnalyzerHostOptions
 public enum BasicAnalyzerKind
 {
     /// <summary>
-    /// Default for the current runtime
+    /// Analyzers and generators from the original are not loaded at all. In the case 
+    /// the original build had generated files they are just added directly to the
+    /// compilation.
     /// </summary>
-    Default = 0,
+    /// <remarks>
+    /// This option avoids loading third party analyzers and generators.
+    /// </remarks>
+    None = 0,
 
     /// <summary>
     /// Analyzers are loaded in memory and disk is not used. 
@@ -102,16 +40,6 @@ public enum BasicAnalyzerKind
     /// side effect <see cref="AnalyzerFileReference"/> instances. 
     /// </summary>
     OnDisk = 2,
-
-    /// <summary>
-    /// Analyzers and generators from the original are not loaded at all. In the case 
-    /// the original build had generated files they are just added directly to the
-    /// compilation.
-    /// </summary>
-    /// <remarks>
-    /// This option avoids loading third party analyzers and generators.
-    /// </remarks>
-    None = 3,
 }
 
 /// <summary>
@@ -119,9 +47,20 @@ public enum BasicAnalyzerKind
 /// </summary>
 public abstract class BasicAnalyzerHost : IDisposable
 {
+    public static BasicAnalyzerKind DefaultKind
+    {
+        get
+        {
+#if NETCOREAPP
+            return BasicAnalyzerKind.InMemory;
+#else
+            return BasicAnalyzerKind.OnDisk;
+#endif
+        }
+
+    }
     private readonly ConcurrentQueue<Diagnostic> _diagnostics = new();
 
-    public BasicAnalyzerHostOptions Options { get; }
     public BasicAnalyzerKind Kind { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences
     {
@@ -136,10 +75,9 @@ public abstract class BasicAnalyzerHost : IDisposable
 
     public bool IsDisposed { get; private set; }
 
-    protected BasicAnalyzerHost(BasicAnalyzerKind kind, BasicAnalyzerHostOptions options)
+    protected BasicAnalyzerHost(BasicAnalyzerKind kind)
     {
         Kind = kind;
-        Options = options;
     }
 
     public void Dispose()
@@ -182,7 +120,7 @@ public abstract class BasicAnalyzerHost : IDisposable
 #if NETCOREAPP
         return true;
 #else
-        return kind is BasicAnalyzerKind.OnDisk or BasicAnalyzerKind.Default or BasicAnalyzerKind.None;
+        return kind is BasicAnalyzerKind.OnDisk or BasicAnalyzerKind.None;
 #endif
     }
 }

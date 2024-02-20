@@ -124,7 +124,7 @@ static void PrintGeneratedFiles()
 static async Task WorkspaceScratch()
 {
     var filePath = @"/mnt/c/Users/jaredpar/temp/console/msbuild.complog";
-    using var reader = SolutionReader.Create(filePath, BasicAnalyzerHostOptions.None);
+    using var reader = SolutionReader.Create(filePath, CompilerLogReaderOptions.None);
     using var workspace = new AdhocWorkspace();
     workspace.AddSolution(reader.ReadSolutionInfo());
     foreach (var project in workspace.CurrentSolution.Projects)
@@ -147,7 +147,7 @@ static void ExportScratch()
         Directory.Delete(dest, recursive: true);
     }
 
-    using var reader = CompilerLogReader.Create(filePath, BasicAnalyzerHostOptions.None);
+    using var reader = CompilerLogReader.Create(filePath, CompilerLogReaderOptions.None);
     var exportUtil = new ExportUtil(reader);
     exportUtil.ExportAll(dest, SdkUtil.GetSdkDirectories());
 }

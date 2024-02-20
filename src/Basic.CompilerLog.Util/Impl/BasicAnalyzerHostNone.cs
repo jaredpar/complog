@@ -24,8 +24,8 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
     internal ImmutableArray<(SourceText SourceText, string Path)> GeneratedSourceTexts { get; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
-    internal BasicAnalyzerHostNone(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts, BasicAnalyzerHostOptions options)
-        : base(BasicAnalyzerKind.None, options)
+    internal BasicAnalyzerHostNone(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
+        : base(BasicAnalyzerKind.None)
     {
         ReadGeneratedFiles = readGeneratedFiles;
         GeneratedSourceTexts = generatedSourceTexts;

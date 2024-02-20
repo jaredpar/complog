@@ -3,6 +3,10 @@ using Basic.CompilerLog.Util;
 using Xunit;
 using Xunit.Abstractions;
 
+#if NETCOREAPP
+using System.Runtime.Loader;
+#endif
+
 namespace Basic.CompilerLog.UnitTests;
 
 public class CompilerLogStateTests : TestBase
@@ -34,4 +38,14 @@ public class CompilerLogStateTests : TestBase
         fileStream.Dispose();
     }
 
+#if NETCOREAPP
+    [Fact]
+    public void CustomAssemblyLoadContext()
+    {
+        var alc = new AssemblyLoadContext("Custom", isCollectible: true);
+        var options = new CompilerLogState(alc);
+        Assert.Same(alc, options.CompilerLoadContext);
+        alc.Unload();
+    }
+#endif
 }

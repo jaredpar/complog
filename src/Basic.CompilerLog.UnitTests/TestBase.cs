@@ -28,7 +28,7 @@ public abstract class TestBase : IDisposable
         State = new CompilerLogState(Root.NewDirectory("state"));
     }
 
-    public void Dispose()
+    public virtual void Dispose()
     {
         TestOutputHelper.WriteLine("Deleting temp directory");
         Root.Dispose();
@@ -37,7 +37,7 @@ public abstract class TestBase : IDisposable
     public CompilationData GetCompilationData(
         string complogFilePath,
         Func<CompilerCall, bool>? predicate = null,
-        BasicAnalyzerHostOptions? options = null)
+        CompilerLogReaderOptions? options = null)
     {
         using var reader = CompilerLogReader.Create(complogFilePath, options, State);
         return reader.ReadAllCompilationData(predicate).Single();

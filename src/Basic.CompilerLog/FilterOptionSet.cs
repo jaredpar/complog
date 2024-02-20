@@ -1,15 +1,36 @@
 ﻿using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Mono.Options;
 
 internal sealed class FilterOptionSet : OptionSet
 {
+    private bool _hasAnalyzerOptions;
+    private BasicAnalyzerKind _basicAnalyzerKind;
+
     internal List<string> TargetFrameworks { get; } = new();
     internal bool IncludeAllKinds { get; set; }
     internal List<string> ProjectNames { get; } = new();
     internal bool Help { get; set; }
-    internal bool UseNoneHost { get; set; }
 
-    internal FilterOptionSet(bool includeNoneHost = false)
+    internal CompilerLogReaderOptions Options
+    {
+        get
+        {
+            CheckHasAnalyzerOptions();
+            return new CompilerLogReaderOptions(_basicAnalyzerKind);
+        }
+    }
+
+    internal bool IncludeAnalyzers
+    {
+        get
+        {
+            CheckHasAnalyzerOptions();
+            return _basicAnalyzerKind != BasicAnalyzerKind.None;
+        }
+    }
+
+    internal FilterOptionSet(bool analyzers = false)
     {
         Add("include", "include all compilation kinds", i => { if (i is not null) IncludeAllKinds = true; });
         Add("targetframework=", "", TargetFrameworks.Add, hidden: true);
@@ -18,9 +39,20 @@ internal sealed class FilterOptionSet : OptionSet
         Add("n|projectName=", "include only compilations for the project", ProjectNames.Add, hidden: true);
         Add("h|help", "print help", h => { if (h != null) Help = true; });
 
-        if (includeNoneHost)
+        if (analyzers)
         {
-            Add("none", "do not use original analyzers / generators", n => {  if (n != null) UseNoneHost = true; });
+            _hasAnalyzerOptions = true;
+            _basicAnalyzerKind = BasicAnalyzerHost.DefaultKind;
+            Add("a|analyzers=", "analyzer load strategy: none, ondisk, inmemory", void (BasicAnalyzerKind k) => _basicAnalyzerKind = k);
+            Add("none", "Do not run analyzers", i => { if (i is not null) _basicAnalyzerKind = BasicAnalyzerKind.None; }, hidden: true);
+        }
+    }
+
+    private void CheckHasAnalyzerOptions()
+    {
+        if (!_hasAnalyzerOptions)
+        {
+            throw new InvalidOperationException();
         }
     }
 

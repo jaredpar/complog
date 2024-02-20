@@ -21,7 +21,6 @@ public sealed class BasicAnalyzerHostTests
     [Fact]
     public void Supported()
     {
-        Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.Default));
         Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.OnDisk));
         Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.None));
 #if NETCOREAPP
@@ -31,13 +30,13 @@ public sealed class BasicAnalyzerHostTests
 #endif
 
         // To make sure this test is updated every time a new value is added
-        Assert.Equal(4, Enum.GetValues(typeof(BasicAnalyzerKind)).Length);
+        Assert.Equal(3, Enum.GetValues(typeof(BasicAnalyzerKind)).Length);
     }
 
     [Fact]
     public void NoneDispose()
     {
-        var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty, BasicAnalyzerHostOptions.None);
+        var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty);
         host.Dispose();
         Assert.Throws<ObjectDisposedException>(() => { _ = host.AnalyzerReferences; });
     }
@@ -45,10 +44,9 @@ public sealed class BasicAnalyzerHostTests
     [Fact]
     public void NoneProps()
     {
-        var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty, BasicAnalyzerHostOptions.None);
+        var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty);
         host.Dispose();
         Assert.Equal(BasicAnalyzerKind.None, host.Kind);
-        Assert.Same(BasicAnalyzerHostOptions.None, host.Options);
         Assert.Empty(host.GeneratedSourceTexts);
     }
 }

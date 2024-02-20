@@ -25,7 +25,7 @@ public sealed class SolutionReaderTests : TestBase
     [Fact]
     public async Task DocumentsGeneratedDefaultHost()
     {
-        var host = new BasicAnalyzerHostOptions(BasicAnalyzerKind.Default);
+        var host = CompilerLogReaderOptions.Default;
         using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath.Value, host);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());
@@ -41,7 +41,7 @@ public sealed class SolutionReaderTests : TestBase
     [Fact]
     public async Task DocumentsGeneratedNoneHost()
     {
-        var host = new BasicAnalyzerHostOptions(BasicAnalyzerKind.None);
+        var host = CompilerLogReaderOptions.None;
         using var reader = SolutionReader.Create(Fixture.ConsoleComplogPath.Value, host);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());
@@ -52,5 +52,16 @@ public sealed class SolutionReaderTests : TestBase
         Assert.Equal(5, docs.Count);
         Assert.Equal("RegexGenerator.g.cs", docs.Last().Name);
         Assert.Empty(generatedDocs);
+    }
+
+    [Fact]
+    public void CreateRespectLeaveOpen()
+    {
+        using var stream = new FileStream(Fixture.ConsoleComplexComplogPath.Value, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = SolutionReader.Create(stream, leaveOpen: true);
+        reader.Dispose();
+
+        // Throws if the underlying stream is disposed
+        stream.Seek(0, SeekOrigin.Begin);
     }
 }
