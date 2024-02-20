@@ -273,11 +273,9 @@ int RunReferences(IEnumerable<string> args)
 int RunExport(IEnumerable<string> args)
 {
     var baseOutputPath = "";
-    var excludeAnalyzers = false;
-    var options = new FilterOptionSet()
+    var options = new FilterOptionSet(analyzers: true)
     {
         { "o|out=", "path to export build content", o => baseOutputPath = o },
-        { "e|exclude-analyzers", "emit the compilation without analyzers / generators", e => excludeAnalyzers = e is not null },
     };
 
     try
@@ -290,9 +288,9 @@ int RunExport(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.Options);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        var exportUtil = new ExportUtil(reader, includeAnalyzers: !excludeAnalyzers);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Exporting to {baseOutputPath}");
@@ -396,13 +394,11 @@ int RunReplay(IEnumerable<string> args)
     var severity = DiagnosticSeverity.Warning;
     var export = false;
     var emit = false;
-    var analyzers = false;
-    var options = new FilterOptionSet(includeNoneHost: true)
+    var options = new FilterOptionSet(analyzers: true)
     {
         { "severity=", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
         { "export", "export failed compilation", e => export = e is not null },
         { "emit", "emit the compilation(s) to disk", e => emit = e is not null },
-        { "analyzers", "use actual analyzers / generators (default no)", a => analyzers = a is not null },
         { "o|out=", "path to export to ", b => baseOutputPath = b },
     };
 
@@ -427,11 +423,10 @@ int RunReplay(IEnumerable<string> args)
             WriteLine($"Outputting to {baseOutputPath}");
         }
 
-        var analyzerHostOptions = analyzers ? CompilerLogReaderOptions.Default : CompilerLogReaderOptions.None;
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, analyzerHostOptions);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.Options);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        var exportUtil = new ExportUtil(reader, includeAnalyzers: analyzerHostOptions.BasicAnalyzerKind != BasicAnalyzerKind.None);
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
         var sdkDirs = SdkUtil.GetSdkDirectories();
         var success = true;
 

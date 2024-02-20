@@ -339,9 +339,10 @@ public sealed class ProgramTests : TestBase
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData("--exclude-analyzers")]
-    public void ExportCompilerLog(string arg)
+    [InlineData("", true)]
+    [InlineData("-a none", false)]
+    [InlineData("-a disk", true)]
+    public void ExportCompilerLog(string arg, bool expectAnalyzers)
     {
         RunWithBoth(logPath =>
         {
@@ -353,6 +354,12 @@ public sealed class ProgramTests : TestBase
             var exportPath = Path.Combine(exportDir.DirectoryPath, "console", "export");
             var buildResult = RunBuildCmd(exportPath);
             Assert.True(buildResult.Succeeded);
+
+            // Check that the RSP file matches the analyzer intent
+            var rspPath = Path.Combine(exportDir.DirectoryPath, "build.rsp");
+            var anyAnalyzers = File.ReadAllLines(rspPath)
+                .Any(x => x.StartsWith("/analyzer", StringComparison.Ordinal));
+            Assert.Equal(expectAnalyzers, anyAnalyzers);
         });
     }
 
@@ -393,11 +400,13 @@ public sealed class ProgramTests : TestBase
 
     [Theory]
     [InlineData("replay", "")]
-    [InlineData("replay", "-none")]
-    [InlineData("replay", "-analyzers")]
-    [InlineData("replay", "-severity Error")]
-    [InlineData("emit", "-none")]
-    [InlineData("diagnostics", "-none")]
+    [InlineData("replay", "--none")]
+    [InlineData("replay", "--analyzers inmemory")]
+    [InlineData("replay", "--analyzers ondisk")]
+    [InlineData("replay", "--analyzers none")]
+    [InlineData("replay", "--severity Error")]
+    [InlineData("emit", "--none")]
+    [InlineData("diagnostics", "--none")]
     public void ReplayWithArgs(string command, string arg)
     {
         using var emitDir = new TempDir();
@@ -406,7 +415,7 @@ public sealed class ProgramTests : TestBase
 
     [Theory]
     [InlineData("")]
-    [InlineData("-none")]
+    [InlineData("--none")]
     public void ReplayConsoleWithEmit(string arg)
     {
         using var emitDir = new TempDir();
