@@ -53,4 +53,15 @@ public sealed class SolutionReaderTests : TestBase
         Assert.Equal("RegexGenerator.g.cs", docs.Last().Name);
         Assert.Empty(generatedDocs);
     }
+
+    [Fact]
+    public void CreateRespectLeaveOpen()
+    {
+        using var stream = new FileStream(Fixture.ConsoleComplexComplogPath.Value, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = SolutionReader.Create(stream, leaveOpen: true);
+        reader.Dispose();
+
+        // Throws if the underlying stream is disposed
+        stream.Seek(0, SeekOrigin.Begin);
+    }
 }

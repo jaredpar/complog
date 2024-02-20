@@ -66,6 +66,17 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
+    public void CreateRespectLeaveOpen()
+    {
+        using var stream = new FileStream(Fixture.ConsoleComplexComplogPath.Value, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = CompilerLogReader.Create(stream, leaveOpen: true);
+        reader.Dispose();
+
+        // Throws if the underlying stream is disposed
+        stream.Seek(0, SeekOrigin.Begin);
+    }
+
+    [Fact]
     public void GlobalConfigPathMap()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
