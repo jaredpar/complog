@@ -47,6 +47,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(PathUtil.Comparer);
     private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
+    private readonly Dictionary<string, string> _compilerAssemblyNameMap = new(PathUtil.Comparer);
     private readonly DefaultObjectPool<MemoryStream> _memoryStreamPool = new(new MemoryStreamPoolPolicy(), maximumRetained: 5);
 
     private int _compilationCount;
@@ -80,6 +81,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 CompilerCallKind = compilerCall.Kind,
                 CommandLineArgsHash = AddContentMessagePack(compilerCall.GetArguments()),
                 CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
+                CompilerAssemblyName = AddCompilerAssemblyName(),
             };
 
             AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
@@ -152,6 +154,24 @@ internal sealed class CompilerLogBuilder : IDisposable
             return Path.Combine(compilerCall.ProjectDirectory, filePath);
         }
 
+        string? AddCompilerAssemblyName()
+        {
+            if (compilerCall.CompilerFilePath is null)
+            {
+                return null;
+            }
+
+            if (_compilerAssemblyNameMap.TryGetValue(compilerCall.CompilerFilePath, out var assemblyName))
+            {
+                return assemblyName;
+            }
+
+            var name = AssemblyName.GetAssemblyName(compilerCall.CompilerFilePath);
+            assemblyName = name.ToString();
+            _compilerAssemblyNameMap[compilerCall.CompilerFilePath] = assemblyName;
+            return assemblyName;
+        }
+
         void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)
         {
             infoPack.EmitOptionsHash = AddContentMessagePack(MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions));
@@ -171,7 +191,6 @@ internal sealed class CompilerLogBuilder : IDisposable
                     MessagePackUtil.CreateVisualBasicCompilationOptionsPack((VisualBasicCompilationOptions)args.CompilationOptions));
             }
         }
-
     }
 
     public void Close()

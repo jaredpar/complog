@@ -17,9 +17,9 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-PrintGeneratedFiles();
+// PrintGeneratedFiles();
 
-//  var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.complog";
 // var filePath = @"C:\Users\jaredpar\code\vs-threading\msbuild.binlog";
 // var filePath = @"c:\users\jaredpar\temp\Build.complog";
@@ -38,7 +38,8 @@ PrintGeneratedFiles();
 
 // Profile();
 
-ExportScratch();
+PrintCompilers(filePath);
+// ExportScratch();
 // await WorkspaceScratch();
 // RoslynScratch();
 // Sarif();
@@ -87,6 +88,16 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
 */
+
+void PrintCompilers(string filePath)
+{
+    using var reader = CompilerLogReader.Create(filePath);
+    foreach (var info in reader.ReadAllCompilerAssemblies())
+    {
+        Console.WriteLine(info.CompilerFilePath);
+        Console.WriteLine(info.AssemblyName);
+    }
+}
 
 static void Test(ITypeSymbol symbol)
 {
