@@ -141,6 +141,7 @@ public sealed class CompilerLogReader : IDisposable
     private CompilerCall ReadCompilerCallCore(int index, CompilationInfoPack pack)
     {
         return new CompilerCall(
+            NormalizePath(pack.CompilerFilePath),
             NormalizePath(pack.ProjectFilePath),
             pack.CompilerCallKind,
             pack.TargetFramework,

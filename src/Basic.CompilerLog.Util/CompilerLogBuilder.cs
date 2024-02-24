@@ -73,6 +73,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             var commandLineArguments = compilerCall.ParseArguments();
             var infoPack = new CompilationInfoPack()
             {
+                CompilerFilePath = compilerCall.CompilerFilePath,
                 ProjectFilePath = compilerCall.ProjectFilePath,
                 IsCSharp = compilerCall.IsCSharp,
                 TargetFramework = compilerCall.TargetFramework,

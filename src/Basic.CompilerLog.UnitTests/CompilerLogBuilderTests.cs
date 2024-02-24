@@ -24,6 +24,7 @@ public sealed class CompilerLogBuilderTests : TestBase
 
         var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(binlogStream, new()).First(x => x.IsCSharp);
         compilerCall = new CompilerCall(
+            compilerCall.CompilerFilePath,
             compilerCall.ProjectFilePath,
             CompilerCallKind.Regular,
             compilerCall.TargetFramework,

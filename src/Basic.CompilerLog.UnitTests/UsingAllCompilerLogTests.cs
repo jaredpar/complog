@@ -111,6 +111,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None);
             foreach (var data in reader.ReadAllCompilerCalls())
             {
+                Assert.NotNull(data.CompilerFilePath);
                 Assert.NotEmpty(data.GetArguments());
             }
         }

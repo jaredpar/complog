@@ -92,22 +92,23 @@ public static class BinaryLogUtil
             }
 
             var kind = Kind ?? CompilerCallKind.Unknown;
-            var args = CommandLineParser.SplitCommandLineIntoArguments(CommandLineArguments, removeHashComments: true);
-            var rawArgs = IsCSharp
-                ? SkipCompilerExecutable(args, "csc.exe", "csc.dll").ToArray()
-                : SkipCompilerExecutable(args, "vbc.exe", "vbc.dll").ToArray();
-            if (rawArgs.Length == 0)
+            var rawArgs = CommandLineParser.SplitCommandLineIntoArguments(CommandLineArguments, removeHashComments: true);
+            var (compilerFilePath, args) = IsCSharp
+                ? ParseCompilerAndArguments(rawArgs, "csc.exe", "csc.dll")
+                : ParseCompilerAndArguments(rawArgs, "vbc.exe", "vbc.dll");
+            if (args.Length == 0)
             {
                 diagnosticList.Add($"Project {ProjectFile} ({TargetFramework}): bad argument list");
                 return null;
             }
 
             return new CompilerCall(
+                compilerFilePath,
                 ProjectFile,
                 kind,
                 TargetFramework,
                 isCSharp: IsCSharp,
-                new Lazy<string[]>(() => rawArgs),
+                new Lazy<string[]>(() => args),
                 index: null);
         }
     }
@@ -292,12 +293,13 @@ public static class BinaryLogUtil
     /// The argument list is going to include either `dotnet exec csc.dll` or `csc.exe`. Need 
     /// to skip past that to get to the real command line.
     /// </summary>
-    internal static IEnumerable<string> SkipCompilerExecutable(IEnumerable<string> args, string exeName, string dllName)
+    internal static (string? CompilerFilePath, string[] Arguments) ParseCompilerAndArguments(IEnumerable<string> args, string exeName, string dllName)
     {
         using var e = args.GetEnumerator();
 
         // The path to the executable is not escaped like the other command line arguments. Need
         // to skip until we see an exec or a path with the exe as the file name.
+        string? compilerFilePath = null;
         var found = false;
         while (e.MoveNext())
         {
@@ -305,12 +307,14 @@ public static class BinaryLogUtil
             {
                 if (e.MoveNext() && PathUtil.Comparer.Equals(Path.GetFileName(e.Current), dllName))
                 {
+                    compilerFilePath = e.Current;
                     found = true;
                 }
                 break;
             }
             else if (e.Current.EndsWith(exeName, PathUtil.Comparison))
             {
+                compilerFilePath = e.Current;
                 found = true;
                 break;
             }
@@ -318,12 +322,15 @@ public static class BinaryLogUtil
 
         if (!found)
         {
-            yield break;
+            return (null, Array.Empty<string>());
         }
 
+        var list = new List<string>();
         while (e.MoveNext())
         {
-            yield return e.Current;
+            list.Add(e.Current);
         }
+
+        return (compilerFilePath, list.ToArray());
     }
 }
