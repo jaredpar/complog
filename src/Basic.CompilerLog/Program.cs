@@ -150,7 +150,11 @@ int RunAnalyzers(IEnumerable<string> args)
 
 int RunPrint(IEnumerable<string> args)
 {
-    var options = new FilterOptionSet();
+    var compilers = false;
+    var options = new FilterOptionSet()
+    {
+        { "c|compilers", "include compiler summary", c => compilers = c is not null },
+    };
 
     try
     {
@@ -165,9 +169,20 @@ int RunPrint(IEnumerable<string> args)
         using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
+        WriteLine("Projects");
         foreach (var compilerCall in compilerCalls)
         {
             WriteLine(compilerCall.GetDiagnosticName());
+        }
+
+        if (compilers)
+        {
+            WriteLine("Compilers");
+            foreach (var tuple in reader.ReadAllCompilerAssemblies())
+            {
+                WriteLine(tuple.CompilerFilePath);
+                WriteLine(tuple.AssemblyName.ToString());
+            }
         }
 
         return ExitSuccess;

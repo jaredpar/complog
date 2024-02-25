@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -499,7 +500,7 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void RelpayBadOptionCombination()
+    public void ReplayBadOptionCombination()
     {
         var (exitCode, output) = RunCompLogEx($"replay -o example");
         Assert.Equal(Constants.ExitFailure, exitCode);
@@ -534,8 +535,23 @@ public sealed class ProgramTests : TestBase
         Assert.Contains("classlib.csproj (net7.0)", output);
     }
 
+    [Fact]
+    public void PrintCompilers()
+    {
+        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -c");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithDiagnosticsBinaryLogPath);
+        var tuple = reader.ReadAllCompilerAssemblies().Single();
+        Assert.Contains($"""
+            Compilers
+            {tuple.CompilerFilePath}
+            {tuple.AssemblyName}
+            """, output);
+    }
+
     /// <summary>
-    /// Engage the code to find files in the specidied directory
+    /// Engage the code to find files in the specified directory
     /// </summary>
     [Fact]
     public void PrintDirectory()
