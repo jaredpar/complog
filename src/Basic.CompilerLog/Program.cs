@@ -439,7 +439,7 @@ int RunReplay(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.Options);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.Options, checkVersion: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
         var sdkDirs = SdkUtil.GetSdkDirectories();
@@ -550,12 +550,24 @@ int RunHelp(IEnumerable<string>? args)
     return ExitSuccess;
 }
 
-CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, CompilerLogReaderOptions? options = null)
+CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, CompilerLogReaderOptions? options = null, bool checkVersion = false)
 {
     var reader = CompilerLogReader.Create(compilerLogStream, options, leaveOpen);
     if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
         WriteLine($"Compiler log generated on different operating system");
+    }
+
+    if (checkVersion)
+    {
+        var version = typeof(Compilation).Assembly.GetName().Version;
+        foreach (var tuple in reader.ReadAllCompilerAssemblies())
+        {
+            if (tuple.AssemblyName.Version > version)
+            {
+                WriteLine($"Compiler in log is newer than complog: {tuple.AssemblyName.Version} > {version}");
+            }
+        }
     }
 
     OnCompilerLogReader(reader);

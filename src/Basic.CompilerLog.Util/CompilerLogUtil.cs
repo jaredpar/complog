@@ -98,12 +98,14 @@ public static class CompilerLogUtil
         {
             if (predicate(compilerInvocation))
             {
-                if (builder.Add(compilerInvocation))
+                try
                 {
+                    builder.Add(compilerInvocation);
                     included.Add(compilerInvocation);
                 }
-                else
+                catch (Exception ex)
                 {
+                    diagnostics.Add($"Error adding {compilerInvocation.ProjectFilePath}: {ex.Message}");
                     success = false;
                 }
             }

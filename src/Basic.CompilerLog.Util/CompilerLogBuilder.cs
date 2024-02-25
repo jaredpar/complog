@@ -67,39 +67,34 @@ internal sealed class CompilerLogBuilder : IDisposable
         Diagnostics = diagnostics;
     }
 
-    internal bool Add(CompilerCall compilerCall)
+    /// <summary>
+    /// Adds a compilation into the builder and returns the index of the entry
+    /// </summary>
+    internal void Add(CompilerCall compilerCall)
     {
-        try
+        var commandLineArguments = compilerCall.ParseArguments();
+        var infoPack = new CompilationInfoPack()
         {
-            var commandLineArguments = compilerCall.ParseArguments();
-            var infoPack = new CompilationInfoPack()
-            {
-                CompilerFilePath = compilerCall.CompilerFilePath,
-                ProjectFilePath = compilerCall.ProjectFilePath,
-                IsCSharp = compilerCall.IsCSharp,
-                TargetFramework = compilerCall.TargetFramework,
-                CompilerCallKind = compilerCall.Kind,
-                CommandLineArgsHash = AddContentMessagePack(compilerCall.GetArguments()),
-                CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
-                CompilerAssemblyName = AddCompilerAssemblyName(),
-            };
+            CompilerFilePath = compilerCall.CompilerFilePath,
+            ProjectFilePath = compilerCall.ProjectFilePath,
+            IsCSharp = compilerCall.IsCSharp,
+            TargetFramework = compilerCall.TargetFramework,
+            CompilerCallKind = compilerCall.Kind,
+            CommandLineArgsHash = AddContentMessagePack(compilerCall.GetArguments()),
+            CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
+            CompilerAssemblyName = AddCompilerAssemblyName(),
+        };
 
-            AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
+        AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
 
-            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), CompressionLevel.Fastest);
-            using (var entryStream = entry.Open())
-            {
-                MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
-            }
-
-            _compilationCount++;
-            return true;
-        }
-        catch (Exception ex)
+        var index = _compilationCount;
+        var entry = ZipArchive.CreateEntry(GetCompilerEntryName(index), CompressionLevel.Fastest);
+        using (var entryStream = entry.Open())
         {
-            Diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
-            return false;
+            MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
         }
+
+        _compilationCount++;
 
         string AddCompilationDataPack(CommandLineArguments commandLineArguments)
         {
