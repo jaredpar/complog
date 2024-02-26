@@ -31,7 +31,7 @@ public sealed class CompilerLogBuilderTests : TestBase
             isCSharp: true,
             new Lazy<string[]>(() => ["/sourcelink:does-not-exist.txt"]),
             null);
-        builder.Add(compilerCall);
+        Assert.Throws<Exception>(() => builder.Add(compilerCall));
     }
 
     [Fact]

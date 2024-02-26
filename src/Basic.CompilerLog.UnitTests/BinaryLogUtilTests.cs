@@ -21,9 +21,9 @@ namespace Basic.CompilerLog.UnitTests;
 public sealed class BinaryLogUtilTests
 {
     [Theory]
-    [InlineData("dotnet exec csc.dll a.cs", null, "a.cs")]
+    [InlineData("dotnet exec csc.dll a.cs", "csc.dll", "a.cs")]
     [InlineData("dotnet not what we expect a.cs", null, "")]
-    [InlineData("csc.exe a.cs b.cs", null, "a.cs b.cs")]
+    [InlineData("csc.exe a.cs b.cs", "csc.exe", "a.cs b.cs")]
     public void ParseCompilerAndArguments(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
         var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseCompilerAndArguments(ToArray(inputArgs), "csc.exe", "csc.dll");
