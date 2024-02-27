@@ -24,11 +24,32 @@ public sealed class CompilerLogBuilderTests : TestBase
 
         var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(binlogStream, new()).First(x => x.IsCSharp);
         compilerCall = new CompilerCall(
+            compilerCall.CompilerFilePath,
             compilerCall.ProjectFilePath,
             CompilerCallKind.Regular,
             compilerCall.TargetFramework,
             isCSharp: true,
             new Lazy<string[]>(() => ["/sourcelink:does-not-exist.txt"]),
+            null);
+        Assert.Throws<Exception>(() => builder.Add(compilerCall));
+    }
+
+    [Fact]
+    public void AddWithMissingCompilerFilePath()
+    {
+        using var stream = new MemoryStream();
+        using var builder = new CompilerLogBuilder(stream, new());
+        using var binlogStream = new FileStream(Fixture.ConsoleWithDiagnosticsBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(binlogStream, new()).First(x => x.IsCSharp);
+        var args = compilerCall.GetArguments();
+        compilerCall = new CompilerCall(
+            compilerFilePath: null,
+            compilerCall.ProjectFilePath,
+            CompilerCallKind.Regular,
+            compilerCall.TargetFramework,
+            isCSharp: true,
+            new Lazy<string[]>(() => args),
             null);
         builder.Add(compilerCall);
     }

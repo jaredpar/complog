@@ -225,6 +225,10 @@ public class CompilationInfoPack
     public string ParseOptionsHash { get; set; }
     [Key(8)]
     public string CompilationOptionsHash { get; set; }
+    [Key(9)]
+    public string? CompilerFilePath { get; set; }
+    [Key(10)]
+    public string? CompilerAssemblyName { get; set; }
 }
 
 [MessagePackObject]

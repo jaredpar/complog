@@ -33,7 +33,6 @@ internal sealed class FilterOptionSet : OptionSet
     internal FilterOptionSet(bool analyzers = false)
     {
         Add("include", "include all compilation kinds", i => { if (i is not null) IncludeAllKinds = true; });
-        Add("targetframework=", "", TargetFrameworks.Add, hidden: true);
         Add("f|framework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
         Add("p|project=", "include only compilations for the given project (allows multiple)", ProjectNames.Add);
         Add("n|projectName=", "include only compilations for the project", ProjectNames.Add, hidden: true);

@@ -47,6 +47,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, Guid> _assemblyPathToMvidMap = new(PathUtil.Comparer);
     private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
+    private readonly Dictionary<string, string> _compilerAssemblyNameMap = new(PathUtil.Comparer);
     private readonly DefaultObjectPool<MemoryStream> _memoryStreamPool = new(new MemoryStreamPoolPolicy(), maximumRetained: 5);
 
     private int _compilationCount;
@@ -66,37 +67,34 @@ internal sealed class CompilerLogBuilder : IDisposable
         Diagnostics = diagnostics;
     }
 
-    internal bool Add(CompilerCall compilerCall)
+    /// <summary>
+    /// Adds a compilation into the builder and returns the index of the entry
+    /// </summary>
+    internal void Add(CompilerCall compilerCall)
     {
-        try
+        var commandLineArguments = compilerCall.ParseArguments();
+        var infoPack = new CompilationInfoPack()
         {
-            var commandLineArguments = compilerCall.ParseArguments();
-            var infoPack = new CompilationInfoPack()
-            {
-                ProjectFilePath = compilerCall.ProjectFilePath,
-                IsCSharp = compilerCall.IsCSharp,
-                TargetFramework = compilerCall.TargetFramework,
-                CompilerCallKind = compilerCall.Kind,
-                CommandLineArgsHash = AddContentMessagePack(compilerCall.GetArguments()),
-                CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
-            };
+            CompilerFilePath = compilerCall.CompilerFilePath,
+            ProjectFilePath = compilerCall.ProjectFilePath,
+            IsCSharp = compilerCall.IsCSharp,
+            TargetFramework = compilerCall.TargetFramework,
+            CompilerCallKind = compilerCall.Kind,
+            CommandLineArgsHash = AddContentMessagePack(compilerCall.GetArguments()),
+            CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
+            CompilerAssemblyName = AddCompilerAssemblyName(),
+        };
 
-            AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
+        AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
 
-            var entry = ZipArchive.CreateEntry(GetCompilerEntryName(_compilationCount), CompressionLevel.Fastest);
-            using (var entryStream = entry.Open())
-            {
-                MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
-            }
-
-            _compilationCount++;
-            return true;
-        }
-        catch (Exception ex)
+        var index = _compilationCount;
+        var entry = ZipArchive.CreateEntry(GetCompilerEntryName(index), CompressionLevel.Fastest);
+        using (var entryStream = entry.Open())
         {
-            Diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
-            return false;
+            MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
         }
+
+        _compilationCount++;
 
         string AddCompilationDataPack(CommandLineArguments commandLineArguments)
         {
@@ -151,6 +149,24 @@ internal sealed class CompilerLogBuilder : IDisposable
             return Path.Combine(compilerCall.ProjectDirectory, filePath);
         }
 
+        string? AddCompilerAssemblyName()
+        {
+            if (compilerCall.CompilerFilePath is null)
+            {
+                return null;
+            }
+
+            if (_compilerAssemblyNameMap.TryGetValue(compilerCall.CompilerFilePath, out var assemblyName))
+            {
+                return assemblyName;
+            }
+
+            var name = AssemblyName.GetAssemblyName(compilerCall.CompilerFilePath);
+            assemblyName = name.ToString();
+            _compilerAssemblyNameMap[compilerCall.CompilerFilePath] = assemblyName;
+            return assemblyName;
+        }
+
         void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)
         {
             infoPack.EmitOptionsHash = AddContentMessagePack(MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions));
@@ -170,7 +186,6 @@ internal sealed class CompilerLogBuilder : IDisposable
                     MessagePackUtil.CreateVisualBasicCompilationOptionsPack((VisualBasicCompilationOptions)args.CompilationOptions));
             }
         }
-
     }
 
     public void Close()

@@ -1,16 +1,21 @@
 ﻿#if NETCOREAPP
 using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Serialize;
+using MessagePack;
 using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis.CSharp;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -491,6 +496,40 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void ReplayNewCompiler()
+    {
+        string logFilePath = CreateBadLog();
+        var (exitCode, output) = RunCompLogEx($"replay {logFilePath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Compiler in log is newer than complog: 99.99.99.99 >", output);
+
+        string CreateBadLog()
+        {
+            var logFilePath = Path.Combine(RootDirectory, "mutated.complog");
+            CompilerLogUtil.ConvertBinaryLog(
+                Fixture.SolutionBinaryLogPath,
+                logFilePath,
+                cc => cc.ProjectFileName == "console.csproj");
+            MutateArchive(logFilePath);
+            return logFilePath;
+        }
+
+        static void MutateArchive(string complogFilePath)
+        {
+            using var fileStream = new FileStream(complogFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            using var zipArchive = new ZipArchive(fileStream, ZipArchiveMode.Update, leaveOpen: true);
+            using var entryStream = zipArchive.OpenEntryOrThrow(CommonUtil.GetCompilerEntryName(0));
+            var infoPack = MessagePackSerializer.Deserialize<CompilationInfoPack>(entryStream, CommonUtil.SerializerOptions);
+            infoPack.CompilerAssemblyName = Regex.Replace(
+                infoPack.CompilerAssemblyName!,
+                @"\d+\.\d+\.\d+\.\d+",
+                "99.99.99.99");
+            entryStream.Position = 0;
+            MessagePackSerializer.Serialize(entryStream, infoPack, CommonUtil.SerializerOptions);
+        }
+    }
+
+    [Fact]
     public void ReplayBadOption()
     {
         var (exitCode, output) = RunCompLogEx($"replay --not-an-option");
@@ -499,7 +538,7 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void RelpayBadOptionCombination()
+    public void ReplayBadOptionCombination()
     {
         var (exitCode, output) = RunCompLogEx($"replay -o example");
         Assert.Equal(Constants.ExitFailure, exitCode);
@@ -534,8 +573,23 @@ public sealed class ProgramTests : TestBase
         Assert.Contains("classlib.csproj (net7.0)", output);
     }
 
+    [Fact]
+    public void PrintCompilers()
+    {
+        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -c");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithDiagnosticsBinaryLogPath);
+        var tuple = reader.ReadAllCompilerAssemblies().Single();
+        Assert.Contains($"""
+            Compilers
+            {tuple.CompilerFilePath}
+            {tuple.AssemblyName}
+            """, output);
+    }
+
     /// <summary>
-    /// Engage the code to find files in the specidied directory
+    /// Engage the code to find files in the specified directory
     /// </summary>
     [Fact]
     public void PrintDirectory()

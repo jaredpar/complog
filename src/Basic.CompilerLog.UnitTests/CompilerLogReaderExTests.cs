@@ -65,6 +65,7 @@ public sealed class CompilerLogReaderExTests : TestBase
         {
             var args = func(x.GetArguments());
             return new CompilerCall(
+                x.CompilerFilePath,
                 x.ProjectFilePath,
                 x.Kind,
                 x.TargetFramework,

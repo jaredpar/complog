@@ -111,6 +111,17 @@ public sealed class UsingAllCompilerLogTests : TestBase
             using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None);
             foreach (var data in reader.ReadAllCompilerCalls())
             {
+                var fileName = Path.GetFileName(complogPath);
+                if (fileName is "windows-console.complog" ||
+                    fileName is "linux-console.complog")
+                {
+                    Assert.Null(data.CompilerFilePath);
+                }
+                else
+                {
+                    Assert.NotNull(data.CompilerFilePath);
+                }
+                
                 Assert.NotEmpty(data.GetArguments());
             }
         }

@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
+using Microsoft.CodeAnalysis.VisualBasic.Syntax;
 using Microsoft.VisualBasic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
@@ -141,6 +142,7 @@ public sealed class CompilerLogReader : IDisposable
     private CompilerCall ReadCompilerCallCore(int index, CompilationInfoPack pack)
     {
         return new CompilerCall(
+            NormalizePath(pack.CompilerFilePath),
             NormalizePath(pack.ProjectFilePath),
             pack.CompilerCallKind,
             pack.TargetFramework,
@@ -218,6 +220,28 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         return list;
+    }
+
+    public List<(string CompilerFilePath, AssemblyName AssemblyName)> ReadAllCompilerAssemblies()
+    {
+        var list = new List<(string CompilerFilePath, AssemblyName AssemblyName)>();
+        var map = new Dictionary<string, AssemblyName>(PathUtil.Comparer);
+        for (int i = 0; i < Count; i++)
+        {
+            var pack = GetOrReadCompilationInfo(i);
+            if (pack.CompilerFilePath is not null && 
+                pack.CompilerAssemblyName is not null &&
+                !map.ContainsKey(pack.CompilerFilePath))
+            {
+                var name = new AssemblyName(pack.CompilerAssemblyName);
+                map[pack.CompilerFilePath] = name;
+            }
+        }
+
+        return map
+            .OrderBy(x => x.Key, PathUtil.Comparer)
+            .Select(x => (x.Key, x.Value))
+            .ToList();
     }
 
     public (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilerCall compilerCall)

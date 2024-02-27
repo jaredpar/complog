@@ -21,13 +21,14 @@ namespace Basic.CompilerLog.UnitTests;
 public sealed class BinaryLogUtilTests
 {
     [Theory]
-    [InlineData("dotnet exec csc.dll a.cs", "a.cs")]
-    [InlineData("dotnet not what we expect a.cs", "")]
-    [InlineData("csc.exe a.cs b.cs", "a.cs b.cs")]
-    public void SkipCompilerExecutableTests(string args, string expected)
+    [InlineData("dotnet exec csc.dll a.cs", "csc.dll", "a.cs")]
+    [InlineData("dotnet not what we expect a.cs", null, "")]
+    [InlineData("csc.exe a.cs b.cs", "csc.exe", "a.cs b.cs")]
+    public void ParseCompilerAndArguments(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
-        var realArgs = BinaryLogUtil.SkipCompilerExecutable(ToArray(args), "csc.exe", "csc.dll");
-        Assert.Equal(ToArray(expected), realArgs);
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseCompilerAndArguments(ToArray(inputArgs), "csc.exe", "csc.dll");
+        Assert.Equal(ToArray(expectedArgs), actualArgs);
+        Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
         static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
     }
 }

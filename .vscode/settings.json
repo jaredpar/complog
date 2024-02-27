@@ -11,10 +11,13 @@
         "Complogs",
         "cryptodir",
         "cryptokeyfile",
+        "inmemory",
         "jaredpar",
         "msbuild",
         "Mvid",
         "NETCOREAPP",
+        "netstandard",
+        "ondisk",
         "Relogger",
         "ruleset",
         "Xunit"

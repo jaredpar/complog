@@ -34,11 +34,17 @@ public enum CompilerCallKind
     Unknown
 }
 
+/// <summary>
+/// Represents a call to the compiler. The file paths and arguments provided here are correct 
+/// for the machine on which the compiler was run. They cannot be relied on to be correct on 
+/// machines where a compiler log is rehydrated.
+/// </summary>
 public sealed class CompilerCall
 {
     private readonly Lazy<string[]> _lazyArguments;
-    private readonly Lazy<CommandLineArguments> _lazyParsedArgumets;
+    private readonly Lazy<CommandLineArguments> _lazyParsedArguments;
 
+    public string? CompilerFilePath { get; }
     public string ProjectFilePath { get; }
     public CompilerCallKind Kind { get; }
     public string? TargetFramework { get; }
@@ -50,6 +56,7 @@ public sealed class CompilerCall
     public string ProjectDirectory => Path.GetDirectoryName(ProjectFilePath)!;
 
     internal CompilerCall(
+        string? compilerFilePath,
         string projectFilePath,
         CompilerCallKind kind,
         string? targetFramework,
@@ -57,13 +64,14 @@ public sealed class CompilerCall
         Lazy<string[]> arguments,
         int? index)
     {
+        CompilerFilePath = compilerFilePath;
         ProjectFilePath = projectFilePath;
         Kind = kind;
         TargetFramework = targetFramework;
         IsCSharp = isCSharp;
         Index = index;
         _lazyArguments = arguments;
-        _lazyParsedArgumets = new Lazy<CommandLineArguments>(ParseArgumentsCore);
+        _lazyParsedArguments = new Lazy<CommandLineArguments>(ParseArgumentsCore);
     }
 
     public string GetDiagnosticName() 
@@ -81,7 +89,7 @@ public sealed class CompilerCall
 
     public string[] GetArguments() => _lazyArguments.Value;
 
-    internal CommandLineArguments ParseArguments() => _lazyParsedArgumets.Value;
+    internal CommandLineArguments ParseArguments() => _lazyParsedArguments.Value;
 
     private CommandLineArguments ParseArgumentsCore()
     {
