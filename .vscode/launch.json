@@ -11,7 +11,7 @@
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
             "program": "${workspaceFolder}/artifacts/bin/Basic.CompilerLog/debug_net7.0/Basic.CompilerLog.dll",
-            "args": ["print", ".\\msbuild.binlog" ],
+            "args": ["--compiler", "C:\\Program Files\\dotnet\\sdk\\8.0.200\\Roslyn\\bincore", "replay", "msbuild.binlog" ],
             "cwd": "c:\\Users\\jaredpar\\temp\\console",
             // "cwd": "${workspaceFolder}/src/Basic.CompilerLog",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console

@@ -4,40 +4,80 @@ using Microsoft.CodeAnalysis;
 using Mono.Options;
 using StructuredLogViewer;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
 using static Constants;
 
-var (command, rest) = args.Length == 0
-    ? ("help", Enumerable.Empty<string>())
-    : (args[0], args.Skip(1));
+RunCore(args);
 
-try
+int RunCore(string[] args)
 {
-    return command.ToLower() switch
+    if (ParseCompilerDirectory(ref args) is { } compilerDirectory)
     {
-        "create" => RunCreate(rest),
-        "replay" => RunReplay(rest),
-        "export" => RunExport(rest),
-        "ref" => RunReferences(rest),
-        "rsp" => RunResponseFile(rest),
-        "analyzers" => RunAnalyzers(rest),
-        "print" => RunPrint(rest),
-        "help" => RunHelp(rest),
+        return RunWithCompiler(compilerDirectory, args);
+    }
 
-        // Older option names
-        "diagnostics" => RunReplay(rest),
-        "emit" => RunReplay(rest),
-        _ => RunBadCommand(command)
-    };
+    var (command, rest) = args.Length == 0
+        ? ("help", Enumerable.Empty<string>())
+        : (args[0], args.Skip(1));
+
+    try
+    {
+        return command.ToLower() switch
+        {
+            "create" => RunCreate(rest),
+            "replay" => RunReplay(rest),
+            "export" => RunExport(rest),
+            "ref" => RunReferences(rest),
+            "rsp" => RunResponseFile(rest),
+            "analyzers" => RunAnalyzers(rest),
+            "print" => RunPrint(rest),
+            "help" => RunHelp(rest),
+
+            // Older option names
+            "diagnostics" => RunReplay(rest),
+            "emit" => RunReplay(rest),
+            _ => RunBadCommand(command)
+        };
+    }
+    catch (Exception e)
+    {
+        WriteLine("Unexpected error");
+        WriteLine(e.Message);
+        RunHelp(null);
+        return ExitFailure;
+    }
 }
-catch (Exception e)
+
+string? ParseCompilerDirectory(ref string[] args)
 {
-    WriteLine("Unexpected error");
-    WriteLine(e.Message);
-    RunHelp(null);
-    return ExitFailure;
+    for (int i = 0; i + 1< args.Length; i++)
+    {
+        if (args[i] == "--compiler")
+        {
+            var compilerPath = args[i + 1];
+            args = args.Take(i).Concat(args.Skip(i + 2)).ToArray();
+            return compilerPath;
+        }
+    }
+
+    return null;
+}
+
+int RunWithCompiler(string compilerDirectory, string[] args)
+{
+    var assembly = typeof(FilterOptionSet).Assembly;
+    var toolDirectory = Path.GetDirectoryName(assembly.Location)!;
+    var context = new CompilerAssemblyLoadContext(toolDirectory, compilerDirectory);
+    var altAssembly = context.LoadFromAssemblyName(assembly.GetName());
+    var program = altAssembly.GetType("Program", throwOnError: true)!;
+    var runCore = program
+        .GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+        .Single(x => x.Name.Contains("RunCore"));
+    var result = runCore.Invoke(null, [args])!;
+    return (int)result;
 }
 
 int RunCreate(IEnumerable<string> args)
