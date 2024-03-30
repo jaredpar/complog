@@ -43,6 +43,29 @@ public abstract class TestBase : IDisposable
         return reader.ReadAllCompilationData(predicate).Single();
     }
 
+#if NETCOREAPP
+    /// <summary>
+    /// Find the path to the compiler on the local machine. Used for tests that want
+    /// to run on a custom compiler
+    /// </summary>
+    /// <remarks>
+    /// Need to limit the search to SDKs that have compilers that are using a compatible
+    /// runtime
+    /// </remarks>
+    public static string GetLocalCompilerPath()
+    {
+        var runtimeMajor = typeof(int).Assembly.GetName().Version!.Major;
+        var sdkPath = SdkUtil
+            .GetSdkDirectories()
+            .OrderByDescending(x => Path.GetFileName(x)!)
+            .Where(x => GetVersion(x) <= runtimeMajor)
+            .First();
+        return Path.Combine(sdkPath, "Roslyn", "bincore");
+
+        int GetVersion(string path) => int.Parse(Path.GetFileName(path)!.Split('.')[0]);
+    }
+#endif
+
     protected void RunDotNet(string command, string? workingDirectory = null)
     {
         workingDirectory ??= RootDirectory;

@@ -3,6 +3,7 @@ using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.Build.Logging.StructuredLogger;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System;
 using System.Collections.Generic;
@@ -67,6 +68,38 @@ public sealed class ProgramTests : TestBase
         _assertCompilerLogReader = action;
     }
 
+    public static T GetProgramMethod<T>(string methodName, bool exact = false)
+        where T : Delegate
+    {
+        var assembly = typeof(FilterOptionSet).Assembly;
+        var program = assembly.GetType("Program", throwOnError: true)!;
+        MethodInfo method;
+        if (exact)
+        {
+            method = program.GetMethod(methodName, BindingFlags.Static | BindingFlags.NonPublic)!;
+        }
+        else
+        {
+            method = program
+            .GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+            .Single(x => x.Name.Contains(methodName));
+        }
+
+        return method.CreateDelegate<T>();
+    }
+
+    public string[] SplitCommandLine(string commandLine)
+    {
+        if (!commandLine.Contains('"'))
+        {
+            return commandLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        return CommandLineParser
+            .SplitCommandLineIntoArguments(commandLine, removeHashComments: true)
+            .ToArray();
+    }
+
     public (int ExitCode, string Output) RunCompLogEx(string args, string? currentDirectory = null)
     {
         try
@@ -76,12 +109,9 @@ public sealed class ProgramTests : TestBase
             Constants.CurrentDirectory = currentDirectory;
             Constants.Out = writer;
             Constants.OnCompilerLogReader = OnCompilerLogReader;
-            var assembly = typeof(FilterOptionSet).Assembly;
-            var program = assembly.GetType("Program", throwOnError: true);
-            var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
-            Assert.NotNull(main);
-            var ret = main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
-            return ((int)ret!, writer.ToString());
+            var main = GetProgramMethod<Func<string[], int>>("<Main>$", exact: true);
+            var ret = main(SplitCommandLine(args));
+            return (ret, writer.ToString());
         }
         finally
         {
@@ -488,6 +518,40 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void ReplayWithCustomCompiler()
+    {
+        var roslynDir = GetLocalCompilerPath();
+        using var emitDir = new TempDir();
+        var (exitCode, output) = RunCompLogEx($"replay -emit -c \"{roslynDir}\" -o {emitDir.DirectoryPath} {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains($"Using custom compiler from {roslynDir}", output);
+
+        AssertOutput(@"console\emit\console.dll");
+        AssertOutput(@"console\emit\console.pdb");
+        AssertOutput(@"console\emit\ref\console.dll");
+
+        void AssertOutput(string relativePath)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                relativePath = relativePath.Replace('\\', '/');
+            }
+
+            var filePath = Path.Combine(emitDir.DirectoryPath, relativePath);
+            Assert.True(File.Exists(filePath));
+        }
+    }
+
+    [Fact]
+    public void ReplayWithCustomCompilerBad()
+    {
+        using var tempDir = new TempDir();
+        var (exitCode, output) = RunCompLogEx($"replay -emit -c \"{tempDir.DirectoryPath}\" {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains($"Cannot find compiler at {tempDir.DirectoryPath}", output);
+    }
+
+    [Fact]
     public void ReplayHelp()
     {
         var (exitCode, output) = RunCompLogEx($"replay -h");
@@ -674,6 +738,34 @@ public sealed class ProgramTests : TestBase
         var dir = Root.NewDirectory("empty");
         var (exitCode, output) = RunCompLogEx($"print {dir}");
         Assert.Equal(Constants.ExitFailure, exitCode);
+    }
+
+    [Theory]
+    [InlineData(@"", true)]
+    [InlineData(@"hidden", false)]
+    [InlineData(@"bincore", true)]
+    [InlineData(@"Roslyn\bincore", true)]
+    [InlineData(@"tasks\netcore\bincore", true)]
+    public void TryGetCompilerPath(string subPath, bool expect)
+    {
+        var method = GetProgramMethod<Func<string, string>>("TryGetCompilerPath");
+        using var tempDir = new TempDir();
+        var fullPath = subPath.Length > 0
+            ? tempDir.NewDirectory(subPath)
+            : tempDir.DirectoryPath;
+
+        var path = tempDir.DirectoryPath;
+        Assert.Null(method(tempDir.DirectoryPath));
+
+        File.WriteAllText(Path.Combine(fullPath, "Microsoft.CodeAnalysis.dll"), "empty");
+        if (expect)
+        {
+            Assert.Equal(fullPath, method(tempDir.DirectoryPath));
+        }
+        else
+        {
+            Assert.Null(method(tempDir.DirectoryPath));
+        }
     }
 }
 #endif

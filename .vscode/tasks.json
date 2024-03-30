@@ -9,7 +9,8 @@
                 "build",
                 "${workspaceFolder}/BasicCompilerLog.sln",
                 "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
+                "/consoleloggerparameters:NoSummary",
+                "-tl"
             ],
             "problemMatcher": "$msCompile"
         },
@@ -21,7 +22,8 @@
                 "publish",
                 "${workspaceFolder}/src/Basic.CompilerLog/Basic.CompilerLog.csproj",
                 "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
+                "/consoleloggerparameters:NoSummary",
+                "-tl"
             ],
             "problemMatcher": "$msCompile"
         },

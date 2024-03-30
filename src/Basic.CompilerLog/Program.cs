@@ -10,74 +10,61 @@ using System.Runtime.Loader;
 using System.Text;
 using static Constants;
 
-RunCore(args);
+var (command, rest) = args.Length == 0
+    ? ("help", Enumerable.Empty<string>())
+    : (args[0], args.Skip(1));
 
-int RunCore(string[] args)
+try
 {
-    if (ParseCompilerDirectory(ref args) is { } compilerDirectory)
+    return command.ToLower() switch
     {
-        return RunWithCompiler(compilerDirectory, args);
-    }
+        "create" => RunCreate(rest),
+        "replay" => RunReplay(rest),
+        "export" => RunExport(rest),
+        "ref" => RunReferences(rest),
+        "rsp" => RunResponseFile(rest),
+        "analyzers" => RunAnalyzers(rest),
+        "print" => RunPrint(rest),
+        "help" => RunHelp(rest),
 
-    var (command, rest) = args.Length == 0
-        ? ("help", Enumerable.Empty<string>())
-        : (args[0], args.Skip(1));
-
-    try
-    {
-        return command.ToLower() switch
-        {
-            "create" => RunCreate(rest),
-            "replay" => RunReplay(rest),
-            "export" => RunExport(rest),
-            "ref" => RunReferences(rest),
-            "rsp" => RunResponseFile(rest),
-            "analyzers" => RunAnalyzers(rest),
-            "print" => RunPrint(rest),
-            "help" => RunHelp(rest),
-
-            // Older option names
-            "diagnostics" => RunReplay(rest),
-            "emit" => RunReplay(rest),
-            _ => RunBadCommand(command)
-        };
-    }
-    catch (Exception e)
-    {
-        WriteLine("Unexpected error");
-        WriteLine(e.Message);
-        RunHelp(null);
-        return ExitFailure;
-    }
+        // Older option names
+        "diagnostics" => RunReplay(rest),
+        "emit" => RunReplay(rest),
+        _ => RunBadCommand(command)
+    };
+}
+catch (Exception e)
+{
+    WriteLine("Unexpected error");
+    WriteLine(e.Message);
+    RunHelp(null);
+    return ExitFailure;
 }
 
-string? ParseCompilerDirectory(ref string[] args)
-{
-    for (int i = 0; i + 1< args.Length; i++)
-    {
-        if (args[i] == "--compiler")
-        {
-            var compilerPath = args[i + 1];
-            args = args.Take(i).Concat(args.Skip(i + 2)).ToArray();
-            return compilerPath;
-        }
-    }
-
-    return null;
-}
-
-int RunWithCompiler(string compilerDirectory, string[] args)
+int RunWithCompilerReplay(string compilerPath, IEnumerable<string> args)
 {
     var assembly = typeof(FilterOptionSet).Assembly;
     var toolDirectory = Path.GetDirectoryName(assembly.Location)!;
-    var context = new CompilerAssemblyLoadContext(toolDirectory, compilerDirectory);
-    var altAssembly = context.LoadFromAssemblyName(assembly.GetName());
-    var program = altAssembly.GetType("Program", throwOnError: true)!;
-    var runCore = program
-        .GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
-        .Single(x => x.Name.Contains("RunCore"));
-    var result = runCore.Invoke(null, [args])!;
-    return (int)result;
+    var context = new CompilerAssemblyLoadContext(toolDirectory, compilerPath);
+    try
+    {
+        return Core(context, assembly.GetName(), args);
+    }
+    finally
+    {
+        context.Unload();
+    }
+
+    static int Core(AssemblyLoadContext context, AssemblyName name, IEnumerable<string> args)
+    {
+        var altAssembly = context.LoadFromAssemblyName(name);
+        var program = altAssembly.GetType("Program", throwOnError: true)!;
+        var runReplay = program
+            .GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+            .Single(x => x.Name.Contains("RunReplay"));
+        var result = runReplay.Invoke(null, [args, true])!;
+        return (int)result;
+    }
 }
 
 int RunCreate(IEnumerable<string> args)
@@ -443,18 +430,20 @@ int RunResponseFile(IEnumerable<string> args)
     }
 }
 
-int RunReplay(IEnumerable<string> args)
+int RunReplay(IEnumerable<string> args, bool inCustomCompiler = false)
 {
     var baseOutputPath = "";
     var severity = DiagnosticSeverity.Warning;
     var export = false;
     var emit = false;
+    var compilerPath = "";
     var options = new FilterOptionSet(analyzers: true)
     {
         { "severity=", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
         { "export", "export failed compilation", e => export = e is not null },
         { "emit", "emit the compilation(s) to disk", e => emit = e is not null },
         { "o|out=", "path to export to ", b => baseOutputPath = b },
+        { "c|compiler=", "path to custom compiler", c => compilerPath = c.Trim('"') },
     };
 
     try
@@ -464,6 +453,19 @@ int RunReplay(IEnumerable<string> args)
         {
             PrintUsage();
             return ExitSuccess;
+        }
+
+        if (!string.IsNullOrEmpty(compilerPath) && !inCustomCompiler)
+        {
+            var resolvedPath = TryGetCompilerPath(compilerPath);
+            if (resolvedPath is null)
+            {
+                WriteLine($"Cannot find compiler at {compilerPath}");
+                return ExitFailure;
+            }
+
+            WriteLine($"Using compiler from {resolvedPath}");
+            return RunWithCompilerReplay(resolvedPath, args);
         }
 
         if (!string.IsNullOrEmpty(baseOutputPath) && !(export || emit))
@@ -618,6 +620,40 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
 {
     var logFilePath = GetLogFilePath(extra);
     return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
+}
+
+/// <summary>
+/// This will transform the customer compiler path provided by the user to the directory
+/// that actually contains the compiler. This is meant to make the path supplied more 
+/// flexible. Search for the common patterns like toolsets, msbuild, etc ...
+/// </summary>
+static string? TryGetCompilerPath(string customCompilerPath)
+{
+    if (TestPath(customCompilerPath))
+    {
+        return customCompilerPath;
+    }
+
+    var bincorePath = Path.Combine(customCompilerPath, "bincore");
+    if (TestPath(bincorePath))
+    {
+        return bincorePath;
+    }
+
+    var roslynPath = Path.Combine(customCompilerPath, "Roslyn", "bincore");
+    if (TestPath(roslynPath))
+    {
+        return roslynPath;
+    }
+
+    var nupkgPath = Path.Combine(customCompilerPath, "tasks", "netcore", "bincore");
+    if (TestPath(nupkgPath))
+    {
+        return nupkgPath;
+    }
+
+    return null;
+    bool TestPath(string path) => File.Exists(Path.Combine(path, "Microsoft.CodeAnalysis.dll"));
 }
 
 /// <summary>
