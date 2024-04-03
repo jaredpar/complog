@@ -11,6 +11,12 @@
     <ToolCommandName>complog</ToolCommandName>
     <PackageId>complog</PackageId>
 
+    <!-- 
+      Mono.Options is not signed. This is an application though, not a lib so this doesn't
+      present any real problems.
+    -->
+    <NoWarn>$(NoWarn);CS8022</NoWarn>
+
     <!-- NuPkg information -->
     <Version>0.1.2</Version>
     <PackageProjectUrl>https://github.com/jaredpar/basic-compiler-logger</PackageProjectUrl>
