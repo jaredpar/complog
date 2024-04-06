@@ -19,7 +19,7 @@ using TraceReloggerLib;
 
 // PrintGeneratedFiles();
 
-var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.complog";
 // var filePath = @"C:\Users\jaredpar\code\vs-threading\msbuild.binlog";
 // var filePath = @"c:\users\jaredpar\temp\Build.complog";
@@ -29,6 +29,7 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\wt\ros2\artifacts\log\Debug\Build.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
 //var filePath = @"C:\Users\jaredpar\code\roslyn\src\Compilers\CSharp\csc\msbuild.binlog";
+var filePath = @"E:\code\wt\ros2\msbuild.binlog";
 
 //TestDiagnostics(filePath);
 // RoundTrip(filePath);
@@ -38,7 +39,7 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 
 // Profile();
 
-PrintCompilers(filePath);
+PrintDiagnostics(filePath, "Microsoft.CodeAnalysis.csproj");
 // ExportScratch();
 // await WorkspaceScratch();
 // RoslynScratch();
@@ -88,6 +89,98 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
 */
+
+void PrintDiagnostics(string filePath, string projectName)
+{
+    // precedence doc https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/configuration-options#scope
+    using var reader = CompilerLogReader.Create(filePath);
+    var cc = reader
+        .ReadAllCompilerCalls(x => x.ProjectFileName == projectName)
+        .First();
+    var data = reader.ReadCompilationData(cc);
+    using var stream = new FileStream(@"e:\temp\data.md", FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+    using var writer = new StreamWriter(stream, leaveOpen:true);
+    writer.WriteLine($"|Diagnostic  |Enabled By Default| Default Severity |Effective Severity|");
+    writer.WriteLine($"|------------|------------------|------------------|------------------|");
+
+    var descriptors = new List<DiagnosticDescriptor>();
+    _ = data.GetAnalyzers().ToList();
+
+
+    foreach (var analyzer in data.GetAnalyzers())
+    {
+        foreach (var diagnostic in analyzer.SupportedDiagnostics)
+        {
+            descriptors.Add(diagnostic);
+            var effectiveSeverity = diagnostic.GetEffectiveSeverity(data.CompilationOptions);
+            writer.WriteLine($"|{diagnostic.Id,-12}|{diagnostic.IsEnabledByDefault,-18}|{diagnostic.DefaultSeverity,-18}|{effectiveSeverity,-18}|");
+        }
+    }
+
+    var ideMapType = GetIdeMapType(data.GetAnalyzers());
+    var result = GetOptions(ideMapType, "IDE0022");
+
+    foreach (var descriptor in descriptors)
+    {
+        var options = GetOptions(ideMapType!, descriptor.Id);
+        if (options is not null)
+        {
+            Console.WriteLine($"Options for {descriptor.Id}");
+            foreach (var option in options)
+            {
+                Console.WriteLine($"  {option}");
+            }
+        }
+    }
+
+    /*
+    var options = data.CompilationOptions;
+    foreach (var descriptor in descriptors)
+    {
+
+        Console.WriteLine(descriptor.Id);
+        if (options.SpecificDiagnosticOptions.TryGetValue(descriptor.Id, out var severity))
+        {
+            Console.WriteLine($"Command Line: {severity}");
+        }
+    }
+    */
+
+    static IEnumerable<object>? GetOptions(Type ideMapType, string diagnosticId)
+    {
+        var methodInfo = ideMapType.GetMethod("TryGetMappedOptions", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)!;
+        var arguments = new object?[3]
+        {
+            diagnosticId,
+            LanguageNames.CSharp,
+            null
+        };
+
+        var result = methodInfo.Invoke(null, arguments);
+        if (result is true)
+        {
+            return (IEnumerable<object>)arguments[2]!;
+        }
+        
+        return null;
+    }
+
+    static Type? GetIdeMapType(IEnumerable<DiagnosticAnalyzer> analyzers)
+    {
+        var codeStyle = analyzers
+            .Select(x => x.GetType().Assembly)
+            .Where(x => x.GetName().Name == "Microsoft.CodeAnalysis.CodeStyle")
+            .FirstOrDefault();
+        if (codeStyle is null)
+        {
+            return null;
+        }
+
+        var type = codeStyle.GetType("Microsoft.CodeAnalysis.Diagnostics.IDEDiagnosticIdToOptionMappingHelper");
+        return type;
+    }
+}
+
 
 void PrintCompilers(string filePath)
 {
