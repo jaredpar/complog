@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Config;
 using BenchmarkDotNet.Environments;
 //using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
@@ -98,6 +99,33 @@ void PrintDiagnostics(string filePath, string projectName)
         .ReadAllCompilerCalls(x => x.ProjectFileName == projectName)
         .First();
     var data = reader.ReadCompilationData(cc);
+    var options = ConfigUtil.GetConfigOptions(data.GetAnalyzers())!;
+    foreach (var tuple in options.DescriptorToOptionsMap.OrderBy(x => x.Key.Id))
+    {
+        Console.Write($"{tuple.Key.Id} ");
+        bool first = true;
+        foreach (var def in tuple.Value)
+        {
+            if (!first)
+            {
+                Console.Write(", ");
+            }
+            Console.Write(def.ConfigName);
+            first = false;
+        }
+        Console.WriteLine();
+    }
+}
+
+/*
+void PrintDiagnosticsOld(string filePath, string projectName)
+{
+    // precedence doc https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/configuration-options#scope
+    using var reader = CompilerLogReader.Create(filePath);
+    var cc = reader
+        .ReadAllCompilerCalls(x => x.ProjectFileName == projectName)
+        .First();
+    var data = reader.ReadCompilationData(cc);
     using var stream = new FileStream(@"e:\temp\data.md", FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
     using var writer = new StreamWriter(stream, leaveOpen:true);
     writer.WriteLine($"|Diagnostic  |Enabled By Default| Default Severity |Effective Severity|");
@@ -133,7 +161,6 @@ void PrintDiagnostics(string filePath, string projectName)
         }
     }
 
-    /*
     var options = data.CompilationOptions;
     foreach (var descriptor in descriptors)
     {
@@ -144,7 +171,6 @@ void PrintDiagnostics(string filePath, string projectName)
             Console.WriteLine($"Command Line: {severity}");
         }
     }
-    */
 
     static IEnumerable<object>? GetOptions(Type ideMapType, string diagnosticId)
     {
@@ -180,6 +206,7 @@ void PrintDiagnostics(string filePath, string projectName)
         return type;
     }
 }
+*/
 
 
 void PrintCompilers(string filePath)
