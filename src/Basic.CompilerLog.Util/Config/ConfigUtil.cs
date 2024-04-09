@@ -47,6 +47,9 @@ public static class ConfigUtil
             descriptorMap[descriptor] = builder.ToImmutable();
         }
 
+        GetCSharpFormattingOptions();
+        GetVisualBasicFormattingOptions();
+
         return new ConfigOptions(
             codeStlyeDescriptors.ToImmutableArray(),
             definitionMap.ToImmutableDictionary(),
@@ -54,7 +57,11 @@ public static class ConfigUtil
 
         OptionDefinition CreateFromOption(object option)
         {
-            var definition = ReflectionUtil.ReadProperty<object>(option, "Definition");
+            return CreateFromDefinition(ReflectionUtil.ReadProperty<object>(option, "Definition"));
+        }
+
+        OptionDefinition CreateFromDefinition(object definition)
+        {
             var configName = ReflectionUtil.ReadProperty<string>(definition, "ConfigName");
             if (definitionMap.TryGetValue(configName, out var optionDefinition))
             {
@@ -110,6 +117,44 @@ public static class ConfigUtil
             }
             
             return null;
+        }
+
+        void GetCSharpFormattingOptions()
+        {
+            var assembly = analyzers
+                .Select(x => x.GetType().Assembly)
+                .Where(x => x.GetName().Name == "Microsoft.CodeAnalysis.CSharp.CodeStyle")
+                .FirstOrDefault();
+            if (assembly is null)
+            {
+                return;
+            }
+
+            var type = assembly.GetType("Microsoft.CodeAnalysis.CSharp.Formatting.CSharpFormattingOptions2")!;
+            var value = ReflectionUtil.ReadStaticProperty<IEnumerable<object>>(type, "AllOptions");
+            foreach (var option in value)
+            {
+                _ = CreateFromOption(option);
+            }
+        }
+
+        void GetVisualBasicFormattingOptions()
+        {
+            var assembly = analyzers
+                .Select(x => x.GetType().Assembly)
+                .Where(x => x.GetName().Name == "Microsoft.CodeAnalysis.CodeStyle")
+                .FirstOrDefault();
+            if (assembly is null)
+            {
+                return;
+            }
+
+            var type = assembly.GetType("Microsoft.CodeAnalysis.VisualBasic.CodeStyle.VisualBasicCodeStyleOptions")!;
+            var value = ReflectionUtil.ReadStaticProperty<IEnumerable<object>>(type, "AllOptions");
+            foreach (var option in value)
+            {
+                _ = CreateFromOption(option);
+            }
         }
     }
 }

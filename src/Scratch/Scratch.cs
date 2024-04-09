@@ -40,7 +40,7 @@ var filePath = @"E:\code\wt\ros2\msbuild.binlog";
 
 // Profile();
 
-PrintDiagnostics(filePath, "Microsoft.CodeAnalysis.csproj");
+GenerateMarkdown(filePath);
 // ExportScratch();
 // await WorkspaceScratch();
 // RoslynScratch();
@@ -91,7 +91,89 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
 }
 */
 
-void PrintDiagnostics(string filePath, string projectName)
+void GenerateMarkdown(string filePath)
+{
+    // precedence doc https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/configuration-options#scope
+    using var reader = CompilerLogReader.Create(filePath);
+    var map = new Dictionary<string, List<string>>();
+    AddConfigOptions("Microsoft.CodeAnalysis.VisualBasic.vbproj");
+    AddConfigOptions("Microsoft.CodeAnalysis.CSharp.csproj");
+
+    var content = """
+    # How editorconfig, options, and diagnostics ids all fit together
+
+    Turns out this is kinda complicated. At the bottom there is a table that maps an editorconfig option to its associated Diagnostic Ids. In some cases a single Id is reported for multiple analyzer options, in other a single editorconfig option can have two diagnostic Ids.
+
+    Items that start with `dotnet_` and `file_header_template` are defined in [CodeStyleOptions2](../../../../../Workspaces/SharedUtilitiesAndExtensions/Compiler/Core/CodeStyle/CodeStyleOptions2.cs) and exported for the code cleanup UI in [CommonCodeCleanUpFixerDiagnosticIds](CommonCodeCleanUpFixerDiagnosticIds.cs).
+
+    Items that start with `csharp_` are defined in [CSharpCodeStyleOptions](../../../../../Workspaces/SharedUtilitiesAndExtensions/Compiler/CSharp/CodeStyle/CSharpCodeStyleOptions.cs) and exported for the code cleanup UI in [CSharpCodeCleanUpFixerDiagnosticIds](../../../../CSharp/Impl/LanguageService/CSharpCodeCleanupFixerDiagnosticIds.cs)
+
+    Items that start with `visual_basic_` are defined in [VisualBasicCodeStyleOptions](../../../../../Workspaces/SharedUtilitiesAndExtensions/Compiler/VisualBasic/CodeStyle/VisualBasicCodeStyleOptions.vb) amd exported for the code cleanup UI in [VisualBasicCodeCleanUpFixerDiagnosticIds](../../../../VisualBasic/Impl/LanguageService/VisualBasicCodeCleanupFixerDiagnosticIds.vb)
+
+    For editorconfig items that are handled by the formatter they are not exported for the code cleanup UI as our code cleanup service as a single yes/no option for formatting that determines if these are read and fixed.
+
+    | **editorconfig**                                                                  | **Diagnostic Ids**       |
+    |-----------------------------------------------------------------------------------|--------------------------|
+    """;
+
+    using var stream = new FileStream(@"E:\code\roslyn\src\VisualStudio\Core\Def\CodeCleanup\readme.md", FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+    using var writer = new StreamWriter(stream, leaveOpen: true);
+    writer.WriteLine(content);
+
+    foreach (var tuple in map.OrderBy(x=> x.Key, new DiagnosticComparer()))
+    {
+        writer.Write($"| {tuple.Key,-81} |");
+
+        var ids = tuple.Value;
+        if (ids.Count == 0)
+        {
+            writer.WriteLine(" N/A handled by formatter |");
+        }
+        else if (ids.Count == 1)
+        {
+            writer.WriteLine($" {ids[0],-24} |");
+        }
+        else
+        {
+            var id = string.Join('/', ids.OrderBy(x => x));
+            writer.WriteLine($" {id,-24} |");
+        }
+    }
+
+    void AddConfigOptions(string projectName)
+    {
+        var cc = reader
+            .ReadAllCompilerCalls(x => x.ProjectFileName == projectName)
+            .First();
+        var data = reader.ReadCompilationData(cc);
+        var options = ConfigUtil.GetConfigOptions(data.GetAnalyzers())!;
+        foreach (var tuple in options.DescriptorToOptionsMap)
+        {
+            foreach (var def in tuple.Value)
+            {
+                if (!map.TryGetValue(def.ConfigName, out var list))
+                {
+                    list = new List<string>();
+                    map[def.ConfigName] = list;
+                }
+
+                if (!list.Contains(tuple.Key.Id))
+                    list.Add(tuple.Key.Id);
+            }
+        }
+
+        foreach (var def in options.OptionDefinitions.Values)
+        {
+            if (!map.ContainsKey(def.ConfigName))
+            {
+                map[def.ConfigName] = new List<string>();
+            }
+        }
+
+    }
+}
+
+void PrintDiagnostics2(string filePath, string projectName)
 {
     // precedence doc https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/configuration-options#scope
     using var reader = CompilerLogReader.Create(filePath);
@@ -454,6 +536,33 @@ static void TestDiagnostics(string binlogFilePath)
     }
 }
 
+class DiagnosticComparer : IComparer<string>
+{
+    public int Compare(string? x, string? y)
+    {
+        if (x is null || y is null)
+        {
+            string.Compare(x, y);
+        }
 
+        var xDotNet = StartsWithDotNet(x);
+        var yDotNet = StartsWithDotNet(y);
+        if (xDotNet && !yDotNet)
+        {
+            return -1;
+        }
+        else if (!xDotNet && yDotNet)
+        {
+            return 1;
+        }
+        else
+        {
+            return string.Compare(x, y);
+        }
+
+
+        static bool StartsWithDotNet(string x) => x.StartsWith("dotnet_");
+    }
+}
 
 

@@ -20,8 +20,15 @@ internal static class ReflectionUtil
     internal static T ReadProperty<T>(object obj, string fieldName, BindingFlags? bindingFlags = null)
     {
         var type = obj.GetType();
-        var propertyInfo = type.GetProperty(fieldName, bindingFlags ?? (BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))!;
+        var propertyInfo = type.GetProperty(fieldName, bindingFlags ?? (BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))!;
         var value = propertyInfo.GetValue(obj);
+        return (T)value!;
+    }
+
+    internal static T ReadStaticProperty<T>(Type type, string fieldName, BindingFlags? bindingFlags = null)
+    {
+        var propertyInfo = type.GetProperty(fieldName, bindingFlags ?? (BindingFlags.Static | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))!;
+        var value = propertyInfo.GetValue(null);
         return (T)value!;
     }
 }
