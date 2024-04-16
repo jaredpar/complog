@@ -20,7 +20,7 @@ using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class CompilerLogReader : IDisposable
+public sealed class CompilerLogReader : IDisposable, ICompilerCallReader
 {
     /// <summary>
     /// Stores the underlying archive this reader is using. Do not use directly. Instead 

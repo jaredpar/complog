@@ -62,7 +62,7 @@ public static class CompilerLogUtil
         var diagnostics = new List<string>();
         if (!TryConvertBinaryLog(binaryLogStream, compilerLogStream, diagnostics, predicate))
         {
-            throw CreateException("Could not convert binary log", diagnostics);
+            throw new CompilerLogException("Could not convert binary log", diagnostics);
         }
 
         return diagnostics;
@@ -112,21 +112,5 @@ public static class CompilerLogUtil
         }
 
         return new ConvertBinaryLogResult(success, included, diagnostics);
-    }
-
-    private static Exception CreateException(string message, IEnumerable<string> diagnostics)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine(message);
-        if (diagnostics.Any())
-        {
-            builder.AppendLine("Diagnostics:");
-            foreach (var diagnostic in diagnostics)
-            {
-                builder.AppendLine($"\t{diagnostic}");
-            }
-        }
-
-        return new Exception(builder.ToString());
     }
 }
