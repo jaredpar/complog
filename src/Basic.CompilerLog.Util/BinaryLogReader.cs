@@ -8,9 +8,14 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompilerCallReader
+public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompilerCallReader, IBasicAnalyzerHostDataProvider
 {
     private List<CompilerCall> _compilerCalls = compilerCalls;
+
+    // TODO: figure out lifetime and init of this
+    private CompilerLogState _state = new CompilerLogState();
+
+    public CompilerLogState CompilerLogState => _state;
 
     public List<CompilerCall> ReadAllCompilerCalls(Func<CompilerCall, bool>? predicate = null)
     {
@@ -26,7 +31,7 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
 
     // TODO:
     //  - CompilationName isn't a perfect match for CompilerLog. Need to fix that.
-    public static CompilationData Convert(CompilerCall compilerCall)
+    public CompilationData Convert(CompilerCall compilerCall)
     {
         var args = compilerCall.ParseArguments();
 
@@ -80,7 +85,14 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
         // TODO: this is tough. Existing hosts are way to tied to CompilerLogReader. Have to break that apart.
         BasicAnalyzerHost CreateAnalyzerHost()
         {
-            throw null!;
+            var list = new List<RawAnalyzerData>(args.AnalyzerReferences.Length);
+            foreach (var analyzer in args.AnalyzerReferences)
+            {
+                var data = new RawAnalyzerData(RoslynUtil.GetMvid(analyzer.FilePath), analyzer.FilePath);
+                list.Add(data);
+            }
+            
+            return new BasicAnalyzerHostOnDisk(this, list);
         }
 
         List<MetadataReference> GetReferences()
@@ -131,5 +143,11 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
                 resources: Array.Empty<ResourceDescription>(),
                 embeddedTexts: Array.Empty<EmbeddedText>());
         }
+    }
+
+    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream)
+    {
+        using var fileStream = new FileStream(data.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        fileStream.CopyTo(stream);
     }
 }

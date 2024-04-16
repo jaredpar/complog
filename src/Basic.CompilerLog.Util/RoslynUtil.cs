@@ -6,6 +6,8 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
@@ -102,6 +104,20 @@ internal static class RoslynUtil
         });
 
         return builder.ToString();
+    }
+
+    internal static Guid GetMvid(string filePath)
+    {
+        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return GetMvid(file);
+    }
+
+    internal static Guid GetMvid(Stream stream)
+    {
+        using var reader = new PEReader(stream);
+        var mdReader = reader.GetMetadataReader();
+        GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
+        return mdReader.GetGuid(handle);
     }
 
     internal static bool IsGlobalEditorConfigWithSection(SourceText sourceText)

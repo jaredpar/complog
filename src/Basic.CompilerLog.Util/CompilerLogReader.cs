@@ -20,7 +20,7 @@ using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class CompilerLogReader : IDisposable, ICompilerCallReader
+public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasicAnalyzerHostDataProvider
 {
     /// <summary>
     /// Stores the underlying archive this reader is using. Do not use directly. Instead 
@@ -39,7 +39,7 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader
     public bool OwnsCompilerLogState { get; }
 
     public CompilerLogReaderOptions Options { get; }
-    internal CompilerLogState CompilerLogState { get; }
+    public CompilerLogState CompilerLogState { get; }
     internal Metadata Metadata { get; }
     internal PathNormalizationUtil PathNormalizationUtil { get; }
     internal int Count => Metadata.Count;
@@ -741,4 +741,6 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader
             CompilerLogState.Dispose();
         }
     }
+
+    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream) => CopyAssemblyBytes(data.Mvid, stream);
 }

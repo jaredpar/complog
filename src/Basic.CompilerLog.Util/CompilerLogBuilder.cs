@@ -619,11 +619,8 @@ internal sealed class CompilerLogBuilder : IDisposable
             return mvid;
         }
 
-        using var file = OpenFileForRead(filePath);
-        using var reader = new PEReader(file);
-        var mdReader = reader.GetMetadataReader();
-        GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
-        mvid = mdReader.GetGuid(handle);
+        using var fileStream = OpenFileForRead(filePath);
+        mvid = RoslynUtil.GetMvid(fileStream);
 
         _assemblyPathToMvidMap[filePath] = mvid;
 
@@ -636,8 +633,8 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Fastest);
         using var entryStream = entry.Open();
-        file.Position = 0;
-        file.CopyTo(entryStream);
+        fileStream.Position = 0;
+        fileStream.CopyTo(entryStream);
 
         // There are some assemblies for which MetadataReader will return an AssemblyName which 
         // fails ToString calls which is why we use AssemblyName.GetAssemblyName here.

@@ -4,6 +4,7 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.Util;
 
+// TODO: update this
 /// <summary>
 /// The <see cref="CompilationData"/> have underlying state associated with them: 
 ///     - File system entries to hold crypto key files
