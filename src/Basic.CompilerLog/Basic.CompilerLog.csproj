@@ -15,7 +15,7 @@
       Mono.Options is not signed. This is an application though, not a lib so this doesn't
       present any real problems.
     -->
-    <NoWarn>$(NoWarn);CS8022</NoWarn>
+    <NoWarn>$(NoWarn);CS8002</NoWarn>
 
     <!-- NuPkg information -->
     <Version>0.1.2</Version>
