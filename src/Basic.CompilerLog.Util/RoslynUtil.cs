@@ -1,10 +1,14 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -70,6 +74,99 @@ internal static class RoslynUtil
                 syntaxTrees[i] = (CSharpSyntaxTree)CSharpSyntaxTree.ParseText(t.SourceText, parseOptions, t.Path);
             });
         return syntaxTrees;
+    }
+
+
+    internal static (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(
+        List<(SourceText SourceText, string Path)> analyzerConfigList,
+        IEnumerable<SyntaxTree> syntaxTrees,
+        IEnumerable<AdditionalText> additionalTexts,
+        PathNormalizationUtil? pathNormalizationUtil = null)
+    {
+        pathNormalizationUtil ??= PathNormalizationUtil.Empty;
+
+        AnalyzerConfigOptionsResult globalConfigOptions = default;
+        AnalyzerConfigSet? analyzerConfigSet = null;
+        var resultList = new List<(object, AnalyzerConfigOptionsResult)>();
+
+        if (analyzerConfigList.Count > 0)
+        {
+            var list = new List<AnalyzerConfig>();
+            foreach (var tuple in analyzerConfigList)
+            {
+                var configText = tuple.SourceText;
+                if (IsGlobalEditorConfigWithSection(configText))
+                {
+                    var configTextContent = RewriteGlobalEditorConfigSections(
+                        configText,
+                        path => pathNormalizationUtil.NormalizePath(path));
+                    configText = SourceText.From(configTextContent, configText.Encoding);
+                }
+
+                list.Add(AnalyzerConfig.Parse(configText, tuple.Path));
+            }
+
+            analyzerConfigSet = AnalyzerConfigSet.Create(list);
+            globalConfigOptions = analyzerConfigSet.GlobalConfigOptions;
+        }
+
+        foreach (var syntaxTree in syntaxTrees)
+        {
+            resultList.Add((syntaxTree, analyzerConfigSet?.GetOptionsForSourcePath(syntaxTree.FilePath) ?? default));
+        }
+
+        foreach (var additionalText in additionalTexts)
+        {
+            resultList.Add((additionalText, analyzerConfigSet?.GetOptionsForSourcePath(additionalText.Path) ?? default));
+        }
+
+        var syntaxOptionsProvider = new BasicSyntaxTreeOptionsProvider(
+            isConfigEmpty: analyzerConfigList.Count == 0,
+            globalConfigOptions,
+            resultList);
+        var analyzerConfigOptionsProvider = new BasicAnalyzerConfigOptionsProvider(
+            isConfigEmpty: analyzerConfigList.Count == 0,
+            globalConfigOptions,
+            resultList);
+        return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
+    }
+
+    internal static CSharpCompilationData CreateCSharpCompilationData(
+        CompilerCall compilerCall,
+        string? compilationName,
+        CSharpParseOptions parseOptions,
+        CSharpCompilationOptions compilationOptions,
+        List<(SourceText SourceText, string Path)> sourceTexts,
+        List<MetadataReference> references,
+        List<(SourceText SourceText, string Path)> analyzerConfigs,
+        ImmutableArray<AdditionalText> additionalTexts,
+        EmitOptions emitOptions,
+        EmitData emitData,
+        BasicAnalyzerHost basicAnalyzerHost,
+        PathNormalizationUtil pathNormalizationUtil)
+    {
+        var syntaxTrees = ParseAllCSharp(sourceTexts, parseOptions);
+        var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, pathNormalizationUtil);
+
+        compilationOptions = compilationOptions
+            .WithSyntaxTreeOptionsProvider(syntaxProvider)
+            .WithStrongNameProvider(new DesktopStrongNameProvider());
+
+        var compilation = CSharpCompilation.Create(
+            compilationName,
+            syntaxTrees,
+            references,
+            compilationOptions);
+
+        return new CSharpCompilationData(
+            compilerCall,
+            compilation,
+            parseOptions,
+            emitOptions,
+            emitData,
+            additionalTexts,
+            basicAnalyzerHost,
+            analyzerProvider);
     }
 
     internal static string RewriteGlobalEditorConfigSections(SourceText sourceText, Func<string, string> pathMapFunc)

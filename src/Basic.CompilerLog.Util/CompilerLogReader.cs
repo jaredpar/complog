@@ -287,10 +287,10 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
         var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(pack);
 
         var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
-        var sourceTextList = new List<(SourceText SourceText, string Path)>();
-        var generatedTextList = new List<(SourceText SourceText, string Path)>();
-        var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
-        var additionalTextList = new List<AdditionalText>();
+        var sourceTexts = new List<(SourceText SourceText, string Path)>();
+        var generatedTexts = new List<(SourceText SourceText, string Path)>();
+        var analyzerConfigs = new List<(SourceText SourceText, string Path)>();
+        var additionalTexts = ImmutableArray.CreateBuilder<AdditionalText>();
 
         MemoryStream? win32ResourceStream = null;
         MemoryStream? sourceLinkStream = null;
@@ -304,19 +304,19 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
             switch (rawContent.Kind)
             {
                 case RawContentKind.SourceText:
-                    sourceTextList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
+                    sourceTexts.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.GeneratedText:
                     if (Options.BasicAnalyzerKind == BasicAnalyzerKind.None)
                     {
-                        generatedTextList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
+                        generatedTexts.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     }
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    analyzerConfigList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
+                    analyzerConfigs.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.AdditionalText:
-                    additionalTextList.Add(new BasicAdditionalTextFile(
+                    additionalTexts.Add(new BasicAdditionalTextFile(
                         rawContent.FilePath,
                         GetSourceText(rawContent.ContentHash, hashAlgorithm)));
                     break;
@@ -359,7 +359,7 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
         }
 
         // Generated source code should appear last to match the compiler behavior.
-        sourceTextList.AddRange(generatedTextList);
+        sourceTexts.AddRange(generatedTexts);
 
         var emitData = new EmitData(
             rawCompilationData.AssemblyFileName,
@@ -368,6 +368,8 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
             sourceLinkStream: sourceLinkStream,
             resources: resources,
             embeddedTexts: embeddedTexts);
+
+        var basicAnalyzerHost = ReadAnalyzers(rawCompilationData);
 
         return compilerCall.IsCSharp
             ? CreateCSharp()
@@ -382,88 +384,33 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
             compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
         }
 
-        (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(IEnumerable<SyntaxTree> syntaxTrees, IEnumerable<AdditionalText> additionalTexts)
-        {
-            AnalyzerConfigOptionsResult globalConfigOptions = default;
-            AnalyzerConfigSet? analyzerConfigSet = null;
-            var resultList = new List<(object, AnalyzerConfigOptionsResult)>();
-
-            if (analyzerConfigList.Count > 0)
-            {
-                var list = new List<AnalyzerConfig>();
-                foreach (var tuple in analyzerConfigList)
-                {
-                    var configText = tuple.SourceText;
-                    if (RoslynUtil.IsGlobalEditorConfigWithSection(configText))
-                    {
-                        var configTextContent = RoslynUtil.RewriteGlobalEditorConfigSections(
-                            configText,
-                            path => NormalizePath(path));
-                        configText = SourceText.From(configTextContent, configText.Encoding);
-                    }
-
-                    list.Add(AnalyzerConfig.Parse(configText, tuple.Path));
-                }
-
-                analyzerConfigSet = AnalyzerConfigSet.Create(list);
-                globalConfigOptions = analyzerConfigSet.GlobalConfigOptions;
-            }
-
-            foreach (var syntaxTree in syntaxTrees)
-            {
-                resultList.Add((syntaxTree, analyzerConfigSet?.GetOptionsForSourcePath(syntaxTree.FilePath) ?? default));
-            }
-
-            foreach (var additionalText in additionalTexts)
-            {
-                resultList.Add((additionalText, analyzerConfigSet?.GetOptionsForSourcePath(additionalText.Path) ?? default));
-            }
-
-            var syntaxOptionsProvider = new BasicSyntaxTreeOptionsProvider(
-                isConfigEmpty: analyzerConfigList.Count == 0,
-                globalConfigOptions,
-                resultList);
-            var analyzerConfigOptionsProvider = new BasicAnalyzerConfigOptionsProvider(
-                isConfigEmpty: analyzerConfigList.Count == 0,
-                globalConfigOptions,
-                resultList);
-            return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
-        }
-
         CSharpCompilationData CreateCSharp()
         {
             var csharpOptions = (CSharpCompilationOptions)compilationOptions;
             var parseOptions = (CSharpParseOptions)rawParseOptions;
-            var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTextList, parseOptions);
-            var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
+            var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTexts, parseOptions);
 
-            csharpOptions = csharpOptions
-                .WithSyntaxTreeOptionsProvider(syntaxProvider)
-                .WithStrongNameProvider(new DesktopStrongNameProvider());
-
-            var compilation = CSharpCompilation.Create(
-                rawCompilationData.CompilationName,
-                syntaxTrees,
-                referenceList,
-                csharpOptions);
-
-            return new CSharpCompilationData(
+            return RoslynUtil.CreateCSharpCompilationData(
                 compilerCall,
-                compilation,
-                parseOptions,
+                rawCompilationData.CompilationName,
+                (CSharpParseOptions)rawParseOptions,
+                (CSharpCompilationOptions)compilationOptions,
+                sourceTexts,
+                referenceList,
+                analyzerConfigs,
+                additionalTexts.ToImmutableArray(),
                 emitOptions,
                 emitData,
-                additionalTextList.ToImmutableArray(),
-                ReadAnalyzers(rawCompilationData),
-                analyzerProvider);
+                basicAnalyzerHost,
+                PathNormalizationUtil);
         }
 
         VisualBasicCompilationData CreateVisualBasic()
         {
             var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
             var parseOptions = (VisualBasicParseOptions)rawParseOptions;
-            var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTextList, parseOptions);
-            var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
+            var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTexts, parseOptions);
+            var (syntaxProvider, analyzerProvider) = RoslynUtil.CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, PathNormalizationUtil);
 
             basicOptions = basicOptions
                 .WithSyntaxTreeOptionsProvider(syntaxProvider)
@@ -481,8 +428,8 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
                 parseOptions,
                 emitOptions,
                 emitData,
-                additionalTextList.ToImmutableArray(),
-                ReadAnalyzers(rawCompilationData),
+                additionalTexts.ToImmutableArray(),
+                basicAnalyzerHost,
                 analyzerProvider);
         }
     }

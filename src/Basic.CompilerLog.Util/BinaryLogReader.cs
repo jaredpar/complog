@@ -26,7 +26,8 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
     // TODO: implement
     public List<CompilationData> ReadAllCompilationData(Func<CompilerCall, bool>? predicate = null)
     {
-        throw null!;
+        // TODO: this is a hack, need to do the filter
+        return _compilerCalls.Select(Convert).ToList();
     }
 
     // TODO:
@@ -35,52 +36,32 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
     {
         var args = compilerCall.ParseArguments();
 
-        var referenceList = GetReferences();
-        var sourceTextList = GetSourceTexts();
-        var additionalTextList = GetAdditionalTexts();
+        var references = GetReferences();
+        var sourceTexts = GetSourceTexts();
+        var additionalTexts = GetAdditionalTexts();
+        var analyzerConfigs = GetAnalyzerConfigs();
         var emitData = GetEmitData();
         var basicAnalyzerHost = CreateAnalyzerHost();
 
-        throw null!;
+        // TODO: handle visual basic
+        return GetCSharp();
 
         CompilationData GetCSharp()
         {
-
-            // TODO: need to figure this out
-            AnalyzerConfigOptionsProvider optionsProvider = null!;
-
-            var csharpOptions = (CSharpParseOptions)args.ParseOptions;
-            var compilationOptions = (CSharpCompilationOptions)args.CompilationOptions;
-            var compilation = CSharpCompilation.Create(
-                args.CompilationName,
-                RoslynUtil.ParseAllCSharp(sourceTextList, csharpOptions),
-                referenceList,
-                compilationOptions);
-
-            return new CSharpCompilationData(
+            return RoslynUtil.CreateCSharpCompilationData(
                 compilerCall,
-                compilation,
-                csharpOptions,
+                args.CompilationName,
+                (CSharpParseOptions)args.ParseOptions,
+                (CSharpCompilationOptions)args.CompilationOptions,
+                sourceTexts,
+                references,
+                analyzerConfigs,
+                additionalTexts,
                 args.EmitOptions,
                 emitData,
-                additionalTextList,
                 basicAnalyzerHost,
-                optionsProvider);
+                PathNormalizationUtil.Empty);
         }
-
-        /*
-
-
-        new CSharpCompilationData(
-            compilerCall,
-            compilation,
-            args.ParseOptions,
-            args.EmitOptions,
-            emitData,
-            args.AdditionalFiles,
-            BasicAnalyzerHost,
-            configOaptionsProvider
-        */
 
         // TODO: this is tough. Existing hosts are way to tied to CompilerLogReader. Have to break that apart.
         BasicAnalyzerHost CreateAnalyzerHost()
@@ -95,6 +76,9 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
             return new BasicAnalyzerHostOnDisk(this, list);
         }
 
+        List<(SourceText SourceText, string Path)> GetAnalyzerConfigs() => 
+            GetSourceTextsFromPaths(args.AnalyzerConfigPaths, args.AnalyzerConfigPaths.Length, args.ChecksumAlgorithm);
+
         List<MetadataReference> GetReferences()
         {
             var list = new List<MetadataReference>(capacity: args.MetadataReferences.Length);
@@ -107,13 +91,16 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
             return list;
         }
 
-        List<(SourceText SourceText, string Path)> GetSourceTexts()
+        List<(SourceText SourceText, string Path)> GetSourceTexts() =>
+            GetSourceTextsFromPaths(args.SourceFiles.Select(x => x.Path), args.SourceFiles.Length, args.ChecksumAlgorithm);
+
+        static List<(SourceText SourceText, string Path)> GetSourceTextsFromPaths(IEnumerable<string> filePaths, int count, SourceHashAlgorithm checksumAlgorithm)
         {
-            var list = new List<(SourceText, string)>(capacity: args.SourceFiles.Length);
-            foreach (var sourceFile in args.SourceFiles)
+            var list = new List<(SourceText, string)>(capacity: count);
+            foreach (var filePath in filePaths)
             {
-                var sourceText = RoslynUtil.GetSourceText(sourceFile.Path, args.ChecksumAlgorithm, canBeEmbedded: false);
-                list.Add((sourceText, sourceFile.Path));
+                var sourceText = RoslynUtil.GetSourceText(filePath, checksumAlgorithm, canBeEmbedded: false);
+                list.Add((sourceText, filePath));
             }
             return list;
         }

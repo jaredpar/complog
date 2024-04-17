@@ -19,7 +19,7 @@ using TraceReloggerLib;
 
 // PrintGeneratedFiles();
 
-var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.complog";
 // var filePath = @"C:\Users\jaredpar\code\vs-threading\msbuild.binlog";
 // var filePath = @"c:\users\jaredpar\temp\Build.complog";
@@ -38,7 +38,7 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 
 // Profile();
 
-PrintCompilers(filePath);
+TestBinaryLogReader();
 // ExportScratch();
 // await WorkspaceScratch();
 // RoslynScratch();
@@ -88,6 +88,24 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
 */
+
+void TestBinaryLogReader()
+{
+    var binlogPath = @"e:\temp\console\build.binlog";
+    using var stream = new FileStream(binlogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+    var compilerCalls = BinaryLogUtil.ReadAllCompilerCalls(stream, new());
+    var reader = new BinaryLogReader(compilerCalls);
+    var all = reader.ReadAllCompilationData();
+    foreach (var data in all)
+    {
+        var compilation = data.GetCompilationAfterGenerators();
+        var diagnostics = compilation.GetDiagnostics();
+        foreach (var d in diagnostics)
+        {
+            Console.WriteLine(d.GetMessage());
+        }
+    }
+}
 
 void PrintCompilers(string filePath)
 {
