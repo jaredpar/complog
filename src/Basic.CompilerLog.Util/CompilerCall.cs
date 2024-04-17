@@ -89,6 +89,11 @@ public sealed class CompilerCall
 
     public string[] GetArguments() => _lazyArguments.Value;
 
+    /// <summary>
+    /// This method is only valid when this instance represents a compilation on the disk of the 
+    /// current machine. In any other scenario this will lead to mostly correct but potentially 
+    /// incorrect results.
+    /// </summary>
     internal CommandLineArguments ParseArguments() => _lazyParsedArguments.Value;
 
     private CommandLineArguments ParseArgumentsCore()

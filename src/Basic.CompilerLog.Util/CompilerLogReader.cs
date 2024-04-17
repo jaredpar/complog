@@ -292,8 +292,8 @@ public sealed class CompilerLogReader : IDisposable
         var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
         var additionalTextList = new List<AdditionalText>();
 
-        Stream? win32ResourceStream = null;
-        Stream? sourceLinkStream = null;
+        MemoryStream? win32ResourceStream = null;
+        MemoryStream? sourceLinkStream = null;
         List<ResourceDescription>? resources = rawCompilationData.Resources.Count == 0
             ? null
             : rawCompilationData.Resources.Select(x => ReadResourceDescription(x)).ToList();

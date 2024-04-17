@@ -16,16 +16,16 @@ public sealed class EmitData
 {
     public string AssemblyFileName { get; }
     public string? XmlFilePath { get; }
-    public Stream? Win32ResourceStream { get; }
-    public Stream? SourceLinkStream { get; }
+    public MemoryStream? Win32ResourceStream { get; }
+    public MemoryStream? SourceLinkStream { get; }
     public IEnumerable<ResourceDescription>? Resources { get; }
     public IEnumerable<EmbeddedText>? EmbeddedTexts { get; }
 
     public EmitData(
         string assemblyFileName,
         string? xmlFilePath,
-        Stream? win32ResourceStream,
-        Stream? sourceLinkStream,
+        MemoryStream? win32ResourceStream,
+        MemoryStream? sourceLinkStream,
         IEnumerable<ResourceDescription>? resources,
         IEnumerable<EmbeddedText>? embeddedTexts)
     {
