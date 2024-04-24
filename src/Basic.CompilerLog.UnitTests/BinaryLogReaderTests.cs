@@ -38,16 +38,15 @@ public sealed class BinaryLogReaderTests : TestBase
         var compilerCall = reader.ReadAllCompilerCalls().First();
         Assert.NotNull(reader.ReadCommandLineArguments(compilerCall));
 
-        var args = compilerCall.GetArguments();
-        compilerCall = new CompilerCall(
-            compilerCall.CompilerFilePath,
-            compilerCall.ProjectFilePath,
-            compilerCall.Kind,
-            compilerCall.TargetFramework,
-            compilerCall.IsCSharp,
-            new Lazy<IReadOnlyCollection<string>>(() => args),
-            ownerState: null);
+        compilerCall = compilerCall.ChangeOwner(null);
         Assert.Throws<ArgumentException>(() => reader.ReadCommandLineArguments(compilerCall));
     }
 
+    [Fact]
+    public void DisposeDouble()
+    {
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!);
+        reader.Dispose();
+        reader.Dispose();
+    }
 }

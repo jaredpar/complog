@@ -66,7 +66,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Fact]
-    public async Task EmitToMemory()
+    public async Task EmitToMemoryCompilerLog()
     {
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
@@ -81,8 +81,12 @@ public sealed class UsingAllCompilerLogTests : TestBase
         }
     }
 
+    /// <summary>
+    /// Use a <see cref="CompilerLogState"/> and dispose the reader before using the <see cref="CompilationData"/>.
+    /// This helps prove that we don't maintain accidental references into the reader when doing Emit
+    /// </summary>
     [Fact]
-    public async Task EmitToMemoryWithSeparateState()
+    public async Task EmitToMemoryCompilerLogWithSeparateState()
     {
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
@@ -100,6 +104,22 @@ public sealed class UsingAllCompilerLogTests : TestBase
         {
             using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None, state: state);
             return reader.ReadAllCompilationData();
+        }
+    }
+
+    [Fact]
+    public async Task EmitToMemoryBinaryLog()
+    {
+        await foreach (var binlogPath in Fixture.GetAllBinaryLogs(TestOutputHelper))
+        {
+            TestOutputHelper.WriteLine(binlogPath);
+            using var reader = BinaryLogReader.Create(binlogPath);
+            foreach (var data in reader.ReadAllCompilationData())
+            {
+                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
+                var emitResult = data.EmitToMemory();
+                AssertEx.Success(TestOutputHelper, emitResult);
+            }
         }
     }
 

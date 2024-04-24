@@ -64,14 +64,7 @@ public sealed class CompilerLogReaderExTests : TestBase
         ConvertConsole(x =>
         {
             var args = func(x.GetArguments());
-            return new CompilerCall(
-                x.CompilerFilePath,
-                x.ProjectFilePath,
-                x.Kind,
-                x.TargetFramework,
-                x.IsCSharp,
-                new Lazy<IReadOnlyCollection<string>>(() => args),
-                x.OwnerState);
+            return x.ChangeArguments(args);
         }, options);
 
     [Fact]

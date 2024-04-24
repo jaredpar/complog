@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -36,5 +37,30 @@ internal static class Extensions
         {
             action(item);
         }
+    }
+
+    internal static CompilerCall ChangeArguments(this CompilerCall compilerCall, IReadOnlyCollection<string> arguments)
+    {
+        return new CompilerCall(
+            compilerCall.CompilerFilePath,
+            compilerCall.ProjectFilePath,
+            compilerCall.Kind,
+            compilerCall.TargetFramework,
+            compilerCall.IsCSharp,
+            new Lazy<IReadOnlyCollection<string>>(() => arguments),
+            compilerCall.OwnerState);
+    }
+
+    internal static CompilerCall ChangeOwner(this CompilerCall compilerCall, object? ownerState)
+    {
+        var args = compilerCall.GetArguments();
+        return new CompilerCall(
+            compilerCall.CompilerFilePath,
+            compilerCall.ProjectFilePath,
+            compilerCall.Kind,
+            compilerCall.TargetFramework,
+            compilerCall.IsCSharp,
+            new Lazy<IReadOnlyCollection<string>>(() => args),
+            ownerState);
     }
 }
