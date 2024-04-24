@@ -20,7 +20,7 @@ public sealed class CodeAnalysisExtensionsTests : TestBase
     [Fact]
     public void EmitToMemory()
     {
-        var data = GetCompilationData(Fixture.ClassLibComplogPath.Value);
+        var data = GetCompilationData(Fixture.ClassLib.Value.CompilerLogPath);
         var compilation = data.GetCompilationAfterGenerators();
         var result = compilation.EmitToMemory(EmitFlags.Default);
         AssertEx.Success(TestOutputHelper, result);

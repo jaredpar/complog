@@ -249,7 +249,7 @@ internal static class RoslynUtil
 
     internal static Guid GetMvid(Stream stream)
     {
-        using var reader = new PEReader(stream);
+        using var reader = new PEReader(stream, PEStreamOptions.LeaveOpen);
         var mdReader = reader.GetMetadataReader();
         GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
         return mdReader.GetGuid(handle);

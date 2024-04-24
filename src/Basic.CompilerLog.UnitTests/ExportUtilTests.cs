@@ -94,7 +94,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedText()
     {
-        TestExport(Fixture.ConsoleComplogPath.Value, 1, verifyExportCallback: tempPath =>
+        TestExport(Fixture.Console.Value.CompilerLogPath, 1, verifyExportCallback: tempPath =>
         {
             var generatedPath = Path.Combine(tempPath, "generated");
             var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
@@ -109,7 +109,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedTextExcludeAnalyzers()
     {
-        TestExport(Fixture.ConsoleComplogPath.Value, 1, includeAnalyzers: false, verifyExportCallback: tempPath =>
+        TestExport(Fixture.Console.Value.CompilerLogPath, 1, includeAnalyzers: false, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -135,7 +135,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GlobalConfigMapsPaths()
     {
-        TestExport(Fixture.ConsoleComplexComplogPath.Value, expectedCount: 1, verifyExportCallback: void (string path) =>
+        TestExport(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
         {
             var configFilePath = Directory
                 .EnumerateFiles(path, "console-complex.GeneratedMSBuildEditorConfig.editorconfig", SearchOption.AllDirectories)
@@ -159,13 +159,13 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void ConsoleMultiTarget()
     {
-        TestExport(Fixture.ClassLibMultiComplogPath.Value, expectedCount: 2, runBuild: false);
+        TestExport(Fixture.ClassLibMulti.Value.CompilerLogPath, expectedCount: 2, runBuild: false);
     }
 
     [Fact]
     public void ConsoleWithRuleset()
     {
-        TestExport(Fixture.ConsoleComplexComplogPath.Value, expectedCount: 1, verifyExportCallback: void (string path) =>
+        TestExport(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
         {
             var found = false;
             var expected = $"/ruleset:{Path.Combine("src", "example.ruleset")}";
@@ -185,13 +185,13 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void StrongNameKey()
     {
-        TestExport(Fixture.ConsoleSignedComplogPath.Value, expectedCount: 1, runBuild: false);
+        TestExport(Fixture.ConsoleSigned.Value.CompilerLogPath, expectedCount: 1, runBuild: false);
     }
 
     [Fact]
     public void ExportAll()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
         exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkDirectories());
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
@@ -201,7 +201,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void ExportAllBadPath()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
         Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
     }

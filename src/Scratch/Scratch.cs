@@ -92,9 +92,7 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
 void TestBinaryLogReader()
 {
     var binlogPath = @"e:\temp\console\build.binlog";
-    using var stream = new FileStream(binlogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-    var compilerCalls = BinaryLogUtil.ReadAllCompilerCalls(stream, new());
-    var reader = new BinaryLogReader(compilerCalls);
+    var reader = BinaryLogReader.Create(binlogPath);
     var all = reader.ReadAllCompilationData();
     foreach (var data in all)
     {

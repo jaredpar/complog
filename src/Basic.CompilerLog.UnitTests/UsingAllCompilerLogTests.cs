@@ -1,5 +1,6 @@
 
 using System.Configuration;
+using System.Windows.Markup;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Classification;
@@ -177,6 +178,43 @@ public sealed class UsingAllCompilerLogTests : TestBase
             var workspace = new AdhocWorkspace();
             var solution = workspace.AddSolution(reader.ReadSolutionInfo());
             Assert.NotEmpty(solution.Projects);
+        }
+    }
+
+    /// <summary>
+    /// Ensure that our options round tripping code is correct and produces the same result as 
+    /// argument parsing. This will also catch cases where new values are added to the options 
+    /// that are not being set by our code base.
+    /// </summary>
+    [Fact]
+    public async Task VerifyConsistentOptions()
+    {
+        await foreach (var logData in Fixture.GetAllLogs(TestOutputHelper))
+        {
+            if (logData.BinaryLogPath is null)
+            {
+                continue;
+            }
+
+            using var complogReader = CompilerLogReader.Create(logData.CompilerLogPath);
+            using var binlogReader = CompilerLogReader.Create(logData.BinaryLogPath);
+            var complogDataList = complogReader.ReadAllCompilationData();
+            var binlogDataList = binlogReader.ReadAllCompilationData();
+            Assert.Equal(complogDataList.Count, binlogDataList.Count);
+            for (int i = 0; i < complogDataList.Count; i++)
+            {
+                Assert.Equal(complogDataList[i].EmitOptions, binlogDataList[i].EmitOptions);
+                Assert.Equal(complogDataList[i].ParseOptions, binlogDataList[i].ParseOptions);
+
+                var complogOptions = Normalize(complogDataList[i].CompilationOptions);
+                var binlogOptions = Normalize(binlogDataList[i].CompilationOptions);
+                Assert.Equal(complogOptions, binlogOptions);
+
+                CompilationOptions Normalize(CompilationOptions options) => options
+                    .WithCryptoKeyFile(null)
+                    .WithStrongNameProvider(null)
+                    .WithSyntaxTreeOptionsProvider(null);
+            }
         }
     }
 }

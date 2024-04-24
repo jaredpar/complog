@@ -1,8 +1,3 @@
-unify the analyzer options on command line
-    - Move the CompilerLogState to FilterOptionSet, make that disposable
-switch default to run analyzers
-simplify the options, kind, etc ... for loading analyzers
-    - Move caching to the reader as it conttrols that
-    - Move ALC to the reader as it controls that
-    - Host options are just about what host is created, now how the host is managed
-better test hooks to see what program actually ran    
+Have a method on CollectionFixture that locks all files in a dir so that 
+export tests are pure. Don't have to worry about them reading the existing
+files on disk.

@@ -20,7 +20,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void EmitToMemoryCombinations()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
 
         var emitResult = data.EmitToMemory();
@@ -62,7 +62,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void EmitToMemoryRefOnly()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibRefOnlyComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibRefOnly.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
         var result = data.EmitToMemory();
         Assert.True(result.Success);
@@ -71,7 +71,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetAnalyzersNormal()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
         Assert.NotEmpty(data.GetAnalyzers());
     }
@@ -79,7 +79,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetAnalyzersNoHosting()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, CompilerLogReaderOptions.None);
         var data = reader.ReadCompilationData(0);
         Assert.Empty(data.GetAnalyzers());
     }
@@ -87,7 +87,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetDiagnostics()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, CompilerLogReaderOptions.Default);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, CompilerLogReaderOptions.Default);
         var data = reader.ReadCompilationData(0);
         Assert.NotEmpty(data.GetDiagnostics());
     }
@@ -95,7 +95,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public async Task GetAllDiagnostics()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value, CompilerLogReaderOptions.Default);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, CompilerLogReaderOptions.Default);
         var data = reader.ReadCompilationData(0);
         Assert.NotEmpty(await data.GetAllDiagnosticsAsync());
     }
@@ -104,7 +104,7 @@ public sealed class CompilationDataTests : TestBase
     public void GetCompilationAfterGeneratorsDiagnostics()
     {
         var options = new CompilerLogReaderOptions(BasicAnalyzerKind.InMemory, cacheAnalyzers: true);
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, options);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var analyzers = rawData.Analyzers
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")

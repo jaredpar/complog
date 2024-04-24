@@ -15,9 +15,17 @@ using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
+public readonly struct LogData(string compilerLogPath, string? binaryLogPath)
+{
+    public string CompilerLogPath { get; } = compilerLogPath;
+    public string? BinaryLogPath { get; } = binaryLogPath;
+
+    public override string ToString() => $"{Path.GetFileName(CompilerLogPath)}";
+}
+
 public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
-    private readonly ImmutableArray<Lazy<string>> _allCompLogs;
+    private readonly ImmutableArray<Lazy<LogData>> _allLogs;
 
     /// <summary>
     /// Storage directory for all the generated artifacts and scatch directories
@@ -29,9 +37,9 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     /// </summary>
     internal string ComplogDirectory { get; }
 
-    internal Lazy<string> ConsoleComplogPath { get; }
+    internal Lazy<LogData> Console { get; }
 
-    internal Lazy<string> ConsoleNoGeneratorComplogPath { get; }
+    internal Lazy<LogData> ConsoleNoGenerator { get; }
 
     /// <summary>
     /// This is a console project that has every nasty feature that can be thought of
@@ -39,25 +47,25 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     /// `dotnet build` for every one of these individually (which is expensive) in 
     /// unit tests try to create a single project that has all of them.
     /// </summary>
-    internal Lazy<string> ConsoleComplexComplogPath { get; }
+    internal Lazy<LogData> ConsoleComplex { get; }
 
-    internal Lazy<string> ClassLibComplogPath { get; }
+    internal Lazy<LogData> ClassLib { get; }
 
-    internal Lazy<string> ClassLibRefOnlyComplogPath { get; }
+    internal Lazy<LogData> ClassLibRefOnly { get; }
 
     /// <summary>
     /// A multi-targeted class library
     /// </summary>
-    internal Lazy<string> ClassLibMultiComplogPath { get; }
+    internal Lazy<LogData> ClassLibMulti { get; }
 
-    internal Lazy<string> ConsoleVisualBasicComplogPath { get; }
+    internal Lazy<LogData> ConsoleVisualBasic { get; }
 
-    internal Lazy<string>? WpfAppComplogPath { get; }
+    internal Lazy<LogData>? WpfApp { get; }
 
     /// <summary>
     /// Named complog value that makes intent of getting signed one clear
     /// </summary>
-    internal Lazy<string> ConsoleSignedComplogPath => ConsoleComplexComplogPath;
+    internal Lazy<LogData> ConsoleSigned => ConsoleComplex;
 
     /// <summary>
     /// Constructor for the primary fixture. To get actual diagnostic messages into the output 
@@ -77,8 +85,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             Directory.CreateDirectory(testArtifactsDir);
         }
 
-        var builder = ImmutableArray.CreateBuilder<Lazy<string>>();
-        ConsoleComplogPath = WithBuild("console.complog", void (string scratchPath) =>
+        var builder = ImmutableArray.CreateBuilder<Lazy<LogData>>();
+        Console = WithBuild("console.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console --output .", scratchPath);
             var projectFileContent = """
@@ -108,7 +116,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
-        ClassLibMultiComplogPath = WithBuild("classlibmulti.complog", void (string scratchPath) =>
+        ClassLibMulti = WithBuild("classlibmulti.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlibmulti --output .", scratchPath);
             var projectFileContent = """
@@ -133,7 +141,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
-        ClassLibRefOnlyComplogPath = WithBuild("classlibrefonly.complog", void (string scratchPath) =>
+        ClassLibRefOnly = WithBuild("classlibrefonly.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlibrefonly --output .", scratchPath);
             var projectFileContent = """
@@ -156,13 +164,13 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         }, expectDiagnosticMessages: true);
 
-        ConsoleNoGeneratorComplogPath = WithBuild("console-no-generator.complog", void (string scratchPath) =>
+        ConsoleNoGenerator = WithBuild("console-no-generator.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name example-no-generator --output .", scratchPath);
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
-        ConsoleVisualBasicComplogPath = WithBuild("console-vb.complog", void (string scratchPath) =>
+        ConsoleVisualBasic = WithBuild("console-vb.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console-vb --language VB --output .", scratchPath);
             File.WriteAllText(Path.Combine(scratchPath, "Extra.vb"), """
@@ -189,7 +197,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
         
-        ConsoleComplexComplogPath = WithBuild("console-complex.complog", void (string scratchPath) =>
+        ConsoleComplex = WithBuild("console-complex.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console-complex --output .", scratchPath);
             var keyFilePath = Path.Combine(scratchPath, "Key.snk");
@@ -294,7 +302,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
-        ClassLibComplogPath = WithBuild("classlib.complog", void (string scratchPath) =>
+        ClassLib = WithBuild("classlib.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlib --output . --framework net7.0", scratchPath);
             var program = """
@@ -312,7 +320,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            WpfAppComplogPath = WithBuild("wpfapp.complog", void (string scratchPath) =>
+            WpfApp = WithBuild("wpfapp.complog", void (string scratchPath) =>
             {
                 RunDotnetCommand("new wpf --name wpfapp --output .", scratchPath);
                 RunDotnetCommand("build -bl -nr:false", scratchPath);
@@ -322,10 +330,10 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         WithResource("linux-console.complog");
         WithResource("windows-console.complog");
 
-        _allCompLogs = builder.ToImmutable();
-        Lazy<string> WithBuild(string name, Action<string> action, bool expectDiagnosticMessages = false)
+        _allLogs = builder.ToImmutable();
+        Lazy<LogData> WithBuild(string name, Action<string> action, bool expectDiagnosticMessages = false)
         {
-            var lazy = new Lazy<string>(() =>
+            var lazy = new Lazy<LogData>(() =>
             {
                 var start = DateTime.UtcNow;
                 try
@@ -355,39 +363,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         Assert.Empty(diagnostics);
                     }
 
-                    VerifyOptions();
-
-                    Directory.Delete(scratchPath, recursive: true);
-                    return complogFilePath;
-
-                    // Ensure that our options round tripping code is correct and produces the same result as 
-                    // argument parsing. This will also catch cases where new values are added to the options 
-                    // that are not being set by our code base.
-                    //
-                    // This cannot be done later as the original options require calling CommandLineArguments.Parse
-                    // which only works when the original build artifacts are on disk. This is why we do it here
-                    // before deliting the scratch directory.
-                    void VerifyOptions()
-                    {
-                        using var reader = CompilerLogReader.Create(complogFilePath);
-                        var dataList = reader.ReadAllCompilationData();
-                        Assert.Equal(compilerCalls.Count, dataList.Count);
-                        for (int i = 0; i < dataList.Count; i++)
-                        {
-                            var args = compilerCalls[i].ParseArguments();
-                            var data = dataList[i];
-                            Assert.Equal(args.EmitOptions, data.EmitOptions);
-                            Assert.Equal(args.ParseOptions, data.ParseOptions);
-
-                            var expectedCompilationOptions = args.CompilationOptions
-                                .WithCryptoKeyFile(null);
-                            var actualCompilationOptions = data.CompilationOptions
-                                .WithSyntaxTreeOptionsProvider(null)
-                                .WithStrongNameProvider(null)
-                                .WithCryptoKeyFile(null);
-                            Assert.Equal(expectedCompilationOptions, actualCompilationOptions);
-                        }
-                    }
+                    return new LogData(complogFilePath, binlogFilePath);
                 }
                 catch (Exception ex)
                 {
@@ -407,31 +383,29 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         {
             var filePath = Path.Combine(ComplogDirectory, name);
             File.WriteAllBytes(filePath, ResourceLoader.GetResourceBlob(name));
-            builder.Add(new Lazy<string>(() => filePath));
+            builder.Add(new Lazy<LogData>(() => new LogData(filePath, null)));
         }
     }
 
-    public async IAsyncEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper)
+    public async IAsyncEnumerable<LogData> GetAllLogs(ITestOutputHelper testOutputHelper)
     {
         var start = DateTime.UtcNow;
-        var list = new List<string>(_allCompLogs.Length);
-        foreach (var complog in _allCompLogs)
+        foreach (var logData in _allLogs)
         {
-            testOutputHelper.WriteLine($"Generating {complog.Value}");
-            if (complog.IsValueCreated)
+            if (logData.IsValueCreated)
             {
                 testOutputHelper.WriteLine($"Using cached value");
-                yield return complog.Value;
+                yield return logData.Value;
             }
             else
             {
-                TaskCompletionSource<string> tcs = new();
+                TaskCompletionSource<LogData> tcs = new();
                 await Task.Factory.StartNew(() =>
                 {
                     try
                     {
                         testOutputHelper.WriteLine($"Starting {nameof(GetAllCompilerLogs)}");
-                        tcs.SetResult(complog.Value);
+                        tcs.SetResult(logData.Value);
                         testOutputHelper.WriteLine($"Finished {nameof(GetAllCompilerLogs)} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
                     }
                     catch (Exception ex)
@@ -439,11 +413,30 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         tcs.SetException(ex);
                     }
                 }, TaskCreationOptions.LongRunning);
+
                 yield return await tcs.Task;
             }
-            list.Add(complog.Value);
         }
     } 
+
+    public async IAsyncEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper)
+    {
+        await foreach (var logData in GetAllLogs(testOutputHelper))
+        {
+            yield return logData.CompilerLogPath;
+        }
+    }
+
+    public async IAsyncEnumerable<string> GetAllBinaryLogs(ITestOutputHelper testOutputHelper)
+    {
+        await foreach (var logData in GetAllLogs(testOutputHelper))
+        {
+            if (logData.BinaryLogPath is { } binaryLog)
+            {
+                yield return binaryLog;
+            }
+        }
+    }
 
     public void Dispose()
     {

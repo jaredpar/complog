@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Basic.CompilerLog.Util.Impl;
 using MessagePack.Formatters;
+using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -9,26 +10,67 @@ using Microsoft.CodeAnalysis.VisualBasic;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompilerCallReader, IBasicAnalyzerHostDataProvider
+public sealed class BinaryLogReader : IDisposable, ICompilerCallReader, IBasicAnalyzerHostDataProvider
 {
-    private List<CompilerCall> _compilerCalls = compilerCalls;
+    private Stream _stream;
+    private readonly bool _leaveOpen;
 
     // TODO: figure out lifetime and init of this
     private CompilerLogState _state = new CompilerLogState();
 
     public CompilerLogState CompilerLogState => _state;
+    public bool IsDisposed => _stream is null;
+
+    private BinaryLogReader(Stream stream, bool leaveOpen)
+    {
+        _stream = stream;
+        _leaveOpen = leaveOpen;
+    }   
+
+    public static BinaryLogReader Create(
+        Stream stream,
+        bool leaveOpen) =>
+        new BinaryLogReader(stream, leaveOpen);
+
+    public static BinaryLogReader Create(string filePath)
+    {
+        var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return Create(stream, leaveOpen: false);
+    }
+
+    public void Dispose()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (!_leaveOpen)
+        {
+            _stream.Dispose();
+        }
+
+        _stream = null!;
+    }
 
     public List<CompilerCall> ReadAllCompilerCalls(Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
-        return _compilerCalls.Where(predicate).ToList();
+
+        // TODO: need to remove this and consider just throwing exceptions here instead. Look inside
+        // compiler log to see what it does for exception during read and get some symetry with it
+        var diagnosticList = new List<string>();
+        return BinaryLogUtil.ReadAllCompilerCalls(_stream, diagnosticList, predicate);
     }
 
-    // TODO: implement
     public List<CompilationData> ReadAllCompilationData(Func<CompilerCall, bool>? predicate = null)
     {
-        // TODO: this is a hack, need to do the filter
-        return _compilerCalls.Select(Convert).ToList();
+        var list = new List<CompilationData>();
+        foreach (var compilerCall in ReadAllCompilerCalls(predicate))
+        {
+            list.Add(Convert(compilerCall));
+        }
+        return list;
     }
 
     public CompilationData Convert(CompilerCall compilerCall)
