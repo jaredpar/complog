@@ -410,27 +410,20 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
             var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
             var parseOptions = (VisualBasicParseOptions)rawParseOptions;
             var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTexts, parseOptions);
-            var (syntaxProvider, analyzerProvider) = RoslynUtil.CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, PathNormalizationUtil);
 
-            basicOptions = basicOptions
-                .WithSyntaxTreeOptionsProvider(syntaxProvider)
-                .WithStrongNameProvider(new DesktopStrongNameProvider());
-
-            var compilation = VisualBasicCompilation.Create(
-                rawCompilationData.CompilationName,
-                syntaxTrees,
-                referenceList,
-                basicOptions);
-
-            return new VisualBasicCompilationData(
+            return RoslynUtil.CreateVisualBasicCompilationData(
                 compilerCall,
-                compilation,
+                rawCompilationData.CompilationName,
                 parseOptions,
+                basicOptions,
+                sourceTexts,
+                referenceList,
+                analyzerConfigs,
+                additionalTexts.ToImmutableArray(),
                 emitOptions,
                 emitData,
-                additionalTexts.ToImmutableArray(),
                 basicAnalyzerHost,
-                analyzerProvider);
+                PathNormalizationUtil);
         }
     }
 

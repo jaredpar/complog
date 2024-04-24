@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.CodeAnalysis.VisualBasic;
 
 namespace Basic.CompilerLog.Util;
 
@@ -30,8 +31,6 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
         return _compilerCalls.Select(Convert).ToList();
     }
 
-    // TODO:
-    //  - CompilationName isn't a perfect match for CompilerLog. Need to fix that.
     public CompilationData Convert(CompilerCall compilerCall)
     {
         var args = compilerCall.ParseArguments();
@@ -43,16 +42,32 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
         var emitData = GetEmitData();
         var basicAnalyzerHost = CreateAnalyzerHost();
 
-        // TODO: handle visual basic
-        return GetCSharp();
+        return compilerCall.IsCSharp ? GetCSharp() : GetVisualBasic();
 
-        CompilationData GetCSharp()
+        CSharpCompilationData GetCSharp()
         {
             return RoslynUtil.CreateCSharpCompilationData(
                 compilerCall,
                 args.CompilationName,
                 (CSharpParseOptions)args.ParseOptions,
                 (CSharpCompilationOptions)args.CompilationOptions,
+                sourceTexts,
+                references,
+                analyzerConfigs,
+                additionalTexts,
+                args.EmitOptions,
+                emitData,
+                basicAnalyzerHost,
+                PathNormalizationUtil.Empty);
+        }
+
+        VisualBasicCompilationData GetVisualBasic()
+        {
+            return RoslynUtil.CreateVisualBasicCompilationData(
+                compilerCall,
+                args.CompilationName,
+                (VisualBasicParseOptions)args.ParseOptions,
+                (VisualBasicCompilationOptions)args.CompilationOptions,
                 sourceTexts,
                 references,
                 analyzerConfigs,

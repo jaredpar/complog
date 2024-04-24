@@ -169,6 +169,44 @@ internal static class RoslynUtil
             analyzerProvider);
     }
 
+    internal static VisualBasicCompilationData CreateVisualBasicCompilationData(
+        CompilerCall compilerCall,
+        string? compilationName,
+        VisualBasicParseOptions parseOptions,
+        VisualBasicCompilationOptions compilationOptions,
+        List<(SourceText SourceText, string Path)> sourceTexts,
+        List<MetadataReference> references,
+        List<(SourceText SourceText, string Path)> analyzerConfigs,
+        ImmutableArray<AdditionalText> additionalTexts,
+        EmitOptions emitOptions,
+        EmitData emitData,
+        BasicAnalyzerHost basicAnalyzerHost,
+        PathNormalizationUtil pathNormalizationUtil)
+    {
+        var syntaxTrees = ParseAllVisualBasic(sourceTexts, parseOptions);
+        var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, pathNormalizationUtil);
+
+        compilationOptions = compilationOptions
+            .WithSyntaxTreeOptionsProvider(syntaxProvider)
+            .WithStrongNameProvider(new DesktopStrongNameProvider());
+
+        var compilation = VisualBasicCompilation.Create(
+            compilationName,
+            syntaxTrees,
+            references,
+            compilationOptions);
+
+        return new VisualBasicCompilationData(
+            compilerCall,
+            compilation,
+            parseOptions,
+            emitOptions,
+            emitData,
+            additionalTexts.ToImmutableArray(),
+            basicAnalyzerHost,
+            analyzerProvider);
+    }
+
     internal static string RewriteGlobalEditorConfigSections(SourceText sourceText, Func<string, string> pathMapFunc)
     {
         var builder = new StringBuilder();
