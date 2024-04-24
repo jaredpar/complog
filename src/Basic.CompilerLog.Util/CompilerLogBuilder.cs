@@ -70,9 +70,8 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// <summary>
     /// Adds a compilation into the builder and returns the index of the entry
     /// </summary>
-    internal void Add(CompilerCall compilerCall)
+    internal void Add(CompilerCall compilerCall, CommandLineArguments commandLineArguments)
     {
-        var commandLineArguments = compilerCall.ParseArguments();
         var infoPack = new CompilationInfoPack()
         {
             CompilerFilePath = compilerCall.CompilerFilePath,

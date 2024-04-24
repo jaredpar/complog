@@ -38,13 +38,13 @@ public static class BinaryLogUtil
             return data;
         }
 
-        public List<CompilerCall> GetAllCompilerCalls(List<string> diagnostics)
+        public List<CompilerCall> GetAllCompilerCalls(object? ownerState, List<string> diagnostics)
         {
             var list = new List<CompilerCall>();
 
             foreach (var data in _targetMap.Values)
             {
-                if (data.TryCreateCompilerCall(diagnostics) is { } compilerCall)
+                if (data.TryCreateCompilerCall(ownerState, diagnostics) is { } compilerCall)
                 {
                     if (compilerCall.Kind == CompilerCallKind.Regular)
                     {
@@ -83,7 +83,7 @@ public static class BinaryLogUtil
 
         public override string ToString() => $"{ProjectData} {TargetId}";
 
-        internal CompilerCall? TryCreateCompilerCall(List<string> diagnosticList)
+        internal CompilerCall? TryCreateCompilerCall(object? ownerState, List<string> diagnosticList)
         {
             if (CommandLineArguments is null)
             {
@@ -94,8 +94,8 @@ public static class BinaryLogUtil
             var kind = Kind ?? CompilerCallKind.Unknown;
             var rawArgs = CommandLineParser.SplitCommandLineIntoArguments(CommandLineArguments, removeHashComments: true);
             var (compilerFilePath, args) = IsCSharp
-                ? ParseCompilerAndArguments(rawArgs, "csc.exe", "csc.dll")
-                : ParseCompilerAndArguments(rawArgs, "vbc.exe", "vbc.dll");
+                ? ParseTaskForCompilerAndArguments(rawArgs, "csc.exe", "csc.dll")
+                : ParseTaskForCompilerAndArguments(rawArgs, "vbc.exe", "vbc.dll");
             if (args.Length == 0)
             {
                 diagnosticList.Add($"Project {ProjectFile} ({TargetFramework}): bad argument list");
@@ -108,8 +108,8 @@ public static class BinaryLogUtil
                 kind,
                 TargetFramework,
                 isCSharp: IsCSharp,
-                new Lazy<string[]>(() => args),
-                index: null);
+                new Lazy<IReadOnlyCollection<string>>(() => args),
+                ownerState: ownerState);
         }
     }
 
@@ -127,7 +127,7 @@ public static class BinaryLogUtil
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
     }
 
-    public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, List<string> diagnosticList, Func<CompilerCall, bool>? predicate = null)
+    public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, List<string> diagnosticList, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
     {
         // https://github.com/KirillOsenkov/MSBuildStructuredLog/issues/752
         Microsoft.Build.Logging.StructuredLogger.Strings.Initialize();
@@ -166,7 +166,7 @@ public static class BinaryLogUtil
                             data.TargetFramework = evaluationData.TargetFramework;
                         }
 
-                        foreach (var compilerCall in data.GetAllCompilerCalls(diagnosticList))
+                        foreach (var compilerCall in data.GetAllCompilerCalls(ownerState, diagnosticList))
                         {
                             if (predicate(compilerCall))
                             {
@@ -293,7 +293,7 @@ public static class BinaryLogUtil
     /// The argument list is going to include either `dotnet exec csc.dll` or `csc.exe`. Need 
     /// to skip past that to get to the real command line.
     /// </summary>
-    internal static (string? CompilerFilePath, string[] Arguments) ParseCompilerAndArguments(IEnumerable<string> args, string exeName, string dllName)
+    internal static (string? CompilerFilePath, string[] Arguments) ParseTaskForCompilerAndArguments(IEnumerable<string> args, string exeName, string dllName)
     {
         using var e = args.GetEnumerator();
 
@@ -332,5 +332,22 @@ public static class BinaryLogUtil
         }
 
         return (compilerFilePath, list.ToArray());
+    }
+
+    /// <summary>
+    /// Use <see cref="BinaryLogReader.ReadCommandLineArguments(CompilerCall)"/> instead of this
+    /// API whenever possible. That API is more reliable and will throw in cases where the underlying
+    /// command line data is unlikely to be present
+    /// 
+    /// This method is only valid when this instance represents a compilation on the disk of the 
+    /// current machine. In any other scenario this will lead to mostly correct but potentially 
+    /// incorrect results.
+    /// </summary>
+    public static CommandLineArguments ReadCommandLineArgumentsUnsafe(CompilerCall compilerCall)
+    {
+        var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
+        return compilerCall.IsCSharp
+            ? CSharpCommandLineParser.Default.Parse(compilerCall.GetArguments(), baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
+            : VisualBasicCommandLineParser.Default.Parse(compilerCall.GetArguments(), baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
     }
 }

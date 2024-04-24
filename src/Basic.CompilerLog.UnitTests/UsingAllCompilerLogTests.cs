@@ -197,7 +197,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             }
 
             using var complogReader = CompilerLogReader.Create(logData.CompilerLogPath);
-            using var binlogReader = CompilerLogReader.Create(logData.BinaryLogPath);
+            using var binlogReader = BinaryLogReader.Create(logData.BinaryLogPath);
             var complogDataList = complogReader.ReadAllCompilationData();
             var binlogDataList = binlogReader.ReadAllCompilationData();
             Assert.Equal(complogDataList.Count, binlogDataList.Count);

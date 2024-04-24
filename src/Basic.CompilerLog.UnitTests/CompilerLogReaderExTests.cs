@@ -54,13 +54,13 @@ public sealed class CompilerLogReaderExTests : TestBase
         
         var stream = new MemoryStream();
         var builder = new CompilerLogBuilder(stream, diagnostics);
-        builder.Add(compilerCall);
+        builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
         builder.Close();
         stream.Position = 0;
         return CompilerLogReader.Create(stream, options, State, leaveOpen: false);
     }
 
-    private CompilerLogReader ConvertConsoleArgs(Func<string[], string[]> func, CompilerLogReaderOptions? options = null) => 
+    private CompilerLogReader ConvertConsoleArgs(Func<IReadOnlyCollection<string>, IReadOnlyCollection<string>> func, CompilerLogReaderOptions? options = null) => 
         ConvertConsole(x =>
         {
             var args = func(x.GetArguments());
@@ -70,8 +70,8 @@ public sealed class CompilerLogReaderExTests : TestBase
                 x.Kind,
                 x.TargetFramework,
                 x.IsCSharp,
-                new Lazy<string[]>(() => args),
-                x.Index);
+                new Lazy<IReadOnlyCollection<string>>(() => args),
+                x.OwnerState);
         }, options);
 
     [Fact]

@@ -1,3 +1,7 @@
 Have a method on CollectionFixture that locks all files in a dir so that 
 export tests are pure. Don't have to worry about them reading the existing
 files on disk.
+
+CompilerCall
+    - ParseArguments should throw if it came from a compiler log
+    - make ownership a bit more clear

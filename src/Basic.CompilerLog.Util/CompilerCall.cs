@@ -41,15 +41,14 @@ public enum CompilerCallKind
 /// </summary>
 public sealed class CompilerCall
 {
-    private readonly Lazy<string[]> _lazyArguments;
-    private readonly Lazy<CommandLineArguments> _lazyParsedArguments;
+    private readonly Lazy<IReadOnlyCollection<string>> _lazyArguments;
 
     public string? CompilerFilePath { get; }
     public string ProjectFilePath { get; }
     public CompilerCallKind Kind { get; }
     public string? TargetFramework { get; }
     public bool IsCSharp { get; }
-    internal int? Index { get; }
+    internal object? OwnerState { get; }
 
     public bool IsVisualBasic => !IsCSharp;
     public string ProjectFileName => Path.GetFileName(ProjectFilePath);
@@ -61,17 +60,16 @@ public sealed class CompilerCall
         CompilerCallKind kind,
         string? targetFramework,
         bool isCSharp,
-        Lazy<string[]> arguments,
-        int? index)
+        Lazy<IReadOnlyCollection<string>> arguments,
+        object? ownerState = null)
     {
         CompilerFilePath = compilerFilePath;
         ProjectFilePath = projectFilePath;
         Kind = kind;
         TargetFramework = targetFramework;
         IsCSharp = isCSharp;
-        Index = index;
+        OwnerState = ownerState;
         _lazyArguments = arguments;
-        _lazyParsedArguments = new Lazy<CommandLineArguments>(ParseArgumentsCore);
     }
 
     public string GetDiagnosticName() 
@@ -87,20 +85,5 @@ public sealed class CompilerCall
         return baseName;
     }
 
-    public string[] GetArguments() => _lazyArguments.Value;
-
-    /// <summary>
-    /// This method is only valid when this instance represents a compilation on the disk of the 
-    /// current machine. In any other scenario this will lead to mostly correct but potentially 
-    /// incorrect results.
-    /// </summary>
-    internal CommandLineArguments ParseArguments() => _lazyParsedArguments.Value;
-
-    private CommandLineArguments ParseArgumentsCore()
-    {
-        var baseDirectory = Path.GetDirectoryName(ProjectFilePath)!;
-        return IsCSharp
-            ? CSharpCommandLineParser.Default.Parse(GetArguments(), baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse(GetArguments(), baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
-    }
+    public IReadOnlyCollection<string> GetArguments() => _lazyArguments.Value;
 }

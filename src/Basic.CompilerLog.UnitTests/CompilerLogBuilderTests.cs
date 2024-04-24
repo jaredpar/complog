@@ -29,9 +29,9 @@ public sealed class CompilerLogBuilderTests : TestBase
             CompilerCallKind.Regular,
             compilerCall.TargetFramework,
             isCSharp: true,
-            new Lazy<string[]>(() => ["/sourcelink:does-not-exist.txt"]),
+            new Lazy<IReadOnlyCollection<string>>(() => ["/sourcelink:does-not-exist.txt"]),
             null);
-        Assert.Throws<Exception>(() => builder.Add(compilerCall));
+        Assert.Throws<Exception>(() => builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall)));
     }
 
     [Fact]
@@ -49,9 +49,9 @@ public sealed class CompilerLogBuilderTests : TestBase
             CompilerCallKind.Regular,
             compilerCall.TargetFramework,
             isCSharp: true,
-            new Lazy<string[]>(() => args),
+            new Lazy<IReadOnlyCollection<string>>(() => args),
             null);
-        builder.Add(compilerCall);
+        builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public sealed class BinaryLogUtilTests
     [InlineData("csc.exe a.cs b.cs", "csc.exe", "a.cs b.cs")]
     public void ParseCompilerAndArguments(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
-        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseCompilerAndArguments(ToArray(inputArgs), "csc.exe", "csc.dll");
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(ToArray(inputArgs), "csc.exe", "csc.dll");
         Assert.Equal(ToArray(expectedArgs), actualArgs);
         Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
         static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
@@ -56,7 +56,7 @@ public sealed class CompilationTaskDataTests
         };
 
         var diagnostics = new List<string>();
-        Assert.Null(data.TryCreateCompilerCall(diagnostics));
+        Assert.Null(data.TryCreateCompilerCall(null, diagnostics));
         Assert.NotEmpty(diagnostics);
     }
 
@@ -69,7 +69,7 @@ public sealed class CompilationTaskDataTests
         };
 
         var diagnostics = new List<string>();
-        Assert.Null(data.TryCreateCompilerCall(diagnostics));
+        Assert.Null(data.TryCreateCompilerCall(null, diagnostics));
 
         // This is a normal non-compile case so no diagnostics are emitted
         Assert.Empty(diagnostics);

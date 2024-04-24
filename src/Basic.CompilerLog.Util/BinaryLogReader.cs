@@ -60,7 +60,7 @@ public sealed class BinaryLogReader : IDisposable, ICompilerCallReader, IBasicAn
         // TODO: need to remove this and consider just throwing exceptions here instead. Look inside
         // compiler log to see what it does for exception during read and get some symetry with it
         var diagnosticList = new List<string>();
-        return BinaryLogUtil.ReadAllCompilerCalls(_stream, diagnosticList, predicate);
+        return BinaryLogUtil.ReadAllCompilerCalls(_stream, diagnosticList, predicate, ownerState: this);
     }
 
     public List<CompilationData> ReadAllCompilationData(Func<CompilerCall, bool>? predicate = null)
@@ -73,9 +73,29 @@ public sealed class BinaryLogReader : IDisposable, ICompilerCallReader, IBasicAn
         return list;
     }
 
+    /// <summary>
+    /// Reads the <see cref="CommandLineArguments"/> for the given <see cref="CompilerCall"/>.
+    /// </summary>
+    /// <remarks>
+    /// !!!WARNING!!!
+    /// 
+    /// This method is only valid when this instance represents a compilation on the disk of the 
+    /// current machine. In any other scenario this will lead to mostly correct but potentially 
+    /// incorrect results.
+    /// 
+    /// This method is on <see cref="BinaryLogReader"/> as its presence is a stronger indicator
+    /// that the necessary data is on disk.
+    /// </remarks>
+    public CommandLineArguments ReadCommandLineArguments(CompilerCall compilerCall)
+    {
+        CheckOwnership(compilerCall);
+        return BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
+    }
+
     public CompilationData Convert(CompilerCall compilerCall)
     {
-        var args = compilerCall.ParseArguments();
+        CheckOwnership(compilerCall);
+        var args = ReadCommandLineArguments(compilerCall);
 
         var references = GetReferences();
         var sourceTexts = GetSourceTexts();
@@ -215,6 +235,16 @@ public sealed class BinaryLogReader : IDisposable, ICompilerCallReader, IBasicAn
 
             return list;
         }
+    }
+
+    private void CheckOwnership(CompilerCall compilerCall)
+    {
+        if (compilerCall.OwnerState is BinaryLogReader reader && object.ReferenceEquals(reader, this))
+        {
+            return;
+        }
+
+        throw new ArgumentException($"The provided {nameof(CompilerCall)} is not from this instance");
     }
 
     void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream)

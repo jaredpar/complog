@@ -22,6 +22,14 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasicAnalyzerHostDataProvider
 {
+    private readonly struct CompilerCallState(CompilerLogReader reader, int index)
+    {
+        internal CompilerLogReader Reader { get; } = reader;
+        internal int Index { get; } = index;
+        [ExcludeFromCodeCoverage]
+        public override string ToString() => Index.ToString();
+    }
+
     /// <summary>
     /// Stores the underlying archive this reader is using. Do not use directly. Instead 
     /// use <see cref="ZipArchive"/>  which will throw if the reader is disposed
@@ -147,8 +155,8 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
             pack.CompilerCallKind,
             pack.TargetFramework,
             pack.IsCSharp,
-            new Lazy<string[]>(() => GetContentPack<string[]>(pack.CommandLineArgsHash)),
-            index);
+            new Lazy<IReadOnlyCollection<string>>(() => GetContentPack<string[]>(pack.CommandLineArgsHash)),
+            new CompilerCallState(this, index));
     }
 
     private RawCompilationData ReadRawCompilationDataCore(int index, CompilationInfoPack pack)
@@ -455,12 +463,15 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
 
     internal int GetIndex(CompilerCall compilerCall)
     {
-        if (compilerCall.Index is int i && i >= 0 && i < Count)
+        if (compilerCall.OwnerState is CompilerCallState state &&
+            state.Index >= 0 &&
+            state.Index < Count &&
+            object.ReferenceEquals(this, state.Reader))
         {
-            return i;
+            return state.Index;
         }
 
-        throw new ArgumentException($"Invalid index");
+        throw new ArgumentException($"The provided {nameof(CompilerCall)} is not from this instance");
     }
 
     public List<(string FileName, byte[] ImageBytes)> ReadReferenceFileInfo(CompilerCall compilerCall)

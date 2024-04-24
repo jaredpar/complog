@@ -91,23 +91,21 @@ public static class CompilerLogUtil
         var diagnostics = new List<string>();
         var included = new List<CompilerCall>();
 
-        var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, diagnostics);
+        var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, diagnostics, predicate);
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
         var success = true;
-        foreach (var compilerInvocation in list)
+        foreach (var compilerCall in list)
         {
-            if (predicate(compilerInvocation))
+            try
             {
-                try
-                {
-                    builder.Add(compilerInvocation);
-                    included.Add(compilerInvocation);
-                }
-                catch (Exception ex)
-                {
-                    diagnostics.Add($"Error adding {compilerInvocation.ProjectFilePath}: {ex.Message}");
-                    success = false;
-                }
+                var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
+                builder.Add(compilerCall, commandLineArguments);
+                included.Add(compilerCall);
+            }
+            catch (Exception ex)
+            {
+                diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
+                success = false;
             }
         }
 
