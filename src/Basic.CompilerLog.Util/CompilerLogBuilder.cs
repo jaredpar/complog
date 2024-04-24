@@ -254,7 +254,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddValues(CompilationDataPack dataPack, CommandLineArguments args)
     {
-        dataPack.ValueMap.Add("assemblyFileName", GetAssemblyFileName(args));
+        dataPack.ValueMap.Add("assemblyFileName", RoslynUtil.GetAssemblyFileName(args));
         dataPack.ValueMap.Add("xmlFilePath", args.DocumentationPath);
         dataPack.ValueMap.Add("outputDirectory", args.OutputDirectory);
         dataPack.ValueMap.Add("compilationName", args.CompilationName);
@@ -297,7 +297,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 return false;
             }
 
-            var assemblyFileName = GetAssemblyFileName(args);
+            var assemblyFileName = RoslynUtil.GetAssemblyFileName(args);
             var assemblyFilePath = Path.Combine(args.OutputDirectory, assemblyFileName);
             if (!File.Exists(assemblyFilePath))
             {

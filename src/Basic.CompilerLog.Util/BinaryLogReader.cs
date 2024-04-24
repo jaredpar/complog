@@ -121,17 +121,25 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
 
         EmitData GetEmitData()
         {
-            // TODO: get the name right
-            var compilationName = args.CompilationName ?? "a";
-
             // TODO: need to actually pass the right args here.
             return new EmitData(
-                compilationName,
+                RoslynUtil.GetAssemblyFileName(args),
                 args.DocumentationPath,
-                win32ResourceStream: null,
-                sourceLinkStream: null,
+                win32ResourceStream: ReadFileAsMemoryStream(args.Win32ResourceFile),
+                sourceLinkStream: ReadFileAsMemoryStream(args.SourceLink),
                 resources: Array.Empty<ResourceDescription>(),
                 embeddedTexts: Array.Empty<EmbeddedText>());
+        }
+
+        MemoryStream? ReadFileAsMemoryStream(string? filePath)
+        {
+            if (filePath is null)
+            {
+                return null;
+            }
+
+            var bytes = File.ReadAllBytes(filePath);
+            return new MemoryStream(bytes);
         }
     }
 
