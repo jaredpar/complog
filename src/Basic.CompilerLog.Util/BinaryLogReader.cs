@@ -121,9 +121,12 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
 
         EmitData GetEmitData()
         {
+            // TODO: get the name right
+            var compilationName = args.CompilationName ?? "a";
+
             // TODO: need to actually pass the right args here.
             return new EmitData(
-                args.CompilationName,
+                compilationName,
                 args.DocumentationPath,
                 win32ResourceStream: null,
                 sourceLinkStream: null,
