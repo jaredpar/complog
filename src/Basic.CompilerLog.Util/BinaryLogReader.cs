@@ -121,14 +121,13 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
 
         EmitData GetEmitData()
         {
-            // TODO: need to actually pass the right args here.
             return new EmitData(
                 RoslynUtil.GetAssemblyFileName(args),
                 args.DocumentationPath,
                 win32ResourceStream: ReadFileAsMemoryStream(args.Win32ResourceFile),
                 sourceLinkStream: ReadFileAsMemoryStream(args.SourceLink),
-                resources: Array.Empty<ResourceDescription>(),
-                embeddedTexts: Array.Empty<EmbeddedText>());
+                resources: args.ManifestResources,
+                embeddedTexts: GetEmbeddedTexts());
         }
 
         MemoryStream? ReadFileAsMemoryStream(string? filePath)
@@ -140,6 +139,24 @@ public sealed class BinaryLogReader(List<CompilerCall> compilerCalls) : ICompile
 
             var bytes = File.ReadAllBytes(filePath);
             return new MemoryStream(bytes);
+        }
+
+        IEnumerable<EmbeddedText>? GetEmbeddedTexts()
+        {
+            if (args.EmbeddedFiles.Length == 0)
+            {
+                return null;
+            }
+
+            var list = new List<EmbeddedText>(args.EmbeddedFiles.Length);
+            foreach (var item in args.EmbeddedFiles)
+            {
+                var sourceText = RoslynUtil.GetSourceText(item.Path, args.ChecksumAlgorithm, canBeEmbedded: true);
+                var embeddedText = EmbeddedText.FromSource(item.Path, sourceText);
+                list.Add(embeddedText);
+            }
+
+            return list;
         }
     }
 
