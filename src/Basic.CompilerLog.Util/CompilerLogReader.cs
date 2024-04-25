@@ -38,7 +38,6 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
 
     private readonly Dictionary<Guid, MetadataReference> _refMap = new();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new();
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoMap = new();
 
     /// <summary>
@@ -46,21 +45,20 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
     /// </summary>
     public bool OwnsCompilerLogState { get; }
 
-    public CompilerLogReaderOptions Options { get; }
+    public BasicAnalyzerKind BasicAnalyzerKind { get; }
     public CompilerLogState CompilerLogState { get; }
     internal Metadata Metadata { get; }
     internal PathNormalizationUtil PathNormalizationUtil { get; }
     internal int Count => Metadata.Count;
-    public BasicAnalyzerKind BasicAnalyzerKind => Options.BasicAnalyzerKind;
     public int MetadataVersion => Metadata.MetadataVersion;
     public bool IsWindowsLog => Metadata.IsWindows;
     public bool IsDisposed => _zipArchiveCore is null;
     internal ZipArchive ZipArchive => !IsDisposed ? _zipArchiveCore : throw new ObjectDisposedException(nameof(CompilerLogReader));
 
-    private CompilerLogReader(CompilerLogReaderOptions? options, CompilerLogState? state, ZipArchive zipArchive, Metadata metadata)
+    private CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerKind? basicAnalyzerKind, CompilerLogState? state)
     {
         _zipArchiveCore = zipArchive;
-        Options = options ?? CompilerLogReaderOptions.Default;
+        BasicAnalyzerKind = basicAnalyzerKind ?? BasicAnalyzerHost.DefaultKind;
         OwnsCompilerLogState = state is null;
         CompilerLogState = state ?? new CompilerLogState();
         Metadata = metadata;
@@ -89,7 +87,7 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
 
     public static CompilerLogReader Create(
         Stream stream,
-        CompilerLogReaderOptions? options,
+        BasicAnalyzerKind? basicAnalyzerKind,
         CompilerLogState? state,
         bool leaveOpen)
     {
@@ -99,7 +97,7 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
             var metadata = ReadMetadata();
             return metadata.MetadataVersion switch {
                 1 => throw new CompilerLogException("Version 1 compiler logs are no longer supported"),
-                2 => new CompilerLogReader(options, state, zipArchive, metadata),
+                2 => new CompilerLogReader(zipArchive, metadata, basicAnalyzerKind, state),
                 _ => throw new CompilerLogException($"Version {metadata.MetadataVersion} is higher than the max supported version {Metadata.LatestMetadataVersion}"),
             };
 
@@ -122,23 +120,23 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
 
     public static CompilerLogReader Create(
         Stream stream,
-        CompilerLogReaderOptions? options = null,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
         bool leaveOpen = true) =>
-        Create(stream, options, state: null, leaveOpen);
+        Create(stream, basicAnalyzerKind, state: null, leaveOpen);
 
     public static CompilerLogReader Create(
         Stream stream,
         CompilerLogState? state,
         bool leaveOpen = true) =>
-        Create(stream, options: null, state: state, leaveOpen);
+        Create(stream, basicAnalyzerKind: null, state: state, leaveOpen);
 
     public static CompilerLogReader Create(
         string filePath,
-        CompilerLogReaderOptions? options = null,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
         CompilerLogState? state = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return Create(stream, options, state: state, leaveOpen: false);
+        return Create(stream, basicAnalyzerKind, state: state, leaveOpen: false);
     }
 
     private CompilationInfoPack ReadCompilationInfo(int index)
@@ -315,7 +313,7 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
                     sourceTexts.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.GeneratedText:
-                    if (Options.BasicAnalyzerKind == BasicAnalyzerKind.None)
+                    if (BasicAnalyzerKind == BasicAnalyzerKind.None)
                     {
                         generatedTexts.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     }
@@ -506,55 +504,16 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
 
     internal BasicAnalyzerHost ReadAnalyzers(RawCompilationData rawCompilationData)
     {
-        var analyzers = rawCompilationData.Analyzers;
-        string? key = null;
-        BasicAnalyzerHost? basicAnalyzerHost;
-        if (Options.CacheAnalyzers)
-        {
-            key = GetKey();
-            if (_analyzersMap.TryGetValue(key, out basicAnalyzerHost) && !basicAnalyzerHost.IsDisposed)
+        return CompilerLogState.GetOrCreate(
+            BasicAnalyzerKind,
+            rawCompilationData.Analyzers,
+            (kind, analyzers) => kind switch
             {
-                return basicAnalyzerHost;
-            }
-        }
-
-        basicAnalyzerHost = Options.BasicAnalyzerKind switch
-        {
-            BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
-            BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
-            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(rawCompilationData.ReadGeneratedFiles, ReadGeneratedSourceTexts()),
-            _ => throw new InvalidOperationException()
-        };
-
-        CompilerLogState.BasicAnalyzerHosts.Add(basicAnalyzerHost);
-
-        if (Options.CacheAnalyzers)
-        {
-            _analyzersMap[key!] = basicAnalyzerHost;
-        }
-
-        return basicAnalyzerHost;
-
-        string GetKey()
-        {
-            var builder = new StringBuilder();
-            foreach (var analyzer in analyzers.OrderBy(x => x.Mvid))
-            {
-                builder.AppendLine($"{analyzer.Mvid}");
-            }
-
-            if (Options.BasicAnalyzerKind == BasicAnalyzerKind.None)
-            {
-                foreach (var tuple in rawCompilationData.Contents.Where(static x => x.Kind == RawContentKind.GeneratedText))
-                {
-                    builder.AppendLine(tuple.ContentHash);
-                }
-
-                builder.AppendLine(rawCompilationData.ReadGeneratedFiles.ToString());
-            }
-
-            return builder.ToString();
-        }
+                BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
+                BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
+                BasicAnalyzerKind.None => new BasicAnalyzerHostNone(rawCompilationData.ReadGeneratedFiles, ReadGeneratedSourceTexts()),
+                _ => throw new InvalidOperationException()
+            });
 
         ImmutableArray<(SourceText SourceText, string Path)> ReadGeneratedSourceTexts()
         {

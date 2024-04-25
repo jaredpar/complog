@@ -303,7 +303,7 @@ int RunExport(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.Options);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.BasicAnalyzerKind);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
 
@@ -439,7 +439,7 @@ int RunReplay(IEnumerable<string> args)
         }
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.Options, checkVersion: true);
+        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.BasicAnalyzerKind, checkVersion: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
         var sdkDirs = SdkUtil.GetSdkDirectories();
@@ -550,9 +550,9 @@ int RunHelp(IEnumerable<string>? args)
     return ExitSuccess;
 }
 
-CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, CompilerLogReaderOptions? options = null, bool checkVersion = false)
+CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
 {
-    var reader = CompilerLogReader.Create(compilerLogStream, options, leaveOpen);
+    var reader = CompilerLogReader.Create(compilerLogStream, basicAnalyzerKind, state: null, leaveOpen);
     if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
         WriteLine($"Compiler log generated on different operating system");

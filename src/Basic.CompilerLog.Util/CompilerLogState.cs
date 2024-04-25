@@ -2,6 +2,9 @@
 using System.Runtime.Loader;
 #endif
 
+using System.Diagnostics;
+using System.Text;
+
 namespace Basic.CompilerLog.Util;
 
 // TODO: update this
@@ -22,6 +25,13 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed class CompilerLogState : IDisposable
 {
+    private readonly Dictionary<string, BasicAnalyzerHost>? _analyzersMap;
+
+    /// <summary>
+    /// Should instances of <see cref="BasicAnalyzerHost" /> be cached and re-used
+    /// </summary>
+    internal bool CacheAnalyzers => _analyzersMap is not null;
+
     internal string BaseDirectory { get; }
 
     /// <summary>
@@ -50,7 +60,7 @@ public sealed class CompilerLogState : IDisposable
     /// and <see cref="AnalyzerDirectory"/> paths</param>
     /// <param name="compilerLoadContext">The <see cref="AssemblyLoadContext"/> that should be used to load
     /// analyzers</param>
-    public CompilerLogState(AssemblyLoadContext? compilerLoadContext, string? baseDir = null)
+    public CompilerLogState(AssemblyLoadContext? compilerLoadContext, string? baseDir = null, bool cacheAnalyzers = true)
         : this(baseDir)
     {
         CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(compilerLoadContext);
@@ -63,7 +73,8 @@ public sealed class CompilerLogState : IDisposable
     /// </summary>
     /// <param name="baseDir">The base path that should be used to create <see cref="CryptoKeyFileDirectory"/>
     /// and <see cref="AnalyzerDirectory"/> paths</param>
-    public CompilerLogState(string? baseDir = null)
+    /// <param name="cacheAnalyzers">Should analyzers be cached</param>
+    public CompilerLogState(string? baseDir = null, bool cacheAnalyzers = true)
     {
         BaseDirectory = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
         CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");
@@ -71,6 +82,10 @@ public sealed class CompilerLogState : IDisposable
 #if NETCOREAPP
         CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(null);
 #endif
+        if (cacheAnalyzers)
+        {
+            _analyzersMap = new();
+        }
     }
 
     public void Dispose()
@@ -90,6 +105,48 @@ public sealed class CompilerLogState : IDisposable
         catch (Exception)
         {
             // Nothing to do if we can't delete the directories
+        }
+    }
+
+    internal BasicAnalyzerHost GetOrCreate(
+        BasicAnalyzerKind kind,
+        List<RawAnalyzerData> analyzers,
+        Func<BasicAnalyzerKind, List<RawAnalyzerData>, BasicAnalyzerHost> createFunc)
+    {
+        BasicAnalyzerHost? basicAnalyzerHost;
+        string? key = null;
+
+        // The None kind is not cached because there is no real advantage to it. Caching is only
+        // useful to stop lots of 3rd party assemblies from loading over and over again. The 
+        // none host has a very simple in memory analyzer that doesn't need to be cached.
+        if (CacheAnalyzers && (kind == BasicAnalyzerKind.InMemory || kind == BasicAnalyzerKind.OnDisk))
+        {
+            key = GetKey(analyzers);
+            if (_analyzersMap!.TryGetValue(key, out basicAnalyzerHost))
+            {
+                return basicAnalyzerHost;
+            }
+        }
+
+        basicAnalyzerHost = createFunc(kind, analyzers);
+        BasicAnalyzerHosts.Add(basicAnalyzerHost);
+
+        if (key is not null)
+        {
+            Debug.Assert(_analyzersMap is not null);
+            _analyzersMap![key] = basicAnalyzerHost;
+        }
+
+        return basicAnalyzerHost;
+
+        static string GetKey(List<RawAnalyzerData> analyzers)
+        {
+            var builder = new StringBuilder();
+            foreach (var analyzer in analyzers.OrderBy(x => x.Mvid))
+            {
+                _ = builder.AppendLine($"{analyzer.Mvid}");
+            }
+            return builder.ToString();
         }
     }
 }

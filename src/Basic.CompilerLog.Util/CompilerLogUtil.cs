@@ -50,6 +50,22 @@ public static class CompilerLogUtil
         throw new Exception($"Unrecognized extension: {ext}");
     }
 
+    public static ICompilerCallReader GetCompilerCallReader(string filePath)
+    {
+        var ext = Path.GetExtension(filePath);
+        if (ext is ".binlog")
+        {
+            return BinaryLogReader.Create(filePath);
+        }
+
+        if (ext is ".complog")
+        {
+            return CompilerLogReader.Create(filePath);
+        }
+
+        throw new Exception($"Unrecognized extension: {ext}");
+    }
+
     public static List<string> ConvertBinaryLog(string binaryLogFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
     {
         using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);

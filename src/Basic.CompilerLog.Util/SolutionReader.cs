@@ -45,13 +45,13 @@ public sealed class SolutionReader : IDisposable
         Reader.Dispose();
     }
 
-    public static SolutionReader Create(Stream stream, CompilerLogReaderOptions? options = null, CompilerLogState? state = null, bool leaveOpen = false, Func<CompilerCall, bool>? predicate = null) => 
-        new (CompilerLogReader.Create(stream, options, state, leaveOpen), predicate);
+    public static SolutionReader Create(Stream stream, BasicAnalyzerKind? basicAnalyzerKind = null, CompilerLogState? state = null, bool leaveOpen = false, Func<CompilerCall, bool>? predicate = null) => 
+        new (CompilerLogReader.Create(stream, basicAnalyzerKind, state, leaveOpen), predicate);
 
-    public static SolutionReader Create(string filePath, CompilerLogReaderOptions? options = null, CompilerLogState? state = null, Func<CompilerCall, bool>? predicate = null)
+    public static SolutionReader Create(string filePath, BasicAnalyzerKind? basicAnalyzerKind = null, CompilerLogState? state = null, Func<CompilerCall, bool>? predicate = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return new(CompilerLogReader.Create(stream, options, state, leaveOpen: false), predicate);
+        return new(CompilerLogReader.Create(stream, basicAnalyzerKind, state, leaveOpen: false), predicate);
     }
 
     public SolutionInfo ReadSolutionInfo()
@@ -84,7 +84,7 @@ public sealed class SolutionReader : IDisposable
                 case RawContentKind.GeneratedText:
                     // When the host has generators these will be added as generators are run. If the host 
                     // doesn't have generators then we need to add them as documents now.
-                    if (Reader.Options.BasicAnalyzerKind == BasicAnalyzerKind.None)
+                    if (Reader.BasicAnalyzerKind == BasicAnalyzerKind.None)
                     {
                         Add(generatedFiles);
                     }

@@ -18,19 +18,27 @@ public sealed class BinaryLogReader : IDisposable, ICompilerCallReader, IBasicAn
     // TODO: figure out lifetime and init of this
     private CompilerLogState _state = new CompilerLogState();
 
+    public BasicAnalyzerKind BasicAnalyzerKind { get; } 
     public CompilerLogState CompilerLogState => _state;
     public bool IsDisposed => _stream is null;
 
-    private BinaryLogReader(Stream stream, bool leaveOpen)
+    private BinaryLogReader(Stream stream, BasicAnalyzerKind? basicAnalyzerKind, bool leaveOpen)
     {
         _stream = stream;
+        BasicAnalyzerKind = basicAnalyzerKind ?? BasicAnalyzerHost.DefaultKind;
         _leaveOpen = leaveOpen;
-    }   
+
+        if (basicAnalyzerKind == BasicAnalyzerKind.None)
+        {
+            throw new ArgumentException($"{nameof(BasicAnalyzerKind)}.None is not supported on binary logs");
+        }
+    } 
 
     public static BinaryLogReader Create(
         Stream stream,
-        bool leaveOpen) =>
-        new BinaryLogReader(stream, leaveOpen);
+        BasicAnalyzerKind? basicAnalyzerKind = null,
+        bool leaveOpen = false) =>
+        new BinaryLogReader(stream, basicAnalyzerKind, leaveOpen);
 
     public static BinaryLogReader Create(string filePath)
     {

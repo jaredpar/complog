@@ -66,12 +66,14 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Fact]
-    public async Task EmitToMemoryCompilerLog()
+    public async Task EmitToMemory()
     {
-        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        var count = 0;
+        await foreach (var logPath in Fixture.GetAllLogs(TestOutputHelper))
         {
-            TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None);
+            count++;
+            TestOutputHelper.WriteLine(logPath);
+            using var reader = CompilerCallReaderUtil.Create(logPath);
             foreach (var data in reader.ReadAllCompilationData())
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
@@ -79,6 +81,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 AssertEx.Success(TestOutputHelper, emitResult);
             }
         }
+        Assert.True(count >= 10);
     }
 
     /// <summary>
@@ -102,24 +105,8 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
         static List<CompilationData> ReadAll(string complogPath, CompilerLogState state)
         {
-            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None, state: state);
+            using var reader = CompilerLogReader.Create(complogPath, basicAnalyzerKind: BasicAnalyzerKind.None, state: state);
             return reader.ReadAllCompilationData();
-        }
-    }
-
-    [Fact]
-    public async Task EmitToMemoryBinaryLog()
-    {
-        await foreach (var binlogPath in Fixture.GetAllBinaryLogs(TestOutputHelper))
-        {
-            TestOutputHelper.WriteLine(binlogPath);
-            using var reader = BinaryLogReader.Create(binlogPath);
-            foreach (var data in reader.ReadAllCompilationData())
-            {
-                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                var emitResult = data.EmitToMemory();
-                AssertEx.Success(TestOutputHelper, emitResult);
-            }
         }
     }
 
@@ -129,7 +116,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None);
+            using var reader = CompilerLogReader.Create(complogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
             foreach (var data in reader.ReadAllCompilerCalls())
             {
                 var fileName = Path.GetFileName(complogPath);
@@ -156,7 +143,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     {
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
-            using var reader = SolutionReader.Create(complogPath, CompilerLogReaderOptions.None);
+            using var reader = SolutionReader.Create(complogPath, BasicAnalyzerKind.None);
             using var workspace = new AdhocWorkspace();
             workspace.AddSolution(reader.ReadSolutionInfo());
             foreach (var project in workspace.CurrentSolution.Projects)
@@ -191,7 +178,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [InlineData(false)]
     public async Task LoadAllCore(bool none)
     {
-        var options = none ? CompilerLogReaderOptions.None : CompilerLogReaderOptions.Default;
+        var options = none ? BasicAnalyzerKind.None : BasicAnalyzerHost.DefaultKind;
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             using var reader = SolutionReader.Create(complogPath, options);
@@ -209,7 +196,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [Fact]
     public async Task VerifyConsistentOptions()
     {
-        await foreach (var logData in Fixture.GetAllLogs(TestOutputHelper))
+        await foreach (var logData in Fixture.GetAllLogDatas(TestOutputHelper))
         {
             if (logData.BinaryLogPath is null)
             {

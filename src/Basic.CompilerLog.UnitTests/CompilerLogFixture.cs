@@ -387,7 +387,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         }
     }
 
-    public async IAsyncEnumerable<LogData> GetAllLogs(ITestOutputHelper testOutputHelper)
+    public async IAsyncEnumerable<LogData> GetAllLogDatas(ITestOutputHelper testOutputHelper)
     {
         var start = DateTime.UtcNow;
         foreach (var logData in _allLogs)
@@ -419,9 +419,21 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         }
     } 
 
+    public async IAsyncEnumerable<string> GetAllLogs(ITestOutputHelper testOutputHelper)
+    {
+        await foreach (var logData in GetAllLogDatas(testOutputHelper))
+        {
+            yield return logData.CompilerLogPath;
+            if (logData.BinaryLogPath is { } binaryLogPath)
+            {
+                yield return binaryLogPath;
+            }
+        }
+    }
+
     public async IAsyncEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper)
     {
-        await foreach (var logData in GetAllLogs(testOutputHelper))
+        await foreach (var logData in GetAllLogDatas(testOutputHelper))
         {
             yield return logData.CompilerLogPath;
         }
@@ -429,7 +441,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     public async IAsyncEnumerable<string> GetAllBinaryLogs(ITestOutputHelper testOutputHelper)
     {
-        await foreach (var logData in GetAllLogs(testOutputHelper))
+        await foreach (var logData in GetAllLogDatas(testOutputHelper))
         {
             if (logData.BinaryLogPath is { } binaryLog)
             {

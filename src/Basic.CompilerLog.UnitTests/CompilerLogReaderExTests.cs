@@ -39,7 +39,7 @@ public sealed class CompilerLogReaderExTests : TestBase
     /// <summary>
     /// Convert the console binary log and return a reader over it
     /// </summary>
-    private CompilerLogReader ConvertConsole(Func<CompilerCall, CompilerCall> func, CompilerLogReaderOptions? options = null)
+    private CompilerLogReader ConvertConsole(Func<CompilerCall, CompilerCall> func, BasicAnalyzerKind? basicAnalyzerKind = null)
     {
         var diagnostics = new List<string>();
         
@@ -57,15 +57,15 @@ public sealed class CompilerLogReaderExTests : TestBase
         builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
         builder.Close();
         stream.Position = 0;
-        return CompilerLogReader.Create(stream, options, State, leaveOpen: false);
+        return CompilerLogReader.Create(stream, basicAnalyzerKind, State, leaveOpen: false);
     }
 
-    private CompilerLogReader ConvertConsoleArgs(Func<IReadOnlyCollection<string>, IReadOnlyCollection<string>> func, CompilerLogReaderOptions? options = null) => 
+    private CompilerLogReader ConvertConsoleArgs(Func<IReadOnlyCollection<string>, IReadOnlyCollection<string>> func, BasicAnalyzerKind? basicAnalyzerKind = null) => 
         ConvertConsole(x =>
         {
             var args = func(x.GetArguments());
             return x.ChangeArguments(args);
-        }, options);
+        }, basicAnalyzerKind);
 
     [Fact]
     public void AnalyzerConfigNone()

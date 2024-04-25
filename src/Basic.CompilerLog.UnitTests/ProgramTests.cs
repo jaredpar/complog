@@ -159,7 +159,7 @@ public sealed class ProgramTests : TestBase
         RunDotNet("new console --name console -o .");
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"create console.csproj -o msbuild.complog"));
         var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-        using var reader = CompilerLogReader.Create(complogPath, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
         Assert.Single(reader.ReadAllCompilerCalls());
     }
 
@@ -173,7 +173,7 @@ public sealed class ProgramTests : TestBase
         RunDotNet("build");
         Assert.Equal(Constants.ExitFailure, RunCompLog($"create console.csproj -o msbuild.complog -- -t:Build"));
         var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-        using var reader = CompilerLogReader.Create(complogPath, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
         Assert.Empty(reader.ReadAllCompilerCalls());
     }
 
@@ -186,7 +186,7 @@ public sealed class ProgramTests : TestBase
         {
             Assert.Equal(Constants.ExitSuccess, RunCompLog($"create {filePath} -o msbuild.complog"));
             var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-            using var reader = CompilerLogReader.Create(complogPath, CompilerLogReaderOptions.None);
+            using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
             Assert.NotEmpty(reader.ReadAllCompilerCalls());
         }
     }
@@ -458,7 +458,7 @@ public sealed class ProgramTests : TestBase
         using var emitDir = new TempDir();
         AssertCompilerLogReader(reader => 
         {
-            Assert.Equal(kind.Value, reader.Options.BasicAnalyzerKind);
+            Assert.Equal(kind.Value, reader.BasicAnalyzerKind);
         });
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"{command} {arg} {Fixture.SolutionBinaryLogPath}"));
     }

@@ -79,7 +79,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetAnalyzersNoHosting()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
         Assert.Empty(data.GetAnalyzers());
     }
@@ -87,7 +87,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetDiagnostics()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, CompilerLogReaderOptions.Default);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerHost.DefaultKind);
         var data = reader.ReadCompilationData(0);
         Assert.NotEmpty(data.GetDiagnostics());
     }
@@ -95,7 +95,7 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public async Task GetAllDiagnostics()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, CompilerLogReaderOptions.Default);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerHost.DefaultKind);
         var data = reader.ReadCompilationData(0);
         Assert.NotEmpty(await data.GetAllDiagnosticsAsync());
     }
@@ -103,8 +103,9 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetCompilationAfterGeneratorsDiagnostics()
     {
-        var options = new CompilerLogReaderOptions(BasicAnalyzerKind.InMemory, cacheAnalyzers: true);
-        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, options);
+        using var reader = CompilerLogReader.Create(
+            Fixture.Console.Value.CompilerLogPath,
+            BasicAnalyzerKind.InMemory);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var analyzers = rawData.Analyzers
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")

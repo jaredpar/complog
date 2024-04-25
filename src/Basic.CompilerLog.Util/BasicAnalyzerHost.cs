@@ -57,8 +57,8 @@ public abstract class BasicAnalyzerHost : IDisposable
             return BasicAnalyzerKind.OnDisk;
 #endif
         }
-
     }
+
     private readonly ConcurrentQueue<Diagnostic> _diagnostics = new();
 
     public BasicAnalyzerKind Kind { get; }
