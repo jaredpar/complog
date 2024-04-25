@@ -65,15 +65,19 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await Task.WhenAll(list);
     }
 
-    [Fact]
-    public async Task EmitToMemory()
+    [Theory]
+    [InlineData(BasicAnalyzerKind.None)]
+    [InlineData(BasicAnalyzerKind.InMemory)]
+    [InlineData(BasicAnalyzerKind.OnDisk)]
+    public async Task EmitToMemory(BasicAnalyzerKind basicAnalyzerKind)
     {
+        TestOutputHelper.WriteLine($"BasicAnalyzerKind: {basicAnalyzerKind}");
         var count = 0;
         await foreach (var logPath in Fixture.GetAllLogs(TestOutputHelper))
         {
             count++;
             TestOutputHelper.WriteLine(logPath);
-            using var reader = CompilerCallReaderUtil.Create(logPath);
+            using var reader = CompilerCallReaderUtil.GetOrCreate(logPath, basicAnalyzerKind);
             foreach (var data in reader.ReadAllCompilationData())
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
