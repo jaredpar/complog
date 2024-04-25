@@ -20,11 +20,11 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
     internal InMemoryLoader Loader { get; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore => Loader.AnalyzerReferences;
 
-    internal BasicAnalyzerHostInMemory(CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    internal BasicAnalyzerHostInMemory(IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers)
         :base(BasicAnalyzerKind.InMemory)
     {
         var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
-        Loader = new InMemoryLoader(name, reader, analyzers, AddDiagnostic);
+        Loader = new InMemoryLoader(name, provider, analyzers, AddDiagnostic);
     }
 
     protected override void DisposeCore()
@@ -41,15 +41,15 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     internal AssemblyLoadContext CompilerLoadContext { get; }
 
-    internal InMemoryLoader(string name, CompilerLogReader reader, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
+    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
         :base(name, isCollectible: true)
     {
-        CompilerLoadContext = reader.LogReaderState.CompilerLoadContext;
+        CompilerLoadContext = provider.LogReaderState.CompilerLoadContext;
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
             var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
-            _map[simpleName] = reader.GetAssemblyBytes(analyzer.Mvid);
+            _map[simpleName] = provider.GetAssemblyBytes(analyzer);
             builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), this, onDiagnostic));
         }
 
@@ -92,7 +92,7 @@ internal sealed class InMemoryLoader
 {
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
-    internal InMemoryLoader(string name, CompilerLogReader reader, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
+    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
     {
         throw new PlatformNotSupportedException();
     }

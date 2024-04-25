@@ -94,7 +94,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         var list = new List<CompilationData>();
         foreach (var compilerCall in ReadAllCompilerCalls(predicate))
         {
-            list.Add(Convert(compilerCall));
+            list.Add(ReadCompilationData(compilerCall));
         }
         return list;
     }
@@ -118,7 +118,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         return BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
     }
 
-    public CompilationData Convert(CompilerCall compilerCall)
+    public CompilationData ReadCompilationData(CompilerCall compilerCall)
     {
         CheckOwnership(compilerCall);
         var args = ReadCommandLineArguments(compilerCall);
@@ -166,7 +166,6 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 PathNormalizationUtil.Empty);
         }
 
-        // TODO: this is tough. Existing hosts are way to tied to CompilerLogReader. Have to break that apart.
         BasicAnalyzerHost CreateAnalyzerHost()
         {
             var list = new List<RawAnalyzerData>(args.AnalyzerReferences.Length);
@@ -175,8 +174,17 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 var data = new RawAnalyzerData(RoslynUtil.GetMvid(analyzer.FilePath), analyzer.FilePath);
                 list.Add(data);
             }
-            
-            return new BasicAnalyzerHostOnDisk(this, list);
+
+            return LogReaderState.GetOrCreate(
+                BasicAnalyzerKind,
+                list,
+                (kind, analyzers) => kind switch
+                {
+                    BasicAnalyzerKind.None => throw new ArgumentException("Cannot create a host for None"),
+                    BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
+                    BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
+                    _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+                });
         }
 
         List<(SourceText SourceText, string Path)> GetAnalyzerConfigs() => 
@@ -278,4 +286,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         using var fileStream = new FileStream(data.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         fileStream.CopyTo(stream);
     }
+
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(RawAnalyzerData data) =>
+        File.ReadAllBytes(data.FilePath);
 }
