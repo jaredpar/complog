@@ -65,15 +65,37 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, BasicAnalyzerKind.None, leaveOpen: true));
     }
 
-    [Fact]
-    public void CreateRespectLeaveOpen()
+    [Theory]
+    [InlineData(BasicAnalyzerKind.InMemory, true)]
+    [InlineData(BasicAnalyzerKind.OnDisk, true)]
+    [InlineData(BasicAnalyzerKind.InMemory, false)]
+    public void CreateStream1(BasicAnalyzerKind basicAnalyzerKind, bool leaveOpen)
     {
-        using var stream = new FileStream(Fixture.ConsoleComplex.Value.CompilerLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var reader = CompilerLogReader.Create(stream, leaveOpen: true);
+        var stream = new FileStream(Fixture.Console.Value.CompilerLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = CompilerLogReader.Create(stream, basicAnalyzerKind, leaveOpen);
+        Assert.Equal(basicAnalyzerKind, reader.BasicAnalyzerKind);
         reader.Dispose();
+        // CanRead is the best approximation we have for checking if the stream is disposed
+        Assert.Equal(leaveOpen, stream.CanRead);
+        stream.Dispose();
+    }
 
-        // Throws if the underlying stream is disposed
-        stream.Seek(0, SeekOrigin.Begin);
+    [Theory]
+    [InlineData(BasicAnalyzerKind.InMemory, true)]
+    [InlineData(BasicAnalyzerKind.OnDisk, true)]
+    [InlineData(BasicAnalyzerKind.InMemory, false)]
+    public void CreateStream2(BasicAnalyzerKind basicAnalyzerKind, bool leaveOpen)
+    {
+        var state = new LogReaderState();
+        var stream = new FileStream(Fixture.Console.Value.CompilerLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = CompilerLogReader.Create(stream, basicAnalyzerKind, leaveOpen);
+        Assert.Equal(basicAnalyzerKind, reader.BasicAnalyzerKind);
+        reader.Dispose();
+        // CanRead is the best approximation we have for checking if the stream is disposed
+        Assert.Equal(leaveOpen, stream.CanRead);
+        stream.Dispose();
+        Assert.False(state.IsDisposed);
+        state.Dispose();
     }
 
     [Fact]
