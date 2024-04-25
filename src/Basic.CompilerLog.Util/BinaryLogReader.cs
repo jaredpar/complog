@@ -195,7 +195,6 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             var list = new List<MetadataReference>(capacity: args.MetadataReferences.Length);
             foreach (var reference in args.MetadataReferences)
             {
-                // TODO: should cache this
                 var mdref = MetadataReference.CreateFromFile(reference.Reference, reference.Properties);
                 list.Add(mdref);
             }
