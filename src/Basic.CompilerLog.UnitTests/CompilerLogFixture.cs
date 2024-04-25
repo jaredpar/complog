@@ -23,6 +23,20 @@ public readonly struct LogData(string compilerLogPath, string? binaryLogPath)
     public override string ToString() => $"{Path.GetFileName(CompilerLogPath)}";
 }
 
+public sealed class FileLockHold(List<Stream> streams) : IDisposable
+{
+    public List<Stream> Streams { get; } = streams;
+
+    public void Dispose()
+    {
+        foreach (var stream in Streams)
+        {
+            stream.Dispose();
+        }
+        Streams.Clear();
+    }
+}
+
 public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
     private readonly ImmutableArray<Lazy<LogData>> _allLogs;
@@ -31,6 +45,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     /// Storage directory for all the generated artifacts and scatch directories
     /// </summary>
     internal string StorageDirectory { get; }
+
+    internal string ScratchDirecectory { get; }
 
     /// <summary>
     /// Directory that holds the log files
@@ -76,7 +92,9 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     {
         StorageDirectory = Path.Combine(Path.GetTempPath(), nameof(CompilerLogFixture), Guid.NewGuid().ToString("N"));
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
+        ScratchDirecectory = Path.Combine(StorageDirectory, "scratch dir");
         Directory.CreateDirectory(ComplogDirectory);
+        Directory.CreateDirectory(ScratchDirecectory);
 
         var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_PATH");
         if (testArtifactsDir is not null)
@@ -338,7 +356,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 var start = DateTime.UtcNow;
                 try
                 {
-                    var scratchPath = Path.Combine(StorageDirectory, "scratch dir", Guid.NewGuid().ToString("N"));
+                    var scratchPath = Path.Combine(ScratchDirecectory, Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
                     RunDotnetCommand("new globaljson --sdk-version 7.0.400", scratchPath);
@@ -418,6 +436,28 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             }
         }
     } 
+
+    /// <summary>
+    /// This locks all the files on disk that are a part of this build. That allows us
+    /// to validate operations involving the compiler log don't actually use the contents
+    /// on disk
+    /// </summary>
+    public FileLockHold LockScratchDirectory()
+    {
+        var list = new List<Stream>();
+        foreach (var filePath in Directory.EnumerateFiles(ScratchDirecectory, "*", SearchOption.AllDirectories))
+        {
+            // Don't lock the binlog or complogs as that is what the code is actually going to be reading
+            if (Path.GetExtension(filePath) is ".binlog" or ".complog")
+            {
+                continue;
+            }
+
+            var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None);
+            list.Add(stream);
+        }
+        return new FileLockHold(list);
+    }
 
     public async IAsyncEnumerable<string> GetAllLogs(ITestOutputHelper testOutputHelper)
     {

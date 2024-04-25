@@ -163,6 +163,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [InlineData(false)]
     public async Task ExportAndBuild(bool includeAnalyzers)
     {
+        using var fileLock = Fixture.LockScratchDirectory();
         var list = new List<Task>();
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {

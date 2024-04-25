@@ -4,7 +4,7 @@ files on disk.
 
 EmitToMemory needs to be a theory that works on analyzer kinds
 Rename CompilerLogState to LogReaderState
-Need to use CompilerLogReaderUtil in more of the using all compiler log tests
+x Need to use CompilerLogReaderUtil in more of the using all compiler log tests
 
 x CompilerCall
 x   - ParseArguments should throw if it came from a compiler log
