@@ -13,6 +13,6 @@ internal static class Constants
     internal static string CurrentDirectory { get; set; } = Environment.CurrentDirectory;
     internal static TextWriter Out { get; set; } = Console.Out;
 
-    internal static Action<CompilerLogReader> OnCompilerLogReader = _ => { };
+    internal static Action<ICompilerCallReader> OnCompilerCallReader = _ => { };
 
 }

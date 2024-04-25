@@ -354,11 +354,12 @@ int RunResponseFile(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        var (disposable, compilerCalls) = GetCompilerCalls(extra, options.FilterCompilerCalls);
+        using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
         WriteLine($"Generating response files in {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
 
+        var compilerCalls = reader.ReadAllCompilerCalls();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
@@ -369,7 +370,6 @@ int RunResponseFile(IEnumerable<string> args)
             ExportUtil.ExportRsp(compilerCall, writer, singleLine);
         }
 
-        disposable.Dispose();
         return ExitSuccess;
     }
     catch (OptionException e)
@@ -383,23 +383,6 @@ int RunResponseFile(IEnumerable<string> args)
     {
         WriteLine("complog rsp [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
-    }
-
-    (IDisposable disposable, List<CompilerCall>) GetCompilerCalls(List<string> extra, Func<CompilerCall, bool>? predicate)
-    {
-        var logFilePath = GetLogFilePath(extra);
-        var stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var ext = Path.GetExtension(logFilePath);
-        if (ext is ".binlog")
-        {
-            return (stream, BinaryLogUtil.ReadAllCompilerCalls(stream, new(), predicate));
-        }
-        else
-        {
-            Debug.Assert(ext is ".complog");
-            var reader = GetCompilerLogReader(stream, leaveOpen: false);
-            return (reader, reader.ReadAllCompilerCalls(predicate));
-        }
     }
 }
 
@@ -553,6 +536,32 @@ int RunHelp(IEnumerable<string>? args)
 CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
 {
     var reader = CompilerLogReader.Create(compilerLogStream, basicAnalyzerKind, state: null, leaveOpen);
+    OnCompilerCallReader(reader);
+    CheckCompilerLogReader(reader, checkVersion);
+    return reader;
+}
+
+Stream GetOrCreateCompilerLogStream(List<string> extra)
+{
+    var logFilePath = GetLogFilePath(extra);
+    return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
+}
+
+ICompilerCallReader GetCompilerCallReader(List<string> extra, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
+{
+    var logFilePath = GetLogFilePath(extra);
+    var reader = CompilerCallReaderUtil.GetOrCreate(logFilePath, basicAnalyzerKind);
+    OnCompilerCallReader(reader);
+    if (reader is CompilerLogReader compilerLogReader)
+    {
+        CheckCompilerLogReader(compilerLogReader, checkVersion);
+    }
+
+    return reader;
+}
+
+static void CheckCompilerLogReader(CompilerLogReader reader, bool checkVersion)
+{
     if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     {
         WriteLine($"Compiler log generated on different operating system");
@@ -569,15 +578,6 @@ CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen,
             }
         }
     }
-
-    OnCompilerLogReader(reader);
-    return reader;
-}
-
-Stream GetOrCreateCompilerLogStream(List<string> extra)
-{
-    var logFilePath = GetLogFilePath(extra);
-    return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
 }
 
 /// <summary>
