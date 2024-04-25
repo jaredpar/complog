@@ -653,4 +653,5 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     }
 
     void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream) => CopyAssemblyBytes(data.Mvid, stream);
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(RawAnalyzerData data) => GetAssemblyBytes(data.Mvid);
 }

@@ -91,7 +91,7 @@ public static class CompilerLogUtil
         var diagnostics = new List<string>();
         var included = new List<CompilerCall>();
 
-        var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, diagnostics, predicate);
+        var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, predicate);
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
         var success = true;
         foreach (var compilerCall in list)

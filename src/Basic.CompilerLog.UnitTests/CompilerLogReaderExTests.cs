@@ -41,17 +41,14 @@ public sealed class CompilerLogReaderExTests : TestBase
     /// </summary>
     private CompilerLogReader ConvertConsole(Func<CompilerCall, CompilerCall> func, BasicAnalyzerKind? basicAnalyzerKind = null)
     {
-        var diagnostics = new List<string>();
-        
         using var binlogStream = new FileStream(Fixture.SolutionBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(
             binlogStream,
-            diagnostics,
             static x => x.ProjectFileName == "console.csproj").Single();
 
-        Assert.Empty(diagnostics);
         compilerCall = func(compilerCall);
-        
+
+        var diagnostics = new List<string>();
         var stream = new MemoryStream();
         var builder = new CompilerLogBuilder(stream, diagnostics);
         builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));

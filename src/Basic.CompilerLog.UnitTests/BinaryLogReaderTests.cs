@@ -109,4 +109,15 @@ public sealed class BinaryLogReaderTests : TestBase
         Assert.False(state.IsDisposed);
         state.Dispose();
     }
+
+    [Theory]
+    [InlineData(BasicAnalyzerKind.InMemory)]
+    [InlineData(BasicAnalyzerKind.OnDisk)]
+    public void VerifyBasicAnalyzerKind(BasicAnalyzerKind basicAnalyzerKind)
+    {
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, basicAnalyzerKind);
+        var compilerCall = reader.ReadAllCompilerCalls().First();
+        var compilationData = reader.ReadCompilationData(compilerCall);
+        Assert.Equal(basicAnalyzerKind, compilationData.BasicAnalyzerHost.Kind);
+    }
 }
