@@ -45,10 +45,10 @@ public sealed class SolutionReader : IDisposable
         Reader.Dispose();
     }
 
-    public static SolutionReader Create(Stream stream, BasicAnalyzerKind? basicAnalyzerKind = null, CompilerLogState? state = null, bool leaveOpen = false, Func<CompilerCall, bool>? predicate = null) => 
+    public static SolutionReader Create(Stream stream, BasicAnalyzerKind? basicAnalyzerKind = null, LogReaderState? state = null, bool leaveOpen = false, Func<CompilerCall, bool>? predicate = null) => 
         new (CompilerLogReader.Create(stream, basicAnalyzerKind, state, leaveOpen), predicate);
 
-    public static SolutionReader Create(string filePath, BasicAnalyzerKind? basicAnalyzerKind = null, CompilerLogState? state = null, Func<CompilerCall, bool>? predicate = null)
+    public static SolutionReader Create(string filePath, BasicAnalyzerKind? basicAnalyzerKind = null, LogReaderState? state = null, Func<CompilerCall, bool>? predicate = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
         return new(CompilerLogReader.Create(stream, basicAnalyzerKind, state, leaveOpen: false), predicate);

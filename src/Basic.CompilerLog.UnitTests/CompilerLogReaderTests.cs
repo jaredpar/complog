@@ -112,7 +112,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
-        Assert.StartsWith(reader.CompilerLogState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
+        Assert.StartsWith(reader.LogReaderState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
         Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile)));
         reader.Dispose();
         Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
@@ -122,14 +122,14 @@ public sealed class CompilerLogReaderTests : TestBase
     public void KeyFileCustomState()
     {
         using var tempDir = new TempDir("keyfiledir");
-        using var state = new CompilerLogState(tempDir.DirectoryPath);
+        using var state = new Util.LogReaderState(tempDir.DirectoryPath);
 
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath, state: state);
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
-        Assert.StartsWith(reader.CompilerLogState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
+        Assert.StartsWith(reader.LogReaderState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
         Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile)));
 
         // Reader does not own the state now and it should not clean up resources

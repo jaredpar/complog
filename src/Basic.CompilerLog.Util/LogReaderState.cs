@@ -18,12 +18,8 @@ namespace Basic.CompilerLog.Util;
 /// to the lifetime of a <see cref="CompilerLogReader"/> but this can be explicitly
 /// managed in cases where <see cref="CompilationData"/> live longer than the 
 /// underlying reader.
-/// 
-/// This differs from <see cref="CompilerLogReaderOptions"/> in that it holds actual
-/// state. Nothing here is really serializable between compilations. It must be 
-/// created and managed by the caller.
 /// </summary>
-public sealed class CompilerLogState : IDisposable
+public sealed class LogReaderState : IDisposable
 {
     private readonly Dictionary<string, BasicAnalyzerHost>? _analyzersMap;
 
@@ -59,8 +55,9 @@ public sealed class CompilerLogState : IDisposable
     /// <param name="baseDir">The base path that should be used to create <see cref="CryptoKeyFileDirectory"/>
     /// and <see cref="AnalyzerDirectory"/> paths</param>
     /// <param name="compilerLoadContext">The <see cref="AssemblyLoadContext"/> that should be used to load
+    /// <param name="cacheAnalyzers">Should analyzers be cached</param>
     /// analyzers</param>
-    public CompilerLogState(AssemblyLoadContext? compilerLoadContext, string? baseDir = null, bool cacheAnalyzers = true)
+    public LogReaderState(AssemblyLoadContext? compilerLoadContext, string? baseDir = null, bool cacheAnalyzers = true)
         : this(baseDir)
     {
         CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(compilerLoadContext);
@@ -74,7 +71,7 @@ public sealed class CompilerLogState : IDisposable
     /// <param name="baseDir">The base path that should be used to create <see cref="CryptoKeyFileDirectory"/>
     /// and <see cref="AnalyzerDirectory"/> paths</param>
     /// <param name="cacheAnalyzers">Should analyzers be cached</param>
-    public CompilerLogState(string? baseDir = null, bool cacheAnalyzers = true)
+    public LogReaderState(string? baseDir = null, bool cacheAnalyzers = true)
     {
         BaseDirectory = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
         CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");

@@ -16,10 +16,10 @@ public sealed class BinaryLogReader : IDisposable, ICompilerCallReader, IBasicAn
     private readonly bool _leaveOpen;
 
     // TODO: figure out lifetime and init of this
-    private CompilerLogState _state = new CompilerLogState();
+    private LogReaderState _state = new LogReaderState();
 
     public BasicAnalyzerKind BasicAnalyzerKind { get; } 
-    public CompilerLogState CompilerLogState => _state;
+    public LogReaderState LogReaderState => _state;
     public bool IsDisposed => _stream is null;
 
     private BinaryLogReader(Stream stream, BasicAnalyzerKind? basicAnalyzerKind, bool leaveOpen)

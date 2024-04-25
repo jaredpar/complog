@@ -85,7 +85,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     /// <summary>
-    /// Use a <see cref="CompilerLogState"/> and dispose the reader before using the <see cref="CompilationData"/>.
+    /// Use a <see cref="Util.LogReaderState"/> and dispose the reader before using the <see cref="CompilationData"/>.
     /// This helps prove that we don't maintain accidental references into the reader when doing Emit
     /// </summary>
     [Fact]
@@ -94,7 +94,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
-            using var state = new CompilerLogState(baseDir: Root.NewDirectory());
+            using var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
             foreach (var data in ReadAll(complogPath, state))
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
@@ -103,7 +103,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             }
         }
 
-        static List<CompilationData> ReadAll(string complogPath, CompilerLogState state)
+        static List<CompilationData> ReadAll(string complogPath, Util.LogReaderState state)
         {
             using var reader = CompilerLogReader.Create(complogPath, basicAnalyzerKind: BasicAnalyzerKind.None, state: state);
             return reader.ReadAllCompilationData();

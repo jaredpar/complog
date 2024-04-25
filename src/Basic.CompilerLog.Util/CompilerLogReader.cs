@@ -41,12 +41,12 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoMap = new();
 
     /// <summary>
-    /// Is this reader responsible for disposing the <see cref="CompilerLogState"/> instance
+    /// Is this reader responsible for disposing the <see cref="LogReaderState"/> instance
     /// </summary>
-    public bool OwnsCompilerLogState { get; }
+    public bool OwnsLogReaderState { get; }
 
     public BasicAnalyzerKind BasicAnalyzerKind { get; }
-    public CompilerLogState CompilerLogState { get; }
+    public LogReaderState LogReaderState { get; }
     internal Metadata Metadata { get; }
     internal PathNormalizationUtil PathNormalizationUtil { get; }
     internal int Count => Metadata.Count;
@@ -55,12 +55,12 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
     public bool IsDisposed => _zipArchiveCore is null;
     internal ZipArchive ZipArchive => !IsDisposed ? _zipArchiveCore : throw new ObjectDisposedException(nameof(CompilerLogReader));
 
-    private CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerKind? basicAnalyzerKind, CompilerLogState? state)
+    private CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerKind? basicAnalyzerKind, LogReaderState? state)
     {
         _zipArchiveCore = zipArchive;
         BasicAnalyzerKind = basicAnalyzerKind ?? BasicAnalyzerHost.DefaultKind;
-        OwnsCompilerLogState = state is null;
-        CompilerLogState = state ?? new CompilerLogState();
+        OwnsLogReaderState = state is null;
+        LogReaderState = state ?? new LogReaderState();
         Metadata = metadata;
         ReadAssemblyInfo();
 
@@ -88,7 +88,7 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
     public static CompilerLogReader Create(
         Stream stream,
         BasicAnalyzerKind? basicAnalyzerKind,
-        CompilerLogState? state,
+        LogReaderState? state,
         bool leaveOpen)
     {
         try
@@ -126,14 +126,14 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
 
     public static CompilerLogReader Create(
         Stream stream,
-        CompilerLogState? state,
+        LogReaderState? state,
         bool leaveOpen = true) =>
         Create(stream, basicAnalyzerKind: null, state: state, leaveOpen);
 
     public static CompilerLogReader Create(
         string filePath,
         BasicAnalyzerKind? basicAnalyzerKind = null,
-        CompilerLogState? state = null)
+        LogReaderState? state = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
         return Create(stream, basicAnalyzerKind, state: state, leaveOpen: false);
@@ -383,7 +383,7 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
 
         void HandleCryptoKeyFile(string contentHash)
         {
-            var dir = Path.Combine(CompilerLogState.CryptoKeyFileDirectory, GetIndex(compilerCall).ToString());
+            var dir = Path.Combine(LogReaderState.CryptoKeyFileDirectory, GetIndex(compilerCall).ToString());
             Directory.CreateDirectory(dir);
             var filePath = Path.Combine(dir, $"{contentHash}.snk");
             File.WriteAllBytes(filePath, GetContentBytes(contentHash));
@@ -504,7 +504,7 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
 
     internal BasicAnalyzerHost ReadAnalyzers(RawCompilationData rawCompilationData)
     {
-        return CompilerLogState.GetOrCreate(
+        return LogReaderState.GetOrCreate(
             BasicAnalyzerKind,
             rawCompilationData.Analyzers,
             (kind, analyzers) => kind switch
@@ -646,9 +646,9 @@ public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasic
         ZipArchive.Dispose();
         _zipArchiveCore = null!;
 
-        if (OwnsCompilerLogState)
+        if (OwnsLogReaderState)
         {
-            CompilerLogState.Dispose();
+            LogReaderState.Dispose();
         }
     }
 
