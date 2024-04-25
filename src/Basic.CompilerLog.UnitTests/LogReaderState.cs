@@ -9,9 +9,9 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
-public class LogReaderState : TestBase
+public class LogReaderStateTests : TestBase
 {
-    public LogReaderState(ITestOutputHelper testOutputHelper)
+    public LogReaderStateTests(ITestOutputHelper testOutputHelper)
         : base(testOutputHelper, nameof(LogReaderState))
     {
     }

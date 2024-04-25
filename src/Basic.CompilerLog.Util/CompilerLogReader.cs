@@ -20,7 +20,7 @@ using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class CompilerLogReader : IDisposable, ICompilerCallReader, IBasicAnalyzerHostDataProvider
+public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostDataProvider
 {
     private readonly struct CompilerCallState(CompilerLogReader reader, int index)
     {

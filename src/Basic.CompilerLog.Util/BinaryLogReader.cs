@@ -10,40 +10,56 @@ using Microsoft.CodeAnalysis.VisualBasic;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class BinaryLogReader : IDisposable, ICompilerCallReader, IBasicAnalyzerHostDataProvider
+public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDataProvider
 {
     private Stream _stream;
     private readonly bool _leaveOpen;
 
-    // TODO: figure out lifetime and init of this
-    private LogReaderState _state = new LogReaderState();
-
+    public bool OwnsLogReaderState { get; }
+    public LogReaderState LogReaderState { get; }
     public BasicAnalyzerKind BasicAnalyzerKind { get; } 
-    public LogReaderState LogReaderState => _state;
     public bool IsDisposed => _stream is null;
 
-    private BinaryLogReader(Stream stream, BasicAnalyzerKind? basicAnalyzerKind, bool leaveOpen)
+    private BinaryLogReader(Stream stream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind, LogReaderState? state)
     {
-        _stream = stream;
-        BasicAnalyzerKind = basicAnalyzerKind ?? BasicAnalyzerHost.DefaultKind;
-        _leaveOpen = leaveOpen;
-
         if (basicAnalyzerKind == BasicAnalyzerKind.None)
         {
             throw new ArgumentException($"{nameof(BasicAnalyzerKind)}.None is not supported on binary logs");
         }
+
+        _stream = stream;
+        BasicAnalyzerKind = basicAnalyzerKind ?? BasicAnalyzerHost.DefaultKind;
+        OwnsLogReaderState = state is null;
+        LogReaderState = state ?? new LogReaderState();
+        _leaveOpen = leaveOpen;
     } 
 
     public static BinaryLogReader Create(
         Stream stream,
-        BasicAnalyzerKind? basicAnalyzerKind = null,
-        bool leaveOpen = false) =>
-        new BinaryLogReader(stream, basicAnalyzerKind, leaveOpen);
+        BasicAnalyzerKind? basicAnalyzerKind,
+        LogReaderState? state,
+        bool leaveOpen) =>
+        new BinaryLogReader(stream, leaveOpen, basicAnalyzerKind, state);
 
-    public static BinaryLogReader Create(string filePath)
+    public static BinaryLogReader Create(
+        Stream stream,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
+        bool leaveOpen = true) =>
+        Create(stream, basicAnalyzerKind, state: null, leaveOpen);
+
+    public static BinaryLogReader Create(
+        Stream stream,
+        LogReaderState? state,
+        bool leaveOpen = true) =>
+        Create(stream, basicAnalyzerKind: null, state: state, leaveOpen);
+
+    public static BinaryLogReader Create(
+        string filePath,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
+        LogReaderState? state = null)
     {
         var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return Create(stream, leaveOpen: false);
+        return Create(stream, basicAnalyzerKind, state: state, leaveOpen: false);
     }
 
     public void Dispose()
@@ -51,6 +67,11 @@ public sealed class BinaryLogReader : IDisposable, ICompilerCallReader, IBasicAn
         if (IsDisposed)
         {
             return;
+        }
+
+        if (OwnsLogReaderState)
+        {
+            LogReaderState.Dispose();
         }
 
         if (!_leaveOpen)

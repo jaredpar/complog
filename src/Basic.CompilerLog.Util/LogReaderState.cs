@@ -43,6 +43,8 @@ public sealed class LogReaderState : IDisposable
     /// </summary>
     public string AnalyzerDirectory { get; }
 
+    public bool IsDisposed { get; private set;}
+
     internal List<BasicAnalyzerHost> BasicAnalyzerHosts { get; } = new();
 
 #if NETCOREAPP
@@ -87,6 +89,12 @@ public sealed class LogReaderState : IDisposable
 
     public void Dispose()
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        IsDisposed = true;
         foreach (var host in BasicAnalyzerHosts)
         {
             host.Dispose();
