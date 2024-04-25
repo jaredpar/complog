@@ -86,10 +86,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     {
         predicate ??= static _ => true;
 
-        // TODO: need to remove this and consider just throwing exceptions here instead. Look inside
-        // compiler log to see what it does for exception during read and get some symetry with it
-        var diagnosticList = new List<string>();
-        return BinaryLogUtil.ReadAllCompilerCalls(_stream, diagnosticList, predicate, ownerState: this);
+        return BinaryLogUtil.ReadAllCompilerCalls(_stream, predicate, ownerState: this);
     }
 
     public List<CompilationData> ReadAllCompilationData(Func<CompilerCall, bool>? predicate = null)

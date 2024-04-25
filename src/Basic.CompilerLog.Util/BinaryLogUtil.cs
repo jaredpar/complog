@@ -38,13 +38,13 @@ public static class BinaryLogUtil
             return data;
         }
 
-        public List<CompilerCall> GetAllCompilerCalls(object? ownerState, List<string> diagnostics)
+        public List<CompilerCall> GetAllCompilerCalls(object? ownerState)
         {
             var list = new List<CompilerCall>();
 
             foreach (var data in _targetMap.Values)
             {
-                if (data.TryCreateCompilerCall(ownerState, diagnostics) is { } compilerCall)
+                if (data.TryCreateCompilerCall(ownerState) is { } compilerCall)
                 {
                     if (compilerCall.Kind == CompilerCallKind.Regular)
                     {
@@ -83,7 +83,7 @@ public static class BinaryLogUtil
 
         public override string ToString() => $"{ProjectData} {TargetId}";
 
-        internal CompilerCall? TryCreateCompilerCall(object? ownerState, List<string> diagnosticList)
+        internal CompilerCall? TryCreateCompilerCall(object? ownerState)
         {
             if (CommandLineArguments is null)
             {
@@ -96,11 +96,6 @@ public static class BinaryLogUtil
             var (compilerFilePath, args) = IsCSharp
                 ? ParseTaskForCompilerAndArguments(rawArgs, "csc.exe", "csc.dll")
                 : ParseTaskForCompilerAndArguments(rawArgs, "vbc.exe", "vbc.dll");
-            if (args.Length == 0)
-            {
-                diagnosticList.Add($"Project {ProjectFile} ({TargetFramework}): bad argument list");
-                return null;
-            }
 
             return new CompilerCall(
                 compilerFilePath,
@@ -127,7 +122,7 @@ public static class BinaryLogUtil
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
     }
 
-    public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, List<string> diagnosticList, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
+    public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
     {
         // https://github.com/KirillOsenkov/MSBuildStructuredLog/issues/752
         Microsoft.Build.Logging.StructuredLogger.Strings.Initialize();
@@ -166,7 +161,7 @@ public static class BinaryLogUtil
                             data.TargetFramework = evaluationData.TargetFramework;
                         }
 
-                        foreach (var compilerCall in data.GetAllCompilerCalls(ownerState, diagnosticList))
+                        foreach (var compilerCall in data.GetAllCompilerCalls(ownerState))
                         {
                             if (predicate(compilerCall))
                             {
@@ -322,7 +317,8 @@ public static class BinaryLogUtil
 
         if (!found)
         {
-            return (null, Array.Empty<string>());
+            var cmdLine = string.Join(" ", args);
+            throw new InvalidOperationException($"Could not parse command line arguments: {cmdLine}");
         }
 
         var list = new List<string>();

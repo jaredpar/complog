@@ -55,9 +55,7 @@ public sealed class CompilationTaskDataTests
             CommandLineArguments = "dotnet not a compiler call",
         };
 
-        var diagnostics = new List<string>();
-        Assert.Null(data.TryCreateCompilerCall(null, diagnostics));
-        Assert.NotEmpty(diagnostics);
+        Assert.Throws<InvalidOperationException>(() => data.TryCreateCompilerCall(ownerState: null));
     }
 
     [Fact]
@@ -68,10 +66,6 @@ public sealed class CompilationTaskDataTests
             CommandLineArguments = null,
         };
 
-        var diagnostics = new List<string>();
-        Assert.Null(data.TryCreateCompilerCall(null, diagnostics));
-
-        // This is a normal non-compile case so no diagnostics are emitted
-        Assert.Empty(diagnostics);
+        Assert.Null(data.TryCreateCompilerCall(null));
     }
 }
