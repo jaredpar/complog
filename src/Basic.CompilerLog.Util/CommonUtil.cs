@@ -38,23 +38,4 @@ internal static class CommonUtil
     }
 
 #endif
-
-    internal static string GetAssemblyFileName(CommandLineArguments arguments)
-    {
-        if (arguments.OutputFileName is not null)
-        {
-            return arguments.OutputFileName;
-        }
-
-        string name = arguments.CompilationName ?? "app";
-        return $"{name}{GetStandardAssemblyExtension()}";
-
-        string GetStandardAssemblyExtension() => arguments.CompilationOptions.OutputKind switch
-        {
-            OutputKind.NetModule => ".netmodule",
-            OutputKind.ConsoleApplication => ".exe",
-            OutputKind.WindowsApplication => ".exe",
-            _ => ".dll"
-        };
-    }
 }

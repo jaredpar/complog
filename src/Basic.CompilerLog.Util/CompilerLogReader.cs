@@ -20,8 +20,16 @@ using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class CompilerLogReader : IDisposable
+public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostDataProvider
 {
+    private readonly struct CompilerCallState(CompilerLogReader reader, int index)
+    {
+        internal CompilerLogReader Reader { get; } = reader;
+        internal int Index { get; } = index;
+        [ExcludeFromCodeCoverage]
+        public override string ToString() => Index.ToString();
+    }
+
     /// <summary>
     /// Stores the underlying archive this reader is using. Do not use directly. Instead 
     /// use <see cref="ZipArchive"/>  which will throw if the reader is disposed
@@ -30,31 +38,29 @@ public sealed class CompilerLogReader : IDisposable
 
     private readonly Dictionary<Guid, MetadataReference> _refMap = new();
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, BasicAnalyzerHost> _analyzersMap = new();
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoMap = new();
 
     /// <summary>
-    /// Is this reader responsible for disposing the <see cref="CompilerLogState"/> instance
+    /// Is this reader responsible for disposing the <see cref="LogReaderState"/> instance
     /// </summary>
-    public bool OwnsCompilerLogState { get; }
+    public bool OwnsLogReaderState { get; }
 
-    public CompilerLogReaderOptions Options { get; }
-    internal CompilerLogState CompilerLogState { get; }
+    public BasicAnalyzerKind BasicAnalyzerKind { get; }
+    public LogReaderState LogReaderState { get; }
     internal Metadata Metadata { get; }
     internal PathNormalizationUtil PathNormalizationUtil { get; }
     internal int Count => Metadata.Count;
-    public BasicAnalyzerKind BasicAnalyzerKind => Options.BasicAnalyzerKind;
     public int MetadataVersion => Metadata.MetadataVersion;
     public bool IsWindowsLog => Metadata.IsWindows;
     public bool IsDisposed => _zipArchiveCore is null;
     internal ZipArchive ZipArchive => !IsDisposed ? _zipArchiveCore : throw new ObjectDisposedException(nameof(CompilerLogReader));
 
-    private CompilerLogReader(CompilerLogReaderOptions? options, CompilerLogState? state, ZipArchive zipArchive, Metadata metadata)
+    private CompilerLogReader(ZipArchive zipArchive, Metadata metadata, BasicAnalyzerKind? basicAnalyzerKind, LogReaderState? state)
     {
         _zipArchiveCore = zipArchive;
-        Options = options ?? CompilerLogReaderOptions.Default;
-        OwnsCompilerLogState = state is null;
-        CompilerLogState = state ?? new CompilerLogState();
+        BasicAnalyzerKind = basicAnalyzerKind ?? BasicAnalyzerHost.DefaultKind;
+        OwnsLogReaderState = state is null;
+        LogReaderState = state ?? new LogReaderState();
         Metadata = metadata;
         ReadAssemblyInfo();
 
@@ -81,8 +87,8 @@ public sealed class CompilerLogReader : IDisposable
 
     public static CompilerLogReader Create(
         Stream stream,
-        CompilerLogReaderOptions? options,
-        CompilerLogState? state,
+        BasicAnalyzerKind? basicAnalyzerKind,
+        LogReaderState? state,
         bool leaveOpen)
     {
         try
@@ -91,7 +97,7 @@ public sealed class CompilerLogReader : IDisposable
             var metadata = ReadMetadata();
             return metadata.MetadataVersion switch {
                 1 => throw new CompilerLogException("Version 1 compiler logs are no longer supported"),
-                2 => new CompilerLogReader(options, state, zipArchive, metadata),
+                2 => new CompilerLogReader(zipArchive, metadata, basicAnalyzerKind, state),
                 _ => throw new CompilerLogException($"Version {metadata.MetadataVersion} is higher than the max supported version {Metadata.LatestMetadataVersion}"),
             };
 
@@ -114,23 +120,23 @@ public sealed class CompilerLogReader : IDisposable
 
     public static CompilerLogReader Create(
         Stream stream,
-        CompilerLogReaderOptions? options = null,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
         bool leaveOpen = true) =>
-        Create(stream, options, state: null, leaveOpen);
+        Create(stream, basicAnalyzerKind, state: null, leaveOpen);
 
     public static CompilerLogReader Create(
         Stream stream,
-        CompilerLogState? state,
+        LogReaderState? state,
         bool leaveOpen = true) =>
-        Create(stream, options: null, state: state, leaveOpen);
+        Create(stream, basicAnalyzerKind: null, state: state, leaveOpen);
 
     public static CompilerLogReader Create(
         string filePath,
-        CompilerLogReaderOptions? options = null,
-        CompilerLogState? state = null)
+        BasicAnalyzerKind? basicAnalyzerKind = null,
+        LogReaderState? state = null)
     {
         var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(filePath);
-        return Create(stream, options, state: state, leaveOpen: false);
+        return Create(stream, basicAnalyzerKind, state: state, leaveOpen: false);
     }
 
     private CompilationInfoPack ReadCompilationInfo(int index)
@@ -147,8 +153,8 @@ public sealed class CompilerLogReader : IDisposable
             pack.CompilerCallKind,
             pack.TargetFramework,
             pack.IsCSharp,
-            new Lazy<string[]>(() => GetContentPack<string[]>(pack.CommandLineArgsHash)),
-            index);
+            new Lazy<IReadOnlyCollection<string>>(() => GetContentPack<string[]>(pack.CommandLineArgsHash)),
+            new CompilerCallState(this, index));
     }
 
     private RawCompilationData ReadRawCompilationDataCore(int index, CompilationInfoPack pack)
@@ -287,10 +293,10 @@ public sealed class CompilerLogReader : IDisposable
         var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(pack);
 
         var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
-        var sourceTextList = new List<(SourceText SourceText, string Path)>();
-        var generatedTextList = new List<(SourceText SourceText, string Path)>();
-        var analyzerConfigList = new List<(SourceText SourceText, string Path)>();
-        var additionalTextList = new List<AdditionalText>();
+        var sourceTexts = new List<(SourceText SourceText, string Path)>();
+        var generatedTexts = new List<(SourceText SourceText, string Path)>();
+        var analyzerConfigs = new List<(SourceText SourceText, string Path)>();
+        var additionalTexts = ImmutableArray.CreateBuilder<AdditionalText>();
 
         MemoryStream? win32ResourceStream = null;
         MemoryStream? sourceLinkStream = null;
@@ -304,19 +310,19 @@ public sealed class CompilerLogReader : IDisposable
             switch (rawContent.Kind)
             {
                 case RawContentKind.SourceText:
-                    sourceTextList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
+                    sourceTexts.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.GeneratedText:
-                    if (Options.BasicAnalyzerKind == BasicAnalyzerKind.None)
+                    if (BasicAnalyzerKind == BasicAnalyzerKind.None)
                     {
-                        generatedTextList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
+                        generatedTexts.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     }
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    analyzerConfigList.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
+                    analyzerConfigs.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.AdditionalText:
-                    additionalTextList.Add(new BasicAdditionalTextFile(
+                    additionalTexts.Add(new BasicAdditionalTextFile(
                         rawContent.FilePath,
                         GetSourceText(rawContent.ContentHash, hashAlgorithm)));
                     break;
@@ -359,7 +365,7 @@ public sealed class CompilerLogReader : IDisposable
         }
 
         // Generated source code should appear last to match the compiler behavior.
-        sourceTextList.AddRange(generatedTextList);
+        sourceTexts.AddRange(generatedTexts);
 
         var emitData = new EmitData(
             rawCompilationData.AssemblyFileName,
@@ -369,121 +375,61 @@ public sealed class CompilerLogReader : IDisposable
             resources: resources,
             embeddedTexts: embeddedTexts);
 
+        var basicAnalyzerHost = ReadAnalyzers(rawCompilationData);
+
         return compilerCall.IsCSharp
             ? CreateCSharp()
             : CreateVisualBasic();
 
         void HandleCryptoKeyFile(string contentHash)
         {
-            var dir = Path.Combine(CompilerLogState.CryptoKeyFileDirectory, GetIndex(compilerCall).ToString());
+            var dir = Path.Combine(LogReaderState.CryptoKeyFileDirectory, GetIndex(compilerCall).ToString());
             Directory.CreateDirectory(dir);
             var filePath = Path.Combine(dir, $"{contentHash}.snk");
             File.WriteAllBytes(filePath, GetContentBytes(contentHash));
             compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
         }
 
-        (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(IEnumerable<SyntaxTree> syntaxTrees, IEnumerable<AdditionalText> additionalTexts)
-        {
-            AnalyzerConfigOptionsResult globalConfigOptions = default;
-            AnalyzerConfigSet? analyzerConfigSet = null;
-            var resultList = new List<(object, AnalyzerConfigOptionsResult)>();
-
-            if (analyzerConfigList.Count > 0)
-            {
-                var list = new List<AnalyzerConfig>();
-                foreach (var tuple in analyzerConfigList)
-                {
-                    var configText = tuple.SourceText;
-                    if (RoslynUtil.IsGlobalEditorConfigWithSection(configText))
-                    {
-                        var configTextContent = RoslynUtil.RewriteGlobalEditorConfigSections(
-                            configText,
-                            path => NormalizePath(path));
-                        configText = SourceText.From(configTextContent, configText.Encoding);
-                    }
-
-                    list.Add(AnalyzerConfig.Parse(configText, tuple.Path));
-                }
-
-                analyzerConfigSet = AnalyzerConfigSet.Create(list);
-                globalConfigOptions = analyzerConfigSet.GlobalConfigOptions;
-            }
-
-            foreach (var syntaxTree in syntaxTrees)
-            {
-                resultList.Add((syntaxTree, analyzerConfigSet?.GetOptionsForSourcePath(syntaxTree.FilePath) ?? default));
-            }
-
-            foreach (var additionalText in additionalTexts)
-            {
-                resultList.Add((additionalText, analyzerConfigSet?.GetOptionsForSourcePath(additionalText.Path) ?? default));
-            }
-
-            var syntaxOptionsProvider = new BasicSyntaxTreeOptionsProvider(
-                isConfigEmpty: analyzerConfigList.Count == 0,
-                globalConfigOptions,
-                resultList);
-            var analyzerConfigOptionsProvider = new BasicAnalyzerConfigOptionsProvider(
-                isConfigEmpty: analyzerConfigList.Count == 0,
-                globalConfigOptions,
-                resultList);
-            return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
-        }
-
         CSharpCompilationData CreateCSharp()
         {
             var csharpOptions = (CSharpCompilationOptions)compilationOptions;
             var parseOptions = (CSharpParseOptions)rawParseOptions;
-            var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTextList, parseOptions);
-            var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
+            var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTexts, parseOptions);
 
-            csharpOptions = csharpOptions
-                .WithSyntaxTreeOptionsProvider(syntaxProvider)
-                .WithStrongNameProvider(new DesktopStrongNameProvider());
-
-            var compilation = CSharpCompilation.Create(
-                rawCompilationData.CompilationName,
-                syntaxTrees,
-                referenceList,
-                csharpOptions);
-
-            return new CSharpCompilationData(
+            return RoslynUtil.CreateCSharpCompilationData(
                 compilerCall,
-                compilation,
-                parseOptions,
+                rawCompilationData.CompilationName,
+                (CSharpParseOptions)rawParseOptions,
+                (CSharpCompilationOptions)compilationOptions,
+                sourceTexts,
+                referenceList,
+                analyzerConfigs,
+                additionalTexts.ToImmutableArray(),
                 emitOptions,
                 emitData,
-                additionalTextList.ToImmutableArray(),
-                ReadAnalyzers(rawCompilationData),
-                analyzerProvider);
+                basicAnalyzerHost,
+                PathNormalizationUtil);
         }
 
         VisualBasicCompilationData CreateVisualBasic()
         {
             var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
             var parseOptions = (VisualBasicParseOptions)rawParseOptions;
-            var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTextList, parseOptions);
-            var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTextList);
+            var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTexts, parseOptions);
 
-            basicOptions = basicOptions
-                .WithSyntaxTreeOptionsProvider(syntaxProvider)
-                .WithStrongNameProvider(new DesktopStrongNameProvider());
-
-            var compilation = VisualBasicCompilation.Create(
-                rawCompilationData.CompilationName,
-                syntaxTrees,
-                referenceList,
-                basicOptions);
-
-            return new VisualBasicCompilationData(
+            return RoslynUtil.CreateVisualBasicCompilationData(
                 compilerCall,
-                compilation,
+                rawCompilationData.CompilationName,
                 parseOptions,
+                basicOptions,
+                sourceTexts,
+                referenceList,
+                analyzerConfigs,
+                additionalTexts.ToImmutableArray(),
                 emitOptions,
                 emitData,
-                additionalTextList.ToImmutableArray(),
-                ReadAnalyzers(rawCompilationData),
-                analyzerProvider);
+                basicAnalyzerHost,
+                PathNormalizationUtil);
         }
     }
 
@@ -515,12 +461,15 @@ public sealed class CompilerLogReader : IDisposable
 
     internal int GetIndex(CompilerCall compilerCall)
     {
-        if (compilerCall.Index is int i && i >= 0 && i < Count)
+        if (compilerCall.OwnerState is CompilerCallState state &&
+            state.Index >= 0 &&
+            state.Index < Count &&
+            object.ReferenceEquals(this, state.Reader))
         {
-            return i;
+            return state.Index;
         }
 
-        throw new ArgumentException($"Invalid index");
+        throw new ArgumentException($"The provided {nameof(CompilerCall)} is not from this instance");
     }
 
     public List<(string FileName, byte[] ImageBytes)> ReadReferenceFileInfo(CompilerCall compilerCall)
@@ -555,55 +504,16 @@ public sealed class CompilerLogReader : IDisposable
 
     internal BasicAnalyzerHost ReadAnalyzers(RawCompilationData rawCompilationData)
     {
-        var analyzers = rawCompilationData.Analyzers;
-        string? key = null;
-        BasicAnalyzerHost? basicAnalyzerHost;
-        if (Options.CacheAnalyzers)
-        {
-            key = GetKey();
-            if (_analyzersMap.TryGetValue(key, out basicAnalyzerHost) && !basicAnalyzerHost.IsDisposed)
+        return LogReaderState.GetOrCreate(
+            BasicAnalyzerKind,
+            rawCompilationData.Analyzers,
+            (kind, analyzers) => kind switch
             {
-                return basicAnalyzerHost;
-            }
-        }
-
-        basicAnalyzerHost = Options.BasicAnalyzerKind switch
-        {
-            BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
-            BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
-            BasicAnalyzerKind.None => new BasicAnalyzerHostNone(rawCompilationData.ReadGeneratedFiles, ReadGeneratedSourceTexts()),
-            _ => throw new InvalidOperationException()
-        };
-
-        CompilerLogState.BasicAnalyzerHosts.Add(basicAnalyzerHost);
-
-        if (Options.CacheAnalyzers)
-        {
-            _analyzersMap[key!] = basicAnalyzerHost;
-        }
-
-        return basicAnalyzerHost;
-
-        string GetKey()
-        {
-            var builder = new StringBuilder();
-            foreach (var analyzer in analyzers.OrderBy(x => x.Mvid))
-            {
-                builder.AppendLine($"{analyzer.Mvid}");
-            }
-
-            if (Options.BasicAnalyzerKind == BasicAnalyzerKind.None)
-            {
-                foreach (var tuple in rawCompilationData.Contents.Where(static x => x.Kind == RawContentKind.GeneratedText))
-                {
-                    builder.AppendLine(tuple.ContentHash);
-                }
-
-                builder.AppendLine(rawCompilationData.ReadGeneratedFiles.ToString());
-            }
-
-            return builder.ToString();
-        }
+                BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
+                BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
+                BasicAnalyzerKind.None => new BasicAnalyzerHostNone(rawCompilationData.ReadGeneratedFiles, ReadGeneratedSourceTexts()),
+                _ => throw new InvalidOperationException()
+            });
 
         ImmutableArray<(SourceText SourceText, string Path)> ReadGeneratedSourceTexts()
         {
@@ -736,9 +646,11 @@ public sealed class CompilerLogReader : IDisposable
         ZipArchive.Dispose();
         _zipArchiveCore = null!;
 
-        if (OwnsCompilerLogState)
+        if (OwnsLogReaderState)
         {
-            CompilerLogState.Dispose();
+            LogReaderState.Dispose();
         }
     }
+
+    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream) => CopyAssemblyBytes(data.Mvid, stream);
 }

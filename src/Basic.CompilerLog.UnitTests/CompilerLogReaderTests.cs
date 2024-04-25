@@ -62,24 +62,46 @@ public sealed class CompilerLogReaderTests : TestBase
         using var stream = new MemoryStream();
         stream.Write([1, 2, 3, 4, 5], 0, 0);
         stream.Position = 0;
-        Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, CompilerLogReaderOptions.None, leaveOpen: true));
+        Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, BasicAnalyzerKind.None, leaveOpen: true));
     }
 
-    [Fact]
-    public void CreateRespectLeaveOpen()
+    [Theory]
+    [InlineData(BasicAnalyzerKind.InMemory, true)]
+    [InlineData(BasicAnalyzerKind.OnDisk, true)]
+    [InlineData(BasicAnalyzerKind.InMemory, false)]
+    public void CreateStream1(BasicAnalyzerKind basicAnalyzerKind, bool leaveOpen)
     {
-        using var stream = new FileStream(Fixture.ConsoleComplexComplogPath.Value, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var reader = CompilerLogReader.Create(stream, leaveOpen: true);
+        var stream = new FileStream(Fixture.Console.Value.CompilerLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = CompilerLogReader.Create(stream, basicAnalyzerKind, leaveOpen);
+        Assert.Equal(basicAnalyzerKind, reader.BasicAnalyzerKind);
         reader.Dispose();
+        // CanRead is the best approximation we have for checking if the stream is disposed
+        Assert.Equal(leaveOpen, stream.CanRead);
+        stream.Dispose();
+    }
 
-        // Throws if the underlying stream is disposed
-        stream.Seek(0, SeekOrigin.Begin);
+    [Theory]
+    [InlineData(BasicAnalyzerKind.InMemory, true)]
+    [InlineData(BasicAnalyzerKind.OnDisk, true)]
+    [InlineData(BasicAnalyzerKind.InMemory, false)]
+    public void CreateStream2(BasicAnalyzerKind basicAnalyzerKind, bool leaveOpen)
+    {
+        var state = new LogReaderState();
+        var stream = new FileStream(Fixture.Console.Value.CompilerLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = CompilerLogReader.Create(stream, basicAnalyzerKind, leaveOpen);
+        Assert.Equal(basicAnalyzerKind, reader.BasicAnalyzerKind);
+        reader.Dispose();
+        // CanRead is the best approximation we have for checking if the stream is disposed
+        Assert.Equal(leaveOpen, stream.CanRead);
+        stream.Dispose();
+        Assert.False(state.IsDisposed);
+        state.Dispose();
     }
 
     [Fact]
     public void GlobalConfigPathMap()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
         var provider = (BasicAnalyzerConfigOptionsProvider)data.AnalyzerConfigOptionsProvider;
         var additonalText = data.AdditionalTexts.Single(x => x.Path.Contains("additional.txt"));
@@ -91,14 +113,14 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void MetadataVersion()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         Assert.Equal(Util.Metadata.LatestMetadataVersion, reader.MetadataVersion);
     }
 
     [Fact]
     public void ResourceSimpleEmbedded()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var d = rawData.Resources.Single();
         Assert.Equal("console-complex.resource.txt", reader.ReadResourceDescription(d).GetResourceName());
@@ -108,11 +130,11 @@ public sealed class CompilerLogReaderTests : TestBase
     public void KeyFileDefault()
     {
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleSignedComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleSigned.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
-        Assert.StartsWith(reader.CompilerLogState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
+        Assert.StartsWith(reader.LogReaderState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
         Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile)));
         reader.Dispose();
         Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
@@ -122,14 +144,14 @@ public sealed class CompilerLogReaderTests : TestBase
     public void KeyFileCustomState()
     {
         using var tempDir = new TempDir("keyfiledir");
-        using var state = new CompilerLogState(tempDir.DirectoryPath);
+        using var state = new Util.LogReaderState(tempDir.DirectoryPath);
 
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value, options: null, state: state);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath, state: state);
         var data = reader.ReadCompilationData(0);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
-        Assert.StartsWith(reader.CompilerLogState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
+        Assert.StartsWith(reader.LogReaderState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
         Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile)));
 
         // Reader does not own the state now and it should not clean up resources
@@ -144,7 +166,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void AdditionalFiles()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplexComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
         Assert.Single(data.AdditionalTexts);
         Assert.Equal("additional.txt", Path.GetFileName(data.AdditionalTexts[0].Path));
@@ -169,8 +191,7 @@ public sealed class CompilerLogReaderTests : TestBase
             }
             any = true;
 
-            var options = new CompilerLogReaderOptions(kind);
-            using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options: options);
+            using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, kind);
             var data = reader.ReadCompilationData(0);
             var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
             Assert.Empty(diagnostics);
@@ -200,8 +221,7 @@ public sealed class CompilerLogReaderTests : TestBase
             return;
         }
 
-        var options = new CompilerLogReaderOptions(kind, cacheAnalyzers: true);
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options: options);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, kind);
         var data = reader.ReadRawCompilationData(0).Item2;
 
         var host1 = reader.ReadAnalyzers(data);
@@ -222,8 +242,7 @@ public sealed class CompilerLogReaderTests : TestBase
             return;
         }
 
-        var options = new CompilerLogReaderOptions(kind, cacheAnalyzers: true);
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options: options);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, kind);
         var data = reader.ReadCompilationData(0);
         Assert.False(data.BasicAnalyzerHost.IsDisposed);
         reader.Dispose();
@@ -238,8 +257,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void AnalyzerDiagnostics()
     {
-        var options = new CompilerLogReaderOptions(BasicAnalyzerKind.InMemory, cacheAnalyzers: true);
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, options);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.InMemory);
         var data = reader.ReadRawCompilationData(0).Item2;
         var analyzers = data.Analyzers
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
@@ -256,7 +274,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void ProjectSingleTarget()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath);
         var list = reader.ReadAllCompilationData();
         Assert.Single(list);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
@@ -265,7 +283,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void ProjectMultiTarget()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibMultiComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var list = reader.ReadAllCompilationData();
         Assert.Equal(2, list.Count);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
@@ -275,7 +293,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostGeneratedFilesInRaw()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var (_, data) = reader.ReadRawCompilationData(0);
         Assert.Equal(1, data.Contents.Count(x => x.Kind == RawContentKind.GeneratedText));
     }
@@ -283,7 +301,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostGeneratedFilesShouldBeLast()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
         var tree = data.GetCompilationAfterGenerators().SyntaxTrees.Last();
         var decls = tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().ToList();
@@ -295,7 +313,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostHasNoGenerators()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
         var compilation1 = data.Compilation;
         var compilation2 = data.GetCompilationAfterGenerators();
@@ -306,7 +324,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void NoneHostAddsNoGeneratorIfNoGeneratedSource()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleNoGeneratorComplogPath.Value, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleNoGenerator.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
         var compilation1 = data.Compilation;
         var compilation2 = data.GetCompilationAfterGenerators();
@@ -337,7 +355,7 @@ public sealed class CompilerLogReaderTests : TestBase
         File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
         RunDotNet("build -bl -nr:false");
 
-        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"), CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"), BasicAnalyzerKind.None);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         Assert.False(rawData.ReadGeneratedFiles);
         var data = reader.ReadCompilationData(0);
@@ -351,8 +369,17 @@ public sealed class CompilerLogReaderTests : TestBase
     [InlineData(100)]
     public void ReadCompilerCallBadIndex(int index)
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         Assert.Throws<ArgumentException>(() => reader.ReadCompilerCall(index));
+    }
+
+    [Fact]
+    public void ReadCompilerCallWrongOwner()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var compilerCall = reader.ReadCompilerCall(0);
+        compilerCall = compilerCall.ChangeOwner(null);
+        Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(compilerCall));
     }
 
     [Theory]
@@ -360,15 +387,15 @@ public sealed class CompilerLogReaderTests : TestBase
     [InlineData(100)]
     public void ReadCompilationDataBadIndex(int index)
     {
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(index));
     }
 
     [WindowsFact]
     public void KindWpf()
     {
-        Assert.NotNull(Fixture.WpfAppComplogPath);
-        using var reader = CompilerLogReader.Create(Fixture.WpfAppComplogPath.Value);
+        Assert.NotNull(Fixture.WpfApp);
+        using var reader = CompilerLogReader.Create(Fixture.WpfApp.Value.CompilerLogPath);
         var list = reader.ReadAllCompilationData();
         Assert.Equal(2, list.Count);
         Assert.Equal(CompilerCallKind.WpfTemporaryCompile, list[0].Kind);
@@ -418,14 +445,14 @@ public sealed class CompilerLogReaderTests : TestBase
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             using var stream = ResourceLoader.GetResourceStream(resourceName);
-            Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, CompilerLogReaderOptions.None, leaveOpen: true));
+            Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, BasicAnalyzerKind.None, leaveOpen: true));
         }
     }
 
     [Fact]
     public void Disposed()
     {
-        var reader = CompilerLogReader.Create(Fixture.ConsoleComplogPath.Value);
+        var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         reader.Dispose();
         Assert.Throws<ObjectDisposedException>(() => reader.ReadCompilationData(0));
     }
@@ -433,7 +460,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void VisualBasic()
     {
-        var reader = CompilerLogReader.Create(Fixture.ConsoleVisualBasicComplogPath.Value);
+        var reader = CompilerLogReader.Create(Fixture.ConsoleVisualBasic.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
         Assert.True(data.IsVisualBasic);
         Assert.True(data.CompilerCall.IsVisualBasic);

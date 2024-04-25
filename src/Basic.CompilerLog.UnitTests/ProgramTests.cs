@@ -25,7 +25,7 @@ namespace Basic.CompilerLog.UnitTests;
 [Collection(SolutionFixtureCollection.Name)]
 public sealed class ProgramTests : TestBase
 {
-    private Action<CompilerLogReader>? _assertCompilerLogReader;
+    private Action<ICompilerCallReader>? _assertCompilerCallReader;
 
     public SolutionFixture Fixture { get; }
 
@@ -38,7 +38,7 @@ public sealed class ProgramTests : TestBase
     public override void Dispose()
     {
         base.Dispose();
-        Assert.Null(_assertCompilerLogReader);
+        Assert.Null(_assertCompilerCallReader);
     }
 
     public int RunCompLog(string args, string? currentDirectory = null)
@@ -47,24 +47,24 @@ public sealed class ProgramTests : TestBase
         return exitCode;
     }
 
-    private void OnCompilerLogReader(CompilerLogReader reader)
+    private void OnCompilerCallReader(ICompilerCallReader reader)
     {
-        if (_assertCompilerLogReader is { })
+        if (_assertCompilerCallReader is { })
         {
             try
             {
-                _assertCompilerLogReader(reader);
+                _assertCompilerCallReader(reader);
             }
             finally
             {
-                _assertCompilerLogReader = null;
+                _assertCompilerCallReader = null;
             }
         }
     }
 
-    private void AssertCompilerLogReader(Action<CompilerLogReader> action)
+    private void AssertCompilerCallReader(Action<ICompilerCallReader> action)
     {
-        _assertCompilerLogReader = action;
+        _assertCompilerCallReader = action;
     }
 
     public (int ExitCode, string Output) RunCompLogEx(string args, string? currentDirectory = null)
@@ -75,7 +75,7 @@ public sealed class ProgramTests : TestBase
             currentDirectory ??= RootDirectory;
             Constants.CurrentDirectory = currentDirectory;
             Constants.Out = writer;
-            Constants.OnCompilerLogReader = OnCompilerLogReader;
+            Constants.OnCompilerCallReader = OnCompilerCallReader;
             var assembly = typeof(FilterOptionSet).Assembly;
             var program = assembly.GetType("Program", throwOnError: true);
             var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
@@ -86,7 +86,7 @@ public sealed class ProgramTests : TestBase
         finally
         {
             Constants.Out = Console.Out;
-            Constants.OnCompilerLogReader = _ => { };
+            Constants.OnCompilerCallReader = _ => { };
         }
     }
 
@@ -159,7 +159,7 @@ public sealed class ProgramTests : TestBase
         RunDotNet("new console --name console -o .");
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"create console.csproj -o msbuild.complog"));
         var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-        using var reader = CompilerLogReader.Create(complogPath, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
         Assert.Single(reader.ReadAllCompilerCalls());
     }
 
@@ -173,7 +173,7 @@ public sealed class ProgramTests : TestBase
         RunDotNet("build");
         Assert.Equal(Constants.ExitFailure, RunCompLog($"create console.csproj -o msbuild.complog -- -t:Build"));
         var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-        using var reader = CompilerLogReader.Create(complogPath, CompilerLogReaderOptions.None);
+        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
         Assert.Empty(reader.ReadAllCompilerCalls());
     }
 
@@ -186,7 +186,7 @@ public sealed class ProgramTests : TestBase
         {
             Assert.Equal(Constants.ExitSuccess, RunCompLog($"create {filePath} -o msbuild.complog"));
             var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-            using var reader = CompilerLogReader.Create(complogPath, CompilerLogReaderOptions.None);
+            using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
             Assert.NotEmpty(reader.ReadAllCompilerCalls());
         }
     }
@@ -391,7 +391,7 @@ public sealed class ProgramTests : TestBase
         {
             using var exportDir = new TempDir();
 
-            AssertCompilerLogReader(reader => Assert.Equal(expectedKind.Value, reader.BasicAnalyzerKind));
+            AssertCompilerCallReader(reader => Assert.Equal(expectedKind.Value, reader.BasicAnalyzerKind));
             Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} {arg} {logPath} ", RootDirectory));
 
             // Now run the generated build.cmd and see if it succeeds;
@@ -456,9 +456,9 @@ public sealed class ProgramTests : TestBase
     {
         kind ??= BasicAnalyzerHost.DefaultKind;
         using var emitDir = new TempDir();
-        AssertCompilerLogReader(reader => 
+        AssertCompilerCallReader(reader => 
         {
-            Assert.Equal(kind.Value, reader.Options.BasicAnalyzerKind);
+            Assert.Equal(kind.Value, reader.BasicAnalyzerKind);
         });
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"{command} {arg} {Fixture.SolutionBinaryLogPath}"));
     }

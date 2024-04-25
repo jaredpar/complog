@@ -23,15 +23,8 @@ public sealed class CompilerLogBuilderTests : TestBase
         using var binlogStream = new FileStream(Fixture.ConsoleWithDiagnosticsBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
 
         var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(binlogStream, new()).First(x => x.IsCSharp);
-        compilerCall = new CompilerCall(
-            compilerCall.CompilerFilePath,
-            compilerCall.ProjectFilePath,
-            CompilerCallKind.Regular,
-            compilerCall.TargetFramework,
-            isCSharp: true,
-            new Lazy<string[]>(() => ["/sourcelink:does-not-exist.txt"]),
-            null);
-        Assert.Throws<Exception>(() => builder.Add(compilerCall));
+        compilerCall = compilerCall.ChangeArguments(["/sourcelink:does-not-exist.txt"]);
+        Assert.Throws<Exception>(() => builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall)));
     }
 
     [Fact]
@@ -49,9 +42,9 @@ public sealed class CompilerLogBuilderTests : TestBase
             CompilerCallKind.Regular,
             compilerCall.TargetFramework,
             isCSharp: true,
-            new Lazy<string[]>(() => args),
+            new Lazy<IReadOnlyCollection<string>>(() => args),
             null);
-        builder.Add(compilerCall);
+        builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
     }
 
     [Fact]

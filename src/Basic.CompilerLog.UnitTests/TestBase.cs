@@ -18,14 +18,14 @@ public abstract class TestBase : IDisposable
     internal static readonly Encoding DefaultEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     internal ITestOutputHelper TestOutputHelper { get; }
     internal TempDir Root { get; }
-    internal CompilerLogState State { get; }
+    internal Util.LogReaderState State { get; }
     internal string RootDirectory => Root.DirectoryPath;
 
     protected TestBase(ITestOutputHelper testOutputHelper, string name)
     {
         TestOutputHelper = testOutputHelper;
         Root = new TempDir(name);
-        State = new CompilerLogState(Root.NewDirectory("state"));
+        State = new Util.LogReaderState(Root.NewDirectory("state"));
     }
 
     public virtual void Dispose()
@@ -37,9 +37,9 @@ public abstract class TestBase : IDisposable
     public CompilationData GetCompilationData(
         string complogFilePath,
         Func<CompilerCall, bool>? predicate = null,
-        CompilerLogReaderOptions? options = null)
+        BasicAnalyzerKind? basicAnalyzerKind = null)
     {
-        using var reader = CompilerLogReader.Create(complogFilePath, options, State);
+        using var reader = CompilerLogReader.Create(complogFilePath, basicAnalyzerKind, State);
         return reader.ReadAllCompilationData(predicate).Single();
     }
 

@@ -25,15 +25,15 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 
     internal string AnalyzerDirectory { get; }
 
-    internal BasicAnalyzerHostOnDisk(CompilerLogReader reader, List<RawAnalyzerData> analyzers)
+    internal BasicAnalyzerHostOnDisk(IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers)
         : base(BasicAnalyzerKind.OnDisk)
     {
         var dirName = Guid.NewGuid().ToString("N");
         var name =  $"{nameof(BasicAnalyzerHostOnDisk)} {dirName}";
-        AnalyzerDirectory = Path.Combine(reader.CompilerLogState.AnalyzerDirectory, dirName);
+        AnalyzerDirectory = Path.Combine(provider.LogReaderState.AnalyzerDirectory, dirName);
         Directory.CreateDirectory(AnalyzerDirectory);
 
-        Loader = new OnDiskLoader(name, AnalyzerDirectory, reader.CompilerLogState);
+        Loader = new OnDiskLoader(name, AnalyzerDirectory, provider.LogReaderState);
 
         // Now create the AnalyzerFileReference. This won't actually pull on any assembly loading
         // until later so it can be done at the same time we're building up the files.
@@ -42,7 +42,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
         {
             var path = Path.Combine(Loader.AnalyzerDirectory, data.FileName);
             using var fileStream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-            reader.CopyAssemblyBytes(data.Mvid, fileStream);
+            provider.CopyAssemblyBytes(data, fileStream);
             fileStream.Dispose();
 
             builder.Add(new AnalyzerFileReference(path, Loader));
@@ -71,7 +71,7 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
     internal string AnalyzerDirectory { get; }
 
-    internal OnDiskLoader(string name, string analyzerDirectory, CompilerLogState state)
+    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
         : base(name, isCollectible: true)
     {
         CompilerLoadContext = state.CompilerLoadContext;
@@ -128,7 +128,7 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
     internal string Name { get; }
     internal string AnalyzerDirectory { get; }
 
-    internal OnDiskLoader(string name, string analyzerDirectory, CompilerLogState state)
+    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
     {
         Name = name;
         AnalyzerDirectory = analyzerDirectory;

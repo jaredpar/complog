@@ -1,5 +1,6 @@
 
 using System.Configuration;
+using System.Windows.Markup;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Classification;
@@ -64,13 +65,19 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await Task.WhenAll(list);
     }
 
-    [Fact]
-    public async Task EmitToMemory()
+    [Theory]
+    [InlineData(BasicAnalyzerKind.None)]
+    [InlineData(BasicAnalyzerKind.InMemory)]
+    [InlineData(BasicAnalyzerKind.OnDisk)]
+    public async Task EmitToMemory(BasicAnalyzerKind basicAnalyzerKind)
     {
-        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        TestOutputHelper.WriteLine($"BasicAnalyzerKind: {basicAnalyzerKind}");
+        var count = 0;
+        await foreach (var logPath in Fixture.GetAllLogs(TestOutputHelper))
         {
-            TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None);
+            count++;
+            TestOutputHelper.WriteLine(logPath);
+            using var reader = CompilerCallReaderUtil.GetOrCreate(logPath, basicAnalyzerKind);
             foreach (var data in reader.ReadAllCompilationData())
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
@@ -78,15 +85,20 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 AssertEx.Success(TestOutputHelper, emitResult);
             }
         }
+        Assert.True(count >= 10);
     }
 
+    /// <summary>
+    /// Use a <see cref="Util.LogReaderState"/> and dispose the reader before using the <see cref="CompilationData"/>.
+    /// This helps prove that we don't maintain accidental references into the reader when doing Emit
+    /// </summary>
     [Fact]
-    public async Task EmitToMemoryWithSeparateState()
+    public async Task EmitToMemoryCompilerLogWithSeparateState()
     {
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
-            using var state = new CompilerLogState(baseDir: Root.NewDirectory());
+            using var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
             foreach (var data in ReadAll(complogPath, state))
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
@@ -95,9 +107,9 @@ public sealed class UsingAllCompilerLogTests : TestBase
             }
         }
 
-        static List<CompilationData> ReadAll(string complogPath, CompilerLogState state)
+        static List<CompilationData> ReadAll(string complogPath, Util.LogReaderState state)
         {
-            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None, state: state);
+            using var reader = CompilerLogReader.Create(complogPath, basicAnalyzerKind: BasicAnalyzerKind.None, state: state);
             return reader.ReadAllCompilationData();
         }
     }
@@ -108,7 +120,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             TestOutputHelper.WriteLine(complogPath);
-            using var reader = CompilerLogReader.Create(complogPath, options: CompilerLogReaderOptions.None);
+            using var reader = CompilerLogReader.Create(complogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
             foreach (var data in reader.ReadAllCompilerCalls())
             {
                 var fileName = Path.GetFileName(complogPath);
@@ -135,7 +147,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     {
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
-            using var reader = SolutionReader.Create(complogPath, CompilerLogReaderOptions.None);
+            using var reader = SolutionReader.Create(complogPath, BasicAnalyzerKind.None);
             using var workspace = new AdhocWorkspace();
             workspace.AddSolution(reader.ReadSolutionInfo());
             foreach (var project in workspace.CurrentSolution.Projects)
@@ -155,6 +167,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [InlineData(false)]
     public async Task ExportAndBuild(bool includeAnalyzers)
     {
+        using var fileLock = Fixture.LockScratchDirectory();
         var list = new List<Task>();
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
@@ -170,13 +183,50 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [InlineData(false)]
     public async Task LoadAllCore(bool none)
     {
-        var options = none ? CompilerLogReaderOptions.None : CompilerLogReaderOptions.Default;
+        var options = none ? BasicAnalyzerKind.None : BasicAnalyzerHost.DefaultKind;
         await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
         {
             using var reader = SolutionReader.Create(complogPath, options);
             var workspace = new AdhocWorkspace();
             var solution = workspace.AddSolution(reader.ReadSolutionInfo());
             Assert.NotEmpty(solution.Projects);
+        }
+    }
+
+    /// <summary>
+    /// Ensure that our options round tripping code is correct and produces the same result as 
+    /// argument parsing. This will also catch cases where new values are added to the options 
+    /// that are not being set by our code base.
+    /// </summary>
+    [Fact]
+    public async Task VerifyConsistentOptions()
+    {
+        await foreach (var logData in Fixture.GetAllLogDatas(TestOutputHelper))
+        {
+            if (logData.BinaryLogPath is null)
+            {
+                continue;
+            }
+
+            using var complogReader = CompilerLogReader.Create(logData.CompilerLogPath);
+            using var binlogReader = BinaryLogReader.Create(logData.BinaryLogPath);
+            var complogDataList = complogReader.ReadAllCompilationData();
+            var binlogDataList = binlogReader.ReadAllCompilationData();
+            Assert.Equal(complogDataList.Count, binlogDataList.Count);
+            for (int i = 0; i < complogDataList.Count; i++)
+            {
+                Assert.Equal(complogDataList[i].EmitOptions, binlogDataList[i].EmitOptions);
+                Assert.Equal(complogDataList[i].ParseOptions, binlogDataList[i].ParseOptions);
+
+                var complogOptions = Normalize(complogDataList[i].CompilationOptions);
+                var binlogOptions = Normalize(binlogDataList[i].CompilationOptions);
+                Assert.Equal(complogOptions, binlogOptions);
+
+                CompilationOptions Normalize(CompilationOptions options) => options
+                    .WithCryptoKeyFile(null)
+                    .WithStrongNameProvider(null)
+                    .WithSyntaxTreeOptionsProvider(null);
+            }
         }
     }
 }

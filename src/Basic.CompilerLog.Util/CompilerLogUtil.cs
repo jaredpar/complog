@@ -62,7 +62,7 @@ public static class CompilerLogUtil
         var diagnostics = new List<string>();
         if (!TryConvertBinaryLog(binaryLogStream, compilerLogStream, diagnostics, predicate))
         {
-            throw CreateException("Could not convert binary log", diagnostics);
+            throw new CompilerLogException("Could not convert binary log", diagnostics);
         }
 
         return diagnostics;
@@ -91,42 +91,24 @@ public static class CompilerLogUtil
         var diagnostics = new List<string>();
         var included = new List<CompilerCall>();
 
-        var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, diagnostics);
+        var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, diagnostics, predicate);
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
         var success = true;
-        foreach (var compilerInvocation in list)
+        foreach (var compilerCall in list)
         {
-            if (predicate(compilerInvocation))
+            try
             {
-                try
-                {
-                    builder.Add(compilerInvocation);
-                    included.Add(compilerInvocation);
-                }
-                catch (Exception ex)
-                {
-                    diagnostics.Add($"Error adding {compilerInvocation.ProjectFilePath}: {ex.Message}");
-                    success = false;
-                }
+                var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
+                builder.Add(compilerCall, commandLineArguments);
+                included.Add(compilerCall);
+            }
+            catch (Exception ex)
+            {
+                diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
+                success = false;
             }
         }
 
         return new ConvertBinaryLogResult(success, included, diagnostics);
-    }
-
-    private static Exception CreateException(string message, IEnumerable<string> diagnostics)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine(message);
-        if (diagnostics.Any())
-        {
-            builder.AppendLine("Diagnostics:");
-            foreach (var diagnostic in diagnostics)
-            {
-                builder.AppendLine($"\t{diagnostic}");
-            }
-        }
-
-        return new Exception(builder.ToString());
     }
 }

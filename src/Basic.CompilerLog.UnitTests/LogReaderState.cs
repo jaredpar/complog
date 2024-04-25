@@ -9,17 +9,17 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
-public class CompilerLogStateTests : TestBase
+public class LogReaderStateTests : TestBase
 {
-    public CompilerLogStateTests(ITestOutputHelper testOutputHelper)
-        : base(testOutputHelper, nameof(CompilerLogStateTests))
+    public LogReaderStateTests(ITestOutputHelper testOutputHelper)
+        : base(testOutputHelper, nameof(LogReaderState))
     {
     }
 
     [Fact]
     public void DisposeCleansUpDirectories()
     {
-        var state = new CompilerLogState(baseDir: Root.NewDirectory());
+        var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
         Directory.CreateDirectory(state.AnalyzerDirectory);
         state.Dispose();
         Assert.False(Directory.Exists(state.BaseDirectory));
@@ -31,7 +31,7 @@ public class CompilerLogStateTests : TestBase
     [Fact]
     public void DisposeDirectoryLocked()
     {
-        var state = new CompilerLogState(baseDir: Root.NewDirectory());
+        var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
         Directory.CreateDirectory(state.AnalyzerDirectory);
         var fileStream = new FileStream(Path.Combine(state.AnalyzerDirectory, "example.txt"), FileMode.Create, FileAccess.ReadWrite, FileShare.None);
         state.Dispose();
@@ -43,7 +43,7 @@ public class CompilerLogStateTests : TestBase
     public void CustomAssemblyLoadContext()
     {
         var alc = new AssemblyLoadContext("Custom", isCollectible: true);
-        var options = new CompilerLogState(alc);
+        var options = new Util.LogReaderState(alc);
         Assert.Same(alc, options.CompilerLoadContext);
         alc.Unload();
     }

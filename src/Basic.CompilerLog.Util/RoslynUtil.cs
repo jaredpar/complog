@@ -1,11 +1,17 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
@@ -25,6 +31,12 @@ internal static class RoslynUtil
     /// </remarks>
     internal static SourceText GetSourceText(Stream stream, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded) =>
         SourceText.From(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+
+    internal static SourceText GetSourceText(string filePath, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded)
+    {
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return GetSourceText(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+    }
 
     internal static VisualBasicSyntaxTree[] ParseAllVisualBasic(IReadOnlyList<(SourceText SourceText, string Path)> sourceTextList, VisualBasicParseOptions parseOptions)
     {
@@ -64,6 +76,137 @@ internal static class RoslynUtil
         return syntaxTrees;
     }
 
+
+    internal static (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(
+        List<(SourceText SourceText, string Path)> analyzerConfigList,
+        IEnumerable<SyntaxTree> syntaxTrees,
+        IEnumerable<AdditionalText> additionalTexts,
+        PathNormalizationUtil? pathNormalizationUtil = null)
+    {
+        pathNormalizationUtil ??= PathNormalizationUtil.Empty;
+
+        AnalyzerConfigOptionsResult globalConfigOptions = default;
+        AnalyzerConfigSet? analyzerConfigSet = null;
+        var resultList = new List<(object, AnalyzerConfigOptionsResult)>();
+
+        if (analyzerConfigList.Count > 0)
+        {
+            var list = new List<AnalyzerConfig>();
+            foreach (var tuple in analyzerConfigList)
+            {
+                var configText = tuple.SourceText;
+                if (IsGlobalEditorConfigWithSection(configText))
+                {
+                    var configTextContent = RewriteGlobalEditorConfigSections(
+                        configText,
+                        path => pathNormalizationUtil.NormalizePath(path));
+                    configText = SourceText.From(configTextContent, configText.Encoding);
+                }
+
+                list.Add(AnalyzerConfig.Parse(configText, tuple.Path));
+            }
+
+            analyzerConfigSet = AnalyzerConfigSet.Create(list);
+            globalConfigOptions = analyzerConfigSet.GlobalConfigOptions;
+        }
+
+        foreach (var syntaxTree in syntaxTrees)
+        {
+            resultList.Add((syntaxTree, analyzerConfigSet?.GetOptionsForSourcePath(syntaxTree.FilePath) ?? default));
+        }
+
+        foreach (var additionalText in additionalTexts)
+        {
+            resultList.Add((additionalText, analyzerConfigSet?.GetOptionsForSourcePath(additionalText.Path) ?? default));
+        }
+
+        var syntaxOptionsProvider = new BasicSyntaxTreeOptionsProvider(
+            isConfigEmpty: analyzerConfigList.Count == 0,
+            globalConfigOptions,
+            resultList);
+        var analyzerConfigOptionsProvider = new BasicAnalyzerConfigOptionsProvider(
+            isConfigEmpty: analyzerConfigList.Count == 0,
+            globalConfigOptions,
+            resultList);
+        return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
+    }
+
+    internal static CSharpCompilationData CreateCSharpCompilationData(
+        CompilerCall compilerCall,
+        string? compilationName,
+        CSharpParseOptions parseOptions,
+        CSharpCompilationOptions compilationOptions,
+        List<(SourceText SourceText, string Path)> sourceTexts,
+        List<MetadataReference> references,
+        List<(SourceText SourceText, string Path)> analyzerConfigs,
+        ImmutableArray<AdditionalText> additionalTexts,
+        EmitOptions emitOptions,
+        EmitData emitData,
+        BasicAnalyzerHost basicAnalyzerHost,
+        PathNormalizationUtil pathNormalizationUtil)
+    {
+        var syntaxTrees = ParseAllCSharp(sourceTexts, parseOptions);
+        var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, pathNormalizationUtil);
+
+        compilationOptions = compilationOptions
+            .WithSyntaxTreeOptionsProvider(syntaxProvider)
+            .WithStrongNameProvider(new DesktopStrongNameProvider());
+
+        var compilation = CSharpCompilation.Create(
+            compilationName,
+            syntaxTrees,
+            references,
+            compilationOptions);
+
+        return new CSharpCompilationData(
+            compilerCall,
+            compilation,
+            parseOptions,
+            emitOptions,
+            emitData,
+            additionalTexts,
+            basicAnalyzerHost,
+            analyzerProvider);
+    }
+
+    internal static VisualBasicCompilationData CreateVisualBasicCompilationData(
+        CompilerCall compilerCall,
+        string? compilationName,
+        VisualBasicParseOptions parseOptions,
+        VisualBasicCompilationOptions compilationOptions,
+        List<(SourceText SourceText, string Path)> sourceTexts,
+        List<MetadataReference> references,
+        List<(SourceText SourceText, string Path)> analyzerConfigs,
+        ImmutableArray<AdditionalText> additionalTexts,
+        EmitOptions emitOptions,
+        EmitData emitData,
+        BasicAnalyzerHost basicAnalyzerHost,
+        PathNormalizationUtil pathNormalizationUtil)
+    {
+        var syntaxTrees = ParseAllVisualBasic(sourceTexts, parseOptions);
+        var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, pathNormalizationUtil);
+
+        compilationOptions = compilationOptions
+            .WithSyntaxTreeOptionsProvider(syntaxProvider)
+            .WithStrongNameProvider(new DesktopStrongNameProvider());
+
+        var compilation = VisualBasicCompilation.Create(
+            compilationName,
+            syntaxTrees,
+            references,
+            compilationOptions);
+
+        return new VisualBasicCompilationData(
+            compilerCall,
+            compilation,
+            parseOptions,
+            emitOptions,
+            emitData,
+            additionalTexts.ToImmutableArray(),
+            basicAnalyzerHost,
+            analyzerProvider);
+    }
+
     internal static string RewriteGlobalEditorConfigSections(SourceText sourceText, Func<string, string> pathMapFunc)
     {
         var builder = new StringBuilder();
@@ -96,6 +239,39 @@ internal static class RoslynUtil
         });
 
         return builder.ToString();
+    }
+
+    internal static Guid GetMvid(string filePath)
+    {
+        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return GetMvid(file);
+    }
+
+    internal static Guid GetMvid(Stream stream)
+    {
+        using var reader = new PEReader(stream, PEStreamOptions.LeaveOpen);
+        var mdReader = reader.GetMetadataReader();
+        GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
+        return mdReader.GetGuid(handle);
+    }
+
+    internal static string GetAssemblyFileName(CommandLineArguments arguments)
+    {
+        if (arguments.OutputFileName is not null)
+        {
+            return arguments.OutputFileName;
+        }
+
+        string name = arguments.CompilationName ?? "app";
+        return $"{name}{GetStandardAssemblyExtension()}";
+
+        string GetStandardAssemblyExtension() => arguments.CompilationOptions.OutputKind switch
+        {
+            OutputKind.NetModule => ".netmodule",
+            OutputKind.ConsoleApplication => ".exe",
+            OutputKind.WindowsApplication => ".exe",
+            _ => ".dll"
+        };
     }
 
     internal static bool IsGlobalEditorConfigWithSection(SourceText sourceText)

@@ -19,7 +19,7 @@ using TraceReloggerLib;
 
 // PrintGeneratedFiles();
 
-var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+// var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 // var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.complog";
 // var filePath = @"C:\Users\jaredpar\code\vs-threading\msbuild.binlog";
 // var filePath = @"c:\users\jaredpar\temp\Build.complog";
@@ -38,7 +38,7 @@ var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
 
 // Profile();
 
-PrintCompilers(filePath);
+TestBinaryLogReader();
 // ExportScratch();
 // await WorkspaceScratch();
 // RoslynScratch();
@@ -89,6 +89,22 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
 }
 */
 
+void TestBinaryLogReader()
+{
+    var binlogPath = @"e:\temp\console\build.binlog";
+    var reader = BinaryLogReader.Create(binlogPath);
+    var all = reader.ReadAllCompilationData();
+    foreach (var data in all)
+    {
+        var compilation = data.GetCompilationAfterGenerators();
+        var diagnostics = compilation.GetDiagnostics();
+        foreach (var d in diagnostics)
+        {
+            Console.WriteLine(d.GetMessage());
+        }
+    }
+}
+
 void PrintCompilers(string filePath)
 {
     using var reader = CompilerLogReader.Create(filePath);
@@ -135,7 +151,7 @@ static void PrintGeneratedFiles()
 static async Task WorkspaceScratch()
 {
     var filePath = @"/mnt/c/Users/jaredpar/temp/console/msbuild.complog";
-    using var reader = SolutionReader.Create(filePath, CompilerLogReaderOptions.None);
+    using var reader = SolutionReader.Create(filePath, BasicAnalyzerKind.None);
     using var workspace = new AdhocWorkspace();
     workspace.AddSolution(reader.ReadSolutionInfo());
     foreach (var project in workspace.CurrentSolution.Projects)
@@ -158,7 +174,7 @@ static void ExportScratch()
         Directory.Delete(dest, recursive: true);
     }
 
-    using var reader = CompilerLogReader.Create(filePath, CompilerLogReaderOptions.None);
+    using var reader = CompilerLogReader.Create(filePath, BasicAnalyzerKind.None);
     var exportUtil = new ExportUtil(reader);
     exportUtil.ExportAll(dest, SdkUtil.GetSdkDirectories());
 }

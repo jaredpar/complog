@@ -12,12 +12,12 @@ internal sealed class FilterOptionSet : OptionSet
     internal List<string> ProjectNames { get; } = new();
     internal bool Help { get; set; }
 
-    internal CompilerLogReaderOptions Options
+    internal BasicAnalyzerKind BasicAnalyzerKind
     {
         get
         {
             CheckHasAnalyzerOptions();
-            return new CompilerLogReaderOptions(_basicAnalyzerKind);
+            return _basicAnalyzerKind;
         }
     }
 
