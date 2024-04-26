@@ -264,18 +264,27 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// </summary>
     private void AddGeneratedFiles(CompilationDataPack dataPack, CommandLineArguments args, CompilerCall compilerCall)
     {
-        // TODO: probably shouldn't even go down this route unless there is a portable PDB. Should record
-        // that and issue a diagnostic only if someone tries to create it with analyzers none
-        if (RoslynUtil.TryReadGeneratedFiles(compilerCall, args, out var generatedFiles, out var error))
+        if (!RoslynUtil.HasGeneratedFilesInPdb(args))
         {
+            dataPack.HasGeneratedFilesInPdb = false;
+            dataPack.IncludesGeneratedText = false;
+            return;
+        }
+
+        dataPack.HasGeneratedFilesInPdb = true;
+        try
+        {
+            var generatedFiles = RoslynUtil.ReadGeneratedFiles(compilerCall, args);
             foreach (var tuple in generatedFiles)
             {
                 AddContentCore(dataPack, RawContentKind.GeneratedText, tuple.FilePath, tuple.Stream);
             }
+            dataPack.IncludesGeneratedText = true;
         }
-        else
+        catch (Exception ex)
         {
-            Diagnostics.Add(error);
+            dataPack.IncludesGeneratedText = false;
+            Diagnostics.Add(ex.Message);
         }
     }
 

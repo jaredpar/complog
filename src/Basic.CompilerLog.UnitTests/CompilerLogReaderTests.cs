@@ -357,7 +357,7 @@ public sealed class CompilerLogReaderTests : TestBase
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"), BasicAnalyzerKind.None);
         var rawData = reader.ReadRawCompilationData(0).Item2;
-        Assert.False(rawData.ReadGeneratedFiles);
+        Assert.False(rawData.HasAllGeneratedFileContent);
         var data = reader.ReadCompilationData(0);
         var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
         Assert.Single(diagnostics);

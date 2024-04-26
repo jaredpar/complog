@@ -9,6 +9,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Linq;
@@ -300,41 +301,39 @@ internal static class RoslynUtil
     }
 
     /// <summary>
+    /// This checks determines if this compilation should have the files from source generators
+    /// embedded in the PDB. This does not look at anything on disk, it makes a determination
+    /// based on the command line arguments only.
+    /// </summary>
+    internal static bool HasGeneratedFilesInPdb(CommandLineArguments args)
+    {
+        return 
+            args.EmitPdb &&
+            (args.EmitOptions.DebugInformationFormat is DebugInformationFormat.PortablePdb or DebugInformationFormat.Embedded);
+    }
+
+    /// <summary>
     /// Attempt to add all the generated files from generators. When successful the generators
     /// don't need to be run when re-hydrating the compilation.
     /// </summary>
-    internal static bool TryReadGeneratedFiles(
+    internal static List<(string FilePath, MemoryStream Stream)> ReadGeneratedFiles(
         CompilerCall compilerCall,
-        CommandLineArguments args,
-        [NotNullWhen(true)] out List<(string FilePath, MemoryStream Stream)>? generatedFiles,
-        [NotNullWhen(false)] out string? error)
+        CommandLineArguments args)
     {
+        if (!HasGeneratedFilesInPdb(args))
+        {
+            throw new InvalidOperationException("The compilation is not using a PDB format that can store generated files");
+        }
+
+        Debug.Assert(args.EmitPdb);
+        Debug.Assert(args.EmitOptions.DebugInformationFormat is DebugInformationFormat.Embedded or DebugInformationFormat.PortablePdb);
+
         var (languageGuid, languageExtension) = compilerCall.IsCSharp
             ? (LanguageTypeCSharp, ".cs")
             : (LanguageTypeBasic, ".vb");
-        generatedFiles = null;
-
-        // This only works when using portable and embedded pdb formats. A full PDB can't store
-        // generated files
-        if (!args.EmitPdb)
-        {
-            error = "Can't read generated files as no PDB is emitted";
-            return false;
-        }
-
-        if (args.EmitOptions.DebugInformationFormat is not (DebugInformationFormat.Embedded or DebugInformationFormat.PortablePdb))
-        {
-            error = $"Can't read generated files from native PDB";
-            return false;
-        }
 
         var assemblyFileName = GetAssemblyFileName(args);
         var assemblyFilePath = Path.Combine(args.OutputDirectory, assemblyFileName);
-        if (!File.Exists(assemblyFilePath))
-        {
-            error = $"Can't find assembly file for {compilerCall.GetDiagnosticName()}";
-            return false;
-        }
 
         MetadataReaderProvider? pdbReaderProvider = null;
         try
@@ -343,12 +342,11 @@ internal static class RoslynUtil
             using var peReader = new PEReader(reader);
             if (!peReader.TryOpenAssociatedPortablePdb(assemblyFilePath, OpenPortablePdbFile, out pdbReaderProvider, out var pdbPath))
             {
-                error = $"Can't find portable pdb file for {compilerCall.GetDiagnosticName()}";
-                return false;
+                throw new InvalidOperationException("Can't find portable pdb file for {compilerCall.GetDiagnosticName()}");
             }
 
             var pdbReader = pdbReaderProvider!.GetMetadataReader();
-            generatedFiles = new List<(string FilePath, MemoryStream Stream)>();
+            var generatedFiles = new List<(string FilePath, MemoryStream Stream)>();
             foreach (var documentHandle in pdbReader.Documents.Skip(args.SourceFiles.Length))
             {
                 if (GetContentStream(languageGuid, languageExtension, pdbReader, documentHandle) is { } tuple)
@@ -357,8 +355,7 @@ internal static class RoslynUtil
                 }
             }
 
-            error = null;
-            return true;
+            return generatedFiles;
         }
         finally
         {

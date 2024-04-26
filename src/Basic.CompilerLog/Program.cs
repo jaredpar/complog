@@ -550,7 +550,7 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
 ICompilerCallReader GetCompilerCallReader(List<string> extra, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
 {
     var logFilePath = GetLogFilePath(extra);
-    var reader = CompilerCallReaderUtil.GetOrCreate(logFilePath, basicAnalyzerKind);
+    var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind);
     OnCompilerCallReader(reader);
     if (reader is CompilerLogReader compilerLogReader)
     {

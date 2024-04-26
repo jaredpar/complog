@@ -120,4 +120,16 @@ public sealed class BinaryLogReaderTests : TestBase
         var compilationData = reader.ReadCompilationData(compilerCall);
         Assert.Equal(basicAnalyzerKind, compilationData.BasicAnalyzerHost.Kind);
     }
+
+    [Theory]
+    [CombinatorialData]
+    public void GetCompilationSimple(BasicAnalyzerKind basicAnalyzerKind)
+    {
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, basicAnalyzerKind);
+        var compilerCall = reader.ReadAllCompilerCalls().First();
+        var compilationData = reader.ReadCompilationData(compilerCall);
+        Assert.NotNull(compilationData);
+        var emitResult = compilationData.EmitToMemory();
+        Assert.True(emitResult.Success);
+    }
 }

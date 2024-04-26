@@ -15,7 +15,7 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
         new DiagnosticDescriptor(
             "BCLA0001",
             "Cannot read generated files",
-            "Generated files could not be read when compiler log was created",
+            "Error reading generated files: {0}",
             "BasicCompilerLog",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
@@ -24,17 +24,19 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
     internal ImmutableArray<(SourceText SourceText, string Path)> GeneratedSourceTexts { get; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
-    internal BasicAnalyzerHostNone(bool readGeneratedFiles, ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
+    internal BasicAnalyzerHostNone(ImmutableArray<(SourceText SourceText, string Path)> generatedSourceTexts)
         : base(BasicAnalyzerKind.None)
     {
-        ReadGeneratedFiles = readGeneratedFiles;
         GeneratedSourceTexts = generatedSourceTexts;
         AnalyzerReferencesCore = ImmutableArray<AnalyzerReference>.Empty;
+    }
 
-        if (!ReadGeneratedFiles)
-        {
-            AddDiagnostic(Diagnostic.Create(CannotReadGeneratedFiles, Location.None));
-        }
+    internal BasicAnalyzerHostNone(string errorMessage)
+        : base(BasicAnalyzerKind.None)
+    {
+        GeneratedSourceTexts = ImmutableArray<(SourceText SourceText, string Path)>.Empty;
+        AnalyzerReferencesCore = ImmutableArray<AnalyzerReference>.Empty;
+        AddDiagnostic(Diagnostic.Create(CannotReadGeneratedFiles, Location.None, errorMessage));
     }
 
     protected override void DisposeCore()

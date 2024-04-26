@@ -18,6 +18,6 @@ public sealed class CompilerLogUtilTests : TestBase
     [Fact]
     public void CreateBadExtension()
     {
-        Assert.Throws<ArgumentException>(() => CompilerCallReaderUtil.Get("file.bad"));
+        Assert.Throws<ArgumentException>(() => CompilerCallReaderUtil.Create("file.bad"));
     }
 }
