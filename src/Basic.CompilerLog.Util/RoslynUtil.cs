@@ -9,6 +9,8 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -20,6 +22,16 @@ namespace Basic.CompilerLog.Util;
 
 internal static class RoslynUtil
 {
+    // GUIDs specified in https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md#document-table-0x30
+    internal static readonly Guid HashAlgorithmSha1 = unchecked(new Guid((int)0xff1816ec, (short)0xaa5e, 0x4d10, 0x87, 0xf7, 0x6f, 0x49, 0x63, 0x83, 0x34, 0x60));
+    internal static readonly Guid HashAlgorithmSha256 = unchecked(new Guid((int)0x8829d00f, 0x11b8, 0x4213, 0x87, 0x8b, 0x77, 0x0e, 0x85, 0x97, 0xac, 0x16));
+
+    // https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md#embedded-source-c-and-vb-compilers
+    internal static readonly Guid EmbeddedSourceGuid = new Guid("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
+
+    internal static readonly Guid LanguageTypeCSharp = new Guid("{3f5162f8-07c6-11d3-9053-00c04fa302a1}");
+    internal static readonly Guid LanguageTypeBasic = new Guid("{3a12d0b8-c26c-11d0-b442-00a0244a1dd2}");
+
     internal delegate bool SourceTextLineFunc(ReadOnlySpan<char> line, ReadOnlySpan<char> newLine);
 
     /// <summary>
@@ -34,7 +46,7 @@ internal static class RoslynUtil
 
     internal static SourceText GetSourceText(string filePath, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded)
     {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var stream = OpenBuildFileForRead(filePath);
         return GetSourceText(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
     }
 
@@ -241,9 +253,22 @@ internal static class RoslynUtil
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Open a file from a build on the current machine.
+    /// </summary>
+    internal static FileStream OpenBuildFileForRead(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new Exception($"Missing file, either build did not happen on this machine or the environment has changed: {filePath}");
+        }
+
+        return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+    }
+
     internal static Guid GetMvid(string filePath)
     {
-        using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var file = OpenBuildFileForRead(filePath);
         return GetMvid(file);
     }
 
@@ -272,6 +297,158 @@ internal static class RoslynUtil
             OutputKind.WindowsApplication => ".exe",
             _ => ".dll"
         };
+    }
+
+    /// <summary>
+    /// Attempt to add all the generated files from generators. When successful the generators
+    /// don't need to be run when re-hydrating the compilation.
+    /// </summary>
+    internal static bool TryReadGeneratedFiles(
+        CompilerCall compilerCall,
+        CommandLineArguments args,
+        [NotNullWhen(true)] out List<(string FilePath, MemoryStream Stream)>? generatedFiles,
+        [NotNullWhen(false)] out string? error)
+    {
+        var (languageGuid, languageExtension) = compilerCall.IsCSharp
+            ? (LanguageTypeCSharp, ".cs")
+            : (LanguageTypeBasic, ".vb");
+        generatedFiles = null;
+
+        // This only works when using portable and embedded pdb formats. A full PDB can't store
+        // generated files
+        if (!args.EmitPdb)
+        {
+            error = "Can't read generated files as no PDB is emitted";
+            return false;
+        }
+
+        if (args.EmitOptions.DebugInformationFormat is not (DebugInformationFormat.Embedded or DebugInformationFormat.PortablePdb))
+        {
+            error = $"Can't read generated files from native PDB";
+            return false;
+        }
+
+        var assemblyFileName = GetAssemblyFileName(args);
+        var assemblyFilePath = Path.Combine(args.OutputDirectory, assemblyFileName);
+        if (!File.Exists(assemblyFilePath))
+        {
+            error = $"Can't find assembly file for {compilerCall.GetDiagnosticName()}";
+            return false;
+        }
+
+        MetadataReaderProvider? pdbReaderProvider = null;
+        try
+        {
+            using var reader = OpenBuildFileForRead(assemblyFilePath);
+            using var peReader = new PEReader(reader);
+            if (!peReader.TryOpenAssociatedPortablePdb(assemblyFilePath, OpenPortablePdbFile, out pdbReaderProvider, out var pdbPath))
+            {
+                error = $"Can't find portable pdb file for {compilerCall.GetDiagnosticName()}";
+                return false;
+            }
+
+            var pdbReader = pdbReaderProvider!.GetMetadataReader();
+            generatedFiles = new List<(string FilePath, MemoryStream Stream)>();
+            foreach (var documentHandle in pdbReader.Documents.Skip(args.SourceFiles.Length))
+            {
+                if (GetContentStream(languageGuid, languageExtension, pdbReader, documentHandle) is { } tuple)
+                {
+                    generatedFiles.Add(tuple);
+                }
+            }
+
+            error = null;
+            return true;
+        }
+        finally
+        {
+            pdbReaderProvider?.Dispose();
+        }
+
+        static (string FilePath, MemoryStream Stream)? GetContentStream(
+            Guid languageGuid,
+            string languageExtension,
+            MetadataReader pdbReader,
+            DocumentHandle documentHandle)
+        {
+            var document = pdbReader.GetDocument(documentHandle);
+            if (pdbReader.GetGuid(document.Language) != languageGuid)
+            {
+                return null;
+            }
+
+            var filePath = pdbReader.GetString(document.Name);
+
+            // A #line directive can be used to embed a file into the PDB. There is no way to differentiate
+            // between a file embedded this way and one generated from a source generator. For the moment
+            // using a simple hueristic to detect a generated file vs. say a .xaml file that was embedded
+            // https://github.com/jaredpar/basic-compilerlog/issues/45
+            if (Path.GetExtension(filePath) != languageExtension)
+            {
+                return null;
+            }
+
+            foreach (var cdiHandle in pdbReader.GetCustomDebugInformation(documentHandle))
+            {
+                var cdi = pdbReader.GetCustomDebugInformation(cdiHandle);
+                if (pdbReader.GetGuid(cdi.Kind) != EmbeddedSourceGuid)
+                {
+                    continue;
+                }
+
+                var hashAlgorithmGuid = pdbReader.GetGuid(document.HashAlgorithm);
+                var hashAlgorithm =
+                    hashAlgorithmGuid == HashAlgorithmSha1 ? SourceHashAlgorithm.Sha1
+                    : hashAlgorithmGuid == HashAlgorithmSha256 ? SourceHashAlgorithm.Sha256
+                    : SourceHashAlgorithm.None;
+                if (hashAlgorithm == SourceHashAlgorithm.None)
+                {
+                    continue;
+                }
+
+                var bytes = pdbReader.GetBlobBytes(cdi.Value);
+                if (bytes is null)
+                {
+                    continue;
+                }
+
+                int uncompressedSize = BitConverter.ToInt32(bytes, 0);
+                var stream = new MemoryStream(bytes, sizeof(int), bytes.Length - sizeof(int));
+
+                if (uncompressedSize != 0)
+                {
+                    var decompressed = new MemoryStream(uncompressedSize);
+                    using (var deflateStream = new DeflateStream(stream, CompressionMode.Decompress))
+                    {
+                        deflateStream.CopyTo(decompressed);
+                    }
+
+                    if (decompressed.Length != uncompressedSize)
+                    {
+                        throw new InvalidOperationException("Stream did not decompress to expected size");
+                    }
+
+                    stream = decompressed;
+                }
+
+                stream.Position = 0;
+                return (filePath, stream);
+            }
+
+            return null;
+        }
+
+        // Similar to OpenFileForRead but don't throw here on file missing as it's expected that some files 
+        // will not have PDBs beside them.
+        static Stream? OpenPortablePdbFile(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                return null;
+            }
+
+            return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
     }
 
     internal static bool IsGlobalEditorConfigWithSection(SourceText sourceText)

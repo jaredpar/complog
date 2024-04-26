@@ -58,7 +58,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         BasicAnalyzerKind? basicAnalyzerKind = null,
         LogReaderState? state = null)
     {
-        var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var stream = RoslynUtil.OpenBuildFileForRead(filePath);
         return Create(stream, basicAnalyzerKind, state: state, leaveOpen: false);
     }
 
@@ -282,7 +282,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream)
     {
-        using var fileStream = new FileStream(data.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var fileStream = RoslynUtil.OpenBuildFileForRead(data.FilePath);
         fileStream.CopyTo(stream);
     }
 
