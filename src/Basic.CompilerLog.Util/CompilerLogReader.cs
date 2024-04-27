@@ -178,6 +178,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .Select(x => new RawResourceData(x.Name, x.FileName, x.IsPublic, x.ContentHash))
             .ToList();
 
+        // Older versions of compiler log aren't guaranteed to hav HasGeneratedFilesInPdb set
+        var hasAllGeneratedFileContent = dataPack.HasGeneratedFilesInPdb is true
+            ? dataPack.IncludesGeneratedText
+            : dataPack.IncludesGeneratedText;
+
         return new RawCompilationData(
             index,
             compilationName: dataPack.ValueMap["compilationName"],
@@ -190,7 +195,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             contents,
             resources,
             pack.IsCSharp,
-            dataPack.IncludesGeneratedText);
+            hasAllGeneratedFileContent);
     }
 
     private CompilationInfoPack GetOrReadCompilationInfo(int index)
@@ -511,7 +516,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             {
                 BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
                 BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
-                BasicAnalyzerKind.None => new BasicAnalyzerHostNone(rawCompilationData.ReadGeneratedFiles, ReadGeneratedSourceTexts()),
+                BasicAnalyzerKind.None => rawCompilationData.HasAllGeneratedFileContent
+                    ? new BasicAnalyzerHostNone(ReadGeneratedSourceTexts()) 
+                    : new BasicAnalyzerHostNone("Generated files not available when compiler log created"),
                 _ => throw new InvalidOperationException()
             });
 

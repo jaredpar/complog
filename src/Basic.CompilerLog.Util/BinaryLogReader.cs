@@ -22,11 +22,6 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     private BinaryLogReader(Stream stream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind, LogReaderState? state)
     {
-        if (basicAnalyzerKind == BasicAnalyzerKind.None)
-        {
-            throw new ArgumentException($"{nameof(BasicAnalyzerKind)}.None is not supported on binary logs");
-        }
-
         _stream = stream;
         BasicAnalyzerKind = basicAnalyzerKind ?? BasicAnalyzerHost.DefaultKind;
         OwnsLogReaderState = state is null;
@@ -58,7 +53,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         BasicAnalyzerKind? basicAnalyzerKind = null,
         LogReaderState? state = null)
     {
-        var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var stream = RoslynUtil.OpenBuildFileForRead(filePath);
         return Create(stream, basicAnalyzerKind, state: state, leaveOpen: false);
     }
 
@@ -130,6 +125,12 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         var emitData = GetEmitData();
         var basicAnalyzerHost = CreateAnalyzerHost();
 
+        if (basicAnalyzerHost is BasicAnalyzerHostNone none)
+        {
+            // Generated source code should appear last to match the compiler behavior.
+            sourceTexts.AddRange(none.GeneratedSourceTexts);
+        }
+
         return compilerCall.IsCSharp ? GetCSharp() : GetVisualBasic();
 
         CSharpCompilationData GetCSharp()
@@ -180,11 +181,36 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 list,
                 (kind, analyzers) => kind switch
                 {
-                    BasicAnalyzerKind.None => throw new ArgumentException("Cannot create a host for None"),
+                    BasicAnalyzerKind.None => CreateNoneHost(),
                     BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
                     BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
                     _ => throw new ArgumentOutOfRangeException(nameof(kind)),
                 });
+
+            BasicAnalyzerHostNone CreateNoneHost()
+            {
+                if (!RoslynUtil.HasGeneratedFilesInPdb(args))
+                {
+                    return new BasicAnalyzerHostNone("Compilation does not have a PDB compatible with generated files");
+                }
+
+                try
+                {
+                    var generatedFiles = RoslynUtil.ReadGeneratedFiles(compilerCall, args);
+                    var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>(generatedFiles.Count);
+                    foreach (var tuple in generatedFiles)
+                    {
+                        var sourceText = RoslynUtil.GetSourceText(tuple.Stream, args.ChecksumAlgorithm, canBeEmbedded: false);
+                        builder.Add((sourceText, tuple.FilePath));
+                    }
+
+                    return new BasicAnalyzerHostNone(builder.MoveToImmutable());
+                }
+                catch (Exception ex)
+                {
+                    return new BasicAnalyzerHostNone(ex.Message);
+                }
+            }
         }
 
         List<(SourceText SourceText, string Path)> GetAnalyzerConfigs() => 
@@ -282,7 +308,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream)
     {
-        using var fileStream = new FileStream(data.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var fileStream = RoslynUtil.OpenBuildFileForRead(data.FilePath);
         fileStream.CopyTo(stream);
     }
 

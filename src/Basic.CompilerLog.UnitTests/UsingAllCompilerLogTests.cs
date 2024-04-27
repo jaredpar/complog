@@ -66,9 +66,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Theory]
-    [InlineData(BasicAnalyzerKind.None)]
-    [InlineData(BasicAnalyzerKind.InMemory)]
-    [InlineData(BasicAnalyzerKind.OnDisk)]
+    [CombinatorialData]
     public async Task EmitToMemory(BasicAnalyzerKind basicAnalyzerKind)
     {
         TestOutputHelper.WriteLine($"BasicAnalyzerKind: {basicAnalyzerKind}");
@@ -77,7 +75,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         {
             count++;
             TestOutputHelper.WriteLine(logPath);
-            using var reader = CompilerCallReaderUtil.GetOrCreate(logPath, basicAnalyzerKind);
+            using var reader = CompilerCallReaderUtil.Create(logPath, basicAnalyzerKind);
             foreach (var data in reader.ReadAllCompilationData())
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");

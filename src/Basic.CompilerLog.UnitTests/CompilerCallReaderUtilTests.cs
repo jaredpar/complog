@@ -18,13 +18,14 @@ public sealed class CompilerCallReaderUtilTests : TestBase
     [Fact]
     public void CreateBadExtension()
     {
-        Assert.Throws<ArgumentException>(() => CompilerCallReaderUtil.Get("file.bad"));
+        Assert.Throws<ArgumentException>(() => CompilerCallReaderUtil.Create("file.bad"));
     }
 
-    [Fact]
-    public void GetBadArguments()
+    [Theory]
+    [CombinatorialData]
+    public void GetAllAnalyzerKinds(BasicAnalyzerKind basicAnalyzerKind)
     {
-        var binlogPath = Fixture.Console.Value.BinaryLogPath!;
-        Assert.Throws<ArgumentException>(() => CompilerCallReaderUtil.Get(binlogPath, BasicAnalyzerKind.None));
+        using var reader = CompilerCallReaderUtil.Create(Fixture.Console.Value.CompilerLogPath!, basicAnalyzerKind);
+        Assert.Equal(basicAnalyzerKind, reader.BasicAnalyzerKind);
     }
 }

@@ -116,7 +116,7 @@ internal sealed class RawCompilationData
     /// for example happens on a compilation where there are no analyzers (successfully 
     /// read zero files)
     /// </summary>
-    internal bool ReadGeneratedFiles { get; }
+    internal bool HasAllGeneratedFileContent { get; }
 
     internal RawCompilationData(
         int index, 
@@ -130,7 +130,7 @@ internal sealed class RawCompilationData
         List<RawContent> contents,
         List<RawResourceData> resources,
         bool isCSharp,
-        bool readGeneratedFiles)
+        bool hasAllGeneratedFileContent)
     {
         Index = index;
         CompilationName = compilationName;
@@ -143,6 +143,6 @@ internal sealed class RawCompilationData
         Contents = contents;
         Resources = resources;
         IsCSharp = isCSharp;
-        ReadGeneratedFiles = readGeneratedFiles;
+        HasAllGeneratedFileContent = hasAllGeneratedFileContent;
     }
 }

@@ -36,7 +36,7 @@ public sealed class BasicAnalyzerHostTests
     [Fact]
     public void NoneDispose()
     {
-        var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty);
+        var host = new BasicAnalyzerHostNone(ImmutableArray<(SourceText, string)>.Empty);
         host.Dispose();
         Assert.Throws<ObjectDisposedException>(() => { _ = host.AnalyzerReferences; });
     }
@@ -44,9 +44,18 @@ public sealed class BasicAnalyzerHostTests
     [Fact]
     public void NoneProps()
     {
-        var host = new BasicAnalyzerHostNone(readGeneratedFiles: true, ImmutableArray<(SourceText, string)>.Empty);
+        var host = new BasicAnalyzerHostNone(ImmutableArray<(SourceText, string)>.Empty);
         host.Dispose();
         Assert.Equal(BasicAnalyzerKind.None, host.Kind);
         Assert.Empty(host.GeneratedSourceTexts);
+    }
+
+    [Fact]
+    public void Error()
+    {
+        var message = "my error message";
+        var host = new BasicAnalyzerHostNone(message);
+        var diagnostic = host.GetDiagnostics().Single();
+        Assert.Contains(message, diagnostic.GetMessage());
     }
 }
