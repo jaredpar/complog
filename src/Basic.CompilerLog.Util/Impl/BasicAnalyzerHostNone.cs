@@ -17,10 +17,9 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
             "Cannot read generated files",
             "Error reading generated files: {0}",
             "BasicCompilerLog",
-            DiagnosticSeverity.Warning,
+            DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
-    internal bool ReadGeneratedFiles { get; }
     internal ImmutableArray<(SourceText SourceText, string Path)> GeneratedSourceTexts { get; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 

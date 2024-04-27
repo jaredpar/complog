@@ -132,4 +132,20 @@ public sealed class BinaryLogReaderTests : TestBase
         var emitResult = compilationData.EmitToMemory();
         Assert.True(emitResult.Success);
     }
+
+    [Fact]
+    public void ReadDeletedPdb()
+    {
+        var dir = Root.NewDirectory();
+        RunDotNet($"new console --name example --output .", dir);
+        RunDotNet("build -bl -nr:false", dir);
+
+        // Delete the PDB
+        Directory.EnumerateFiles(dir, "*.pdb", SearchOption.AllDirectories).ForEach(File.Delete);
+
+        using var reader = BinaryLogReader.Create(Path.Combine(dir, "msbuild.binlog"), BasicAnalyzerKind.None);
+        var data = reader.ReadAllCompilationData().Single();
+        var diagnostic = data.GetDiagnostics().Where(x => x.Severity == DiagnosticSeverity.Error).Single();
+        Assert.Contains("Can't find portable pdb file for", diagnostic.GetMessage());
+    }
 }
