@@ -394,7 +394,7 @@ int RunReplay(IEnumerable<string> args)
     var options = new FilterOptionSet(analyzers: true)
     {
         { "severity=", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
-        { "o|out=", "path to emit to ", void (string? b) => baseOutputPath = b ?? "" },
+        { "o|out=", "path to emit to ", void (string b) => baseOutputPath = b },
     };
 
     try
