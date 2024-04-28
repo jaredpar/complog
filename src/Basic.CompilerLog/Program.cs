@@ -414,6 +414,12 @@ int RunReplay(IEnumerable<string> args)
 
         using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        if (compilerCalls.Count == 0)
+        {
+            WriteLine("No compilations found");
+            return ExitFailure;
+        }
+
         var sdkDirs = SdkUtil.GetSdkDirectories();
         var success = true;
 
@@ -443,8 +449,7 @@ int RunReplay(IEnumerable<string> args)
             {
                 if (diagnostic.Severity >= severity)
                 {
-                    Write("    ");
-                    WriteLine(diagnostic.GetMessage());
+                    WriteLine($"    {diagnostic.Id}: {diagnostic.GetMessage()}");
                 }
             }
         }

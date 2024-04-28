@@ -488,6 +488,33 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void ReplayMissingOutput()
+    {
+        using var emitDir = new TempDir();
+        var (extiCode, output) = RunCompLogEx($"replay --out");
+        Assert.Equal(Constants.ExitFailure, extiCode);
+        Assert.Contains("Missing required value", output);
+    }
+
+    [Fact]
+    public void ReplayWithBadProject()
+    {
+        using var emitDir = new TempDir();
+        var (extiCode, output) = RunCompLogEx($"replay --severity Info --project console-with-diagnostics.csproj {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitFailure, extiCode);
+        Assert.Contains("No compilations found", output);
+    }
+
+    [Fact]
+    public void ReplayWithDiagnostics()
+    {
+        using var emitDir = new TempDir();
+        var (exitCode, output) = RunCompLogEx($"replay --severity Info {Fixture.ConsoleWithDiagnosticsBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("CS0219", output);
+    }
+
+    [Fact]
     public void ReplayHelp()
     {
         var (exitCode, output) = RunCompLogEx($"replay -h");
