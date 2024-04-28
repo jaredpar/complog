@@ -1,6 +1,7 @@
 ﻿using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Mono.Options;
 using StructuredLogViewer;
 using System.Diagnostics;
@@ -388,16 +389,12 @@ int RunResponseFile(IEnumerable<string> args)
 
 int RunReplay(IEnumerable<string> args)
 {
-    var baseOutputPath = "";
+    string? baseOutputPath = null;
     var severity = DiagnosticSeverity.Warning;
-    var export = false;
-    var emit = false;
     var options = new FilterOptionSet(analyzers: true)
     {
         { "severity=", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
-        { "export", "export failed compilation", e => export = e is not null },
-        { "emit", "emit the compilation(s) to disk", e => emit = e is not null },
-        { "o|out=", "path to export to ", b => baseOutputPath = b },
+        { "o|out=", "path to emit to ", void (string? b) => baseOutputPath = b ?? "" },
     };
 
     try
@@ -409,22 +406,14 @@ int RunReplay(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        if (!string.IsNullOrEmpty(baseOutputPath) && !(export || emit))
+        if (baseOutputPath is not null)
         {
-            WriteLine("Error: Specified a path to export to but did not specify -export or -emit");
-            return ExitFailure;
-        }
-
-        baseOutputPath = GetBaseOutputPath(baseOutputPath);
-        if (!string.IsNullOrEmpty(baseOutputPath))
-        {
+            baseOutputPath = GetBaseOutputPath(baseOutputPath);
             WriteLine($"Outputting to {baseOutputPath}");
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.BasicAnalyzerKind, checkVersion: true);
+        using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
         var sdkDirs = SdkUtil.GetSdkDirectories();
         var success = true;
 
@@ -438,7 +427,7 @@ int RunReplay(IEnumerable<string> args)
             var compilation = compilationData.GetCompilationAfterGenerators();
 
             IEmitResult emitResult;
-            if (emit)
+            if (baseOutputPath is not null)
             {
                 var path = GetOutputPath(baseOutputPath, compilerCalls, i, "emit");
                 Directory.CreateDirectory(path);
@@ -457,15 +446,6 @@ int RunReplay(IEnumerable<string> args)
                     Write("    ");
                     WriteLine(diagnostic.GetMessage());
                 }
-            }
-
-            if (!emitResult.Success && export)
-            {
-                var exportPath = GetOutputPath(baseOutputPath, compilerCalls, i, "export");
-                Directory.CreateDirectory(exportPath);
-                WriteLine($"Exporting to {exportPath}");
-                exportUtil.Export(compilationData.CompilerCall, exportPath, sdkDirs);
-                success = false;
             }
         }
 
