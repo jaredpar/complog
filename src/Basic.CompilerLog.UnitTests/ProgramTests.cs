@@ -469,7 +469,7 @@ public sealed class ProgramTests : TestBase
     public void ReplayConsoleWithEmit(string arg)
     {
         using var emitDir = new TempDir();
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {arg} -emit -o {emitDir.DirectoryPath} {Fixture.SolutionBinaryLogPath}"));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {arg} -o {emitDir.DirectoryPath} {Fixture.SolutionBinaryLogPath}"));
 
         AssertOutput(@"console\emit\console.dll");
         AssertOutput(@"console\emit\console.pdb");
@@ -485,6 +485,33 @@ public sealed class ProgramTests : TestBase
             var filePath = Path.Combine(emitDir.DirectoryPath, relativePath);
             Assert.True(File.Exists(filePath));
         }
+    }
+
+    [Fact]
+    public void ReplayMissingOutput()
+    {
+        using var emitDir = new TempDir();
+        var (extiCode, output) = RunCompLogEx($"replay --out");
+        Assert.Equal(Constants.ExitFailure, extiCode);
+        Assert.Contains("Missing required value", output);
+    }
+
+    [Fact]
+    public void ReplayWithBadProject()
+    {
+        using var emitDir = new TempDir();
+        var (extiCode, output) = RunCompLogEx($"replay --severity Info --project console-with-diagnostics.csproj {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitFailure, extiCode);
+        Assert.Contains("No compilations found", output);
+    }
+
+    [Fact]
+    public void ReplayWithDiagnostics()
+    {
+        using var emitDir = new TempDir();
+        var (exitCode, output) = RunCompLogEx($"replay --severity Info {Fixture.ConsoleWithDiagnosticsBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("CS0219", output);
     }
 
     [Fact]
@@ -538,21 +565,32 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void ReplayBadOptionCombination()
+    public void ReplayWithBothLogs()
     {
-        var (exitCode, output) = RunCompLogEx($"replay -o example");
-        Assert.Equal(Constants.ExitFailure, exitCode);
-        Assert.StartsWith("Error: Specified a path", output);
+        RunWithBoth(void (string logFilePath) =>
+        {
+            var isBinlog = Path.GetExtension(logFilePath) == ".binlog";
+            AssertCompilerCallReader(void (ICompilerCallReader reader) =>
+            {
+                if (isBinlog)
+                {
+                    Assert.IsType<BinaryLogReader>(reader);
+                }
+                else
+                {
+                    Assert.IsType<CompilerLogReader>(reader);
+                }
+            });
+
+            RunCompLog($"replay {logFilePath}");
+        });
     }
 
     [Fact]
-    public void ReplayWithExport()
+    public void ReplayWithProject()
     {
-        var (exitCode, output) = RunCompLogEx($"replay {Fixture.ConsoleWithDiagnosticsBinaryLogPath} -export -o {RootDirectory}");
-        Assert.Equal(Constants.ExitFailure, exitCode);
-        Assert.Contains("Exporting to", output);
-        Assert.True(File.Exists(Path.Combine(RootDirectory, "console-with-diagnostics", "export", "build.rsp")));
-        Assert.True(File.Exists(Path.Combine(RootDirectory, "console-with-diagnostics", "export", "ref", "netstandard.dll")));
+        AssertCompilerCallReader(void (ICompilerCallReader reader) => Assert.IsType<BinaryLogReader>(reader));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {Fixture.ConsoleProjectPath}"));
     }
 
     [Fact]
