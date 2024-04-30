@@ -196,7 +196,7 @@ static void RoslynScratch()
     var compilation = CSharpCompilation.Create(
         "scratch",
         new[] { syntaxTree },
-        Basic.Reference.Assemblies.Net60.All);
+        Basic.Reference.Assemblies.Net60.References.All);
 
     var context = compilation.GetSemanticModel(syntaxTree);
     var token = syntaxTree
