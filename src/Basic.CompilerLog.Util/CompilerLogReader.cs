@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using Microsoft.CodeAnalysis.VisualBasic.Syntax;
@@ -163,7 +164,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         var references = dataPack
             .References
-            .Select(x => new RawReferenceData(x.Mvid, x.Aliases, x.EmbedInteropTypes))
+            .Select(x => new RawReferenceData(x.Mvid, x.Aliases, x.EmbedInteropTypes, x.FilePath))
             .ToList();
         var analyzers = dataPack
             .Analyzers
@@ -477,31 +478,32 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         throw new ArgumentException($"The provided {nameof(CompilerCall)} is not from this instance");
     }
 
-    public List<(string FileName, byte[] ImageBytes)> ReadReferenceFileInfo(CompilerCall compilerCall)
+    public List<ReferenceData> ReadAllReferenceData(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);
         var (_, rawCompilationData) = ReadRawCompilationData(index);
-        var list = new List<(string, byte[])>(rawCompilationData.References.Count);
+        var list = new List<ReferenceData>(rawCompilationData.References.Count);
         foreach (var referenceData in rawCompilationData.References)
         {
-            list.Add((
-                GetMetadataReferenceFileName(referenceData.Mvid),
-                GetAssemblyBytes(referenceData.Mvid)));
+            var filePath = referenceData.FilePath is string fp
+                ? fp
+                : PathNormalizationUtil.RootFileName(GetMetadataReferenceFileName(referenceData.Mvid));
+            var data = new ReferenceData(filePath, referenceData.Mvid, GetAssemblyBytes(referenceData.Mvid));
+            list.Add(data);
         }
 
         return list;
     }
 
-    public List<(string FilePath, byte[] ImageBytes)> ReadAnalyzerFileInfo(CompilerCall compilerCall)
+    public List<ReferenceData> ReadAllAnalyzerData(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);
         var (_, rawCompilationData) = ReadRawCompilationData(index);
-        var list = new List<(string, byte[])>(rawCompilationData.Analyzers.Count);
+        var list = new List<ReferenceData>(rawCompilationData.Analyzers.Count);
         foreach (var analyzerData in rawCompilationData.Analyzers)
         {
-            list.Add((
-                analyzerData.FilePath,
-                GetAssemblyBytes(analyzerData.Mvid)));
+            var data = new ReferenceData(analyzerData.FilePath, analyzerData.Mvid, GetAssemblyBytes(analyzerData.Mvid));
+            list.Add(data);
         }
 
         return list;

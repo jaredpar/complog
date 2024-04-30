@@ -120,16 +120,14 @@ int RunAnalyzers(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-
         foreach (var compilerCall in compilerCalls)
         {
             WriteLine(compilerCall.GetDiagnosticName());
-            foreach (var tuple in reader.ReadAnalyzerFileInfo(compilerCall))
+            foreach (var data in reader.ReadAllAnalyzerData(compilerCall))
             {
-                WriteLine($"\t{tuple.FilePath}");
+                WriteLine($"\t{data.FilePath}");
             }
         }
 
@@ -219,8 +217,7 @@ int RunReferences(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
@@ -232,23 +229,23 @@ int RunReferences(IEnumerable<string> args)
             var compilerCall = compilerCalls[i];
             var refDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "refs");
             Directory.CreateDirectory(refDirPath);
-            foreach (var tuple in reader.ReadReferenceFileInfo(compilerCall))
+            foreach (var data in reader.ReadAllReferenceData(compilerCall))
             {
-                var filePath = Path.Combine(refDirPath, tuple.FileName);
-                File.WriteAllBytes(filePath, tuple.ImageBytes);
+                var filePath = Path.Combine(refDirPath, data.FileName);
+                File.WriteAllBytes(filePath, data.ImageBytes);
             }
 
             var analyzerDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "analyzers");
             var groupMap = new Dictionary<string, string>(PathUtil.Comparer);
-            foreach (var tuple in reader.ReadAnalyzerFileInfo(compilerCall))
+            foreach (var data in reader.ReadAllAnalyzerData(compilerCall))
             {
                 var groupDir = GetGroupDirectoryPath();
-                var filePath = Path.Combine(groupDir, Path.GetFileName(tuple.FilePath));
-                File.WriteAllBytes(filePath, tuple.ImageBytes);
+                var filePath = Path.Combine(groupDir, data.FileName);
+                File.WriteAllBytes(filePath, data.ImageBytes);
 
                 string GetGroupDirectoryPath()
                 {
-                    var key = Path.GetDirectoryName(tuple.FilePath)!;
+                    var key = Path.GetDirectoryName(data.FilePath)!;
                     var first = false;
                     if (!groupMap.TryGetValue(key, out var groupName))
                     {

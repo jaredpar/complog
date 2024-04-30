@@ -1,15 +1,19 @@
 
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 
 namespace Basic.CompilerLog.Util;
 
 internal abstract class PathNormalizationUtil
 {
+    internal const string WindowsRoot = @"c:\code\";
+    internal const string UnixRoot = @"/code/";
+
     internal const int MaxPathLength = 520;
     internal static PathNormalizationUtil Empty { get; } = new EmtpyNormalizationUtil();
-    internal static PathNormalizationUtil WindowsToUnix { get; } = new WindowsToUnixNormalizationUtil(@"/code");
-    internal static PathNormalizationUtil UnixToWindows { get; } = new UnixToWindowsNormalizationUtil(@"c:\code\");
+    internal static PathNormalizationUtil WindowsToUnix { get; } = new WindowsToUnixNormalizationUtil(UnixRoot);
+    internal static PathNormalizationUtil UnixToWindows { get; } = new UnixToWindowsNormalizationUtil(WindowsRoot);
 
     /// <summary>
     /// Is the path rooted in the "from" platform
@@ -25,6 +29,11 @@ internal abstract class PathNormalizationUtil
     /// <returns></returns>
     [return: NotNullIfNotNull("path")]
     internal abstract string? NormalizePath(string? path);
+
+    /// <summary>
+    /// Make the file name an absolute path by putting it under the root
+    /// </summary>
+    internal abstract string RootFileName(string fileName);
 }
 
 /// <summary>
@@ -79,6 +88,8 @@ file sealed class WindowsToUnixNormalizationUtil(string root) : PathNormalizatio
         ArrayPool<char>.Shared.Return(array);
         return normalizedPath;
     }
+
+    internal override string RootFileName(string fileName)=> Root + fileName;
 }
 
 file sealed class UnixToWindowsNormalizationUtil(string root) : PathNormalizationUtil
@@ -125,6 +136,8 @@ file sealed class UnixToWindowsNormalizationUtil(string root) : PathNormalizatio
         ArrayPool<char>.Shared.Return(array);
         return normalizedPath;
     }
+
+    internal override string RootFileName(string fileName)=> Root + fileName;
 }
 
 /// <summary>
@@ -133,6 +146,10 @@ file sealed class UnixToWindowsNormalizationUtil(string root) : PathNormalizatio
 /// </summary>
 file sealed class EmtpyNormalizationUtil : PathNormalizationUtil
 {
+    internal string Root { get; } = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? WindowsRoot : UnixRoot;
+
     internal override bool IsPathRooted(string? path) => Path.IsPathRooted(path);
     internal override string? NormalizePath(string? path) => path;
+
+    internal override string RootFileName(string fileName)=> Root + fileName;
 }

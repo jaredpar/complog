@@ -180,6 +180,8 @@ public class ReferencePack
     public bool EmbedInteropTypes { get; set; }
     [Key(3)]
     public ImmutableArray<string> Aliases { get; set; }
+    [Key(4)]
+    public string? FilePath { get; set; }
 }
 
 [MessagePackObject]
