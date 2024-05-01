@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Basic.CompilerLog.Util;
 
@@ -17,5 +18,6 @@ public sealed class ReferenceData(string filePath, Guid mvid, byte[] imageBytes)
 
     public string FileName => Path.GetFileName(FilePath);
 
+    [ExcludeFromCodeCoverage]
     public override string ToString() => $"{FileName} {Mvid}";
 }
