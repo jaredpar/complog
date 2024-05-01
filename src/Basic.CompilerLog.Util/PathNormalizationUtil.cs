@@ -1,5 +1,6 @@
 
 using System.Buffers;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
@@ -62,9 +63,17 @@ file sealed class WindowsToUnixNormalizationUtil(string root) : PathNormalizatio
         int pathIndex = 0;
         if (IsPathRooted(path))
         {
+            Debug.Assert(Root[Root.Length-1]=='/');
+
             Root.AsSpan().CopyTo(array.AsSpan());
             arrayIndex += Root.Length;
             pathIndex += 2;
+
+            // Move past any extra slashes after the c: portion of the path.
+            while (pathIndex < path.Length && path[pathIndex] == '\\')
+            {
+                pathIndex++;
+            }
         }
 
         while (pathIndex < path.Length)
@@ -114,6 +123,7 @@ file sealed class UnixToWindowsNormalizationUtil(string root) : PathNormalizatio
         int pathIndex = 0;
         if (IsPathRooted(path))
         {
+            Debug.Assert(Root[Root.Length-1]=='\\');
             Root.AsSpan().CopyTo(array.AsSpan());
             arrayIndex += Root.Length;
             pathIndex += 1;

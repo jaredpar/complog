@@ -10,6 +10,7 @@ public sealed class PathNormalizationUtilTests
     [Theory]
     [InlineData(@"c:\", "/code/")]
     [InlineData(@"c:\\", "/code/")]
+    [InlineData(@"c:\\\", "/code/")]
     [InlineData(@"c:\src\blah.cs", "/code/src/blah.cs")]
     [InlineData(@"c:\src\..\blah.cs", "/code/src/../blah.cs")]
     [InlineData(null, null)]

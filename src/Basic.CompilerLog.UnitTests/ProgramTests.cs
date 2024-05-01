@@ -67,6 +67,19 @@ public sealed class ProgramTests : TestBase
         _assertCompilerCallReader = action;
     }
 
+    private void AssertCorrectReader(ICompilerCallReader reader, string logFilePath)
+    {
+        var isBinlog = Path.GetExtension(logFilePath) == ".binlog";
+        if (isBinlog)
+        {
+            Assert.IsType<BinaryLogReader>(reader);
+        }
+        else
+        {
+            Assert.IsType<CompilerLogReader>(reader);
+        }
+    }
+
     public (int ExitCode, string Output) RunCompLogEx(string args, string? currentDirectory = null)
     {
         try
@@ -103,11 +116,15 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void AnalyzersSimple()
+    public void AnalyzersBoth()
     {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -p console.csproj");
-        Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+        RunWithBoth(void (string logPath) =>
+        {
+            AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logPath));
+            var (exitCode, output) = RunCompLogEx($"analyzers {logPath} -p console.csproj");
+            Assert.Equal(Constants.ExitSuccess, exitCode);
+            Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+        });
     }
 
     [Fact]
@@ -118,12 +135,16 @@ public sealed class ProgramTests : TestBase
         Assert.StartsWith("complog analyzers [OPTIONS]", output);
     }
 
+    /// <summary>
+    /// The analyzers can still be listed if the project file is deleted as long as the 
+    /// analyzers are still on disk
+    /// </summary>
     [Fact]
-    public void AnalyzersError()
+    public void AnalyzersProjectFilesDeleted()
     {
         var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath}");
-        Assert.NotEqual(Constants.ExitSuccess, exitCode);
-        Assert.StartsWith("Unexpected error", output); 
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("CSharp.NetAnalyzers.dll", output);
     }
 
     [Fact]
@@ -243,6 +264,7 @@ public sealed class ProgramTests : TestBase
     {
         RunWithBoth(logPath =>
         {
+            AssertCompilerCallReader(reader => AssertCorrectReader(reader, logPath));
             Assert.Equal(Constants.ExitSuccess, RunCompLog($"ref -o {RootDirectory} {logPath}"));
             Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "refs"), "*.dll"));
             Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "analyzers"), "*.dll", SearchOption.AllDirectories));
@@ -569,19 +591,7 @@ public sealed class ProgramTests : TestBase
     {
         RunWithBoth(void (string logFilePath) =>
         {
-            var isBinlog = Path.GetExtension(logFilePath) == ".binlog";
-            AssertCompilerCallReader(void (ICompilerCallReader reader) =>
-            {
-                if (isBinlog)
-                {
-                    Assert.IsType<BinaryLogReader>(reader);
-                }
-                else
-                {
-                    Assert.IsType<CompilerLogReader>(reader);
-                }
-            });
-
+            AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logFilePath));
             RunCompLog($"replay {logFilePath}");
         });
     }

@@ -120,7 +120,7 @@ int RunAnalyzers(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind);
+        using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         foreach (var compilerCall in compilerCalls)
         {
@@ -217,7 +217,7 @@ int RunReferences(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind);
+        using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath);
