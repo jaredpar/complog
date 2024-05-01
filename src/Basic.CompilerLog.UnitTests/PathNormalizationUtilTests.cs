@@ -10,12 +10,22 @@ public sealed class PathNormalizationUtilTests
     [Theory]
     [InlineData(@"c:\", "/code/")]
     [InlineData(@"c:\\", "/code/")]
+    [InlineData(@"c:\\\", "/code/")]
     [InlineData(@"c:\src\blah.cs", "/code/src/blah.cs")]
     [InlineData(@"c:\src\..\blah.cs", "/code/src/../blah.cs")]
     [InlineData(null, null)]
     public void WindowsToUnixNormalize(string? path, string? expected)
     {
         var actual = PathNormalizationUtil.WindowsToUnix.NormalizePath(path);
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData(@"example.cs", "/code/example.cs")]
+    [InlineData(@"a.cs", "/code/a.cs")]
+    public void WindowsToUnixRootFileName(string fileName, string? expected)
+    {
+        var actual = PathNormalizationUtil.WindowsToUnix.RootFileName(fileName);
         Assert.Equal(expected, actual);
     }
 
@@ -29,6 +39,15 @@ public sealed class PathNormalizationUtilTests
     public void UnixToWindowsNormalize(string? path, string? expected)
     {
         var actual = PathNormalizationUtil.UnixToWindows.NormalizePath(path);
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData(@"example.cs", @"c:\code\example.cs")]
+    [InlineData(@"a.cs", @"c:\code\a.cs")]
+    public void UnixToWindowsRootFileName(string fileName, string? expected)
+    {
+        var actual = PathNormalizationUtil.UnixToWindows.RootFileName(fileName);
         Assert.Equal(expected, actual);
     }
 

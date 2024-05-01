@@ -5,6 +5,7 @@ using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 
@@ -169,13 +170,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
         BasicAnalyzerHost CreateAnalyzerHost()
         {
-            var list = new List<RawAnalyzerData>(args.AnalyzerReferences.Length);
-            foreach (var analyzer in args.AnalyzerReferences)
-            {
-                var data = new RawAnalyzerData(RoslynUtil.GetMvid(analyzer.FilePath), analyzer.FilePath);
-                list.Add(data);
-            }
-
+            var list = ReadAllRawAnalyzerData(args);
             return LogReaderState.GetOrCreate(
                 BasicAnalyzerKind,
                 list,
@@ -294,6 +289,42 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
             return list;
         }
+    }
+
+    public List<ReferenceData> ReadAllAnalyzerData(CompilerCall compilerCall)
+    {
+        CheckOwnership(compilerCall);
+        var args = ReadCommandLineArguments(compilerCall);
+        return ReadAllReferenceDataCore(args.AnalyzerReferences.Select(x => x.FilePath), args.AnalyzerReferences.Length);
+    }
+
+    public List<ReferenceData> ReadAllReferenceData(CompilerCall compilerCall)
+    {
+        CheckOwnership(compilerCall);
+        var args = ReadCommandLineArguments(compilerCall);
+        return ReadAllReferenceDataCore(args.MetadataReferences.Select(x => x.Reference), args.MetadataReferences.Length);
+    }
+
+    private List<ReferenceData> ReadAllReferenceDataCore(IEnumerable<string> filePaths, int count)
+    {
+        var list = new List<ReferenceData>(capacity: count);
+        foreach (var filePath in filePaths)
+        {
+            var data = new ReferenceData(filePath, RoslynUtil.GetMvid(filePath), File.ReadAllBytes(filePath));
+            list.Add(data);
+        }
+        return list;
+    }
+
+    private List<RawAnalyzerData> ReadAllRawAnalyzerData(CommandLineArguments args)
+    {
+        var list = new List<RawAnalyzerData>(args.AnalyzerReferences.Length);
+        foreach (var analyzer in args.AnalyzerReferences)
+        {
+            var data = new RawAnalyzerData(RoslynUtil.GetMvid(analyzer.FilePath), analyzer.FilePath);
+            list.Add(data);
+        }
+        return list;
     }
 
     private void CheckOwnership(CompilerCall compilerCall)

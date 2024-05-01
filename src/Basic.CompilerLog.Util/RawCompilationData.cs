@@ -52,12 +52,14 @@ internal readonly struct RawReferenceData
     internal readonly Guid Mvid;
     internal readonly ImmutableArray<string> Aliases;
     internal readonly bool EmbedInteropTypes;
+    internal readonly string? FilePath;
 
-    internal RawReferenceData(Guid mvid, ImmutableArray<string> aliases, bool embedInteropTypes)
+    internal RawReferenceData(Guid mvid, ImmutableArray<string> aliases, bool embedInteropTypes, string? filePath)
     {
         Mvid = mvid;
         Aliases = aliases;
         EmbedInteropTypes = embedInteropTypes;
+        FilePath = filePath;
     }
 }
 
