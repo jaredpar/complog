@@ -537,7 +537,7 @@ int RunGenerated(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog replay [OPTIONS] msbuild.complog");
+        WriteLine("complog generated [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }

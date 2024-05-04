@@ -618,6 +618,17 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void GeneratedBadFilter()
+    {
+        RunWithBoth(logPath =>
+        {
+            AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logPath));
+            var (exitCode, _) = RunCompLogEx($"generated {logPath} -p console-does-not-exist.csproj");
+            Assert.Equal(Constants.ExitFailure, exitCode);
+        });
+    }
+
+    [Fact]
     public void GeneratePdbMissing()
     {
         var dir = Root.NewDirectory();
@@ -630,6 +641,21 @@ public sealed class ProgramTests : TestBase
         var (exitCode, output) = RunCompLogEx($"generated {dir} -a None");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("BCLA0001", output);
+    }
+
+    [Fact]
+    public void GeneratedHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"generated -h");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.StartsWith("complog generated [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void GeneratedBadArg()
+    {
+        var (exitCode, _) = RunCompLogEx($"generated -o");
+        Assert.Equal(Constants.ExitFailure, exitCode);
     }
 
     [Fact]
