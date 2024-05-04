@@ -24,6 +24,7 @@ try
         "ref" => RunReferences(rest),
         "rsp" => RunResponseFile(rest),
         "analyzers" => RunAnalyzers(rest),
+        "generated" => RunGenerated(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(rest),
 
@@ -467,6 +468,80 @@ int RunReplay(IEnumerable<string> args)
     }
 }
 
+int RunGenerated(IEnumerable<string> args)
+{
+    string? baseOutputPath = null;
+    var options = new FilterOptionSet(analyzers: true)
+    {
+        { "o|out=", "path to emit to ", void (string b) => baseOutputPath = b },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (options.Help)
+        {
+            PrintUsage();
+            return ExitSuccess;
+        }
+
+        baseOutputPath = GetBaseOutputPath(baseOutputPath, "generated");
+        WriteLine($"Outputting to {baseOutputPath}");
+
+        using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        if (compilerCalls.Count == 0)
+        {
+            WriteLine("No compilations found");
+            return ExitFailure;
+        }
+
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            var compilerCall = compilerCalls[i];
+            var compilationData = reader.ReadCompilationData(compilerCall);
+
+            Write($"{compilerCall.GetDiagnosticName()} ... ");
+            var generatedTrees = compilationData.GetGeneratedSyntaxTrees(out var diagnostics);
+            WriteLine($"{generatedTrees.Count} files");
+            if (diagnostics.Length > 0)
+            {
+                WriteLine("\tDiagnostics");
+                foreach (var diagnostic in diagnostics)
+                {
+                    WriteLine(diagnostic.ToString());
+                }
+            }
+
+            foreach (var generatedTree in generatedTrees)
+            {
+                WriteLine($"\t{Path.GetFileName(generatedTree.FilePath)}");
+                var fileRelativePath = generatedTree.FilePath.StartsWith(compilerCall.ProjectDirectory, StringComparison.OrdinalIgnoreCase)
+                    ? generatedTree.FilePath.Substring(compilerCall.ProjectDirectory.Length + 1)
+                    : Path.GetFileName(generatedTree.FilePath);
+                var outputPath = GetOutputPath(baseOutputPath, compilerCalls, i);
+                var filePath = Path.Combine(outputPath, fileRelativePath);
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+                File.WriteAllText(filePath, generatedTree.ToString());
+            }
+        }
+
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("complog replay [OPTIONS] msbuild.complog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
 int RunBadCommand(string command)
 {
     WriteLine(@$"""{command}"" is not a valid command");
@@ -494,8 +569,8 @@ int RunHelp(IEnumerable<string>? args)
           export        Export compilation contents, rsp and build files to disk
           rsp           Generate compiler response file projects on this machine
           ref           Copy all references and analyzers to a single directory
-          diagnostics   Print diagnostics for a compilation
           analyzers     Print analyzers / generators used by a compilation
+          generated     Get generated files for the compilation
           print         Print summary of entries in the log
           help          Print help
         """);
@@ -660,11 +735,15 @@ static string? FindFirstFileWithPattern(string baseDirectory, params string[] pa
     return null;
 }
 
-string GetBaseOutputPath(string? baseOutputPath)
+string GetBaseOutputPath(string? baseOutputPath, string? directoryName = null)
 {
     if (string.IsNullOrEmpty(baseOutputPath))
     {
         baseOutputPath = ".complog";
+        if (directoryName is not null)
+        {
+            baseOutputPath = Path.Combine(baseOutputPath, directoryName);
+        }
     }
 
     if (!Path.IsPathRooted(baseOutputPath))

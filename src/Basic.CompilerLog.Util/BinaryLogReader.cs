@@ -313,7 +313,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     /// This method will throw if the compilation does not have a PDB compatible with generated files
     /// available to read
     /// </remarks>
-    public List<(string FilePath, MemoryStream Stream)> ReadGeneratedFiles(CompilerCall compilerCall)
+    public List<(string FilePath, MemoryStream Stream)> ReadAllGeneratedFiles(CompilerCall compilerCall)
     {
         var args = ReadCommandLineArguments(compilerCall);
         return RoslynUtil.ReadGeneratedFiles(compilerCall, args);

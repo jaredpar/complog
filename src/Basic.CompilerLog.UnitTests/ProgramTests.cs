@@ -603,6 +603,35 @@ public sealed class ProgramTests : TestBase
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {Fixture.ConsoleProjectPath}"));
     }
 
+    [Theory]
+    [CombinatorialData]
+    public void GeneratedBoth(BasicAnalyzerKind basicAnalyzerKind)
+    {
+        RunWithBoth(logPath =>
+        {
+            AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logPath));
+            var dir = Root.NewDirectory("generated");
+            var (exitCode, output) = RunCompLogEx($"generated {logPath} -p console.csproj -a {basicAnalyzerKind} -o {dir}");
+            Assert.Equal(Constants.ExitSuccess, exitCode);
+            Assert.Single(Directory.EnumerateFiles(dir, "RegexGenerator.g.cs", SearchOption.AllDirectories));
+        });
+    }
+
+    [Fact]
+    public void GeneratePdbMissing()
+    {
+        var dir = Root.NewDirectory();
+        RunDotNet($"new console --name example --output .", dir);
+        RunDotNet("build -bl -nr:false", dir);
+
+        // Delete the PDB
+        Directory.EnumerateFiles(dir, "*.pdb", SearchOption.AllDirectories).ForEach(File.Delete);
+
+        var (exitCode, output) = RunCompLogEx($"generated {dir} -a None");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("BCLA0001", output);
+    }
+
     [Fact]
     public void PrintAll()
     {
