@@ -221,14 +221,14 @@ int RunReferences(IEnumerable<string> args)
         using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
-        baseOutputPath = GetBaseOutputPath(baseOutputPath);
+        baseOutputPath = GetBaseOutputPath(baseOutputPath, "refs");
         WriteLine($"Copying references to {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
 
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var refDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "refs");
+            var refDirPath = Path.Combine(GetOutputPath(baseOutputPath, compilerCalls, i), "refs");
             Directory.CreateDirectory(refDirPath);
             foreach (var data in reader.ReadAllReferenceData(compilerCall))
             {
@@ -236,7 +236,7 @@ int RunReferences(IEnumerable<string> args)
                 File.WriteAllBytes(filePath, data.ImageBytes);
             }
 
-            var analyzerDirPath = GetOutputPath(baseOutputPath, compilerCalls, i, "analyzers");
+            var analyzerDirPath = Path.Combine(GetOutputPath(baseOutputPath, compilerCalls, i), "analyzers");
             var groupMap = new Dictionary<string, string>(PathUtil.Comparer);
             foreach (var data in reader.ReadAllAnalyzerData(compilerCall))
             {
@@ -306,7 +306,7 @@ int RunExport(IEnumerable<string> args)
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
 
-        baseOutputPath = GetBaseOutputPath(baseOutputPath);
+        baseOutputPath = GetBaseOutputPath(baseOutputPath, "export");
         WriteLine($"Exporting to {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
 
@@ -314,7 +314,7 @@ int RunExport(IEnumerable<string> args)
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var exportDir = GetOutputPath(baseOutputPath, compilerCalls, i, "export");
+            var exportDir = GetOutputPath(baseOutputPath, compilerCalls, i);
             exportUtil.Export(compilerCall, exportDir, sdkDirs);
         }
 
@@ -354,7 +354,7 @@ int RunResponseFile(IEnumerable<string> args)
         }
 
         using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
-        baseOutputPath = GetBaseOutputPath(baseOutputPath);
+        baseOutputPath = GetBaseOutputPath(baseOutputPath, "rsp");
         WriteLine($"Generating response files in {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
 
@@ -433,7 +433,7 @@ int RunReplay(IEnumerable<string> args)
             IEmitResult emitResult;
             if (baseOutputPath is not null)
             {
-                var path = GetOutputPath(baseOutputPath, compilerCalls, i, "emit");
+                var path = GetOutputPath(baseOutputPath, compilerCalls, i);
                 Directory.CreateDirectory(path);
                 emitResult = compilationData.EmitToDisk(path);
             }
@@ -754,12 +754,10 @@ string GetBaseOutputPath(string? baseOutputPath, string? directoryName = null)
     return baseOutputPath;
 }
 
-string GetOutputPath(string baseOutputPath, List<CompilerCall> compilerCalls, int index, string? directoryName = null)
+string GetOutputPath(string baseOutputPath, List<CompilerCall> compilerCalls, int index)
 {
     var projectName = GetProjectUniqueName(compilerCalls, index);
-    return string.IsNullOrEmpty(directoryName)
-        ? Path.Combine(baseOutputPath, projectName)
-        : Path.Combine(baseOutputPath, projectName, directoryName);
+    return Path.Combine(baseOutputPath, projectName);
 }
 
 string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)

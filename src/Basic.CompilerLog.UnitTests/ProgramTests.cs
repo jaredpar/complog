@@ -292,7 +292,7 @@ public sealed class ProgramTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj -s");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        var rsp = Path.Combine(RootDirectory, @".complog", "console", "build.rsp");
+        var rsp = Path.Combine(RootDirectory, @".complog", "rsp", "console", "build.rsp");
         Assert.True(File.Exists(rsp));
 
         var lines = File.ReadAllLines(rsp);
@@ -316,7 +316,7 @@ public sealed class ProgramTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        var rsp = Path.Combine(RootDirectory, @".complog", "console", "build.rsp");
+        var rsp = Path.Combine(RootDirectory, @".complog", "rsp", "console", "build.rsp");
         Assert.True(File.Exists(rsp));
         Assert.Contains("Program.cs", File.ReadAllLines(rsp));
     }
@@ -342,7 +342,7 @@ public sealed class ProgramTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        var rsp = Path.Combine(RootDirectory, @".complog", "console", "build.rsp");
+        var rsp = Path.Combine(RootDirectory, @".complog", "rsp", "console", "build.rsp");
         Assert.True(File.Exists(rsp));
         Assert.Contains("Program.cs", File.ReadAllLines(rsp));
     }
@@ -352,8 +352,8 @@ public sealed class ProgramTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.ClassLibMultiProjectPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "classlibmulti-net6.0", "build.rsp")));
-        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "classlibmulti-net7.0", "build.rsp")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net6.0", "build.rsp")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net7.0", "build.rsp")));
     }
 
     [Fact]
@@ -417,7 +417,7 @@ public sealed class ProgramTests : TestBase
             Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} {arg} {logPath} ", RootDirectory));
 
             // Now run the generated build.cmd and see if it succeeds;
-            var exportPath = Path.Combine(exportDir.DirectoryPath, "console", "export");
+            var exportPath = Path.Combine(exportDir.DirectoryPath, "console");
             var buildResult = RunBuildCmd(exportPath);
             Assert.True(buildResult.Succeeded);
 
@@ -493,9 +493,9 @@ public sealed class ProgramTests : TestBase
         using var emitDir = new TempDir();
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {arg} -o {emitDir.DirectoryPath} {Fixture.SolutionBinaryLogPath}"));
 
-        AssertOutput(@"console\emit\console.dll");
-        AssertOutput(@"console\emit\console.pdb");
-        AssertOutput(@"console\emit\ref\console.dll");
+        AssertOutput(@"console\console.dll");
+        AssertOutput(@"console\console.pdb");
+        AssertOutput(@"console\ref\console.dll");
 
         void AssertOutput(string relativePath)
         {
