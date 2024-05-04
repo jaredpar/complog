@@ -147,5 +147,18 @@ public sealed class BinaryLogReaderTests : TestBase
         var data = reader.ReadAllCompilationData().Single();
         var diagnostic = data.GetDiagnostics().Where(x => x.Severity == DiagnosticSeverity.Error).Single();
         Assert.Contains("Can't find portable pdb file for", diagnostic.GetMessage());
+
+        Assert.Throws<InvalidOperationException>(() => reader.ReadGeneratedFiles(data.CompilerCall));
+    }
+
+    [Fact]
+    public void ReadGeneratedFiles()
+    {
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, BasicAnalyzerKind.None);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        var generatedFiles = reader.ReadGeneratedFiles(compilerCall);
+        Assert.Single(generatedFiles);
+        var tuple = generatedFiles.Single();
+        Assert.True(tuple.Stream.TryGetBuffer(out var _));
     }
 }
