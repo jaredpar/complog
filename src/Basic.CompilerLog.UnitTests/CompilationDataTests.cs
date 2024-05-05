@@ -124,4 +124,17 @@ public sealed class CompilationDataTests : TestBase
         _ = data.GetCompilationAfterGenerators(out var diagnostics);
         Assert.NotEmpty(diagnostics);
     }
+
+    [Fact]
+    public void GetGeneratedSyntaxTrees()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var data = reader.ReadAllCompilationData().Single();
+        var trees = data.GetGeneratedSyntaxTrees();
+        Assert.Single(trees);
+
+        trees = data.GetGeneratedSyntaxTrees(out var diagnostics);
+        Assert.Single(trees);
+        Assert.Empty(diagnostics);
+    }
 }
