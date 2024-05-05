@@ -305,6 +305,20 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         return ReadAllReferenceDataCore(args.MetadataReferences.Select(x => x.Reference), args.MetadataReferences.Length);
     }
 
+    /// <summary>
+    /// Attempt to add all the generated files from generators. When successful the generators
+    /// don't need to be run when re-hydrating the compilation.
+    /// </summary>
+    /// <remarks>
+    /// This method will throw if the compilation does not have a PDB compatible with generated files
+    /// available to read
+    /// </remarks>
+    public List<(string FilePath, MemoryStream Stream)> ReadAllGeneratedFiles(CompilerCall compilerCall)
+    {
+        var args = ReadCommandLineArguments(compilerCall);
+        return RoslynUtil.ReadGeneratedFiles(compilerCall, args);
+    }
+
     private List<ReferenceData> ReadAllReferenceDataCore(IEnumerable<string> filePaths, int count)
     {
         var list = new List<ReferenceData>(capacity: count);

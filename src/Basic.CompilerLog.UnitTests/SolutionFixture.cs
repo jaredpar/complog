@@ -67,6 +67,19 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         ConsoleProjectPath = WithProject("console", string (string dir) =>
         {
             RunDotnetCommand("new console --name console -o .", dir);
+            var program = """
+                using System;
+                using System.Text.RegularExpressions;
+                // This is an amazing resource
+                var r = Util.GetRegex();
+                Console.WriteLine(r);
+
+                partial class Util {
+                    [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
+                    internal static partial Regex GetRegex();
+                }
+                """;
+            File.WriteAllText(Path.Combine(dir, "Program.cs"), program, TestBase.DefaultEncoding);
             return Path.Combine(dir, "console.csproj");
         });
 

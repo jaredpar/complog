@@ -119,7 +119,9 @@ public abstract class CompilationData
     public Compilation GetCompilationAfterGenerators(CancellationToken cancellationToken = default) =>
         GetCompilationAfterGenerators(out _, cancellationToken);
 
-    public Compilation GetCompilationAfterGenerators(out ImmutableArray<Diagnostic> diagnostics, CancellationToken cancellationToken = default)
+    public Compilation GetCompilationAfterGenerators(
+        out ImmutableArray<Diagnostic> diagnostics,
+        CancellationToken cancellationToken = default)
     {
         if (_afterGenerators is { } tuple)
         {
@@ -139,6 +141,28 @@ public abstract class CompilationData
         }
 
         return tuple.Item1;
+    }
+
+    public List<SyntaxTree> GetGeneratedSyntaxTrees(CancellationToken cancellationToken = default) =>
+        GetGeneratedSyntaxTrees(out _, cancellationToken);
+
+    public List<SyntaxTree> GetGeneratedSyntaxTrees(
+        out ImmutableArray<Diagnostic> diagnostics,
+        CancellationToken cancellationToken = default)
+    {
+        var afterCompilation = GetCompilationAfterGenerators(out diagnostics, cancellationToken);
+
+        // This is a bit of a hack to get the number of syntax trees before running the generators. It feels
+        // a bit disjoint that we have to think of the None case differently here. Possible it may be simpler
+        // to have the None host go back to faking a ISourceGenerator in memory that just adds the files
+        // directly.
+        var originalCount = Compilation.SyntaxTrees.Count();
+        if (BasicAnalyzerHost is BasicAnalyzerHostNone none)
+        {
+            var generatedCount = none.GeneratedSourceTexts.Length;
+            originalCount -= generatedCount;
+        }
+        return afterCompilation.SyntaxTrees.Skip(originalCount).ToList();
     }
 
     private void EnsureAnalyzersLoaded()
