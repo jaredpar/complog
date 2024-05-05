@@ -164,7 +164,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         var references = dataPack
             .References
-            .Select(x => new RawReferenceData(x.Mvid, x.Aliases, x.EmbedInteropTypes, x.FilePath))
+            .Select(x => new RawReferenceData(x.Mvid, x.Aliases, x.EmbedInteropTypes, NormalizePath(x.FilePath)))
             .ToList();
         var analyzers = dataPack
             .Analyzers
@@ -300,7 +300,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
         var sourceTexts = new List<(SourceText SourceText, string Path)>();
-        var generatedTexts = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigs = new List<(SourceText SourceText, string Path)>();
         var additionalTexts = ImmutableArray.CreateBuilder<AdditionalText>();
 
@@ -319,10 +318,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                     sourceTexts.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
                     break;
                 case RawContentKind.GeneratedText:
-                    if (BasicAnalyzerKind == BasicAnalyzerKind.None)
-                    {
-                        generatedTexts.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
-                    }
+                    // Nothing to do here as these are handled by the generation process.
                     break;
                 case RawContentKind.AnalyzerConfig:
                     analyzerConfigs.Add((GetSourceText(rawContent.ContentHash, hashAlgorithm), rawContent.FilePath));
@@ -369,9 +365,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                     throw new InvalidOperationException();
             }
         }
-
-        // Generated source code should appear last to match the compiler behavior.
-        sourceTexts.AddRange(generatedTexts);
 
         var emitData = new EmitData(
             rawCompilationData.AssemblyFileName,
@@ -524,11 +517,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 _ => throw new InvalidOperationException()
             });
 
-        ImmutableArray<(SourceText SourceText, string Path)> ReadGeneratedSourceTexts()
+        ImmutableArray<(SourceText SourceText, string HintPath)> ReadGeneratedSourceTexts()
         {
             var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>();
             foreach (var tuple in rawCompilationData.Contents.Where(static x => x.Kind == RawContentKind.GeneratedText))
             {
+                var sourceText = GetSourceText(tuple.ContentHash, rawCompilationData.ChecksumAlgorithm);
+
                 builder.Add((GetSourceText(tuple.ContentHash, rawCompilationData.ChecksumAlgorithm), tuple.FilePath));
             }
             return builder.ToImmutableArray();

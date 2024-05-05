@@ -49,10 +49,10 @@ public sealed class CompilerCall
     public string? TargetFramework { get; }
     public bool IsCSharp { get; }
     internal object? OwnerState { get; }
+    public string ProjectFileName { get; }
+    public string ProjectDirectory { get; }
 
     public bool IsVisualBasic => !IsCSharp;
-    public string ProjectFileName => Path.GetFileName(ProjectFilePath);
-    public string ProjectDirectory => Path.GetDirectoryName(ProjectFilePath)!;
 
     internal CompilerCall(
         string? compilerFilePath,
@@ -70,6 +70,8 @@ public sealed class CompilerCall
         IsCSharp = isCSharp;
         OwnerState = ownerState;
         _lazyArguments = arguments;
+        ProjectFileName = Path.GetFileName(ProjectFilePath);
+        ProjectDirectory = Path.GetDirectoryName(ProjectFilePath)!;
     }
 
     public string GetDiagnosticName() 

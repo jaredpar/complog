@@ -65,6 +65,32 @@ public sealed class UsingAllCompilerLogTests : TestBase
         await Task.WhenAll(list);
     }
 
+    /// <summary>
+    /// Make sure paths for generated files don't have illegal characters when using the none host
+    /// </summary>
+    /// <returns></returns>
+    [Fact]
+    public async Task GeneratedFilePathsNoneHost()
+    {
+        char[] illegalChars = ['<', '>'];
+        var count = 0;
+        await foreach (var logPath in Fixture.GetAllLogs(TestOutputHelper))
+        {
+            count++;
+            TestOutputHelper.WriteLine(logPath);
+            using var reader = CompilerCallReaderUtil.Create(logPath, BasicAnalyzerKind.None);
+            foreach (var data in reader.ReadAllCompilationData())
+            {
+                TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
+                var generatedTrees = data.GetGeneratedSyntaxTrees();
+                foreach (var tree in generatedTrees)
+                {
+                    Assert.DoesNotContain(tree.FilePath, x => !illegalChars.Contains(x));
+                }
+            }
+        }
+    }
+
     [Theory]
     [CombinatorialData]
     public async Task EmitToMemory(BasicAnalyzerKind basicAnalyzerKind)

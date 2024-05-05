@@ -22,10 +22,10 @@ public sealed class SolutionReaderTests : TestBase
         Fixture = fixture;
     }
 
-    [Fact]
-    public async Task DocumentsGeneratedDefaultHost()
+    [Theory]
+    [CombinatorialData]
+    public async Task DocumentsGeneratedDefaultHost(BasicAnalyzerKind basicAnalyzerKind)
     {
-        var basicAnalyzerKind = BasicAnalyzerHost.DefaultKind;
         using var reader = SolutionReader.Create(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);
         var workspace = new AdhocWorkspace();
         var solution = workspace.AddSolution(reader.ReadSolutionInfo());
@@ -36,22 +36,6 @@ public sealed class SolutionReaderTests : TestBase
         Assert.Null(docs.FirstOrDefault(x => x.Name == "RegexGenerator.g.cs"));
         Assert.Single(generatedDocs);
         Assert.NotNull(generatedDocs.First(x => x.Name == "RegexGenerator.g.cs"));
-    }
-
-    [Fact]
-    public async Task DocumentsGeneratedNoneHost()
-    {
-        var basicAnalyzerKind = BasicAnalyzerKind.None;
-        using var reader = SolutionReader.Create(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);
-        var workspace = new AdhocWorkspace();
-        var solution = workspace.AddSolution(reader.ReadSolutionInfo());
-        var project = solution.Projects.Single();
-        Assert.Empty(project.AnalyzerReferences);
-        var docs = project.Documents.ToList();
-        var generatedDocs = (await project.GetSourceGeneratedDocumentsAsync()).ToList();
-        Assert.Equal(5, docs.Count);
-        Assert.Equal("RegexGenerator.g.cs", docs.Last().Name);
-        Assert.Empty(generatedDocs);
     }
 
     [Fact]

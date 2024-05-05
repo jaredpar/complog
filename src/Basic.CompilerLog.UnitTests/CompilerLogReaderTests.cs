@@ -222,7 +222,7 @@ public sealed class CompilerLogReaderTests : TestBase
         }
 
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, kind);
-        var data = reader.ReadRawCompilationData(0).Item2;
+        var (compilerCall, data) = reader.ReadRawCompilationData(0);
 
         var host1 = reader.ReadAnalyzers(data);
         var host2 = reader.ReadAnalyzers(data);
@@ -311,14 +311,14 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void NoneHostHasNoGenerators()
+    public void NoneHostHasSingelGenerator()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
         var compilation1 = data.Compilation;
         var compilation2 = data.GetCompilationAfterGenerators();
-        Assert.Same(compilation1, compilation2);
-        Assert.Empty(data.AnalyzerReferences);
+        Assert.NotSame(compilation1, compilation2);
+        Assert.Single(data.AnalyzerReferences);
     }
 
     [Fact]
@@ -329,7 +329,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var compilation1 = data.Compilation;
         var compilation2 = data.GetCompilationAfterGenerators();
         Assert.Same(compilation1, compilation2);
-        Assert.Empty(data.AnalyzerReferences);
+        Assert.Single(data.AnalyzerReferences);
     }
 
     [Fact]
