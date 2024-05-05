@@ -517,13 +517,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 _ => throw new InvalidOperationException()
             });
 
-        ImmutableArray<(SourceText SourceText, string HintPath)> ReadGeneratedSourceTexts()
+        ImmutableArray<(SourceText SourceText, string FilePath)> ReadGeneratedSourceTexts()
         {
-            var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>();
+            var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string FilePath)>();
             foreach (var tuple in rawCompilationData.Contents.Where(static x => x.Kind == RawContentKind.GeneratedText))
             {
-                var sourceText = GetSourceText(tuple.ContentHash, rawCompilationData.ChecksumAlgorithm);
-
                 builder.Add((GetSourceText(tuple.ContentHash, rawCompilationData.ChecksumAlgorithm), tuple.FilePath));
             }
             return builder.ToImmutableArray();
