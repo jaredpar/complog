@@ -85,7 +85,10 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 var generatedTrees = data.GetGeneratedSyntaxTrees();
                 foreach (var tree in generatedTrees)
                 {
-                    Assert.DoesNotContain(tree.FilePath, x => !illegalChars.Contains(x));
+                    foreach (var c in illegalChars)
+                    {
+                        Assert.DoesNotContain(c, tree.FilePath);
+                    }
                 }
             }
         }
