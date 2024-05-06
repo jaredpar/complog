@@ -22,49 +22,27 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
             isEnabledByDefault: true);
 
     internal ImmutableArray<(SourceText SourceText, string FilePath)> GeneratedSourceTexts { get; }
+    internal BasicAnalyzerHostNoneAnalyzerReference Generator { get; }
+
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
     internal BasicAnalyzerHostNone(ImmutableArray<(SourceText SourceText, string FilePath)> generatedSourceTexts)
         : base(BasicAnalyzerKind.None)
     {
         GeneratedSourceTexts = generatedSourceTexts;
-        AnalyzerReferencesCore = [new BasicAnalyzerHostNoneAnalyzerReference(this)];
+        Generator = new BasicAnalyzerHostNoneAnalyzerReference(this);
+        AnalyzerReferencesCore = [Generator];
     }
 
     internal BasicAnalyzerHostNone(string errorMessage)
-        : base(BasicAnalyzerKind.None)
+        : this(ImmutableArray<(SourceText SourceText, string FilePath)>.Empty)
     {
-        GeneratedSourceTexts = ImmutableArray<(SourceText SourceText, string FilePath)>.Empty;
-        AnalyzerReferencesCore = [new BasicAnalyzerHostNoneAnalyzerReference(this)];
         AddDiagnostic(Diagnostic.Create(CannotReadGeneratedFiles, Location.None, errorMessage));
     }
 
     protected override void DisposeCore()
     {
         // Do nothing
-    }
-
-    /// <summary>
-    /// Gets the appropriate hint name for the generated source file paths. This will ensure that the 
-    /// invariant around every hint name being unique is maintained while trying to maintain the 
-    /// original hint names when possible.
-    /// </summary>
-    internal static ImmutableArray<(SourceText SourceText, string HintName)> ConvertToHintNames(string projectDirectory, ImmutableArray<(SourceText SourceText, string FilePath)> generatedSourceTexts)
-    {
-#if NETCOREAPP
-        Debug.Assert(!Path.EndsInDirectorySeparator(projectDirectory));
-#endif
-
-        var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string HintName)>(generatedSourceTexts.Length);
-        for (int i = 0; i < generatedSourceTexts.Length; i++)
-        {
-            var tuple = generatedSourceTexts[i];
-            var hintName = tuple.FilePath.StartsWith(projectDirectory, PathUtil.Comparison)
-                ? tuple.FilePath.Substring(projectDirectory.Length + 1)
-                : Path.Combine("generated-compiler-log", i.ToString(), Path.GetFileName(tuple.FilePath));
-            builder.Add((tuple.SourceText, hintName));
-        }
-        return builder.MoveToImmutable();
     }
 }
 
