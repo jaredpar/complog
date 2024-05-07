@@ -126,12 +126,6 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         var emitData = GetEmitData();
         var basicAnalyzerHost = CreateAnalyzerHost();
 
-        if (basicAnalyzerHost is BasicAnalyzerHostNone none)
-        {
-            // Generated source code should appear last to match the compiler behavior.
-            sourceTexts.AddRange(none.GeneratedSourceTexts);
-        }
-
         return compilerCall.IsCSharp ? GetCSharp() : GetVisualBasic();
 
         CSharpCompilationData GetCSharp()
