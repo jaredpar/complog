@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
@@ -57,10 +58,12 @@ internal sealed class BasicAnalyzerHostNoneAnalyzerReference(BasicAnalyzerHostNo
 
     public override string? FullPath => null;
 
+    [ExcludeFromCodeCoverage]
     public override object Id => this;
 
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language) => [];
 
+    [ExcludeFromCodeCoverage]
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzersForAllLanguages() => [];
 
     public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages() => [this.AsSourceGenerator()];
