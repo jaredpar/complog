@@ -1,5 +1,9 @@
-﻿using System.Diagnostics;
+﻿using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Threading.Tasks;
 using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
@@ -38,7 +42,7 @@ using TraceReloggerLib;
 
 // Profile();
 
-TestBinaryLogReader();
+ReadAttribute();
 // ExportScratch();
 // await WorkspaceScratch();
 // RoslynScratch();
@@ -88,6 +92,37 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
 */
+
+void ReadAttribute()
+{
+    var assemblyPath = @"c:\Program Files\dotnet\sdk\8.0.204\Roslyn\bincore\csc.dll";
+    using (var stream = File.OpenRead(assemblyPath))
+    using (var peReader = new PEReader(stream))
+    {
+        var metadataReader = peReader.GetMetadataReader();
+        var attributes = metadataReader.GetAssemblyDefinition().GetCustomAttributes();
+        foreach (var attributeHandle in attributes)
+        {
+            var attribute = metadataReader.GetCustomAttribute(attributeHandle);
+            if (attribute.Constructor.Kind is HandleKind.MemberReference)
+            {
+                var ctor = metadataReader.GetMemberReference((MemberReferenceHandle)attribute.Constructor);
+                if (ctor.Parent.Kind is HandleKind.TypeReference)
+                {
+                    var typeNameHandle = metadataReader.GetTypeReference((TypeReferenceHandle)ctor.Parent).Name;
+                    var typeName = metadataReader.GetString(typeNameHandle);
+                    if (typeName.EndsWith("CommitHashAttribute"))
+                    {
+                        var value = metadataReader.GetBlobReader(attribute.Value);
+                        _ = value.ReadBytes(2); // prolog
+                        var str = value.ReadSerializedString();
+                        Console.WriteLine("here");
+                    }
+                }
+            }
+        }
+    }
+}
 
 void TestBinaryLogReader()
 {
