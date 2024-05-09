@@ -452,7 +452,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void Disposed()
     {
-        var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         reader.Dispose();
         Assert.Throws<ObjectDisposedException>(() => reader.ReadCompilationData(0));
     }
@@ -460,7 +460,7 @@ public sealed class CompilerLogReaderTests : TestBase
     [Fact]
     public void VisualBasic()
     {
-        var reader = CompilerLogReader.Create(Fixture.ConsoleVisualBasic.Value.CompilerLogPath);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleVisualBasic.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
         Assert.True(data.IsVisualBasic);
         Assert.True(data.CompilerCall.IsVisualBasic);

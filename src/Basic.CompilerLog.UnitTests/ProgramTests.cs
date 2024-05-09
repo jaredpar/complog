@@ -686,8 +686,9 @@ public sealed class ProgramTests : TestBase
         var tuple = reader.ReadAllCompilerAssemblies().Single();
         Assert.Contains($"""
             Compilers
-            {tuple.CompilerFilePath}
-            {tuple.AssemblyName}
+            {'\t'}File Path: {tuple.CompilerFilePath}
+            {'\t'}Assembly Name: {tuple.AssemblyName}
+            {'\t'}Commit Hash: {tuple.CommitHash}
             """, output);
     }
 
