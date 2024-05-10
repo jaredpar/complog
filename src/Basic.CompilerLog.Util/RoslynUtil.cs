@@ -599,4 +599,33 @@ internal static class RoslynUtil
                 _ => 0
             };
     }
+
+    internal static string? ReadCompilerCommitHash(string assemblyFilePath)
+    {
+        using var stream = new FileStream(assemblyFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var peReader = new PEReader(stream);
+        var metadataReader = peReader.GetMetadataReader();
+        var attributes = metadataReader.GetAssemblyDefinition().GetCustomAttributes();
+        foreach (var attributeHandle in attributes)
+        {
+            var attribute = metadataReader.GetCustomAttribute(attributeHandle);
+            if (attribute.Constructor.Kind is HandleKind.MemberReference)
+            {
+                var ctor = metadataReader.GetMemberReference((MemberReferenceHandle)attribute.Constructor);
+                if (ctor.Parent.Kind is HandleKind.TypeReference)
+                {
+                    var typeNameHandle = metadataReader.GetTypeReference((TypeReferenceHandle)ctor.Parent).Name;
+                    var typeName = metadataReader.GetString(typeNameHandle);
+                    if (typeName.EndsWith("CommitHashAttribute"))
+                    {
+                        var value = metadataReader.GetBlobReader(attribute.Value);
+                        _ = value.ReadBytes(2); // prolog
+                        return value.ReadSerializedString();
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
 }

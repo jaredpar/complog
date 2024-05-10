@@ -172,7 +172,7 @@ int RunPrint(IEnumerable<string> args)
         WriteLine("Projects");
         foreach (var compilerCall in compilerCalls)
         {
-            WriteLine(compilerCall.GetDiagnosticName());
+            WriteLine($"\t{compilerCall.GetDiagnosticName()}");
         }
 
         if (compilers)
@@ -180,8 +180,9 @@ int RunPrint(IEnumerable<string> args)
             WriteLine("Compilers");
             foreach (var tuple in reader.ReadAllCompilerAssemblies())
             {
-                WriteLine(tuple.CompilerFilePath);
-                WriteLine(tuple.AssemblyName.ToString());
+                WriteLine($"\tFile Path: {tuple.CompilerFilePath}");
+                WriteLine($"\tAssembly Name: {tuple.AssemblyName}");
+                WriteLine($"\tCommit Hash: {tuple.CommitHash}");
             }
         }
 

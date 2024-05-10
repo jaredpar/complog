@@ -234,10 +234,10 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return list;
     }
 
-    public List<(string CompilerFilePath, AssemblyName AssemblyName)> ReadAllCompilerAssemblies()
+    public List<(string CompilerFilePath, AssemblyName AssemblyName, string? CommitHash)> ReadAllCompilerAssemblies()
     {
         var list = new List<(string CompilerFilePath, AssemblyName AssemblyName)>();
-        var map = new Dictionary<string, AssemblyName>(PathUtil.Comparer);
+        var map = new Dictionary<string, (AssemblyName, string?)>(PathUtil.Comparer);
         for (int i = 0; i < Count; i++)
         {
             var pack = GetOrReadCompilationInfo(i);
@@ -246,13 +246,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 !map.ContainsKey(pack.CompilerFilePath))
             {
                 var name = new AssemblyName(pack.CompilerAssemblyName);
-                map[pack.CompilerFilePath] = name;
+                map[pack.CompilerFilePath] = (name, pack.CompilerCommitHash);
             }
         }
 
         return map
             .OrderBy(x => x.Key, PathUtil.Comparer)
-            .Select(x => (x.Key, x.Value))
+            .Select(x => (x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
     }
 

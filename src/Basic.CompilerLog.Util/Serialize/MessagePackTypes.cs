@@ -231,6 +231,8 @@ public class CompilationInfoPack
     public string? CompilerFilePath { get; set; }
     [Key(10)]
     public string? CompilerAssemblyName { get; set; }
+    [Key(11)]
+    public string? CompilerCommitHash { get; set; }
 }
 
 [MessagePackObject]
