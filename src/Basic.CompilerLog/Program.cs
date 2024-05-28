@@ -338,10 +338,12 @@ int RunExport(IEnumerable<string> args)
 int RunResponseFile(IEnumerable<string> args)
 {
     var singleLine = false;
+    var inline = false;
     var baseOutputPath = "";
     var options = new FilterOptionSet()
     {
         { "s|singleline", "keep response file as single line",  s => singleLine = s != null },
+        { "i|inline", "put response files next to the project file", i => inline = i != null },
         { "o|out=", "path to output rsp files", o => baseOutputPath = o },
     };
 
@@ -354,20 +356,47 @@ int RunResponseFile(IEnumerable<string> args)
             return ExitSuccess;
         }
 
+        if (inline && !string.IsNullOrEmpty(baseOutputPath))
+        {
+            WriteLine("Cannot specify both --inline and --out");
+            return ExitFailure;
+        }
+
         using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
-        baseOutputPath = GetBaseOutputPath(baseOutputPath, "rsp");
-        WriteLine($"Generating response files in {baseOutputPath}");
-        Directory.CreateDirectory(baseOutputPath);
+        if (inline)
+        {
+            WriteLine($"Generating response files inline");
+        }
+        else
+        {
+            baseOutputPath = GetBaseOutputPath(baseOutputPath, "rsp");
+            WriteLine($"Generating response files in {baseOutputPath}");
+            Directory.CreateDirectory(baseOutputPath);
+        }
 
         var compilerCalls = reader.ReadAllCompilerCalls();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var rspDirPath = GetOutputPath(baseOutputPath, compilerCalls, i);
+            var rspDirPath = inline
+                ? compilerCall.ProjectDirectory
+                : GetOutputPath(baseOutputPath, compilerCalls, i);
             Directory.CreateDirectory(rspDirPath);
-            var rspFilePath = Path.Combine(rspDirPath, "build.rsp");
+            var rspFilePath = Path.Combine(rspDirPath, GetRspFileName());
             using var writer = new StreamWriter(rspFilePath, append: false, Encoding.UTF8);
             ExportUtil.ExportRsp(compilerCall, writer, singleLine);
+
+            string GetRspFileName()
+            {
+                if (inline)
+                {
+                    return IsSingleTarget(compilerCalls, i)
+                        ? "build.rsp"
+                        : $"build-{compilerCall.TargetFramework}.rsp";
+                }
+
+                return "build.rsp";
+            }
         }
 
         return ExitSuccess;
@@ -761,21 +790,20 @@ string GetOutputPath(string baseOutputPath, List<CompilerCall> compilerCalls, in
     return Path.Combine(baseOutputPath, projectName);
 }
 
+bool IsSingleTarget(List<CompilerCall> compilerCalls, int index)
+{
+    var compilerCall = compilerCalls[index];
+    var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
+    return compilerCalls.Count(x => x.ProjectFilePath == compilerCall.ProjectFilePath) == 1;
+}
+
 string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
 {
     var compilerCall = compilerCalls[index];
     var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
-
-    // If the project is built multiple times then need to make it unique
-    if (compilerCalls.Count(x => x.ProjectFilePath == compilerCall.ProjectFilePath) > 1)
-    {
-        if (!string.IsNullOrEmpty(compilerCall.TargetFramework))
-        {
-            name += "-" + compilerCall.TargetFramework;
-        }
-    }
-
-    return name;
+    return IsSingleTarget(compilerCalls, index)
+        ? name
+        : $"{name}-{compilerCall.TargetFramework}";
 }
 
 static string GetResolvedPath(string baseDirectory, string path)

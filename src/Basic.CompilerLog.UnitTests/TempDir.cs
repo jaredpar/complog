@@ -44,6 +44,20 @@ internal sealed class TempDir : IDisposable
         return path;
     }
 
+    public string CopyDirectory(string dir)
+    {
+        var newDir = NewDirectory();
+
+        var info = new DirectoryInfo(dir);
+        foreach (var item in info.GetFiles())
+        {
+            var tempPath = Path.Combine(newDir, item.Name);
+            item.CopyTo(tempPath, overwrite: true);
+        }
+
+        return newDir;
+    }
+
     public void EmptyDirectory()
     {
         var d = new DirectoryInfo(DirectoryPath);

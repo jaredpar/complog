@@ -3,6 +3,7 @@ using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.Build.Logging.StructuredLogger;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System;
 using System.Collections.Generic;
@@ -387,6 +388,36 @@ public sealed class ProgramTests : TestBase
         var (exitCode, output) = RunCompLogEx($"rsp --not-an-option");
         Assert.Equal(Constants.ExitFailure, exitCode);
         Assert.Contains("complog rsp [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void ResponseInline()
+    {
+        var dir = Root.NewDirectory();
+        RunDotNet($"new console --name example --output .", dir);
+        var (exitCode, output) = RunCompLogEx($"rsp -i", dir);
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Generating response files inline", output);
+        Assert.True(File.Exists(Path.Combine(dir, "build.rsp")));
+    }
+
+    [Fact]
+    public void ResponseInlineMultiTarget()
+    {
+        var dir = Root.CopyDirectory(Path.GetDirectoryName(Fixture.ClassLibMultiProjectPath)!);
+        RunDotNet($"new console --name example --output .", dir);
+        var (exitCode, output) = RunCompLogEx($"rsp -i", dir);
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Generating response files inline", output);
+        Assert.True(File.Exists(Path.Combine(dir, "build-net6.0.rsp")));
+        Assert.True(File.Exists(Path.Combine(dir, "build-net7.0.rsp")));
+    }
+
+    [Fact]
+    public void ResponseInlineWithOutput()
+    {
+        var (exitCode, _) = RunCompLogEx($"rsp -i -o {RootDirectory}");
+        Assert.Equal(Constants.ExitFailure, exitCode);
     }
 
     [Fact]
