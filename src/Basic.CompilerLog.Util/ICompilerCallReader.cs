@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Basic.CompilerLog.Util;
 
 public interface ICompilerCallReader : IDisposable
@@ -18,4 +20,8 @@ public interface ICompilerCallReader : IDisposable
     /// Read all of the <see cref="ReferenceData"/> for analyzers passed to the compilation
     /// </summary>
     public List<ReferenceData> ReadAllAnalyzerData(CompilerCall compilerCall);
+
+
+    // TODO: Use a type here instead of a tuple
+    public List<(string CompilerFilePath, AssemblyName AssemblyName, string? CommitHash)> ReadAllCompilerAssemblies();
 }

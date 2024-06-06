@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Reflection;
+using System.Web;
 using Basic.CompilerLog.Util.Impl;
 using MessagePack.Formatters;
 using Microsoft.Build.Logging.StructuredLogger;
@@ -82,6 +84,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     {
         predicate ??= static _ => true;
 
+        _stream.Position = 0;
         return BinaryLogUtil.ReadAllCompilerCalls(_stream, predicate, ownerState: this);
     }
 
@@ -297,6 +300,27 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         CheckOwnership(compilerCall);
         var args = ReadCommandLineArguments(compilerCall);
         return ReadAllReferenceDataCore(args.MetadataReferences.Select(x => x.Reference), args.MetadataReferences.Length);
+    }
+
+    public List<(string CompilerFilePath, AssemblyName AssemblyName, string? CommitHash)> ReadAllCompilerAssemblies()
+    {
+        var list = new List<(string CompilerFilePath, AssemblyName AssemblyName)>();
+        var map = new Dictionary<string, (AssemblyName, string?)>(PathUtil.Comparer);
+        foreach (var compilerCall in ReadAllCompilerCalls())
+        {
+            if (compilerCall.CompilerFilePath is string compilerFilePath &&
+                !map.ContainsKey(compilerFilePath))
+            {
+                var name = AssemblyName.GetAssemblyName(compilerFilePath);
+                var commitHash = RoslynUtil.ReadCompilerCommitHash(compilerFilePath);
+                map[compilerCall.CompilerFilePath] = (name, commitHash);
+            }
+        }
+
+        return map
+            .OrderBy(x => x.Key, PathUtil.Comparer)
+            .Select(x => (x.Key, x.Value.Item1, x.Value.Item2))
+            .ToList();
     }
 
     /// <summary>

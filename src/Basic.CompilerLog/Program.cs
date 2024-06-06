@@ -165,8 +165,7 @@ int RunPrint(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         WriteLine("Projects");
