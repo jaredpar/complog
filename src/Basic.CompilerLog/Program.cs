@@ -179,7 +179,7 @@ int RunPrint(IEnumerable<string> args)
             WriteLine("Compilers");
             foreach (var tuple in reader.ReadAllCompilerAssemblies())
             {
-                WriteLine($"\tFile Path: {tuple.CompilerFilePath}");
+                WriteLine($"\tFile Path: {tuple.FilePath}");
                 WriteLine($"\tAssembly Name: {tuple.AssemblyName}");
                 WriteLine($"\tCommit Hash: {tuple.CommitHash}");
             }

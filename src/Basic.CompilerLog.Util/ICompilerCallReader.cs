@@ -21,7 +21,8 @@ public interface ICompilerCallReader : IDisposable
     /// </summary>
     public List<ReferenceData> ReadAllAnalyzerData(CompilerCall compilerCall);
 
-
-    // TODO: Use a type here instead of a tuple
-    public List<(string CompilerFilePath, AssemblyName AssemblyName, string? CommitHash)> ReadAllCompilerAssemblies();
+    /// <summary>
+    /// Read all of the compilers used in this build.
+    /// </summary>
+    public List<CompilerAssemblyData> ReadAllCompilerAssemblies();
 }

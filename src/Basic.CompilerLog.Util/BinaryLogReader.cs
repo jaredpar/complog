@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Web;
 using Basic.CompilerLog.Util.Impl;
 using MessagePack.Formatters;
 using Microsoft.Build.Logging.StructuredLogger;
@@ -302,7 +301,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         return ReadAllReferenceDataCore(args.MetadataReferences.Select(x => x.Reference), args.MetadataReferences.Length);
     }
 
-    public List<(string CompilerFilePath, AssemblyName AssemblyName, string? CommitHash)> ReadAllCompilerAssemblies()
+    public List<CompilerAssemblyData> ReadAllCompilerAssemblies()
     {
         var list = new List<(string CompilerFilePath, AssemblyName AssemblyName)>();
         var map = new Dictionary<string, (AssemblyName, string?)>(PathUtil.Comparer);
@@ -319,7 +318,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
         return map
             .OrderBy(x => x.Key, PathUtil.Comparer)
-            .Select(x => (x.Key, x.Value.Item1, x.Value.Item2))
+            .Select(x => new CompilerAssemblyData(x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
     }
 

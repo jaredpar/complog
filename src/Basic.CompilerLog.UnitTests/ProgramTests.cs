@@ -717,10 +717,21 @@ public sealed class ProgramTests : TestBase
         var tuple = reader.ReadAllCompilerAssemblies().Single();
         Assert.Contains($"""
             Compilers
-            {'\t'}File Path: {tuple.CompilerFilePath}
+            {'\t'}File Path: {tuple.FilePath}
             {'\t'}Assembly Name: {tuple.AssemblyName}
             {'\t'}Commit Hash: {tuple.CommitHash}
             """, output);
+    }
+
+    /// <summary>
+    /// Ensure that print can run without the code being present
+    /// </summary>
+    [Fact]
+    public void PrintWithoutProject()
+    {
+        var (exitCode, output) = RunCompLogEx($"print {Fixture.RemovedBinaryLogPath} -c");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.StartsWith("Projects", output);
     }
 
     /// <summary>

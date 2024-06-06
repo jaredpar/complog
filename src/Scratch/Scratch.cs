@@ -145,7 +145,7 @@ void PrintCompilers(string filePath)
     using var reader = CompilerLogReader.Create(filePath);
     foreach (var info in reader.ReadAllCompilerAssemblies())
     {
-        Console.WriteLine(info.CompilerFilePath);
+        Console.WriteLine(info.FilePath);
         Console.WriteLine(info.AssemblyName);
     }
 }
