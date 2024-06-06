@@ -365,6 +365,15 @@ public static class BinaryLogUtil
                         isDotNet = true;
                         return span;
                     }
+
+                    if (span.EndsWith(" exec".AsSpan()))
+                    {
+                        // This can happen when the dotnet host is not called dotnet. Need to back
+                        // up to the path before that.
+                        span = args.Slice(0, index - 5);
+                        isDotNet = true;
+                        return span;
+                    }
                 }
 
                 index++;
