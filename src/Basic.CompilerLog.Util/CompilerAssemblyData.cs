@@ -10,6 +10,7 @@ public sealed class CompilerAssemblyData(string filePath, AssemblyName assemblyN
     public AssemblyName AssemblyName { get; } = assemblyName;
     public string? CommitHash { get; } = commitHash;
 
+    [ExcludeFromCodeCoverage]
     public override string ToString() => $"{FilePath} {CommitHash}";
 }
 

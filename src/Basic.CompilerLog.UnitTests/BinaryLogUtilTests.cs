@@ -34,6 +34,7 @@ public sealed class BinaryLogUtilTests
     }
 
     [WindowsTheory]
+    [InlineData(@"  C:\Program Files\dotnet\dotnet.exe exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
     [InlineData(@"C:\Program Files\dotnet\dotnet.exe exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
     [InlineData(@"""C:\Program Files\dotnet\dotnet.exe"" exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
     [InlineData(@"'C:\Program Files\dotnet\dotnet.exe' exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
@@ -74,9 +75,19 @@ public sealed class BinaryLogUtilTests
     [InlineData("dotnet not what we expect a.cs")]
     [InlineData("dotnet csc2 what we expect a.cs")]
     [InlineData("dotnet exec vbc.dll what we expect a.cs")]
+    [InlineData("empty")]
+    [InlineData("   ")]
     public void ParseCompilerAndArgumentsBad(string inputArgs)
     {
         Assert.Throws<InvalidOperationException>(() => BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc.exe", "csc.dll"));
+    }
+
+    [Fact]
+    public void ParseCompilerAndArgumentsNull()
+    {
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(null, "csc.exe", "csc.dll");
+        Assert.Null(actualCompilerFilePath);
+        Assert.Empty(actualArgs);
     }
 }
 

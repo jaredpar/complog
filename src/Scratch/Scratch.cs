@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using BenchmarkDotNet.Environments;
+using Microsoft.Build.Framework;
+using Microsoft.Build.Logging.StructuredLogger;
+
 //using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Classification;
@@ -42,7 +45,8 @@ using TraceReloggerLib;
 
 // Profile();
 
-ReadAttribute();
+DarkArtOfBuild();
+// ReadAttribute();
 // ExportScratch();
 // await WorkspaceScratch();
 // RoslynScratch();
@@ -92,6 +96,56 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
 */
+
+void DarkArtOfBuild()
+{
+    var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
+    const string targetProjectFile = @"C:\Users\jaredpar\temp\console\console.csproj";
+    using var stream = File.OpenRead(filePath);
+    var records = BinaryLog.ReadRecords(stream);
+    foreach (var record in records)
+    {
+        if (record.Args is not { BuildEventContext: { } context })
+        {
+            continue;
+        }
+
+        var suffix = $"eval: {context.EvaluationId}, context: {context.ProjectContextId}, instance: {context.ProjectInstanceId}";
+
+        switch (record.Args)
+        {
+            case ProjectStartedEventArgs { ProjectFile: targetProjectFile } e:
+            {
+                Console.WriteLine($"ProjectStarted: {suffix}");
+                break;
+            }
+            case ProjectFinishedEventArgs {ProjectFile: targetProjectFile } e:
+            {
+                Console.WriteLine($"ProjectFinished: {suffix}");
+                break;
+            }
+            case ProjectEvaluationStartedEventArgs { ProjectFile: targetProjectFile } e:
+            {
+                Console.WriteLine($"EvaluationStarted: {suffix}");
+                break;
+            }
+            case ProjectEvaluationFinishedEventArgs { ProjectFile: targetProjectFile } e:
+            {
+                Console.WriteLine($"EvaluationFinished: {suffix}");
+                break;
+            }
+            case TaskStartedEventArgs { ProjectFile: targetProjectFile } e:
+            {
+                if ((e.TaskName == "Csc" || e.TaskName == "Vbc"))
+                {
+                    Console.WriteLine($"CompileStarted: {suffix}");
+                }
+                break;
+            }
+        }
+    }
+
+}
 
 void ReadAttribute()
 {
@@ -183,7 +237,7 @@ static void PrintGeneratedFiles()
     }
 }
 
-static async Task WorkspaceScratch()
+/*static async Task WorkspaceScratch()
 {
     var filePath = @"/mnt/c/Users/jaredpar/temp/console/msbuild.complog";
     using var reader = SolutionReader.Create(filePath, BasicAnalyzerKind.None);
@@ -199,6 +253,7 @@ static async Task WorkspaceScratch()
         }
     }
 }
+*/
 
 static void ExportScratch()
 {
