@@ -25,12 +25,32 @@ public sealed class BinaryLogUtilTests
     [InlineData("dotnet.exe exec csc.dll a.cs", "csc.dll", "a.cs")]
     [InlineData("dotnet-can-be-any-host-name exec csc.dll a.cs", "csc.dll", "a.cs")]
     [InlineData("csc.exe a.cs b.cs", "csc.exe", "a.cs b.cs")]
+    public void ParseCompilerAndArgumentsCsc(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
+    {
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc.exe", "csc.dll");
+        Assert.Equal(ToArray(expectedArgs), actualArgs);
+        Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
+        static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    [WindowsTheory]
     [InlineData(@"C:\Program Files\dotnet\dotnet.exe exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
     [InlineData(@"""C:\Program Files\dotnet\dotnet.exe"" exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
     [InlineData(@"'C:\Program Files\dotnet\dotnet.exe' exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
     [InlineData(@"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe a.cs b.cs", @"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe", "a.cs b.cs")]
     [InlineData(@"""C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe"" a.cs b.cs", @"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe", "a.cs b.cs")]
-    public void ParseCompilerAndArgumentsCsc(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
+    public void ParseCompilerAndArgumentsCscWindows(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
+    {
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc.exe", "csc.dll");
+        Assert.Equal(ToArray(expectedArgs), actualArgs);
+        Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
+        static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    [UnixTheory]
+    [InlineData(@"/dotnet/dotnet exec /dotnet/sdk/bincore/csc.dll a.cs", "/dotnet/sdk/bincore/csc.dll", "a.cs")] 
+    [InlineData(@"/dotnet/dotnet exec ""/dotnet/sdk/bincore/csc.dll"" a.cs", "/dotnet/sdk/bincore/csc.dll", "a.cs")] 
+    public void ParseCompilerAndArgumentsCscUnix(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
         var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc.exe", "csc.dll");
         Assert.Equal(ToArray(expectedArgs), actualArgs);
@@ -49,7 +69,6 @@ public sealed class BinaryLogUtilTests
         Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
         static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
     }
-
 
     [Theory]
     [InlineData("dotnet not what we expect a.cs")]
