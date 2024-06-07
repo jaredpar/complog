@@ -110,10 +110,20 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 return metadata;
             }
         }
-        catch (InvalidDataException)
+        catch (Exception ex)
         {
+            if (!leaveOpen)
+            {
+                stream.Dispose();
+            }
+
             // Happens when this is not a valid zip file
-            throw GetInvalidCompilerLogFileException();
+            if (ex is not CompilerLogException)
+            {
+                throw GetInvalidCompilerLogFileException();
+            }
+
+            throw;
         }
 
         static Exception GetInvalidCompilerLogFileException() => new CompilerLogException("Provided stream is not a compiler log file");
