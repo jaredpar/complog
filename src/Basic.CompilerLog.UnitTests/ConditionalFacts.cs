@@ -14,3 +14,26 @@ public sealed class WindowsFactAttribute : FactAttribute
         }
     }
 }
+
+public sealed class WindowsTheoryAttribute : TheoryAttribute
+{
+    public WindowsTheoryAttribute()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Skip = "This test is only supported on Windows";
+        }
+    }
+}
+
+public sealed class UnixTheoryAttribute : TheoryAttribute
+{
+    public UnixTheoryAttribute()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Skip = "This test is only supported on Windows";
+        }
+    }
+}
+

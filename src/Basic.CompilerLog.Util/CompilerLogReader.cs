@@ -110,10 +110,20 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 return metadata;
             }
         }
-        catch (InvalidDataException)
+        catch (Exception ex)
         {
+            if (!leaveOpen)
+            {
+                stream.Dispose();
+            }
+
             // Happens when this is not a valid zip file
-            throw GetInvalidCompilerLogFileException();
+            if (ex is not CompilerLogException)
+            {
+                throw GetInvalidCompilerLogFileException();
+            }
+
+            throw;
         }
 
         static Exception GetInvalidCompilerLogFileException() => new CompilerLogException("Provided stream is not a compiler log file");
@@ -234,7 +244,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return list;
     }
 
-    public List<(string CompilerFilePath, AssemblyName AssemblyName, string? CommitHash)> ReadAllCompilerAssemblies()
+    public List<CompilerAssemblyData> ReadAllCompilerAssemblies()
     {
         var list = new List<(string CompilerFilePath, AssemblyName AssemblyName)>();
         var map = new Dictionary<string, (AssemblyName, string?)>(PathUtil.Comparer);
@@ -252,7 +262,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         return map
             .OrderBy(x => x.Key, PathUtil.Comparer)
-            .Select(x => (x.Key, x.Value.Item1, x.Value.Item2))
+            .Select(x => new CompilerAssemblyData(x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
     }
 

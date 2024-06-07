@@ -77,6 +77,19 @@ public sealed class BinaryLogReaderTests : TestBase
         state.Dispose();
     }
 
+    /// <summary>
+    /// Make sure the underlying stream is managed properly so we can read the compiler calls twice.
+    /// </summary>
+    [Fact]
+    public void ReadAllCompilerCallsTwice()
+    {   
+        using var state = new LogReaderState();
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, BasicAnalyzerKind.OnDisk, state);
+        Assert.Single(reader.ReadAllCompilerCalls());
+        Assert.Single(reader.ReadAllCompilerCalls());
+        state.Dispose();
+    }
+
     [Theory]
     [InlineData(BasicAnalyzerKind.InMemory, true)]
     [InlineData(BasicAnalyzerKind.OnDisk, true)]

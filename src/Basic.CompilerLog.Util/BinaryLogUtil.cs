@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Web;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
@@ -92,10 +93,9 @@ public static class BinaryLogUtil
             }
 
             var kind = Kind ?? CompilerCallKind.Unknown;
-            var rawArgs = CommandLineParser.SplitCommandLineIntoArguments(CommandLineArguments, removeHashComments: true);
             var (compilerFilePath, args) = IsCSharp
-                ? ParseTaskForCompilerAndArguments(rawArgs, "csc.exe", "csc.dll")
-                : ParseTaskForCompilerAndArguments(rawArgs, "vbc.exe", "vbc.dll");
+                ? ParseTaskForCompilerAndArguments(CommandLineArguments, "csc.exe", "csc.dll")
+                : ParseTaskForCompilerAndArguments(CommandLineArguments, "vbc.exe", "vbc.dll");
 
             return new CompilerCall(
                 compilerFilePath,
@@ -288,37 +288,52 @@ public static class BinaryLogUtil
     /// The argument list is going to include either `dotnet exec csc.dll` or `csc.exe`. Need 
     /// to skip past that to get to the real command line.
     /// </summary>
-    internal static (string? CompilerFilePath, string[] Arguments) ParseTaskForCompilerAndArguments(IEnumerable<string> args, string exeName, string dllName)
+    internal static (string? CompilerFilePath, string[] Arguments) ParseTaskForCompilerAndArguments(string? args, string exeName, string dllName)
     {
-        using var e = args.GetEnumerator();
+        if (args is null)
+        {
+            return (null, []);
+        }
+
+        var argsStart = 0;
+        var appFilePath = FindApplication(args.AsSpan(), ref argsStart, out bool isDotNet);
+        if (appFilePath.IsEmpty)
+        {
+            throw InvalidCommandLine();
+        }
+
+        var rawArgs = CommandLineParser.SplitCommandLineIntoArguments(args.Substring(argsStart), removeHashComments: true);
+        using var e = rawArgs.GetEnumerator();
 
         // The path to the executable is not escaped like the other command line arguments. Need
         // to skip until we see an exec or a path with the exe as the file name.
         string? compilerFilePath = null;
-        var found = false;
-        while (e.MoveNext())
+        if (isDotNet)
         {
-            if (PathUtil.Comparer.Equals(e.Current, "exec"))
+            // The path to the executable is not escaped like the other command line arguments. Need
+            // to skip until we see an exec or a path with the exe as the file name.
+            while (e.MoveNext())
             {
-                if (e.MoveNext() && PathUtil.Comparer.Equals(Path.GetFileName(e.Current), dllName))
+                if (PathUtil.Comparer.Equals(e.Current, "exec"))
                 {
-                    compilerFilePath = e.Current;
-                    found = true;
+                    if (e.MoveNext() && PathUtil.Comparer.Equals(Path.GetFileName(e.Current), dllName))
+                    {
+                        compilerFilePath = e.Current;
+                    }
+
+                    break;
                 }
-                break;
             }
-            else if (e.Current.EndsWith(exeName, PathUtil.Comparison))
+
+            if (compilerFilePath is null)
             {
-                compilerFilePath = e.Current;
-                found = true;
-                break;
+                throw InvalidCommandLine();
             }
         }
-
-        if (!found)
+        else
         {
-            var cmdLine = string.Join(" ", args);
-            throw new InvalidOperationException($"Could not parse command line arguments: {cmdLine}");
+            // Direct call to the compiler so we already have the compiler file path in hand
+            compilerFilePath = appFilePath.Trim('"').ToString();
         }
 
         var list = new List<string>();
@@ -328,6 +343,84 @@ public static class BinaryLogUtil
         }
 
         return (compilerFilePath, list.ToArray());
+
+        // This search is tricky because there is no attempt by MSBuild to properly quote the 
+        ReadOnlySpan<char> FindApplication(ReadOnlySpan<char> args, ref int index, out bool isDotNet)
+        {
+            isDotNet = false;
+            while (index < args.Length && char.IsWhiteSpace(args[index]))
+            {
+                index++;
+            }
+
+            if (index >= args.Length)
+            {
+                return Span<char>.Empty;
+            }
+
+            if (args[index] is '"' or '\'')
+            {
+                // Quote based parsing, just move to the next quote and return.
+                var start = index + 1;
+                var quote = args[index];
+                do
+                {
+                    index++;
+                }
+                while (index < args.Length && args[index] != quote);
+
+                index++; // move past the quote
+                var span = args.Slice(start, index - start - 1);
+                isDotNet = CheckDotNet(span);
+                return span;
+            }
+            else
+            {
+                // Move forward until we see a signal that we've reached the compiler 
+                // executable.
+                //
+                // Note: Specifically don't need to handle the case of the application ending at the 
+                // exact end of the string. There is always at least one argument to the compiler.
+                while (index < args.Length)
+                {
+                    if (char.IsWhiteSpace(args[index]))
+                    {
+                        var span = args.Slice(0, index);
+                        if (span.EndsWith(exeName.AsSpan()))
+                        {
+                            isDotNet = false;
+                            return span;
+                        }
+
+                        if (CheckDotNet(span))
+                        {
+                            isDotNet = true;
+                            return span;
+                        }
+
+                        if (span.EndsWith(" exec".AsSpan()))
+                        {
+                            // This can happen when the dotnet host is not called dotnet. Need to back
+                            // up to the path before that.
+                            index -= 5;
+                            span = args.Slice(0, index);
+                            isDotNet = true;
+                            return span;
+                        }
+                    }
+
+                    index++;
+                }
+            }
+
+            return Span<char>.Empty;
+
+            bool CheckDotNet(ReadOnlySpan<char> span) =>
+                span.EndsWith("dotnet".AsSpan()) ||
+                span.EndsWith("dotnet.exe".AsSpan());
+        }
+
+        Exception InvalidCommandLine() => new InvalidOperationException($"Could not parse command line arguments: {args}");
     }
 
     /// <summary>

@@ -165,8 +165,7 @@ int RunPrint(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-        using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true);
+        using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
 
         WriteLine("Projects");
@@ -180,7 +179,7 @@ int RunPrint(IEnumerable<string> args)
             WriteLine("Compilers");
             foreach (var tuple in reader.ReadAllCompilerAssemblies())
             {
-                WriteLine($"\tFile Path: {tuple.CompilerFilePath}");
+                WriteLine($"\tFile Path: {tuple.FilePath}");
                 WriteLine($"\tAssembly Name: {tuple.AssemblyName}");
                 WriteLine($"\tCommit Hash: {tuple.CommitHash}");
             }

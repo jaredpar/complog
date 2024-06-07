@@ -40,6 +40,9 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
     internal string ConsoleWithDiagnosticsProjectName => Path.GetFileName(ConsoleWithDiagnosticsProjectPath);
 
+    /// <summary>
+    /// The binary log for a project that has been removed from disk
+    /// </summary>
     internal string RemovedBinaryLogPath { get; }
 
     /// <summary>
