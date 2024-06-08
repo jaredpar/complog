@@ -13,6 +13,25 @@ namespace Basic.CompilerLog.Util;
 
 public static class BinaryLogUtil
 {
+    // My understanding of the ids in the BuildEventContext type is:
+    //
+    // 1. Every project evaluation will have a unique evaluation id. Many evaluations of the same
+    //    project will occur during a build. Example is a multi-targeted build will have at least
+    //    three evaluations: the outer and both inners
+    // 2. The project start / stop represent the execution of an evaluated project and it is 
+    //    identified with the project context id. The distinction between the two is important
+    //    because other events like task started have context ids but no evaluation ids
+    //
+    //    Note: having a separate context id and evaluation id seems to imply multiple projects
+    //    can run within an evaluation but I haven't actually seen that happen.
+    // 3. Targets / Tasks have context ids but no evaluation ids. 
+    //
+    //    Note: it appears that within a context id these ids are unique but have not rigorously
+    //    validated that.
+    //
+    // Oddities observed
+    //  - There are project start / stop events that have no evaluation id
+
     internal sealed class MSBuildProjectData
     {
         private readonly Dictionary<int, CompilationTaskData> _targetMap = new();
@@ -130,6 +149,7 @@ public static class BinaryLogUtil
         predicate ??= static _ => true;
         var list = new List<CompilerCall>();
         var records = BinaryLog.ReadRecords(stream);
+
         var contextMap = new Dictionary<int, MSBuildProjectData>();
         var evaluationMap = new Dictionary<int, MSBuildEvaluationData>();
 
