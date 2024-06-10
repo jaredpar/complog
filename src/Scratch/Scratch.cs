@@ -99,8 +99,11 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
 
 void DarkArtOfBuild()
 {
-    var filePath = @"c:\users\jaredpar\temp\console\msbuild.binlog";
-    const string targetProjectFile = @"C:\Users\jaredpar\temp\console\console.csproj";
+    var filePath = @"C:\Users\jaredpar\Downloads\out_no_analyzers.binlog";
+    const string targetProjectFile = @"D:\a\_work\1\s\Source\Provider\Provider\MiddleTier.Provider.csproj";
+    var map = new Dictionary<int, List<string>>();
+    var targetMap = new Dictionary<(int, int), string>();
+    var set = new HashSet<int>();
     using var stream = File.OpenRead(filePath);
     var records = BinaryLog.ReadRecords(stream);
     foreach (var record in records)
@@ -110,41 +113,70 @@ void DarkArtOfBuild()
             continue;
         }
 
-        var suffix = $"eval: {context.EvaluationId}, context: {context.ProjectContextId}, instance: {context.ProjectInstanceId}";
-
         switch (record.Args)
         {
             case ProjectStartedEventArgs { ProjectFile: targetProjectFile } e:
             {
-                Console.WriteLine($"ProjectStarted: {suffix}");
-                break;
-            }
-            case ProjectFinishedEventArgs {ProjectFile: targetProjectFile } e:
-            {
-                Console.WriteLine($"ProjectFinished: {suffix}");
-                break;
-            }
-            case ProjectEvaluationStartedEventArgs { ProjectFile: targetProjectFile } e:
-            {
-                Console.WriteLine($"EvaluationStarted: {suffix}");
-                break;
-            }
-            case ProjectEvaluationFinishedEventArgs { ProjectFile: targetProjectFile } e:
-            {
-                Console.WriteLine($"EvaluationFinished: {suffix}");
+                _ = set.Add(context.ProjectContextId);
                 break;
             }
             case TaskStartedEventArgs { ProjectFile: targetProjectFile } e:
             {
-                if ((e.TaskName == "Csc" || e.TaskName == "Vbc"))
+                if (e.TaskName != "Csc")
                 {
-                    Console.WriteLine($"CompileStarted: {suffix}");
+                    break;
                 }
+
+                var key = (context.ProjectContextId, context.TargetId);
+                if (!targetMap.TryGetValue(key, out var targetName))
+                {
+                    targetName = "<Unknown>";
+                    Console.WriteLine($"Missing target {e.TaskName}");
+                    break;
+                }
+
+                var list = GetOrCreate(context.ProjectContextId);
+                list.Add($"{targetName},{context.TargetId},{context.TaskId}");
+                break;
+            }
+            case TargetStartedEventArgs { ProjectFile: targetProjectFile } e:
+            {
+                var key = (context.ProjectContextId, context.TargetId);
+                if (targetMap.TryGetValue(key, out var target))
+                {
+                    Console.WriteLine($"Duplicate target {e.TargetName}");
+                }
+
+                targetMap[key] = e.TargetName;
                 break;
             }
         }
     }
 
+    foreach (var id in set)
+    {
+        if (!map.TryGetValue(id, out var list))
+        {
+            continue;
+        }
+
+        Console.WriteLine(id);
+        foreach (var item in list)
+        {
+            Console.WriteLine($"  {item}");
+        }
+    }
+
+    List<string> GetOrCreate(int projectContextId)
+    {
+        if (!map.TryGetValue(projectContextId, out var list))
+        {
+            list = new List<string>();
+            map[projectContextId] = list;
+        }
+
+        return list;
+    }
 }
 
 void ReadAttribute()

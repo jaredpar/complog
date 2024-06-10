@@ -32,39 +32,45 @@ public static class BinaryLogUtil
     // Oddities observed
     //  - There are project start / stop events that have no evaluation id
 
-    internal sealed class MSBuildProjectData
+    internal sealed class MSBuildProjectContextData(string projectFile, int contextId, int evaluationId)
     {
-        private readonly Dictionary<int, CompilationTaskData> _targetMap = new();
-        public readonly string ProjectFile;
+        private readonly Dictionary<int, CompilationTaskData> _taskMap = new(capacity: 4);
+        private readonly Dictionary<int, CompilerCallKind> _targetMap = new(capacity: 4);
+        public readonly int ContextId = contextId;
+        public int EvaluationId = evaluationId;
         public string? TargetFramework;
-        public int? EvaluationId;
+        public readonly string ProjectFile = projectFile;
 
-        public MSBuildProjectData(string projectFile)
+        public bool TryGetTaskData(BuildEventContext context, [NotNullWhen(true)] out CompilationTaskData? data) =>
+            _taskMap.TryGetValue(context.TaskId, out data);
+
+        public void SetCompilerCallKind(int targetId, CompilerCallKind kind)
         {
-            ProjectFile = projectFile;
+            Debug.Assert(targetId != BuildEventContext.InvalidTargetId);
+            _targetMap[targetId] = kind;
         }
 
-        public bool TryGetTaskData(int targetId, [NotNullWhen(true)] out CompilationTaskData? data) =>
-            _targetMap.TryGetValue(targetId, out data);
-
-        public CompilationTaskData GetOrCreateTaskData(int targetId)
+        public CompilationTaskData CreateTaskData(BuildEventContext context, bool isCSharp)
         {
-            if (!_targetMap.TryGetValue(targetId, out var data))
-            {
-                data = new CompilationTaskData(this, targetId);
-                _targetMap[targetId] = data;
-            }
-
+            Debug.Assert(!_taskMap.ContainsKey(context.TaskId));
+            var data = new CompilationTaskData(context.TargetId, context.TaskId, isCSharp);
+            _taskMap[context.TaskId] = data;
             return data;
         }
 
-        public List<CompilerCall> GetAllCompilerCalls(object? ownerState)
+        public List<CompilerCall> GetAllCompilerCalls(MSBuildProjectEvaluationData? evaluationData, object? ownerState)
         {
+            var targetFramework = TargetFramework ?? evaluationData?.TargetFramework;
             var list = new List<CompilerCall>();
 
-            foreach (var data in _targetMap.Values)
+            foreach (var data in _taskMap.Values)
             {
-                if (data.TryCreateCompilerCall(ownerState) is { } compilerCall)
+                if (!_targetMap.TryGetValue(data.TargetId, out var compilerCallKind))
+                {
+                    compilerCallKind = CompilerCallKind.Unknown;
+                }
+
+                if (data.TryCreateCompilerCall(ProjectFile, targetFramework, compilerCallKind, ownerState) is { } compilerCall)
                 {
                     if (compilerCall.Kind == CompilerCallKind.Regular)
                     {
@@ -83,27 +89,17 @@ public static class BinaryLogUtil
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
     }
 
-    internal sealed class CompilationTaskData
+    internal sealed class CompilationTaskData(int targetId, int taskId, bool isCSharp)
     {
-        public readonly MSBuildProjectData ProjectData;
-        public int TargetId;
+        public readonly int TargetId = targetId;
+        public readonly int TaskId = taskId;
+        public readonly bool IsCSharp = isCSharp;
         public string? CommandLineArguments;
-        public CompilerCallKind? Kind;
-        public int? CompileTaskId;
-        public bool IsCSharp;
 
-        public string ProjectFile => ProjectData.ProjectFile;
-        public string? TargetFramework => ProjectData.TargetFramework;
+        [ExcludeFromCodeCoverage]
+        public override string ToString() => TaskId.ToString();
 
-        public CompilationTaskData(MSBuildProjectData projectData, int targetId)
-        {
-            ProjectData = projectData;
-            TargetId = targetId;
-        }
-
-        public override string ToString() => $"{ProjectData} {TargetId}";
-
-        internal CompilerCall? TryCreateCompilerCall(object? ownerState)
+        internal CompilerCall? TryCreateCompilerCall(string projectFile, string? targetFramework, CompilerCallKind kind, object? ownerState)
         {
             if (CommandLineArguments is null)
             {
@@ -111,31 +107,25 @@ public static class BinaryLogUtil
                 return null;
             }
 
-            var kind = Kind ?? CompilerCallKind.Unknown;
             var (compilerFilePath, args) = IsCSharp
                 ? ParseTaskForCompilerAndArguments(CommandLineArguments, "csc.exe", "csc.dll")
                 : ParseTaskForCompilerAndArguments(CommandLineArguments, "vbc.exe", "vbc.dll");
 
             return new CompilerCall(
                 compilerFilePath,
-                ProjectFile,
+                projectFile,
                 kind,
-                TargetFramework,
+                targetFramework,
                 isCSharp: IsCSharp,
                 new Lazy<IReadOnlyCollection<string>>(() => args),
                 ownerState: ownerState);
         }
     }
 
-    private sealed class MSBuildEvaluationData
+    internal sealed class MSBuildProjectEvaluationData(string projectFile)
     {
-        public string ProjectFile;
+        public string ProjectFile = projectFile;
         public string? TargetFramework;
-
-        public MSBuildEvaluationData(string projectFile)
-        {
-            ProjectFile = projectFile;
-        }
 
         [ExcludeFromCodeCoverage]
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
@@ -150,8 +140,8 @@ public static class BinaryLogUtil
         var list = new List<CompilerCall>();
         var records = BinaryLog.ReadRecords(stream);
 
-        var contextMap = new Dictionary<int, MSBuildProjectData>();
-        var evaluationMap = new Dictionary<int, MSBuildEvaluationData>();
+        var contextMap = new Dictionary<int, MSBuildProjectContextData>();
+        var evaluationMap = new Dictionary<int, MSBuildProjectEvaluationData>();
 
         foreach (var record in records)
         {
@@ -164,24 +154,17 @@ public static class BinaryLogUtil
             {
                 case ProjectStartedEventArgs { ProjectFile: not null } e:
                 {
-                    var data = GetOrCreateData(context, e.ProjectFile);
-                    data.EvaluationId = GetEvaluationId(e);
-                    SetTargetFramework(ref data.TargetFramework, e.Properties);
+                    var contextData = GetOrCreateContextData(context, e.ProjectFile);
+                    SetTargetFramework(ref contextData.TargetFramework, e.GlobalProperties);
+                    SetTargetFramework(ref contextData.TargetFramework, e.Properties);
                     break;
                 }
                 case ProjectFinishedEventArgs e:
                 {
-                    if (contextMap.TryGetValue(context.ProjectContextId, out var data))
+                    if (contextMap.TryGetValue(context.ProjectContextId, out var contextData))
                     {
-                        if (string.IsNullOrEmpty(data.TargetFramework) &&
-                            data.EvaluationId is { } evaluationId &&
-                            evaluationMap.TryGetValue(evaluationId, out var evaluationData) &&
-                            !string.IsNullOrEmpty(evaluationData.TargetFramework))
-                        {
-                            data.TargetFramework = evaluationData.TargetFramework;
-                        }
-
-                        foreach (var compilerCall in data.GetAllCompilerCalls(ownerState))
+                        _ = evaluationMap.TryGetValue(context.EvaluationId, out var evaluationData);
+                        foreach (var compilerCall in contextData.GetAllCompilerCalls(evaluationData, ownerState))
                         {
                             if (predicate(compilerCall))
                             {
@@ -193,20 +176,23 @@ public static class BinaryLogUtil
                 }
                 case ProjectEvaluationStartedEventArgs { ProjectFile: not null } e:
                 {
-                    var data = new MSBuildEvaluationData(e.ProjectFile);
+                    Debug.Assert(context.EvaluationId != BuildEventContext.InvalidEvaluationId);
+                    var data = new MSBuildProjectEvaluationData(e.ProjectFile);
                     evaluationMap[context.EvaluationId] = data;
                     break;
                 }
                 case ProjectEvaluationFinishedEventArgs e:
                 {
-                    if (evaluationMap.TryGetValue(context.EvaluationId, out var data))
+                    if (evaluationMap.TryGetValue(context.EvaluationId, out var evaluationData))
                     {
-                        SetTargetFramework(ref data.TargetFramework, e.Properties);
+                        SetTargetFramework(ref evaluationData.TargetFramework, e.Properties);
                     }
                     break;
                 }
                 case TargetStartedEventArgs e:
                 {
+                    Debug.Assert(context.TargetId != BuildEventContext.InvalidTargetId);
+
                     var callKind = e.TargetName switch
                     {
                         "CoreCompile" when e.ParentTarget == "_CompileTemporaryAssembly" => CompilerCallKind.WpfTemporaryCompile,
@@ -216,11 +202,9 @@ public static class BinaryLogUtil
                         _ => (CompilerCallKind?)null
                     };
 
-                    if (callKind is { } ck &&
-                        context.TargetId != BuildEventContext.InvalidTargetId &&
-                        contextMap.TryGetValue(context.ProjectContextId, out var data))
+                    if (callKind is { } ck && contextMap.TryGetValue(context.ProjectContextId, out var contextData))
                     {
-                        data.GetOrCreateTaskData(context.TargetId).Kind = ck;
+                        contextData.SetCompilerCallKind(context.TargetId, ck);
                     }
 
                     break;
@@ -228,20 +212,17 @@ public static class BinaryLogUtil
                 case TaskStartedEventArgs e:
                 {
                     if ((e.TaskName == "Csc" || e.TaskName == "Vbc") &&
-                        context.TargetId != BuildEventContext.InvalidTargetId &&
-                        contextMap.TryGetValue(context.ProjectContextId, out var data))
+                        contextMap.TryGetValue(context.ProjectContextId, out var contextData))
                     {
-                        var taskData = data.GetOrCreateTaskData(context.TargetId);
-                        taskData.IsCSharp = e.TaskName == "Csc";
-                        taskData.CompileTaskId = context.TaskId;
+                        var isCSharp = e.TaskName == "Csc";
+                        _ = contextData.CreateTaskData(context, isCSharp);
                     }
                     break;
                 }
                 case TaskCommandLineEventArgs e:
                 {
-                    if (context.TargetId != BuildEventContext.InvalidTargetId &&
-                        contextMap.TryGetValue(context.ProjectContextId, out var data) &&
-                        data.TryGetTaskData(context.TargetId, out var taskData))
+                    if (contextMap.TryGetValue(context.ProjectContextId, out var contextData) &&
+                        contextData.TryGetTaskData(context, out var taskData))
                     {
                         taskData.CommandLineArguments = e.CommandLine;
                     }
@@ -253,30 +234,20 @@ public static class BinaryLogUtil
 
         return list;
 
-        static int? GetEvaluationId(ProjectStartedEventArgs e)
+        MSBuildProjectContextData GetOrCreateContextData(BuildEventContext context, string projecFile)
         {
-            if (e.BuildEventContext is { EvaluationId: > BuildEventContext.InvalidEvaluationId })
+            if (!contextMap.TryGetValue(context.ProjectContextId, out var contextData))
             {
-                return e.BuildEventContext.EvaluationId;
+                contextData = new MSBuildProjectContextData(projecFile, context.ProjectContextId, context.EvaluationId);
+                contextMap[context.ProjectContextId] = contextData;
             }
 
-            if (e.ParentProjectBuildEventContext is { EvaluationId: > BuildEventContext.InvalidEvaluationId })
+            if (contextData.EvaluationId == BuildEventContext.InvalidEvaluationId)
             {
-                return e.ParentProjectBuildEventContext.EvaluationId;
+                contextData.EvaluationId = context.EvaluationId;
             }
 
-            return null;
-        }
-
-        MSBuildProjectData GetOrCreateData(BuildEventContext context, string projectFile)
-        {
-            if (!contextMap.TryGetValue(context.ProjectContextId, out var data))
-            {
-                data = new MSBuildProjectData(projectFile);
-                contextMap[context.ProjectContextId] = data;
-            }
-
-            return data;
+            return contextData;
         }
 
         void SetTargetFramework(ref string? targetFramework, IEnumerable? rawProperties)
@@ -291,6 +262,7 @@ public static class BinaryLogUtil
                 switch (property.Key)
                 {
                     case "TargetFramework":
+                        Debug.Assert(!string.IsNullOrEmpty(property.Value));
                         targetFramework = property.Value;
                         break;
                     case "TargetFrameworks":
