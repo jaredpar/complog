@@ -96,34 +96,42 @@ public sealed class MSBuildProjectDataTests
     [Fact]
     public void MSBuildProjectDataToString()
     {
-        var data = new BinaryLogUtil.MSBuildProjectData(@"example.csproj");
+        var evalData = new BinaryLogUtil.MSBuildProjectEvaluationData(@"example.csproj");
+        var data = new BinaryLogUtil.MSBuildProjectContextData(@"example.csproj", 100, 1);
         Assert.NotEmpty(data.ToString());
     }
 }
 
 public sealed class CompilationTaskDataTests
 {
-    internal BinaryLogUtil.MSBuildProjectData ProjectData { get; } = new BinaryLogUtil.MSBuildProjectData(@"example.csproj");
+    internal BinaryLogUtil.MSBuildProjectEvaluationData EvaluationData { get; }
+    internal BinaryLogUtil.MSBuildProjectContextData ContextData { get; }
+
+    public CompilationTaskDataTests()
+    {
+        EvaluationData = new BinaryLogUtil.MSBuildProjectEvaluationData(@"example.csproj");
+        ContextData = new(@"example.csproj", 100, 1);
+    }
 
     [Fact]
     public void TryCreateCompilerCallBadArguments()
     {
-        var data = new BinaryLogUtil.CompilationTaskData(ProjectData, 1)
+        var data = new BinaryLogUtil.CompilationTaskData(1, 1, true)
         {
             CommandLineArguments = "dotnet not a compiler call",
         };
 
-        Assert.Throws<InvalidOperationException>(() => data.TryCreateCompilerCall(ownerState: null));
+        Assert.Throws<InvalidOperationException>(() => data.TryCreateCompilerCall(ContextData.ProjectFile, null, CompilerCallKind.Unknown, ownerState: null));
     }
 
     [Fact]
     public void TryCreateCompilerNoArguments()
     {
-        var data = new BinaryLogUtil.CompilationTaskData(ProjectData, 1)
+        var data = new BinaryLogUtil.CompilationTaskData(1, 1, true)
         {
             CommandLineArguments = null,
         };
 
-        Assert.Null(data.TryCreateCompilerCall(null));
+        Assert.Null(data.TryCreateCompilerCall(ContextData.ProjectFile, null, CompilerCallKind.Unknown, null));
     }
 }
