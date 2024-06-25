@@ -152,16 +152,11 @@ public abstract class CompilationData
     {
         var afterCompilation = GetCompilationAfterGenerators(out diagnostics, cancellationToken);
 
-        // This is a bit of a hack to get the number of syntax trees before running the generators. It feels
-        // a bit disjoint that we have to think of the None case differently here. Possible it may be simpler
-        // to have the None host go back to faking a ISourceGenerator in memory that just adds the files
-        // directly.
+        // Generated syntax trees are always added to the end of the list. This is an
+        // implementation detail of the compiler, but one that is unlikely to ever
+        // change. Doing so would represent a breaking change as file ordering impacts 
+        // semantics.
         var originalCount = Compilation.SyntaxTrees.Count();
-        if (BasicAnalyzerHost is BasicAnalyzerHostNone none)
-        {
-            var generatedCount = none.GeneratedSourceTexts.Length;
-            originalCount -= generatedCount;
-        }
         return afterCompilation.SyntaxTrees.Skip(originalCount).ToList();
     }
 
