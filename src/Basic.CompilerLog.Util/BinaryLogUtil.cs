@@ -63,7 +63,7 @@ public static class BinaryLogUtil
             var targetFramework = TargetFramework ?? evaluationData?.TargetFramework;
             var list = new List<CompilerCall>();
 
-            foreach (var data in _taskMap.Values)
+            foreach (var data in _taskMap.OrderBy(kvp => kvp.Key).Select(kvp => kvp.Value))
             {
                 if (!_targetMap.TryGetValue(data.TargetId, out var compilerCallKind))
                 {
