@@ -21,6 +21,7 @@
     <PackageReference Include="Basic.Reference.Assemblies.Net60" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" />
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Features" />
+    <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 
 </Project>

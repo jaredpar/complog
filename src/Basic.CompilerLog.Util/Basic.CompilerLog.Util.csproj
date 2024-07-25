@@ -22,6 +22,7 @@
     <PackageReference Include="Microsoft.Extensions.ObjectPool" />
     <PackageReference Include="MSBuild.StructuredLogger" />
     <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472'" />
+    <PackageReference Include="Microsoft.IO.Redist" Condition="'$(TargetFramework)' == 'net472'" />
   </ItemGroup>
 
 </Project>
