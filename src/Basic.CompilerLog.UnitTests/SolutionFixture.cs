@@ -62,7 +62,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         var binlogDir = Path.Combine(StorageDirectory, "binlogs");
         Directory.CreateDirectory(binlogDir);
 
-        RunDotnetCommand("new globaljson --sdk-version 7.0.400", StorageDirectory);
+        RunDotnetCommand("new globaljson --sdk-version 8.0.300", StorageDirectory);
         RunDotnetCommand("dotnet new sln -n Solution", StorageDirectory);
 
         var builder = ImmutableArray.CreateBuilder<string>();
@@ -98,7 +98,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>

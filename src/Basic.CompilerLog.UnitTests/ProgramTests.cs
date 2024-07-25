@@ -354,7 +354,7 @@ public sealed class ProgramTests : TestBase
         var exitCode = RunCompLog($"rsp {Fixture.ClassLibMultiProjectPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net6.0", "build.rsp")));
-        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net7.0", "build.rsp")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net8.0", "build.rsp")));
     }
 
     [Fact]
@@ -410,7 +410,7 @@ public sealed class ProgramTests : TestBase
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("Generating response files inline", output);
         Assert.True(File.Exists(Path.Combine(dir, "build-net6.0.rsp")));
-        Assert.True(File.Exists(Path.Combine(dir, "build-net7.0.rsp")));
+        Assert.True(File.Exists(Path.Combine(dir, "build-net8.0.rsp")));
     }
 
     [Fact]
@@ -694,8 +694,8 @@ public sealed class ProgramTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("console.csproj (net7.0)", output);
-        Assert.Contains("classlib.csproj (net7.0)", output);
+        Assert.Contains("console.csproj (net8.0)", output);
+        Assert.Contains("classlib.csproj (net8.0)", output);
     }
 
     [Fact]
@@ -703,8 +703,8 @@ public sealed class ProgramTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -p classlib.csproj");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.DoesNotContain("console.csproj (net7.0)", output);
-        Assert.Contains("classlib.csproj (net7.0)", output);
+        Assert.DoesNotContain("console.csproj (net8.0)", output);
+        Assert.Contains("classlib.csproj (net8.0)", output);
     }
 
     [Fact]
@@ -778,9 +778,9 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void PrintFrameworks()
     {
-        var (exitCode, output) = RunCompLogEx($"print --include {Fixture.ClassLibMultiProjectPath} --framework net7.0");
+        var (exitCode, output) = RunCompLogEx($"print --include {Fixture.ClassLibMultiProjectPath} --framework net8.0");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("(net7.0)", output);
+        Assert.Contains("(net8.0)", output);
     }
 
     [Fact]

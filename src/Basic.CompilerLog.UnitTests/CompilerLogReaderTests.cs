@@ -277,7 +277,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath);
         var list = reader.ReadAllCompilationData();
         Assert.Single(list);
-        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net8.0"));
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var list = reader.ReadAllCompilationData();
         Assert.Equal(2, list.Count);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
-        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net7.0"));
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net8.0"));
     }
 
     [Fact]
@@ -346,7 +346,7 @@ public sealed class CompilerLogReaderTests : TestBase
               <PropertyGroup>
                 <OutputType>Exe</OutputType>
                 <DebugType>Full</DebugType>
-                <TargetFramework>net7.0</TargetFramework>
+                <TargetFramework>net8.0</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings>
                 <Nullable>enable</Nullable>
               </PropertyGroup>

@@ -48,8 +48,8 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: |
-          7.0.x
           8.0.x
+          9.0.x
 
     - name: Restore dependencies
       run: dotnet restore
@@ -58,7 +58,7 @@ jobs:
 
     - name: Test Linux
       run: >
-        dotnet test --no-build --framework net7.0 
+        dotnet test --no-build --framework net8.0 
         --logger "console;verbosity=detailed"
         --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH }}/TestResults-Linux.trx"
         -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.linux.xml
@@ -66,7 +66,7 @@ jobs:
 
     - name: Test Windows .NET Core
       run: >
-        dotnet test --no-build --framework net7.0
+        dotnet test --no-build --framework net8.0
         --logger "console;verbosity=detailed"
         --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH}}/TestResults-Windows-Core.trx"
         -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.windows.core.xml
@@ -74,7 +74,7 @@ jobs:
 
     - name: Test Windows .NET Framework
       run: >
-        dotnet test --no-build --framework net7.0
+        dotnet test --no-build --framework net8.0
         --logger "console;verbosity=detailed"
         --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH}}/TestResults-Windows-Framework.trx"
         -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.windows.framework.xml

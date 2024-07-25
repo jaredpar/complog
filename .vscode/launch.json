@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/artifacts/bin/Basic.CompilerLog/debug_net7.0/Basic.CompilerLog.dll",
+            "program": "${workspaceFolder}/artifacts/bin/Basic.CompilerLog/debug_net8.0/Basic.CompilerLog.dll",
             "args": ["print", ".\\msbuild.binlog" ],
             "cwd": "e:\\temp\\console",
             // "cwd": "${workspaceFolder}/src/Basic.CompilerLog",

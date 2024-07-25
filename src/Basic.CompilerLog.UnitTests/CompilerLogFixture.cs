@@ -111,7 +111,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
                     <OutputType>Exe</OutputType>
-                    <TargetFramework>net7.0</TargetFramework>
+                    <TargetFramework>net8.0</TargetFramework>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>
@@ -140,7 +140,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>
@@ -165,7 +165,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     <ProduceOnlyReferenceAssembly>true</ProduceOnlyReferenceAssembly>
@@ -207,7 +207,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     <PropertyGroup>
                         <OutputType>Exe</OutputType>
                         <RootNamespace>vbconsole</RootNamespace>
-                        <TargetFramework>net7.0</TargetFramework>
+                        <TargetFramework>net8.0</TargetFramework>
                         <EmbedAllSources>true</EmbedAllSources>
                     </PropertyGroup>
                 </Project>
@@ -223,7 +223,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
                     <OutputType>Exe</OutputType>
-                    <TargetFramework>net7.0</TargetFramework>
+                    <TargetFramework>net8.0</TargetFramework>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     <EmbedAllSources>true</EmbedAllSources>
@@ -322,7 +322,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
         ClassLib = WithBuild("classlib.complog", void (string scratchPath) =>
         {
-            RunDotnetCommand($"new classlib --name classlib --output . --framework net7.0", scratchPath);
+            RunDotnetCommand($"new classlib --name classlib --output . --framework net8.0", scratchPath);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -359,7 +359,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     var scratchPath = Path.Combine(ScratchDirecectory, Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
-                    RunDotnetCommand("new globaljson --sdk-version 7.0.400", scratchPath);
+                    RunDotnetCommand("new globaljson --sdk-version 8.0.300", scratchPath);
                     action(scratchPath);
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
