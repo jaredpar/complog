@@ -98,7 +98,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
             var projectFileContent = """
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>
