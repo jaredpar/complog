@@ -55,6 +55,7 @@ internal static class Extensions
         throw new InvalidOperationException();
     }
 
+#if !NET
     internal static void AddRange<T>(this List<T> list, ReadOnlySpan<T> span)
     {
         foreach (var item in span)
@@ -62,6 +63,7 @@ internal static class Extensions
             list.Add(item);
         }
     }
+#endif
 
     /// <summary>
     /// Creates a <see cref="MemoryStream"/> that is a simple wrapper around the array. The intent
