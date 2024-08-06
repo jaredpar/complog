@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class ReferenceData(string filePath, Guid mvid, byte[] imageBytes)
+public sealed class ReferenceData(string filePath, Guid mvid, string? assemblyName, string? assemblyInformationalVersion, byte[] imageBytes)
 {
     /// <summary>
     /// The file path for the given reference.
@@ -14,6 +14,8 @@ public sealed class ReferenceData(string filePath, Guid mvid, byte[] imageBytes)
     /// </remarks>
     public string FilePath { get; } = filePath;
     public Guid Mvid { get; } = mvid;
+    public string? AssemblyName { get; } = assemblyName;
+    public string? AssemblyInformationalVersion { get; } = assemblyInformationalVersion;
     public byte[] ImageBytes { get; } = imageBytes;
 
     public string FileName => Path.GetFileName(FilePath);
