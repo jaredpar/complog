@@ -13,6 +13,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Text;
@@ -602,6 +603,16 @@ internal static class RoslynUtil
 
     internal static string? ReadCompilerCommitHash(string assemblyFilePath)
     {
+        return ReadStringAssemblyAttribute(assemblyFilePath, "CommitHash");
+    }
+
+    internal static string? ReadAssemblyInformationalVersion(string assemblyFilePath)
+    {
+        return ReadStringAssemblyAttribute(assemblyFilePath, nameof(AssemblyInformationalVersionAttribute));
+    }
+
+    private static string? ReadStringAssemblyAttribute(string assemblyFilePath, string attributeName)
+    {
         using var stream = new FileStream(assemblyFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var peReader = new PEReader(stream);
         var metadataReader = peReader.GetMetadataReader();
@@ -616,7 +627,7 @@ internal static class RoslynUtil
                 {
                     var typeNameHandle = metadataReader.GetTypeReference((TypeReferenceHandle)ctor.Parent).Name;
                     var typeName = metadataReader.GetString(typeNameHandle);
-                    if (typeName.EndsWith("CommitHashAttribute"))
+                    if (typeName.EndsWith(attributeName))
                     {
                         var value = metadataReader.GetBlobReader(attribute.Value);
                         _ = value.ReadBytes(2); // prolog
@@ -627,5 +638,10 @@ internal static class RoslynUtil
         }
 
         return null;
+    }
+
+    internal static string? ReadAssemblyName(string assemblyFilePath)
+    {
+        return MetadataReader.GetAssemblyName(assemblyFilePath).Name;
     }
 }
