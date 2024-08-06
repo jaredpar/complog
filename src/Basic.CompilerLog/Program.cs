@@ -177,13 +177,13 @@ int RunPrint(IEnumerable<string> args)
 
             if (analyzers)
             {
-                WriteLine("Analyzers");
+                WriteLine("\tAnalyzers");
 
                 foreach (var analyzer in reader.ReadAllAnalyzerData(compilerCall))
                 {
-                    WriteLine($"\tName: {analyzer.AssemblyName ?? "<null>"}");
-                    WriteLine($"\tInformational Version: {analyzer.AssemblyInformationalVersion ?? "<null>"}");
-                    WriteLine($"\tFile Path: {analyzer.FilePath}");
+                    WriteLine($"\t\tName: {analyzer.AssemblyName ?? "<null>"}");
+                    WriteLine($"\t\tInformational Version: {analyzer.AssemblyInformationalVersion ?? "<null>"}");
+                    WriteLine($"\t\tFile Path: {analyzer.FilePath}");
                 }
             }
         }
