@@ -23,6 +23,7 @@ using Scratch;
 using TraceReloggerLib;
 
 #pragma warning disable 8321
+CountReferences();
 
 // PrintGeneratedFiles();
 
@@ -45,7 +46,7 @@ using TraceReloggerLib;
 
 // Profile();
 
-DarkArtOfBuild();
+// DarkArtOfBuild();
 // ReadAttribute();
 // ExportScratch();
 // await WorkspaceScratch();
@@ -96,6 +97,28 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
 */
+
+void CountReferences()
+{
+    var filePath = @"C:\Users\jaredpar\code\roslyn\artifacts\log\Debug\Build.binlog";
+    var reader = BinaryLogReader.Create(filePath);
+    var refCount = 0;
+    var satRefCount = 0;
+
+
+    foreach (var cc in reader.ReadAllCompilerCalls())
+    {
+        var references = reader.ReadAllReferenceData(cc);
+        refCount += references.Count;
+        if (cc.Kind == CompilerCallKind.Satellite)
+        {
+            satRefCount += references.Count;
+        }
+    }
+
+    Console.WriteLine($"Reference count: {refCount}");
+    Console.WriteLine($"Satellite Reference count: {satRefCount}");
+}
 
 void DarkArtOfBuild()
 {
