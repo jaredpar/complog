@@ -16,6 +16,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 {
     private Stream _stream;
     private readonly bool _leaveOpen;
+    private readonly Dictionary<string, ReferenceData> _referenceDataCache = new(PathUtil.Comparer);
+    private readonly Dictionary<string, RawAnalyzerData> _rawAnalyzerDataCache = new(PathUtil.Comparer);
 
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
@@ -352,12 +354,17 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         var list = new List<ReferenceData>(capacity: count);
         foreach (var filePath in filePaths)
         {
-            var data = new ReferenceData(
-                filePath,
-                RoslynUtil.GetMvid(filePath),
-                RoslynUtil.ReadAssemblyName(filePath),
-                RoslynUtil.ReadAssemblyInformationalVersion(filePath),
-                File.ReadAllBytes(filePath));
+            if (!_referenceDataCache.TryGetValue(filePath, out var data))
+            {
+                data = new ReferenceData(
+                    filePath,
+                    RoslynUtil.GetMvid(filePath),
+                    RoslynUtil.ReadAssemblyName(filePath),
+                    RoslynUtil.ReadAssemblyInformationalVersion(filePath),
+                    File.ReadAllBytes(filePath));
+                _referenceDataCache[filePath] = data;
+            }
+
             list.Add(data);
         }
         return list;
@@ -368,11 +375,15 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         var list = new List<RawAnalyzerData>(args.AnalyzerReferences.Length);
         foreach (var analyzer in args.AnalyzerReferences)
         {
-            var data = new RawAnalyzerData(
-                RoslynUtil.GetMvid(analyzer.FilePath),
-                analyzer.FilePath,
-                RoslynUtil.ReadAssemblyName(analyzer.FilePath),
-                RoslynUtil.ReadAssemblyInformationalVersion(analyzer.FilePath));
+            if (!_rawAnalyzerDataCache.TryGetValue(analyzer.FilePath, out var data))
+            {
+                data = new RawAnalyzerData(
+                    RoslynUtil.GetMvid(analyzer.FilePath),
+                    analyzer.FilePath,
+                    RoslynUtil.ReadAssemblyName(analyzer.FilePath),
+                    RoslynUtil.ReadAssemblyInformationalVersion(analyzer.FilePath));
+                _rawAnalyzerDataCache[analyzer.FilePath] = data;
+            }
             list.Add(data);
         }
         return list;
