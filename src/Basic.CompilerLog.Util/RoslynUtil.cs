@@ -603,7 +603,7 @@ internal static class RoslynUtil
 
     internal static string? ReadCompilerCommitHash(string assemblyFilePath)
     {
-        return ReadStringAssemblyAttribute(assemblyFilePath, "CommitHash");
+        return ReadStringAssemblyAttribute(assemblyFilePath, "CommitHashAttribute");
     }
 
     internal static string? ReadAssemblyInformationalVersion(string assemblyFilePath)
