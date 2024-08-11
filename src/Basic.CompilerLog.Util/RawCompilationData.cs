@@ -37,13 +37,17 @@ internal readonly struct RawAnalyzerData
 {
     internal readonly Guid Mvid;
     internal readonly string FilePath;
+    internal readonly string? AssemblyName;
+    internal readonly string? AssemblyInformationalVersion;
 
     internal string FileName => Path.GetFileName(FilePath);
 
-    internal RawAnalyzerData(Guid mvid, string filePath)
+    internal RawAnalyzerData(Guid mvid, string filePath, string? assemblyName, string? assemblyInformationalVersion)
     {
         Mvid = mvid;
         FilePath = filePath;
+        AssemblyName = assemblyName;
+        AssemblyInformationalVersion = assemblyInformationalVersion;
     }
 }
 
@@ -53,13 +57,17 @@ internal readonly struct RawReferenceData
     internal readonly ImmutableArray<string> Aliases;
     internal readonly bool EmbedInteropTypes;
     internal readonly string? FilePath;
+    internal readonly string? AssemblyName;
+    internal readonly string? AssemblyInformationalVersion;
 
-    internal RawReferenceData(Guid mvid, ImmutableArray<string> aliases, bool embedInteropTypes, string? filePath)
+    internal RawReferenceData(Guid mvid, ImmutableArray<string> aliases, bool embedInteropTypes, string? filePath, string? assemblyName, string? assemblyInformationalVersion)
     {
         Mvid = mvid;
         Aliases = aliases;
         EmbedInteropTypes = embedInteropTypes;
         FilePath = filePath;
+        AssemblyName = assemblyName;
+        AssemblyInformationalVersion = assemblyInformationalVersion;
     }
 }
 
@@ -121,7 +129,7 @@ internal sealed class RawCompilationData
     internal bool HasAllGeneratedFileContent { get; }
 
     internal RawCompilationData(
-        int index, 
+        int index,
         string? compilationName,
         string assemblyFileName,
         string? xmlFilePath,

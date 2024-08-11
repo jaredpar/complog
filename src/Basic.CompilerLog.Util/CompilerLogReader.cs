@@ -174,11 +174,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         var references = dataPack
             .References
-            .Select(x => new RawReferenceData(x.Mvid, x.Aliases, x.EmbedInteropTypes, NormalizePath(x.FilePath)))
+            .Select(x => new RawReferenceData(x.Mvid, x.Aliases, x.EmbedInteropTypes, NormalizePath(x.FilePath), x.AssemblyName, x.AssemblyInformationalVersion))
             .ToList();
         var analyzers = dataPack
             .Analyzers
-            .Select(x => new RawAnalyzerData(x.Mvid, NormalizePath(x.FilePath)))
+            .Select(x => new RawAnalyzerData(x.Mvid, NormalizePath(x.FilePath), x.AssemblyName, x.AssemblyInformationalVersion))
             .ToList();
         var contents = dataPack
             .ContentList
@@ -491,7 +491,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var filePath = referenceData.FilePath is string fp
                 ? fp
                 : PathNormalizationUtil.RootFileName(GetMetadataReferenceFileName(referenceData.Mvid));
-            var data = new ReferenceData(filePath, referenceData.Mvid, GetAssemblyBytes(referenceData.Mvid));
+            var data = new ReferenceData(filePath, referenceData.Mvid, referenceData.AssemblyName, referenceData.AssemblyInformationalVersion, GetAssemblyBytes(referenceData.Mvid));
             list.Add(data);
         }
 
@@ -505,7 +505,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var list = new List<ReferenceData>(rawCompilationData.Analyzers.Count);
         foreach (var analyzerData in rawCompilationData.Analyzers)
         {
-            var data = new ReferenceData(analyzerData.FilePath, analyzerData.Mvid, GetAssemblyBytes(analyzerData.Mvid));
+            var data = new ReferenceData(analyzerData.FilePath, analyzerData.Mvid, analyzerData.AssemblyName, analyzerData.AssemblyInformationalVersion, GetAssemblyBytes(analyzerData.Mvid));
             list.Add(data);
         }
 

@@ -356,7 +356,12 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         {
             if (!_referenceDataCache.TryGetValue(filePath, out var data))
             {
-                data = new ReferenceData(filePath, RoslynUtil.GetMvid(filePath), File.ReadAllBytes(filePath));
+                data = new ReferenceData(
+                    filePath,
+                    RoslynUtil.GetMvid(filePath),
+                    RoslynUtil.ReadAssemblyName(filePath),
+                    RoslynUtil.ReadAssemblyInformationalVersion(filePath),
+                    File.ReadAllBytes(filePath));
                 _referenceDataCache[filePath] = data;
             }
 
@@ -372,7 +377,11 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         {
             if (!_rawAnalyzerDataCache.TryGetValue(analyzer.FilePath, out var data))
             {
-                data = new RawAnalyzerData(RoslynUtil.GetMvid(analyzer.FilePath), analyzer.FilePath);
+                data = new RawAnalyzerData(
+                    RoslynUtil.GetMvid(analyzer.FilePath),
+                    analyzer.FilePath,
+                    RoslynUtil.ReadAssemblyName(analyzer.FilePath),
+                    RoslynUtil.ReadAssemblyInformationalVersion(analyzer.FilePath));
                 _rawAnalyzerDataCache[analyzer.FilePath] = data;
             }
             list.Add(data);

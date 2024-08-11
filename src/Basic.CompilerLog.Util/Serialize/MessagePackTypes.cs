@@ -182,6 +182,10 @@ public class ReferencePack
     public ImmutableArray<string> Aliases { get; set; }
     [Key(4)]
     public string? FilePath { get; set; }
+    [Key(5)]
+    public string? AssemblyName { get; set; }
+    [Key(6)]
+    public string? AssemblyInformationalVersion { get; set; }
 }
 
 [MessagePackObject]
@@ -191,6 +195,10 @@ public class AnalyzerPack
     public Guid Mvid { get; set; }
     [Key(1)]
     public string FilePath { get; set; }
+    [Key(2)]
+    public string? AssemblyName { get; set; }
+    [Key(3)]
+    public string? AssemblyInformationalVersion { get; set; }
 }
 
 [MessagePackObject]

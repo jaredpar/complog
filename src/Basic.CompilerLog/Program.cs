@@ -75,7 +75,7 @@ int RunCreate(IEnumerable<string> args)
         var convertResult = CompilerLogUtil.TryConvertBinaryLog(binlogFilePath, complogFilePath, options.FilterCompilerCalls);
         foreach (var diagnostic in convertResult.Diagnostics)
         {
-           WriteLine(diagnostic);
+            WriteLine(diagnostic);
         }
 
         if (options.ProjectNames.Count > 0)
@@ -109,7 +109,7 @@ int RunCreate(IEnumerable<string> args)
 }
 
 int RunAnalyzers(IEnumerable<string> args)
-{ 
+{
     var options = new FilterOptionSet();
 
     try
@@ -151,9 +151,11 @@ int RunAnalyzers(IEnumerable<string> args)
 int RunPrint(IEnumerable<string> args)
 {
     var compilers = false;
+    var analyzers = false;
     var options = new FilterOptionSet()
     {
         { "c|compilers", "include compiler summary", c => compilers = c is not null },
+        { "a|analyzers", "include analyzer summary", a => analyzers = a is not null },
     };
 
     try
@@ -172,6 +174,18 @@ int RunPrint(IEnumerable<string> args)
         foreach (var compilerCall in compilerCalls)
         {
             WriteLine($"\t{compilerCall.GetDiagnosticName()}");
+
+            if (analyzers)
+            {
+                WriteLine("\tAnalyzers");
+
+                foreach (var analyzer in reader.ReadAllAnalyzerData(compilerCall))
+                {
+                    WriteLine($"\t\tName: {analyzer.AssemblyName ?? "<null>"}");
+                    WriteLine($"\t\tInformational Version: {analyzer.AssemblyInformationalVersion ?? "<null>"}");
+                    WriteLine($"\t\tFile Path: {analyzer.FilePath}");
+                }
+            }
         }
 
         if (compilers)
@@ -721,7 +735,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
             throw new OptionException($"Not a valid log file {logFilePath}", "log");
     }
 
-    static string? FindLogFilePath(string baseDirectory, bool includeCompilerLogs = true ) =>
+    static string? FindLogFilePath(string baseDirectory, bool includeCompilerLogs = true) =>
         includeCompilerLogs
             ? FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj")
             : FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj");
