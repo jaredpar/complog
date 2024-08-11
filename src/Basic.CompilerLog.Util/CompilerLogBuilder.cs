@@ -35,7 +35,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     }
 
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, (Guid mvid, string? assemblyName, string? assemblyInformationVersion)> _assemblyPathToMvidMap = new(PathUtil.Comparer);
+    private readonly Dictionary<string, (Guid Mvid, string? AssemblyName, string? AssemblyInformationVersion)> _assemblyPathToMvidMap = new(PathUtil.Comparer);
     private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, (string AssemblyName, string? CommitHash)> _compilerInfoMap = new(PathUtil.Comparer);
     private readonly DefaultObjectPool<MemoryStream> _memoryStreamPool = new(new MemoryStreamPoolPolicy(), maximumRetained: 5);
@@ -499,27 +499,27 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         if (_assemblyPathToMvidMap.TryGetValue(filePath, out var info))
         {
-            Debug.Assert(_mvidToRefInfoMap.ContainsKey(info.mvid));
+            Debug.Assert(_mvidToRefInfoMap.ContainsKey(info.Mvid));
             return info;
         }
 
-        using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
-        info.mvid = RoslynUtil.GetMvid(fileStream);
-        info.assemblyName = RoslynUtil.ReadAssemblyName(filePath);
-        info.assemblyInformationVersion = RoslynUtil.ReadAssemblyInformationalVersion(filePath);
+        var identityData = RoslynUtil.ReadAssemblyIdentityData(filePath);
+        info.Mvid = identityData.Mvid;
+        info.AssemblyName = identityData.AssemblyName;
+        info.AssemblyInformationVersion = identityData.AssemblyInformationalVersion;
 
         _assemblyPathToMvidMap[filePath] = info;
 
         // If the assembly was already loaded from a different path then no more
         // work is needed here
-        if (_mvidToRefInfoMap.ContainsKey(info.mvid))
+        if (_mvidToRefInfoMap.ContainsKey(info.Mvid))
         {
             return info;
         }
 
-        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(info.mvid), CompressionLevel.Fastest);
+        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(info.Mvid), CompressionLevel.Fastest);
         using var entryStream = entry.Open();
-        fileStream.Position = 0;
+        using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
         fileStream.CopyTo(entryStream);
 
         // There are some assemblies for which MetadataReader will return an AssemblyName which 
@@ -527,7 +527,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         //
         // Example: .nuget\packages\microsoft.visualstudio.interop\17.2.32505.113\lib\net472\Microsoft.VisualStudio.Interop.dll
         var assemblyName = AssemblyName.GetAssemblyName(filePath);
-        _mvidToRefInfoMap[info.mvid] = (Path.GetFileName(filePath), assemblyName);
+        _mvidToRefInfoMap[info.Mvid] = (Path.GetFileName(filePath), assemblyName);
         return info;
     }
 
