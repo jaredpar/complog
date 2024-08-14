@@ -196,4 +196,19 @@ public sealed class RoslynUtilTests
         Assert.Equal(expectedFileName, actualFileName);
     }
 
+    [Fact]
+    public void ReadMvidSimple()
+    {
+        var path = typeof(RoslynUtil).Assembly.Location;
+        var mvid = RoslynUtil.ReadMvid(path);
+        Assert.NotEqual(Guid.Empty, mvid);
+    }
+
+    [Fact]
+    public void ReadAssemblyNameSimple()
+    {
+        var path = typeof(RoslynUtil).Assembly.Location;
+        var name = RoslynUtil.ReadAssemblyName(path);
+        Assert.Equal("Basic.CompilerLog.Util", name);
+    }
 }

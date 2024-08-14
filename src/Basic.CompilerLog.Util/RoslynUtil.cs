@@ -268,16 +268,16 @@ internal static class RoslynUtil
         return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
 
-    internal static Guid GetMvid(string filePath)
+    internal static Guid ReadMvid(string filePath)
     {
-        using var file = OpenBuildFileForRead(filePath);
-        return GetMvid(file);
-    }
-
-    internal static Guid GetMvid(Stream stream)
-    {
+        using var stream = OpenBuildFileForRead(filePath);
         using var reader = new PEReader(stream, PEStreamOptions.LeaveOpen);
         var mdReader = reader.GetMetadataReader();
+        return ReadMvid(mdReader);
+    }
+
+    internal static Guid ReadMvid(MetadataReader mdReader)
+    {
         GuidHandle handle = mdReader.GetModuleDefinition().Mvid;
         return mdReader.GetGuid(handle);
     }
@@ -606,16 +606,16 @@ internal static class RoslynUtil
         return ReadStringAssemblyAttribute(assemblyFilePath, "CommitHashAttribute");
     }
 
-    internal static string? ReadAssemblyInformationalVersion(string assemblyFilePath)
-    {
-        return ReadStringAssemblyAttribute(assemblyFilePath, nameof(AssemblyInformationalVersionAttribute));
-    }
-
     private static string? ReadStringAssemblyAttribute(string assemblyFilePath, string attributeName)
     {
         using var stream = new FileStream(assemblyFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var peReader = new PEReader(stream);
         var metadataReader = peReader.GetMetadataReader();
+        return ReadStringAssemblyAttribute(metadataReader, attributeName);
+    }
+
+    private static string? ReadStringAssemblyAttribute(MetadataReader metadataReader, string attributeName)
+    {
         var attributes = metadataReader.GetAssemblyDefinition().GetCustomAttributes();
         foreach (var attributeHandle in attributes)
         {
@@ -643,5 +643,17 @@ internal static class RoslynUtil
     internal static string? ReadAssemblyName(string assemblyFilePath)
     {
         return MetadataReader.GetAssemblyName(assemblyFilePath).Name;
+    }
+
+    internal static (Guid Mvid, string? AssemblyName, string? AssemblyInformationalVersion) ReadAssemblyIdentityData(string assemblyFilePath)
+    {
+        using var stream = OpenBuildFileForRead(assemblyFilePath);
+        using var peReader = new PEReader(stream);
+        var metadataReader = peReader.GetMetadataReader();
+        var def = metadataReader.GetAssemblyDefinition();
+        var assemblyName = def.GetAssemblyName().Name;
+        var mvid = ReadMvid(metadataReader);
+        var assemblyInformationalVersion = ReadStringAssemblyAttribute(metadataReader, nameof(AssemblyInformationalVersionAttribute));
+        return (mvid, assemblyName, assemblyInformationalVersion);
     }
 }
