@@ -387,7 +387,7 @@ int RunResponseFile(IEnumerable<string> args)
             Directory.CreateDirectory(baseOutputPath);
         }
 
-        var compilerCalls = reader.ReadAllCompilerCalls();
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];

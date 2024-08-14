@@ -317,9 +317,11 @@ public sealed class ProgramTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        var rsp = Path.Combine(RootDirectory, @".complog", "rsp", "console", "build.rsp");
+        var rspBaseDir = Path.Combine(RootDirectory, ".complog", "rsp");
+        var rsp = Path.Combine(rspBaseDir, "console", "build.rsp");
         Assert.True(File.Exists(rsp));
         Assert.Contains("Program.cs", File.ReadAllLines(rsp));
+        Assert.Single(Directory.EnumerateDirectories(rspBaseDir));
     }
 
     [Fact]
@@ -766,7 +768,7 @@ public sealed class ProgramTests : TestBase
     public void PrintKinds()
     {
         Debug.Assert(Fixture.WpfAppProjectPath is not null);
-        var (exitCode, output) = RunCompLogEx($"print --include {Fixture.WpfAppProjectPath}");
+        var (exitCode, output) = RunCompLogEx($"print --all {Fixture.WpfAppProjectPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("WpfTemporaryCompile", output);
 
@@ -778,7 +780,7 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void PrintFrameworks()
     {
-        var (exitCode, output) = RunCompLogEx($"print --include {Fixture.ClassLibMultiProjectPath} --framework net8.0");
+        var (exitCode, output) = RunCompLogEx($"print --all {Fixture.ClassLibMultiProjectPath} --framework net8.0");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("(net8.0)", output);
     }
