@@ -5,10 +5,7 @@
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	// "image": "mcr.microsoft.com/devcontainers/dotnet:1-8.0-bookworm",
 	"build": {
-		"dockerfile": "Dockerfile",
-		"args": {
-			"USERNAME": "${localEnv:USERNAME}"
-		}
+		"dockerfile": "Dockerfile"
 	},
 	"features": {
 		"ghcr.io/devcontainers-contrib/features/bash-command:1": {}
