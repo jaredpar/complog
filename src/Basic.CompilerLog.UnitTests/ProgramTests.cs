@@ -83,11 +83,15 @@ public sealed class ProgramTests : TestBase
 
     public (int ExitCode, string Output) RunCompLogEx(string args, string? currentDirectory = null)
     {
+        var savedCurrentDirectory = Constants.CurrentDirectory;
+        var savedLocalAppDataDirectory = Constants.LocalAppDataDirectory;
+
         try
         {
             var writer = new System.IO.StringWriter();
             currentDirectory ??= RootDirectory;
             Constants.CurrentDirectory = currentDirectory;
+            Constants.LocalAppDataDirectory = Path.Combine(currentDirectory, "localappdata");
             Constants.Out = writer;
             Constants.OnCompilerCallReader = OnCompilerCallReader;
             var assembly = typeof(FilterOptionSet).Assembly;
@@ -95,10 +99,16 @@ public sealed class ProgramTests : TestBase
             var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
             Assert.NotNull(main);
             var ret = main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
+            if (Directory.Exists(Constants.LocalAppDataDirectory))
+            {
+                Assert.Empty(Directory.EnumerateFileSystemEntries(Constants.LocalAppDataDirectory));
+            }
             return ((int)ret!, writer.ToString());
         }
         finally
         {
+            Constants.CurrentDirectory = savedCurrentDirectory;
+            Constants.LocalAppDataDirectory = savedLocalAppDataDirectory;
             Constants.Out = Console.Out;
             Constants.OnCompilerCallReader = _ => { };
         }
@@ -362,7 +372,8 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void ResponseNoLogArgument()
     {
-        var (exitCode, output) = RunCompLogEx($"rsp -o {RootDirectory}", Path.GetDirectoryName(Fixture.ConsoleProjectPath)!);
+        var consoleDir = Path.GetDirectoryName(Fixture.ConsoleProjectPath)!;
+        var (exitCode, output) = RunCompLogEx($"rsp -o {RootDirectory}", consoleDir);
         TestOutputHelper.WriteLine(output);
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.True(File.Exists(Path.Combine(RootDirectory, "console", "build.rsp")));
