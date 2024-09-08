@@ -14,6 +14,8 @@ var (command, rest) = args.Length == 0
     ? ("help", Enumerable.Empty<string>())
     : (args[0], args.Skip(1));
 
+var appDataDirectory = Path.Combine(LocalAppDataDirectory, Guid.NewGuid().ToString());
+
 try
 {
     return command.ToLower() switch
@@ -40,6 +42,13 @@ catch (Exception e)
     WriteLine(e.Message);
     RunHelp(null);
     return ExitFailure;
+}
+finally
+{
+    if (Directory.Exists(appDataDirectory))
+    {
+        Directory.Delete(appDataDirectory, recursive: true);
+    }
 }
 
 int RunCreate(IEnumerable<string> args)
@@ -730,7 +739,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
         case ".sln":
         case ".csproj":
         case ".vbproj":
-            return GetLogFilePathAfterBuild(baseDirectory, logFilePath, args);
+            return GetLogFilePathAfterBuild(appDataDirectory, baseDirectory, logFilePath, args);
         default:
             throw new OptionException($"Not a valid log file {logFilePath}", "log");
     }
@@ -740,12 +749,14 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
             ? FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj")
             : FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj");
 
-    static string GetLogFilePathAfterBuild(string baseDirectory, string buildFileName, IEnumerable<string> buildArgs)
+    static string GetLogFilePathAfterBuild(string appDataDirectory, string baseDirectory, string buildFileName, IEnumerable<string> buildArgs)
     {
-        var path = GetResolvedPath(baseDirectory, buildFileName);
+        Directory.CreateDirectory(appDataDirectory);
+        var binlogFilePath = Path.Combine(appDataDirectory, "build.binlog");
+        var buildFilePath = GetResolvedPath(baseDirectory, buildFileName);
         var tag = buildArgs.Any() ? "" : "-t:Rebuild";
-        var args = $"build {path} -bl:build.binlog -nr:false {tag} {string.Join(' ', buildArgs)}";
-        WriteLine($"Building {path}");
+        var args = $"build {buildFilePath} -bl:\"{binlogFilePath}\" -nr:false {tag} {string.Join(' ', buildArgs)}";
+        WriteLine($"Building {buildFilePath}");
         WriteLine($"dotnet {args}");
         var result = DotnetUtil.Command(args, baseDirectory);
         WriteLine(result.StandardOut);
@@ -755,7 +766,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
             WriteLine("Build Failed!");
         }
 
-        return Path.Combine(baseDirectory, "build.binlog");
+        return binlogFilePath;
     }
 
     static OptionException CreateOptionException() => new("Need a file to analyze", "log");
