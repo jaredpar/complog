@@ -73,7 +73,7 @@ public class StringStreamTests
         var stream = new StringStream("hello", Encoding.UTF8);
         Assert.True(stream.CanRead);
         Assert.False(stream.CanWrite);
-        Assert.Throws<NotSupportedException>(() => stream.CanSeek);
+        Assert.False(stream.CanSeek);
         Assert.Throws<NotSupportedException>(() => stream.Seek(0, SeekOrigin.Begin));
         Assert.Throws<NotSupportedException>(() => stream.Write(Array.Empty<byte>(), 0, 0));
         Assert.Throws<NotSupportedException>(() => stream.SetLength(1));
