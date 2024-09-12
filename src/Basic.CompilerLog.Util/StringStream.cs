@@ -12,11 +12,11 @@ internal sealed class StringStream(string content, Encoding encoding) : Stream
     private int _bytePosition;
 
     // These fields come into play when we have to read portions of a character at a time
-    private int _splitCharPosition = -1;
-    private int _splitCharCount;
-    private byte[] _splitCharBuffer = Array.Empty<byte>();
+    private int _splitPosition = -1;
+    private int _splitCount;
+    private byte[] _splitBuffer = Array.Empty<byte>();
 
-    internal bool InSplitChar => _splitCharPosition >= 0;
+    internal bool InSplit => _splitPosition >= 0;
 
     public override bool CanRead => true;
     public override bool CanSeek => false;
@@ -35,7 +35,7 @@ internal sealed class StringStream(string content, Encoding encoding) : Stream
 
             _bytePosition = 0;
             _contentPosition = 0;
-            _splitCharPosition = -1;
+            _splitPosition = -1;
         }
     }
 
@@ -63,24 +63,24 @@ internal sealed class StringStream(string content, Encoding encoding) : Stream
             return 0;
         }
 
-        return InSplitChar
+        return InSplit
             ? ReadFromSplitChar(buffer)
             : ReadFromString(buffer);
     }
 
     private int ReadFromSplitChar(Span<byte> buffer)
     {
-        Debug.Assert(InSplitChar);
+        Debug.Assert(InSplit);
         Debug.Assert(buffer.Length > 0);
-        Debug.Assert(_splitCharPosition >= 0);
-        Debug.Assert(_splitCharCount > 0 && _splitCharCount <= _splitCharBuffer.Length);
+        Debug.Assert(_splitPosition >= 0);
+        Debug.Assert(_splitCount > 0 && _splitCount <= _splitBuffer.Length);
 
-        int count = Math.Min(_splitCharCount - _splitCharPosition, buffer.Length);
-        _splitCharBuffer.AsSpan(_splitCharPosition, count).CopyTo(buffer);
-        _splitCharPosition += count;
-        if (_splitCharPosition == _splitCharBuffer.Length)
+        int count = Math.Min(_splitCount - _splitPosition, buffer.Length);
+        _splitBuffer.AsSpan(_splitPosition, count).CopyTo(buffer);
+        _splitPosition += count;
+        if (_splitPosition == _splitBuffer.Length)
         {
-            _splitCharPosition = -1;
+            _splitPosition = -1;
             _contentPosition++;
         }
 
@@ -89,7 +89,7 @@ internal sealed class StringStream(string content, Encoding encoding) : Stream
 
     private int ReadFromString(Span<byte> buffer)
     {
-        Debug.Assert(!InSplitChar);
+        Debug.Assert(!InSplit);
         Debug.Assert(buffer.Length > 0);
         Debug.Assert(_contentPosition < _content.Length);
 
@@ -104,14 +104,14 @@ internal sealed class StringStream(string content, Encoding encoding) : Stream
                 {
                     // Buffer isn't big enough to hold a single character. Need to move into a split character 
                     // mode to handle this case.
-                    if (byteCount > _splitCharBuffer.Length)
+                    if (byteCount > _splitBuffer.Length)
                     {
-                        _splitCharBuffer = new byte[byteCount];
+                        _splitBuffer = new byte[byteCount];
                     }
 
-                    _splitCharPosition = 0;
-                    _splitCharCount = _encoding.GetBytes(_content.AsSpan(_contentPosition, 1), _splitCharBuffer);
-                    Debug.Assert(_splitCharCount <= _splitCharBuffer.Length);
+                    _splitPosition = 0;
+                    _splitCount = _encoding.GetBytes(_content.AsSpan(_contentPosition, 1), _splitBuffer);
+                    Debug.Assert(_splitCount <= _splitBuffer.Length);
 
                     return ReadFromSplitChar(buffer);
                 }

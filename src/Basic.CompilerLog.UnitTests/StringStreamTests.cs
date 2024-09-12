@@ -1,5 +1,6 @@
 using System.Text;
 using Basic.CompilerLog.Util;
+using DotUtils.StreamUtils;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -78,6 +79,25 @@ public class StringStreamTests
         Assert.Throws<NotSupportedException>(() => stream.Write(Array.Empty<byte>(), 0, 0));
         Assert.Throws<NotSupportedException>(() => stream.SetLength(1));
         stream.Flush(); // no-op
+    }
+
+    [Fact]
+    public void PositionReset()
+    {
+        var stream = new StringStream("hello", Encoding.UTF8);
+        var bytes1 = stream.ReadToEnd();
+        stream.Position = 0;
+        var bytes2 = stream.ReadToEnd();
+        Assert.Equal(bytes1, bytes2);
+    }
+
+    [Fact]
+    public void PositionSetToMiddle()
+    {
+        var stream = new StringStream("hello", Encoding.UTF8);
+        var bytes1 = stream.ReadToEnd();
+        stream.Position = 0;
+        Assert.Throws<NotSupportedException>(() => stream.Position = 1);
     }
 
     [Theory]
