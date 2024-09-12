@@ -1,4 +1,4 @@
-#if NETCOREAPP
+#if NET
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;

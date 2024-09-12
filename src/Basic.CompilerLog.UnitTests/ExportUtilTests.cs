@@ -45,7 +45,7 @@ public sealed class ExportUtilTests : TestBase
     internal static void TestExport(ITestOutputHelper testOutputHelper, string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
-#if NETCOREAPP
+#if NET
         var sdkDirs = SdkUtil.GetSdkDirectories();
 #else
         var sdkDirs = SdkUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
@@ -204,6 +204,39 @@ public sealed class ExportUtilTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
         Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
+    }
+
+    /// <summary>
+    /// Make sure that unix paths aren't confused as options when exporting the RSP file
+    /// </summary>
+    [Fact]
+    public void ExportUnixPaths()
+    {
+        string[] args = 
+        [
+            "/workspace/runtime/test.cs",
+            "/debug:full",
+        ];
+        var reader = CreateReader(builder =>
+        {
+            var compilerCall = new CompilerCall(
+                compilerFilePath: "app",
+                projectFilePath: "/src/app.csproj",
+                CompilerCallKind.Regular,
+                targetFramework: "net5.0",
+                isCSharp: true,
+                arguments: new (() => args));
+
+            builder.AddContent(compilerCall, ["Console.WriteLine()"]);
+        });
+
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
+        var dir = Root.NewDirectory("export-test");
+        exportUtil.Export(reader.ReadCompilerCall(0), dir, []);
+
+        var lines = File.ReadAllLines(path: Path.Combine(dir, "build.rsp"));
+        Assert.DoesNotContain(args[0], lines);
+        Assert.Contains(args[1], lines);
     }
 
     private void EmbedLineCore(string contentFilePath)

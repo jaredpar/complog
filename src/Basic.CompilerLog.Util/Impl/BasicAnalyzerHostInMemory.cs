@@ -6,7 +6,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 
@@ -33,7 +33,7 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
     }
 }
 
-#if NETCOREAPP
+#if NET
 
 internal sealed class InMemoryLoader : AssemblyLoadContext
 {

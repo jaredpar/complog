@@ -1,4 +1,4 @@
-﻿#if NETCOREAPP
+﻿#if NET
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;

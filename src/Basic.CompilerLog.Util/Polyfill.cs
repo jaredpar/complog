@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Basic.CompilerLog.Util
@@ -10,7 +12,7 @@ namespace Basic.CompilerLog.Util
     {
         internal static StreamReader NewStreamReader(Stream stream, Encoding? encoding = null, bool detectEncodingFromByteOrderMarks = true, int bufferSize = -1, bool leaveOpen = false)
         {
-#if !NETCOREAPP
+#if !NET
             if (bufferSize < 0)
             {
                 bufferSize = 1024;
@@ -21,7 +23,7 @@ namespace Basic.CompilerLog.Util
 
         internal static StreamWriter NewStreamWriter(Stream stream, Encoding? encoding = null, int bufferSize = -1, bool leaveOpen = false)
         {
-#if !NETCOREAPP
+#if !NET
             if (bufferSize < 0)
             {
                 bufferSize = 1024;
@@ -31,9 +33,9 @@ namespace Basic.CompilerLog.Util
         }
     }
 
-#if !NETCOREAPP
+#if !NET
 
-    internal static class PolyfillExtensions
+    internal static partial class PolyfillExtensions
     {
         internal static string[] Split(this string @this, char separator, StringSplitOptions options = StringSplitOptions.None) =>
             @this.Split(new char[] { separator }, options);
@@ -87,12 +89,56 @@ namespace Basic.CompilerLog.Util
             Write(@this, buffer);
             @this.WriteLine();
         }
+
+        internal static unsafe int GetByteCount(this Encoding @this, ReadOnlySpan<char> chars)
+        {
+            if (chars.IsEmpty)
+            {
+                return 0;
+            }
+
+            fixed (char* charsPtr = &MemoryMarshal.GetReference(chars))
+            {
+                return @this.GetByteCount(charsPtr, chars.Length);
+            }
+        }
+
+        internal static unsafe int GetBytes(this Encoding @this, ReadOnlySpan<char> chars, Span<byte> bytes)
+        {
+            if (chars.IsEmpty)
+            {
+                return 0;
+            }
+
+            if (bytes.IsEmpty)
+            {
+                return 0;
+            }
+
+            fixed (char* charsPtr = &MemoryMarshal.GetReference(chars))
+            fixed (byte* bytesPtr = &MemoryMarshal.GetReference(bytes))
+            {
+                return @this.GetBytes(charsPtr, chars.Length, bytesPtr, bytes.Length);
+            }
+        }
+
+        internal static bool IsMatch(this Regex @this, ReadOnlySpan<char> input) =>
+            @this.IsMatch(input.ToString());
     }
 
 #endif
+
+    internal static partial class PolyfillExtensions
+    {
+#if !NET9_0_OR_GREATER
+        internal static IEnumerable<(int Index, T Item)> Index<T>(this IEnumerable<T> @this) =>
+            @this.Select((item, index) => (index, item));
+#endif
+    }
+
 }
 
-#if !NETCOREAPP
+#if !NET
 
 namespace System.Diagnostics.CodeAnalysis
 {

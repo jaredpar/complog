@@ -60,7 +60,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// <summary>
     /// Adds a compilation into the builder and returns the index of the entry
     /// </summary>
-    internal void Add(CompilerCall compilerCall, CommandLineArguments commandLineArguments)
+    internal void AddFromDisk(CompilerCall compilerCall, CommandLineArguments commandLineArguments)
     {
         var infoPack = new CompilationInfoPack()
         {
@@ -69,21 +69,13 @@ internal sealed class CompilerLogBuilder : IDisposable
             IsCSharp = compilerCall.IsCSharp,
             TargetFramework = compilerCall.TargetFramework,
             CompilerCallKind = compilerCall.Kind,
-            CommandLineArgsHash = AddContentMessagePack(compilerCall.GetArguments()),
+            CommandLineArgsHash = WriteContentMessagePack(compilerCall.GetArguments()),
             CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
         };
 
         AddCompilerInfo(infoPack, compilerCall);
         AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
-
-        var index = _compilationCount;
-        var entry = ZipArchive.CreateEntry(GetCompilerEntryName(index), CompressionLevel.Fastest);
-        using (var entryStream = entry.Open())
-        {
-            MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
-        }
-
-        _compilationCount++;
+        AddCore(infoPack);
 
         string AddCompilationDataPack(CommandLineArguments commandLineArguments)
         {
@@ -95,7 +87,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 Analyzers = new(),
                 Resources = new(),
             };
-            AddValues(dataPack, commandLineArguments);
+            AddCommandLineArgumentValues(dataPack, commandLineArguments);
             AddReferences(dataPack, commandLineArguments);
             AddAnalyzers(dataPack, commandLineArguments);
             AddAnalyzerConfigs(dataPack, commandLineArguments);
@@ -111,14 +103,14 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddContentIf(dataPack, RawContentKind.Win32Icon, commandLineArguments.Win32Icon);
             AddContentIf(dataPack, RawContentKind.Win32Manifest, commandLineArguments.Win32Manifest);
             AddContentIf(dataPack, RawContentKind.CryptoKeyFile, commandLineArguments.CompilationOptions.CryptoKeyFile);
-            return AddContentMessagePack(dataPack);
+            return WriteContentMessagePack(dataPack);
         }
 
         void AddContentIf(CompilationDataPack dataPack, RawContentKind kind, string? filePath)
         {
             if (Resolve(filePath) is { } resolvedFilePath)
             {
-                AddContentCore(dataPack, kind, resolvedFilePath);
+                AddContentFromDisk(dataPack, kind, resolvedFilePath);
             }
         }
 
@@ -165,23 +157,82 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)
         {
-            infoPack.EmitOptionsHash = AddContentMessagePack(MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions));
+            infoPack.EmitOptionsHash = WriteContentMessagePack(MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions));
 
             if (compilerCall.IsCSharp)
             {
-                infoPack.ParseOptionsHash = AddContentMessagePack(
+                infoPack.ParseOptionsHash = WriteContentMessagePack(
                     MessagePackUtil.CreateCSharpParseOptionsPack((CSharpParseOptions)args.ParseOptions));
-                infoPack.CompilationOptionsHash = AddContentMessagePack(
+                infoPack.CompilationOptionsHash = WriteContentMessagePack(
                     MessagePackUtil.CreateCSharpCompilationOptionsPack((CSharpCompilationOptions)args.CompilationOptions));
             }
             else
             {
-                infoPack.ParseOptionsHash = AddContentMessagePack(
+                infoPack.ParseOptionsHash = WriteContentMessagePack(
                     MessagePackUtil.CreateVisualBasicParseOptionsPack((VisualBasicParseOptions)args.ParseOptions));
-                infoPack.CompilationOptionsHash = AddContentMessagePack(
+                infoPack.CompilationOptionsHash = WriteContentMessagePack(
                     MessagePackUtil.CreateVisualBasicCompilationOptionsPack((VisualBasicCompilationOptions)args.CompilationOptions));
             }
         }
+    }
+
+    /// <summary>
+    /// Add the compiler call content into the builder.
+    /// </summary>
+    /// <remarks>
+    /// This is useful for building up compilations on the fly for testing.
+    /// </remarks>
+    internal void AddContent(
+        CompilerCall compilerCall,
+        string[] sources,
+        CommandLineArguments? commandLineArguments = null)
+    {
+        commandLineArguments ??= GetEmptyCommandLineArguments();
+
+        var dataPack = new CompilationDataPack()
+        {
+            ContentList = new(),
+            ValueMap = new(),
+            References = new(),
+            Analyzers = new(),
+            Resources = new(),
+        };
+
+        AddCommandLineArgumentValues(dataPack, commandLineArguments);
+
+        foreach (var (i, source) in sources.Index())
+        {
+            AddContent(dataPack, RawContentKind.SourceText, filePath: $"source{i}.cs", content: source);
+        }
+
+        var infoPack = new CompilationInfoPack()
+        {
+            CompilerFilePath = compilerCall.CompilerFilePath,
+            ProjectFilePath = compilerCall.ProjectFilePath,
+            IsCSharp = compilerCall.IsCSharp,
+            TargetFramework = compilerCall.TargetFramework,
+            CompilerCallKind = compilerCall.Kind,
+            CommandLineArgsHash = WriteContentMessagePack(compilerCall.GetArguments()),
+            CompilationDataPackHash = WriteContentMessagePack(dataPack)
+        };
+        
+        AddCore(infoPack);
+
+        CommandLineArguments GetEmptyCommandLineArguments() => compilerCall.IsCSharp
+            ? CSharpCommandLineParser.Default.Parse([], baseDirectory: null, sdkDirectory: null, additionalReferenceDirectories: null)
+            : VisualBasicCommandLineParser.Default.Parse([], baseDirectory: null, sdkDirectory: null, additionalReferenceDirectories: null);
+    }
+
+    private void AddCore(CompilationInfoPack infoPack)
+    {
+        var index = _compilationCount;
+        var entry = ZipArchive.CreateEntry(GetCompilerEntryName(index), CompressionLevel.Fastest);
+        using (var entryStream = entry.Open())
+        {
+            MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
+        }
+
+        _compilationCount++;
     }
 
     public void Close()
@@ -219,9 +270,9 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddContentCore(CompilationDataPack dataPack, RawContentKind kind, string filePath, Stream stream)
+    private void AddContent(CompilationDataPack dataPack, RawContentKind kind, string filePath, Stream stream)
     {
-        var contentHash = AddContent(stream);
+        var contentHash = WriteContent(stream);
 
         dataPack.ContentList.Add(((int)kind, new ContentPack()
         {
@@ -230,12 +281,18 @@ internal sealed class CompilerLogBuilder : IDisposable
         }));
     }
 
-    private void AddContentCore(CompilationDataPack dataPack, RawContentKind kind, string filePath)
+    private void AddContentFromDisk(CompilationDataPack dataPack, RawContentKind kind, string filePath)
     {
-        var contentHash = AddContent(filePath);
+        using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
+        AddContent(dataPack, kind, filePath, fileStream);
+    }
+
+    private void AddContent(CompilationDataPack dataPack, RawContentKind kind, string filePath, string content)
+    {
+        using var stream = new StringStream(content, ContentEncoding);
         dataPack.ContentList.Add(((int)kind, new ContentPack()
         {
-            ContentHash = contentHash,
+            ContentHash = WriteContent(stream),
             FilePath = filePath
         }));
     }
@@ -244,11 +301,11 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var filePath in args.AnalyzerConfigPaths)
         {
-            AddContentCore(dataPack, RawContentKind.AnalyzerConfig, filePath);
+            AddContentFromDisk(dataPack, RawContentKind.AnalyzerConfig, filePath);
         }
     }
 
-    private void AddValues(CompilationDataPack dataPack, CommandLineArguments args)
+    private void AddCommandLineArgumentValues(CompilationDataPack dataPack, CommandLineArguments args)
     {
         dataPack.ValueMap.Add("assemblyFileName", RoslynUtil.GetAssemblyFileName(args));
         dataPack.ValueMap.Add("xmlFilePath", args.DocumentationPath);
@@ -261,7 +318,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var commandLineFile in args.SourceFiles)
         {
-            AddContentCore(dataPack, RawContentKind.SourceText, commandLineFile.Path);
+            AddContentFromDisk(dataPack, RawContentKind.SourceText, commandLineFile.Path);
         }
     }
 
@@ -284,7 +341,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             var generatedFiles = RoslynUtil.ReadGeneratedFiles(compilerCall, args);
             foreach (var tuple in generatedFiles)
             {
-                AddContentCore(dataPack, RawContentKind.GeneratedText, tuple.FilePath, tuple.Stream);
+                AddContent(dataPack, RawContentKind.GeneratedText, tuple.FilePath, tuple.Stream);
             }
             dataPack.IncludesGeneratedText = true;
         }
@@ -298,14 +355,14 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// <summary>
     /// Add the <paramref name="value"/> as content using message pack serialization
     /// </summary>
-    private string AddContentMessagePack<T>(T value)
+    private string WriteContentMessagePack<T>(T value)
     {
         var stream = _memoryStreamPool.Get();
         try
         {
             MessagePackSerializer.Serialize(stream, value, SerializerOptions);
             stream.Position = 0;
-            return AddContent(stream);
+            return WriteContent(stream);
         }
         finally
         {
@@ -317,17 +374,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// Add a source file to the storage and return the stored name of the content in our 
     /// storage. This will be a checksum of the content itself
     /// </summary>
-    private string AddContent(string filePath)
-    {
-        using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
-        return AddContent(fileStream);
-    }
-
-    /// <summary>
-    /// Add a source file to the storage and return the stored name of the content in our 
-    /// storage. This will be a checksum of the content itself
-    /// </summary>
-    private string AddContent(Stream stream)
+    private string WriteContent(Stream stream)
     {
         Debug.Assert(stream.Position == 0);
         var sha = SHA256.Create();
@@ -378,7 +425,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var additionalText in args.AdditionalFiles)
         {
-            AddContentCore(dataPack, RawContentKind.AdditionalText, additionalText.Path);
+            AddContentFromDisk(dataPack, RawContentKind.AdditionalText, additionalText.Path);
         }
     }
 
@@ -394,7 +441,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             using var stream = dataProvider();
             var pack = new ResourcePack()
             {
-                ContentHash = AddContent(stream),
+                ContentHash = WriteContent(stream),
                 FileName = fileName,
                 Name = name,
                 IsPublic = isPublic,
@@ -418,7 +465,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         foreach (var e in args.EmbeddedFiles)
         {
             using var stream = RoslynUtil.OpenBuildFileForRead(e.Path);
-            AddContentCore(dataPack, RawContentKind.Embed, e.Path, stream);
+            AddContent(dataPack, RawContentKind.Embed, e.Path, stream);
 
             // When the compiler embeds a source file it will also embed the targets of any 
             // #line directives in the code
@@ -429,7 +476,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                     var resolvedTarget = resolver.ResolveReference(rawTarget, e.Path);
                     if (resolvedTarget is not null)
                     {
-                        AddContentCore(dataPack, RawContentKind.EmbedLine, resolvedTarget);
+                        AddContentFromDisk(dataPack, RawContentKind.EmbedLine, resolvedTarget);
 
                         // Presently the compiler does not use /pathhmap when attempting to resolve
                         // #line targets for embedded files. That means if the path is a full one here, or

@@ -99,7 +99,7 @@ public static class CompilerLogUtil
             try
             {
                 var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
-                builder.Add(compilerCall, commandLineArguments);
+                builder.AddFromDisk(compilerCall, commandLineArguments);
                 included.Add(compilerCall);
             }
             catch (Exception ex)

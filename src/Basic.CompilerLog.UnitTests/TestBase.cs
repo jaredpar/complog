@@ -96,6 +96,17 @@ public abstract class TestBase : IDisposable
         return reader;
     }
 
+    private protected CompilerLogReader CreateReader(Action<CompilerLogBuilder> action, LogReaderState? state = null)
+    {
+        var stream = new MemoryStream();
+        var diagnostics = new List<string>();
+        var builder = new CompilerLogBuilder(stream, diagnostics);
+        action(builder);
+        builder.Close();
+        stream.Position = 0;
+        return CompilerLogReader.Create(stream, state, leaveOpen: false);
+    }
+
     /// <summary>
     /// Run the build.cmd / .sh generated from an export command
     /// </summary>

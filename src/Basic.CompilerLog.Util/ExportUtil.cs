@@ -1,22 +1,12 @@
-﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
-using System.Collections.Generic;
-using System.Configuration.Internal;
-using System.Linq;
-using System.IO;
-using System.Reflection.Metadata;
-using System.Reflection.Metadata.Ecma335;
+﻿using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Build.Framework;
 
 namespace Basic.CompilerLog.Util;
 
 /// <summary>
 /// Tool to export compilations to disk for other uses
 /// </summary>
-public sealed class ExportUtil
+public sealed partial class ExportUtil
 {
     private sealed class ContentBuilder
     {
@@ -80,6 +70,8 @@ public sealed class ExportUtil
             return newFilePath;
         }
     }
+
+    internal static Regex OptionsRegex { get; } = GetOptionRegex();
 
     public CompilerLogReader Reader { get; }
     public bool IncludeAnalyzers { get; }
@@ -163,7 +155,7 @@ public sealed class ExportUtil
             var cmdFilePath = Path.Combine(destinationDir, cmdFileName);
             File.WriteAllLines(cmdFilePath, lines);
 
-#if NETCOREAPP
+#if NET
 
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -420,6 +412,14 @@ public sealed class ExportUtil
         return arg;
     }
 
-    private static bool IsOption(ReadOnlySpan<char> str) => 
-        str.Length > 0 && str[0] is '-' or '/';
+    private static bool IsOption(ReadOnlySpan<char> str) => OptionsRegex.IsMatch(str);
+
+    private const string OptionRegexContent = @"^/[a-z0-9]+:";
+
+#if NET
+    [GeneratedRegex(OptionRegexContent, RegexOptions.IgnoreCase)]
+    private static partial Regex GetOptionRegex();
+#else
+    private static Regex GetOptionRegex() => new Regex(OptionRegexContent, RegexOptions.IgnoreCase);
+#endif
 }
