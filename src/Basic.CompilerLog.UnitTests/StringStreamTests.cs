@@ -67,6 +67,19 @@ public class StringStreamTests
         RoundTripReset(input);
     }
 
+    [Fact]
+    public void Behaviors()
+    {
+        var stream = new StringStream("hello", Encoding.UTF8);
+        Assert.True(stream.CanRead);
+        Assert.False(stream.CanWrite);
+        Assert.Throws<NotSupportedException>(() => stream.CanSeek);
+        Assert.Throws<NotSupportedException>(() => stream.Seek(0, SeekOrigin.Begin));
+        Assert.Throws<NotSupportedException>(() => stream.Write(Array.Empty<byte>(), 0, 0));
+        Assert.Throws<NotSupportedException>(() => stream.SetLength(1));
+        stream.Flush(); // no-op
+    }
+
     [Theory]
     [InlineData("Hello, world!")]
     [InlineData("")]
@@ -78,5 +91,15 @@ public class StringStreamTests
     {
         RoundTripAll(new string('a', 1000));
         RoundTripAll(new string('a', 10_000));
+    }
+
+    [Fact]
+    public void ReadEmpty()
+    {
+        var stream = new StringStream("hello world", Encoding.UTF8);
+        Assert.Equal(0, stream.Read(Array.Empty<byte>(), 0, 0));
+#if NET
+        Assert.Equal(0, stream.Read(Array.Empty<byte>().AsSpan()));
+#endif
     }
 }
