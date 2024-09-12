@@ -24,7 +24,7 @@ public sealed class CompilerLogBuilderTests : TestBase
 
         var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(binlogStream).First(x => x.IsCSharp);
         compilerCall = compilerCall.ChangeArguments(["/sourcelink:does-not-exist.txt"]);
-        Assert.Throws<Exception>(() => builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall)));
+        Assert.Throws<Exception>(() => builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall)));
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class CompilerLogBuilderTests : TestBase
             isCSharp: true,
             new Lazy<IReadOnlyCollection<string>>(() => args),
             null);
-        builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+        builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
     }
 
     [Fact]

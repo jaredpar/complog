@@ -12,7 +12,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 

@@ -51,7 +51,7 @@ public abstract class BasicAnalyzerHost : IDisposable
     {
         get
         {
-#if NETCOREAPP
+#if NET
             return BasicAnalyzerKind.InMemory;
 #else
             return BasicAnalyzerKind.OnDisk;
@@ -117,7 +117,7 @@ public abstract class BasicAnalyzerHost : IDisposable
 
     public static bool IsSupported(BasicAnalyzerKind kind)
     {
-#if NETCOREAPP
+#if NET
         return true;
 #else
         return kind is BasicAnalyzerKind.OnDisk or BasicAnalyzerKind.None;

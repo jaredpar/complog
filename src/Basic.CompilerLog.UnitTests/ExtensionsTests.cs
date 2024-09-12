@@ -34,7 +34,7 @@ public sealed class ExtensionsTests : TestBase
         Assert.Equal([42, 13], list);
     }
 
-#if NETCOREAPP
+#if NET
 
     [Fact]
     public void GetFailureString()

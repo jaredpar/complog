@@ -10,7 +10,7 @@ using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Runtime.InteropServices;
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 using System.Text;
@@ -51,7 +51,7 @@ public sealed class CompilerLogReaderExTests : TestBase
         var diagnostics = new List<string>();
         var stream = new MemoryStream();
         var builder = new CompilerLogBuilder(stream, diagnostics);
-        builder.Add(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+        builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
         builder.Close();
         stream.Position = 0;
         return CompilerLogReader.Create(stream, basicAnalyzerKind, State, leaveOpen: false);

@@ -15,7 +15,7 @@
         "jaredpar",
         "msbuild",
         "Mvid",
-        "NETCOREAPP",
+        "NET",
         "netstandard",
         "ondisk",
         "Relogger",

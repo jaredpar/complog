@@ -3,7 +3,7 @@ using Basic.CompilerLog.Util;
 using Xunit;
 using Xunit.Abstractions;
 
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 
@@ -38,7 +38,7 @@ public class LogReaderStateTests : TestBase
         fileStream.Dispose();
     }
 
-#if NETCOREAPP
+#if NET
     [Fact]
     public void CustomAssemblyLoadContext()
     {

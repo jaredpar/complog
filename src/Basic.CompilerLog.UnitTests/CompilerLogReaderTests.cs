@@ -10,7 +10,7 @@ using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Runtime.InteropServices;
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 using System.Text;
@@ -249,7 +249,7 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.True(data.BasicAnalyzerHost.IsDisposed);
     }
 
-#if NETCOREAPP
+#if NET
 
     /// <summary>
     /// Ensure that diagnostics are raised when the analyzer can't properly load all of the types

@@ -14,7 +14,7 @@ using Microsoft.CodeAnalysis.CSharp;
 
 
 
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 
@@ -27,7 +27,7 @@ public sealed class BasicAnalyzerHostTests
     {
         Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.OnDisk));
         Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.None));
-#if NETCOREAPP
+#if NET
         Assert.True(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.InMemory));
 #else
         Assert.False(BasicAnalyzerHost.IsSupported(BasicAnalyzerKind.InMemory));

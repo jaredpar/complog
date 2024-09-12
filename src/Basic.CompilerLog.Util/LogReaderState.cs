@@ -1,4 +1,4 @@
-﻿#if NETCOREAPP
+﻿#if NET
 using System.Runtime.Loader;
 #endif
 
@@ -46,7 +46,7 @@ public sealed class LogReaderState : IDisposable
 
     internal List<BasicAnalyzerHost> BasicAnalyzerHosts { get; } = new();
 
-#if NETCOREAPP
+#if NET
 
     public AssemblyLoadContext CompilerLoadContext { get; }
 
@@ -77,7 +77,7 @@ public sealed class LogReaderState : IDisposable
         BaseDirectory = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
         CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");
         AnalyzerDirectory = Path.Combine(BaseDirectory, "Analyzers");
-#if NETCOREAPP
+#if NET
         CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(null);
 #endif
         if (cacheAnalyzers)

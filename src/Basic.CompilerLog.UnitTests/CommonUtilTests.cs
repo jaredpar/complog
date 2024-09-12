@@ -2,7 +2,7 @@
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 
@@ -10,7 +10,7 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class CommonUtilTests
 {
-#if NETCOREAPP
+#if NET
 
     [Fact]
     public void GetAssemlbyLoadContext()

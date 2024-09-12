@@ -6,7 +6,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 using System.Text;
@@ -64,7 +64,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
     }
 }
 
-#if NETCOREAPP
+#if NET
 
 internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoader, IDisposable
 {

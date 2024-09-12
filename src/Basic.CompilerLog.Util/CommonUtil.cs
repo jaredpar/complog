@@ -7,7 +7,7 @@ using MessagePack;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Emit;
 
-#if NETCOREAPP
+#if NET
 using System.Runtime.Loader;
 #endif
 
@@ -24,7 +24,7 @@ internal static class CommonUtil
     internal static string GetAssemblyEntryName(Guid mvid) => $"assembly/{mvid:N}";
     internal static string GetContentEntryName(string contentHash) => $"content/{contentHash}";
 
-#if NETCOREAPP
+#if NET
 
     internal static AssemblyLoadContext GetAssemblyLoadContext(AssemblyLoadContext? context)
     {
