@@ -37,6 +37,9 @@ public sealed partial class ExportUtil
 
         internal string GetNewSourcePath(string originalFilePath)
         {
+            // Normalize out all of the ..\ and .\ in the path
+            originalFilePath = Path.GetFullPath(originalFilePath);
+
             string filePath;
             if (originalFilePath.StartsWith(OriginalProjectDirectory, PathUtil.Comparison))
             {
