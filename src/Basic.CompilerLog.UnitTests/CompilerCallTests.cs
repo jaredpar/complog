@@ -11,7 +11,7 @@ public class CompilerCallTests
     {
         var compilerCall = new CompilerCall(
             compilerFilePath: null,
-            "test.cs",
+            "test.csproj",
             CompilerCallKind.Regular,
             targetFramework: null,
             isCSharp: true,
