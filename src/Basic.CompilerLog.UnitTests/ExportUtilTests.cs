@@ -1,4 +1,5 @@
 ﻿using Basic.CompilerLog.Util;
+using Basic.Reference.Assemblies;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
@@ -45,6 +46,11 @@ public sealed class ExportUtilTests : TestBase
     internal static void TestExport(ITestOutputHelper testOutputHelper, string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
+        TestExport(testOutputHelper, reader, expectedCount, includeAnalyzers, verifyExportCallback, runBuild);
+    }
+
+    internal static void TestExport(ITestOutputHelper testOutputHelper, CompilerLogReader reader, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true)
+    {
 #if NET
         var sdkDirs = SdkUtil.GetSdkDirectories();
 #else
@@ -65,7 +71,7 @@ public sealed class ExportUtilTests : TestBase
                 var buildResult = RunBuildCmd(tempDir.DirectoryPath);
                 testOutputHelper.WriteLine(buildResult.StandardOut);
                 testOutputHelper.WriteLine(buildResult.StandardError);
-                Assert.True(buildResult.Succeeded, $"Cannot build {Path.GetFileName(compilerLogFilePath)}");
+                Assert.True(buildResult.Succeeded, $"Cannot build {compilerCall.ProjectFileName}");
             }
 
             // Ensure that full paths aren't getting written out to the RSP file. That makes the 
@@ -180,6 +186,48 @@ public sealed class ExportUtilTests : TestBase
 
             Assert.True(found);
         }, runBuild: false);
+    }
+
+    /// <summary>
+    /// Make sure that we can round trip a /link argument. That is a reference that we are embedding 
+    /// interop types for.
+    /// </summary>
+    [Fact]
+    public void ConsoleWithLink()
+    {
+        var piaInfo = LibraryUtil.GetSimplePia();
+        var linkFilePath = Root.NewFile(piaInfo.FileName, piaInfo.Image);
+
+        using var reader = CreateReader(builder =>
+        {
+            using var binlogReader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!);
+            var compilerCall = binlogReader.ReadAllCompilerCalls().Single();
+            string[] args =
+            [
+                .. compilerCall.GetArguments(),
+                $"/link:{linkFilePath}"
+            ];
+            compilerCall = compilerCall.WithArguments(args);
+            var commandLineArgs = binlogReader.ReadCommandLineArguments(compilerCall);
+            Assert.True(commandLineArgs.MetadataReferences.Any(x => x.Properties.EmbedInteropTypes));
+            builder.AddFromDisk(compilerCall, commandLineArgs);
+        });
+
+        TestExport(TestOutputHelper, reader, expectedCount: 1, verifyExportCallback: tempPath =>
+        {
+            var rspPath = Path.Combine(tempPath, "build.rsp");
+            var foundPath = false;
+            foreach (var line in File.ReadAllLines(rspPath))
+            {
+                if (line.StartsWith("/link:", StringComparison.Ordinal))
+                {
+                    foundPath = true;
+                    Assert.Equal($@"/link:""ref{Path.DirectorySeparatorChar}{piaInfo.FileName}""", line);
+                }
+            }
+
+            Assert.True(foundPath);
+        }, runBuild: true);
     }
 
     [Fact]

@@ -39,7 +39,7 @@ internal static class Extensions
         }
     }
 
-    internal static CompilerCall ChangeArguments(this CompilerCall compilerCall, IReadOnlyCollection<string> arguments)
+    internal static CompilerCall WithArguments(this CompilerCall compilerCall, IReadOnlyCollection<string> arguments)
     {
         return new CompilerCall(
             compilerCall.CompilerFilePath,
@@ -51,7 +51,7 @@ internal static class Extensions
             compilerCall.OwnerState);
     }
 
-    internal static CompilerCall ChangeOwner(this CompilerCall compilerCall, object? ownerState)
+    internal static CompilerCall WithOwner(this CompilerCall compilerCall, object? ownerState)
     {
         var args = compilerCall.GetArguments();
         return new CompilerCall(

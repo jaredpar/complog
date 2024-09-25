@@ -38,7 +38,7 @@ public sealed class BinaryLogReaderTests : TestBase
         var compilerCall = reader.ReadAllCompilerCalls().First();
         Assert.NotNull(reader.ReadCommandLineArguments(compilerCall));
 
-        compilerCall = compilerCall.ChangeOwner(null);
+        compilerCall = compilerCall.WithOwner(null);
         Assert.Throws<ArgumentException>(() => reader.ReadCommandLineArguments(compilerCall));
     }
 
