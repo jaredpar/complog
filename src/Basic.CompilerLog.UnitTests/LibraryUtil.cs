@@ -16,8 +16,8 @@ internal static class LibraryUtil
         var content1 = """
             using System.Runtime.InteropServices;
 
-            [Guid("E8E4B023-7408-4A71-B3F6-ADEDE0A8FE11")]  // Unique identifier for the COM interface
-            [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]  // IDispatch for late binding
+            [Guid("E8E4B023-7408-4A71-B3F6-ADEDE0A8FE11")]
+            [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
             public interface ICalculator
             {
                 [DispId(1)]  // COM method identifiers
