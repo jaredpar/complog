@@ -36,6 +36,14 @@ internal sealed class TempDir : IDisposable
         return filePath;
     }
 
+    public string NewFile(string fileName, Stream content)
+    {
+        var filePath = Path.Combine(DirectoryPath, fileName);
+        using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        content.CopyTo(fileStream);
+        return filePath;
+    }
+
     public string NewDirectory(string? name = null)
     {
         name ??= Guid.NewGuid().ToString();

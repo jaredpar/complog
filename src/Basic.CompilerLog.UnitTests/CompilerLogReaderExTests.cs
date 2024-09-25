@@ -61,7 +61,7 @@ public sealed class CompilerLogReaderExTests : TestBase
         ConvertConsole(x =>
         {
             var args = func(x.GetArguments());
-            return x.ChangeArguments(args);
+            return x.WithArguments(args);
         }, basicAnalyzerKind);
 
     [Fact]

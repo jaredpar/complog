@@ -378,7 +378,7 @@ public sealed class CompilerLogReaderTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var compilerCall = reader.ReadCompilerCall(0);
-        compilerCall = compilerCall.ChangeOwner(null);
+        compilerCall = compilerCall.WithOwner(null);
         Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(compilerCall));
     }
 

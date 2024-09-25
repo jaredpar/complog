@@ -171,12 +171,13 @@ public sealed partial class ExportUtil
 
         List<string> ProcessRsp()
         {
-            var lines = new List<string>();
+            var arguments = compilerCall.GetArguments();
+            var lines = new List<string>(capacity: arguments.Count);
 
             // compiler options aren't case sensitive
             var comparison = StringComparison.OrdinalIgnoreCase;
 
-            foreach (var line in compilerCall.GetArguments())
+            foreach (var line in arguments)
             {
                 // The only non-options are source files and those are rewritten by other 
                 // methods and added to commandLineList
@@ -196,7 +197,8 @@ public sealed partial class ExportUtil
                     span.StartsWith("resource", comparison) ||
                     span.StartsWith("linkresource", comparison) ||
                     span.StartsWith("ruleset", comparison) ||
-                    span.StartsWith("keyfile", comparison))
+                    span.StartsWith("keyfile", comparison) ||
+                    span.StartsWith("link", comparison))
                 {
                     continue;
                 }
@@ -249,6 +251,11 @@ public sealed partial class ExportUtil
                         var arg = $@"/reference:{alias}=""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
                         commandLineList.Add(arg);
                     }
+                }
+                else if (tuple.EmbedInteropTypes)
+                {
+                    var arg = $@"/link:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
+                    commandLineList.Add(arg);
                 }
                 else
                 {
