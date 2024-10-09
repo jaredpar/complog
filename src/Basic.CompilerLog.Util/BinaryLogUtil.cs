@@ -112,8 +112,8 @@ public static class BinaryLogUtil
                 : ParseTaskForCompilerAndArguments(CommandLineArguments, "vbc.exe", "vbc.dll");
 
             return new CompilerCall(
-                compilerFilePath,
                 projectFile,
+                compilerFilePath,
                 kind,
                 targetFramework,
                 isCSharp: IsCSharp,

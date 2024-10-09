@@ -43,8 +43,8 @@ public sealed class CompilerCall
 {
     private readonly Lazy<IReadOnlyCollection<string>> _lazyArguments;
 
-    public string? CompilerFilePath { get; }
     public string ProjectFilePath { get; }
+    public string? CompilerFilePath { get; }
     public CompilerCallKind Kind { get; }
     public string? TargetFramework { get; }
     public bool IsCSharp { get; }
@@ -55,8 +55,8 @@ public sealed class CompilerCall
     public bool IsVisualBasic => !IsCSharp;
 
     internal CompilerCall(
-        string? compilerFilePath,
         string projectFilePath,
+        string? compilerFilePath,
         CompilerCallKind kind,
         string? targetFramework,
         bool isCSharp,
@@ -72,6 +72,25 @@ public sealed class CompilerCall
         _lazyArguments = arguments;
         ProjectFileName = Path.GetFileName(ProjectFilePath);
         ProjectDirectory = Path.GetDirectoryName(ProjectFilePath)!;
+    }
+
+    internal CompilerCall(
+        string projectFilePath,
+        string? compilerFilePath = null,
+        CompilerCallKind kind = CompilerCallKind.Regular,
+        string? targetFramework = null,
+        bool isCSharp = true,
+        string[]? arguments = null,
+        object? ownerState = null) 
+        : this(
+            projectFilePath,
+            compilerFilePath,
+            kind,
+            targetFramework,
+            isCSharp,
+            new Lazy<IReadOnlyCollection<string>>(() => arguments ?? []),
+            ownerState)
+    {
     }
 
     public string GetDiagnosticName() 

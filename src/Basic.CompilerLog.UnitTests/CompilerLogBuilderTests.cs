@@ -37,13 +37,9 @@ public sealed class CompilerLogBuilderTests : TestBase
         var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(binlogStream).First(x => x.IsCSharp);
         var args = compilerCall.GetArguments();
         compilerCall = new CompilerCall(
-            compilerFilePath: null,
             compilerCall.ProjectFilePath,
-            CompilerCallKind.Regular,
-            compilerCall.TargetFramework,
-            isCSharp: true,
-            new Lazy<IReadOnlyCollection<string>>(() => args),
-            null);
+            targetFramework: compilerCall.TargetFramework,
+            arguments: args.ToArray());
         builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
     }
 

@@ -159,8 +159,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private CompilerCall ReadCompilerCallCore(int index, CompilationInfoPack pack)
     {
         return new CompilerCall(
-            NormalizePath(pack.CompilerFilePath),
             NormalizePath(pack.ProjectFilePath),
+            NormalizePath(pack.CompilerFilePath),
             pack.CompilerCallKind,
             pack.TargetFramework,
             pack.IsCSharp,

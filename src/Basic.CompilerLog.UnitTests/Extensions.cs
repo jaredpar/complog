@@ -42,8 +42,8 @@ internal static class Extensions
     internal static CompilerCall WithArguments(this CompilerCall compilerCall, IReadOnlyCollection<string> arguments)
     {
         return new CompilerCall(
-            compilerCall.CompilerFilePath,
             compilerCall.ProjectFilePath,
+            compilerCall.CompilerFilePath,
             compilerCall.Kind,
             compilerCall.TargetFramework,
             compilerCall.IsCSharp,
@@ -55,8 +55,8 @@ internal static class Extensions
     {
         var args = compilerCall.GetArguments();
         return new CompilerCall(
-            compilerCall.CompilerFilePath,
             compilerCall.ProjectFilePath,
+            compilerCall.CompilerFilePath,
             compilerCall.Kind,
             compilerCall.TargetFramework,
             compilerCall.IsCSharp,

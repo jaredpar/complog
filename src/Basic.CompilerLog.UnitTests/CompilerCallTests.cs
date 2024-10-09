@@ -9,14 +9,9 @@ public class CompilerCallTests
     [Fact]
     public void GetDiagnosticNameNoTargetFramework()
     {
-        var compilerCall = new CompilerCall(
-            compilerFilePath: null,
-            "test.csproj",
-            CompilerCallKind.Regular,
-            targetFramework: null,
-            isCSharp: true,
-            arguments: new (() => []));
+        var compilerCall = new CompilerCall("test.csproj");
         Assert.Null(compilerCall.TargetFramework);
         Assert.Equal(compilerCall.ProjectFileName, compilerCall.GetDiagnosticName());
+        Assert.Empty(compilerCall.GetArguments());
     }
 }
