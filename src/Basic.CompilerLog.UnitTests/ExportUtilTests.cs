@@ -268,12 +268,12 @@ public sealed class ExportUtilTests : TestBase
         var reader = CreateReader(builder =>
         {
             var compilerCall = new CompilerCall(
-                compilerFilePath: "app",
                 projectFilePath: "/src/app.csproj",
+                compilerFilePath: "app",
                 CompilerCallKind.Regular,
                 targetFramework: "net5.0",
                 isCSharp: true,
-                arguments: new (() => args));
+                arguments: args);
 
             builder.AddContent(compilerCall, ["Console.WriteLine()"]);
         });
