@@ -1,0 +1,16 @@
+ Converting looks like this       
+ 
+        public static PortableExecutableReference EmitToPortableExecutableReference(
+            this Compilation comp,
+            EmitOptions options = null,
+            bool embedInteropTypes = false,
+            ImmutableArray<string> aliases = default,
+            DiagnosticDescription[] expectedWarnings = null)
+        {
+            var image = comp.EmitToArray(options, expectedWarnings: expectedWarnings);
+            if (comp.Options.OutputKind == OutputKind.NetModule)
+            {
+                return ModuleMetadata.CreateFromImage(image).GetReference(display: comp.MakeSourceModuleName());
+            }
+            else
+            {

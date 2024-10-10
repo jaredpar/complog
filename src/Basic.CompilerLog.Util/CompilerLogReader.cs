@@ -305,7 +305,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     {
         var pack = GetOrReadCompilationInfo(GetIndex(compilerCall));
         var rawCompilationData = ReadRawCompilationData(compilerCall);
-        var referenceList = RenameMetadataReferences(rawCompilationData.References);
+        var referenceList = ReadMetadataReferences(rawCompilationData.References);
         var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(pack);
 
         var hashAlgorithm = rawCompilationData.ChecksumAlgorithm;
@@ -548,6 +548,10 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         throw new ArgumentException($"{mvid} is not a valid MVID");
     }
 
+    /// <summary>
+    /// Reads a <see cref="MetadataReference"/> with the given <paramref name="mvid" />. This
+    /// does not include extra metadata properties like alias, embedded interop types, etc ...
+    /// </summary>
     internal MetadataReference ReadMetadataReference(Guid mvid)
     {
         if (_refMap.TryGetValue(mvid, out var metadataReference))
@@ -562,7 +566,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return metadataReference;
     }
 
-    internal MetadataReference RenameMetadataReference(in RawReferenceData data)
+    /// <summary>
+    /// Reads a <see cref="MetadataReference"/> from the given <paramref name="data"/> and applies
+    /// all of the properties like alias, embedded interop types, etc ...
+    /// </summary>
+    internal MetadataReference ReadMetadataReference(in RawReferenceData data)
     {
         var reference = ReadMetadataReference(data.Mvid);
         if (data.EmbedInteropTypes)
@@ -578,12 +586,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return reference;
     }
 
-    internal List<MetadataReference> RenameMetadataReferences(List<RawReferenceData> referenceDataList)
+    internal List<MetadataReference> ReadMetadataReferences(List<RawReferenceData> referenceDataList)
     {
         var list = new List<MetadataReference>(capacity: referenceDataList.Count);
         foreach (var referenceData in referenceDataList)
         {
-            list.Add(RenameMetadataReference(referenceData));
+            list.Add(ReadMetadataReference(referenceData));
         }
         return list;
     }

@@ -1,5 +1,4 @@
-Compiler Logs
-===
+# Compiler Logs
 
 [![codecov](https://codecov.io/gh/jaredpar/complog/graph/badge.svg?token=MIM7Y2JZ5G)](https://codecov.io/gh/jaredpar/complog)
 
@@ -70,7 +69,9 @@ When trying to get a compiler log from a build that occurs in a GitHub action yo
 ```
 
 ## Debugging Compiler Logs
+
 ### Running locally
+
 To re-run all of the compilations in a compiler log use the `replay` command
 
 ```cmd
@@ -83,7 +84,8 @@ Microsoft.CodeAnalysis.XunitHook.csproj (net472) ...Success
 Passing the `-export` argument will cause all failed compilations to be exported to the local disk for easy analysis.
 
 ### Debugging in Visual Studio
-To debug a compilation in Visual Studio first export it to disk: 
+
+To debug a compilation in Visual Studio first export it to disk:
 
 ```cmd
 > complog export build.complog
