@@ -287,6 +287,43 @@ public sealed class ExportUtilTests : TestBase
         Assert.Contains(args[1], lines);
     }
 
+    [Fact]
+    public void ExportWithUnsafeOption()
+    {
+        RunDotNet("new console --name example --output .");
+
+        var projectFileContent = """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+              </PropertyGroup>
+            </Project>
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "example.csproj"), projectFileContent, DefaultEncoding);
+
+        var codeContent = """
+            unsafe class C { }
+            """;
+        File.WriteAllText(Path.Combine(RootDirectory, "Code.cs"), codeContent, DefaultEncoding);
+
+        RunDotNet("build -bl -nr:false");
+
+        var binlog = Path.Combine(RootDirectory, "msbuild.binlog");
+        var complog = Path.Combine(RootDirectory, "msbuild.complog");
+        var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
+        Assert.True(result.Succeeded);
+
+        TestExport(
+            compilerLogFilePath: complog,
+            expectedCount: 1,
+            includeAnalyzers: false,
+            runBuild: true);
+    }
+
     private void EmbedLineCore(string contentFilePath)
     {
         RunDotNet($"new console --name example --output .");

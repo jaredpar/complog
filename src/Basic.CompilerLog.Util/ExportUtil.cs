@@ -424,7 +424,18 @@ public sealed partial class ExportUtil
 
     private static bool IsOption(ReadOnlySpan<char> str) => OptionsRegex.IsMatch(str);
 
-    private const string OptionRegexContent = @"^/[a-z0-9]+:";
+    /// <summary>
+    /// Options start with a slash, then contain a colon and continue with a path,
+    /// or end with +/- or nothing. Examples:
+    /// <list type="bullet">
+    /// <item><c>/ref:...</c></item>
+    /// <item><c>/unsafe+</c></item>
+    /// <item><c>/checked-</c></item>
+    /// <item><c>/noconfig</c></item>
+    /// </list>
+    /// </summary>
+    /* lang=regex */
+    private const string OptionRegexContent = @"^/[a-z0-9]+(:|[+-]?$)";
 
 #if NET
     [GeneratedRegex(OptionRegexContent, RegexOptions.IgnoreCase)]
