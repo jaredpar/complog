@@ -42,6 +42,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoMap = new();
 
     /// <summary>
+    /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that 
+    /// produced it. This is useful for building up items like a project reference map.
+    /// </summary>
+    private readonly Dictionary<Guid, int> _mvidToCompilerCallIndexMap = new();
+
+    /// <summary>
     /// Is this reader responsible for disposing the <see cref="LogReaderState"/> instance
     /// </summary>
     public bool OwnsLogReaderState { get; }
@@ -63,7 +69,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         OwnsLogReaderState = state is null;
         LogReaderState = state ?? new LogReaderState();
         Metadata = metadata;
-        ReadAssemblyInfo();
 
         PathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
         {
@@ -72,6 +77,15 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             (false, true) => PathNormalizationUtil.UnixToWindows,
             (false, false) => PathNormalizationUtil.Empty,
         };
+
+        if (metadata.MetadataVersion == 2)
+        {
+            ReadAssemblyInfo();
+        }
+        else
+        {
+            ReadLogInfo();
+        }
 
         void ReadAssemblyInfo()
         {
@@ -82,6 +96,21 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 var mvid = Guid.Parse(items[1]);
                 var assemblyName = new AssemblyName(items[2]);
                 _mvidToRefInfoMap[mvid] = (items[0], assemblyName);
+            }
+        }
+
+        void ReadLogInfo()
+        {
+            using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(LogInfoFileName), ContentEncoding, leaveOpen: false);
+            var hash = reader.ReadLine();
+            var pack = GetContentPack<LogInfoPack>(hash!);
+            foreach (var kvp in pack.MvidToReferenceInfoMap)
+            {
+                _mvidToRefInfoMap[kvp.Key] = (kvp.Value.FileName, new AssemblyName(kvp.Value.AssemblyName));
+            }
+            foreach (var tuple in pack.CompilerCallMvidList)
+            {
+                _mvidToCompilerCallIndexMap[tuple.Mvid] = tuple.CompilerCallIndex;
             }
         }
     }
@@ -98,7 +127,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var metadata = ReadMetadata();
             return metadata.MetadataVersion switch {
                 1 => throw new CompilerLogException("Version 1 compiler logs are no longer supported"),
-                2 => new CompilerLogReader(zipArchive, metadata, basicAnalyzerKind, state),
+                2 or 3 => new CompilerLogReader(zipArchive, metadata, basicAnalyzerKind, state),
                 _ => throw new CompilerLogException($"Version {metadata.MetadataVersion} is higher than the max supported version {Metadata.LatestMetadataVersion}"),
             };
 
@@ -652,6 +681,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         using var stream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         stream.CopyTo(destination);
     }
+
+    internal bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex) =>
+        _mvidToCompilerCallIndexMap.TryGetValue(mvid, out compilerCallIndex);
 
     [return: NotNullIfNotNull("path")]
     private string? NormalizePath(string? path) => PathNormalizationUtil.NormalizePath(path);

@@ -465,4 +465,23 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.True(data.IsVisualBasic);
         Assert.True(data.CompilerCall.IsVisualBasic);
     }
+
+    [Fact]
+    public void ProjectReferences_Simple()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var compilerCall = reader.ReadCompilerCall(0);
+        var arguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
+        var (assemblyFilePath, refAssemblyFilePath) = RoslynUtil.GetAssemblyOutputFilePaths(arguments);
+        AssertProjectRef(assemblyFilePath);
+        AssertProjectRef(refAssemblyFilePath);
+
+        void AssertProjectRef(string? filePath)
+        {
+            Assert.NotNull(filePath);
+            var mvid = RoslynUtil.ReadMvid(filePath);
+            Assert.True(reader.TryGetCompilerCallIndex(mvid, out var callIndex));
+            Assert.Equal(reader.GetIndex(compilerCall), callIndex);
+        }
+    }
 }

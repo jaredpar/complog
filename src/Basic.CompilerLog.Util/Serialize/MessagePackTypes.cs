@@ -214,6 +214,10 @@ public class ResourcePack
     public bool IsPublic { get; set; }
 }
 
+/// <summary>
+/// This is used to serialize information around the <see cref="CompilerCall"/>. Information 
+/// that isn't necessary for that type should go to <see cref="CompilationDataPack"/> instead.
+/// </summary>
 [MessagePackObject]
 public class CompilationInfoPack
 {
@@ -262,4 +266,16 @@ public class CompilationDataPack
     public SourceHashAlgorithm ChecksumAlgorithm { get; set; }
     [Key(7)]
     public bool? HasGeneratedFilesInPdb { get; set; }
+}
+
+/// <summary>
+/// This stores information that is relevant to all compiler calls.
+/// </summary>
+[MessagePackObject]
+public class LogInfoPack
+{
+    [Key(0)]
+    public List<(int CompilerCallIndex, bool IsRefAssembly, Guid Mvid)> CompilerCallMvidList { get; set; }
+    [Key(1)]
+    public Dictionary<Guid, (string FileName, string AssemblyName)> MvidToReferenceInfoMap { get; set; }
 }

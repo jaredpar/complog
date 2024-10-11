@@ -34,10 +34,11 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
+    private readonly Dictionary<Guid, (string FileName, string AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, (Guid Mvid, string? AssemblyName, string? AssemblyInformationVersion)> _assemblyPathToMvidMap = new(PathUtil.Comparer);
     private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, (string AssemblyName, string? CommitHash)> _compilerInfoMap = new(PathUtil.Comparer);
+    private readonly List<(int CompilerCallIndex, bool IsRefAssembly, Guid Mvid)> _compilerCallMvidList = new();
     private readonly DefaultObjectPool<MemoryStream> _memoryStreamPool = new(new MemoryStreamPoolPolicy(), maximumRetained: 5);
 
     private int _compilationCount;
@@ -103,6 +104,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddContentIf(dataPack, RawContentKind.Win32Icon, commandLineArguments.Win32Icon);
             AddContentIf(dataPack, RawContentKind.Win32Manifest, commandLineArguments.Win32Manifest);
             AddContentIf(dataPack, RawContentKind.CryptoKeyFile, commandLineArguments.CompilationOptions.CryptoKeyFile);
+            AddAssemblyMvid(commandLineArguments);
             return WriteContentMessagePack(dataPack);
         }
 
@@ -174,6 +176,28 @@ internal sealed class CompilerLogBuilder : IDisposable
                     MessagePackUtil.CreateVisualBasicCompilationOptionsPack((VisualBasicCompilationOptions)args.CompilationOptions));
             }
         }
+
+        void AddAssemblyMvid(CommandLineArguments args)
+        {
+            var (assemblyFilePath, refAssemblyFilePath) = RoslynUtil.GetAssemblyOutputFilePaths(args);
+            AddIf(assemblyFilePath, false);
+            AddIf(refAssemblyFilePath, false);
+            void AddIf(string? filePath, bool isRefAssembly)
+            {
+                if (filePath is not null && File.Exists(filePath))
+                {
+                    try
+                    {
+                        var mvid = RoslynUtil.ReadMvid(filePath);
+                        _compilerCallMvidList.Add((_compilationCount, isRefAssembly, mvid));
+                    }
+                    catch (Exception ex)
+                    {
+                        Diagnostics.Add($"Could not read emit assembly MVID for {filePath}: {ex.Message}");
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -243,7 +267,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         try
         {
             WriteMetadata();
-            WriteAssemblyInfo();
+            WriteLogInfo();
             ZipArchive.Dispose();
             ZipArchive = null!;
         }
@@ -259,14 +283,17 @@ internal sealed class CompilerLogBuilder : IDisposable
             Metadata.Create(_compilationCount, MetadataVersion).Write(writer);
         }
 
-        void WriteAssemblyInfo()
+        void WriteLogInfo()
         {
-            var entry = ZipArchive.CreateEntry(AssemblyInfoFileName, CompressionLevel.Fastest);
-            using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
-            foreach (var kvp in _mvidToRefInfoMap.OrderBy(x => x.Value.FileName).ThenBy(x => x.Key))
+            var pack = new LogInfoPack()
             {
-                writer.WriteLine($"{kvp.Value.FileName}:{kvp.Key:N}:{kvp.Value.AssemblyName}");
-            }
+                CompilerCallMvidList = _compilerCallMvidList,
+                MvidToReferenceInfoMap = _mvidToRefInfoMap
+            };
+            var contentHash = WriteContentMessagePack(pack);;
+            var entry = ZipArchive.CreateEntry(LogInfoFileName, CompressionLevel.Fastest);
+            using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
+            writer.WriteLine(contentHash);
         }
     }
 
@@ -574,7 +601,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         //
         // Example: .nuget\packages\microsoft.visualstudio.interop\17.2.32505.113\lib\net472\Microsoft.VisualStudio.Interop.dll
         var assemblyName = AssemblyName.GetAssemblyName(filePath);
-        _mvidToRefInfoMap[info.Mvid] = (Path.GetFileName(filePath), assemblyName);
+        _mvidToRefInfoMap[info.Mvid] = (Path.GetFileName(filePath), assemblyName.ToString());
         return info;
     }
 

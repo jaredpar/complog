@@ -115,12 +115,7 @@ public sealed class SolutionReader : IDisposable
             }
         }
 
-
-        // https://github.com/jaredpar/complog/issues/24
-        // Need to store project reference information at the builder point so they can be properly repacked
-        // here and setup in the Workspace
-
-        var referenceList = Reader.ReadMetadataReferences(FilterToUnique(rawCompilationData.References));
+        var refTuple = ReadReferences(rawCompilationData.References);
         var analyzers = Reader.ReadAnalyzers(rawCompilationData);
         var options = Reader.ReadCompilerOptions(compilerCall);
         var projectInfo = ProjectInfo.Create(
@@ -134,29 +129,14 @@ public sealed class SolutionReader : IDisposable
             compilationOptions: options.CompilationOptions,
             parseOptions: options.ParseOptions,
             documents,
-            projectReferences,
-            referenceList,
+            refTuple.Item1,
+            refTuple.Item2,
             analyzerReferences: analyzers.AnalyzerReferences,
             additionalDocuments,
             isSubmission: false,
             hostObjectType: null);
 
         return projectInfo.WithAnalyzerConfigDocuments(analyzerConfigDocuments);
-
-        static List<RawReferenceData> FilterToUnique(List<RawReferenceData> referenceList)
-        {
-            var hashSet = new HashSet<Guid>();
-            var list = new List<RawReferenceData>(capacity: referenceList.Count);
-            foreach (var data in referenceList)
-            {
-                if (hashSet.Add(data.Mvid))
-                {
-                    list.Add(data);
-                }
-            }
-
-            return list;
-        }
 
         (List<ProjectReference>, List<MetadataReference>) ReadReferences(List<RawReferenceData> rawReferenceDataList)
         {
