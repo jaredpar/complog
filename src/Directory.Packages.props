@@ -5,6 +5,7 @@
     <_RoslynVersion>4.10.0</_RoslynVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="Backport.System.Threading.Lock" Version="2.0.5" />	  
     <PackageVersion Include="Basic.Reference.Assemblies.Net60" Version="1.6.0" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.13.5" />
     <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.5" />

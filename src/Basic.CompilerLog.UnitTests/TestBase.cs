@@ -13,7 +13,7 @@ namespace Basic.CompilerLog.UnitTests;
 
 public abstract class TestBase : IDisposable
 {
-    private static readonly object Guard = new();
+    private static readonly Lock Guard = new();
 
     internal static readonly Encoding DefaultEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     internal ITestOutputHelper TestOutputHelper { get; }

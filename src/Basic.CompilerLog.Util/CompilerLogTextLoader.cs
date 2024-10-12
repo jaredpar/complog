@@ -5,6 +5,7 @@ namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogTextLoader : TextLoader
 {
+    internal readonly Lock Lock = new();
     internal CompilerLogReader Reader { get; }
     internal VersionStamp VersionStamp { get; }
     internal string ContentHash { get; }
@@ -25,7 +26,7 @@ internal sealed class CompilerLogTextLoader : TextLoader
         // The loader can operate on multiple threads due to the nature of solutions and 
         // workspaces. Need to guard access here as the underlying data structures in the
         // reader are not safe for paralell reads.
-        lock (Reader)
+        lock (Lock)
         {
             sourceText = Reader.GetSourceText(ContentHash, options.ChecksumAlgorithm);
         }

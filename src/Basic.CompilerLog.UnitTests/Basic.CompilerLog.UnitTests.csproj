@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net472</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>CS0436</NoWarn>
@@ -14,8 +14,7 @@
     <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
-    <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
-    <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" />
     <PackageReference Include="Basic.Reference.Assemblies.Net60" />
     <PackageReference Include="coverlet.msbuild" >
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
