@@ -30,6 +30,9 @@ public abstract class FixtureBase
         diagnosticBuilder.AppendLine($"Standard Error: {result.StandardError}");
         diagnosticBuilder.AppendLine($"Finished: {(DateTime.UtcNow - start).TotalSeconds:F2}s");
         MessageSink.OnMessage(new DiagnosticMessage(diagnosticBuilder.ToString()));
-        Assert.True(result.Succeeded);
+        if (!result.Succeeded)
+        {
+            Assert.Fail($"Command failed: {diagnosticBuilder.ToString()}");
+        }
     }
 }

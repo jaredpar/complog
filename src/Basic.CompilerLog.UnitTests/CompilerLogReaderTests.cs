@@ -484,4 +484,26 @@ public sealed class CompilerLogReaderTests : TestBase
             Assert.Equal(reader.GetIndex(compilerCall), callIndex);
         }
     }
+
+    [Fact]
+    public void ProjectReferences_ReadReference()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithReference.Value.CompilerLogPath);
+        var classLibCompilerCall = reader
+            .ReadAllCompilerCalls(cc => cc.ProjectFileName == "util.csproj")
+            .Single();
+        var consoleCompilerCall = reader
+            .ReadAllCompilerCalls(cc => cc.ProjectFileName == "console.csproj")
+            .Single();
+        var count = 0;
+        foreach (var rawReferenceData in reader.ReadAllReferenceData(consoleCompilerCall))
+        {
+            if (reader.TryGetCompilerCallIndex(rawReferenceData.Mvid, out var callIndex))
+            {
+                Assert.Equal(reader.GetIndex(classLibCompilerCall), callIndex);
+                count++;
+            }
+        }
+        Assert.Equal(1, count);
+    }
 }

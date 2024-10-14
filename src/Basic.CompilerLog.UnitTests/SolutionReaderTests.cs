@@ -14,6 +14,7 @@ namespace Basic.CompilerLog.UnitTests;
 [Collection(CompilerLogCollection.Name)]
 public sealed class SolutionReaderTests : TestBase
 {
+    public List<SolutionReader> ReaderList { get; } = new();
     public CompilerLogFixture Fixture { get; }
 
     public SolutionReaderTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
@@ -22,13 +23,29 @@ public sealed class SolutionReaderTests : TestBase
         Fixture = fixture;
     }
 
+    public override void Dispose()
+    {
+        base.Dispose();
+        foreach (var reader in ReaderList)
+        {
+            reader.Dispose();
+        }
+    }
+
+    private Solution GetSolution(string compilerLogFilePath, BasicAnalyzerKind basicAnalyzerKind)
+    {
+        var reader = SolutionReader.Create(compilerLogFilePath, basicAnalyzerKind);
+        ReaderList.Add(reader);
+        var workspace = new AdhocWorkspace();
+        var solution = workspace.AddSolution(reader.ReadSolutionInfo());
+        return solution;
+    }
+
     [Theory]
     [CombinatorialData]
     public async Task DocumentsGeneratedDefaultHost(BasicAnalyzerKind basicAnalyzerKind)
     {
-        using var reader = SolutionReader.Create(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);
-        var workspace = new AdhocWorkspace();
-        var solution = workspace.AddSolution(reader.ReadSolutionInfo());
+        var solution = GetSolution(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);
         var project = solution.Projects.Single();
         Assert.NotEmpty(project.AnalyzerReferences);
         var docs = project.Documents.ToList();
@@ -47,5 +64,22 @@ public sealed class SolutionReaderTests : TestBase
 
         // Throws if the underlying stream is disposed
         stream.Seek(0, SeekOrigin.Begin);
+    }
+
+    [Fact]
+    public async Task ProjectReference_Simple()
+    {
+        var solution = GetSolution(Fixture.ConsoleWithReference.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var consoleProject = solution.Projects
+            .Where(x => x.Name == "console-with-reference.csproj")
+            .Single();
+        var projectReference = consoleProject.ProjectReferences.Single();
+        var utilProject = solution.GetProject(projectReference.ProjectId);
+        Assert.NotNull(utilProject);
+        Assert.Equal("util.csproj", utilProject.Name);
+        var compilation = await consoleProject.GetCompilationAsync();
+        Assert.NotNull(compilation);
+        var result = compilation.EmitToMemory();
+        Assert.True(result.Success);
     }
 }
