@@ -111,6 +111,7 @@ public sealed partial class ExportUtil
         var builder = new ContentBuilder(destinationDir, compilerCall.ProjectFilePath);
 
         var commandLineList = new List<string>();
+        bool hasNoConfigOption = false;
         var data = Reader.ReadRawCompilationData(compilerCall);
         Directory.CreateDirectory(destinationDir);
         WriteGeneratedFiles();
@@ -154,7 +155,11 @@ public sealed partial class ExportUtil
                 ? Path.Combine(execPath, "csc.dll")
                 : Path.Combine(execPath, "vbc.dll");
 
-            lines.Add($@"dotnet exec ""{execPath}"" @build.rsp");
+            var noConfig = hasNoConfigOption
+                ? "/noconfig "
+                : string.Empty;
+
+            lines.Add($@"dotnet exec ""{execPath}"" {noConfig}@build.rsp");
             var cmdFilePath = Path.Combine(destinationDir, cmdFileName);
             File.WriteAllLines(cmdFilePath, lines);
 
@@ -187,6 +192,12 @@ public sealed partial class ExportUtil
                 }
 
                 var span = line.AsSpan().Slice(1);
+
+                if (span.Equals("noconfig".AsSpan(), comparison))
+                {
+                    hasNoConfigOption = true;
+                    continue;
+                }
 
                 // These options are all rewritten below
                 if (span.StartsWith("reference", comparison) ||

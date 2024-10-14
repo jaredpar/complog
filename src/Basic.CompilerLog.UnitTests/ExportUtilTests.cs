@@ -25,7 +25,11 @@ public sealed class ExportUtilTests : TestBase
         Fixture = fixture;
     }
 
-    private void TestExport(int expectedCount, Action<string>? verifyExportCallback = null, bool runBuild = true)
+    private void TestExport(
+        int expectedCount,
+        Action<string>? verifyExportCallback = null,
+        bool runBuild = true,
+        Action<ProcessResult>? verifyBuildResult = null)
     {
         using var scratchDir = new TempDir("export test");
         var binlogFilePath = Path.Combine(RootDirectory, "msbuild.binlog");
@@ -37,19 +41,58 @@ public sealed class ExportUtilTests : TestBase
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
 
-        TestExport(compilerLogFilePath, expectedCount, verifyExportCallback: verifyExportCallback, runBuild: runBuild);
+        TestExport(
+            compilerLogFilePath,
+            expectedCount,
+            verifyExportCallback: verifyExportCallback,
+            runBuild: runBuild,
+            verifyBuildResult: verifyBuildResult);
     }
 
-    private void TestExport(string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true) =>
-        TestExport(TestOutputHelper, compilerLogFilePath, expectedCount, includeAnalyzers, verifyExportCallback, runBuild);
+    private void TestExport(
+        string compilerLogFilePath,
+        int? expectedCount,
+        bool includeAnalyzers = true,
+        Action<string>? verifyExportCallback = null,
+        bool runBuild = true,
+        Action<ProcessResult>? verifyBuildResult = null) =>
+        TestExport(
+            TestOutputHelper,
+            compilerLogFilePath,
+            expectedCount,
+            includeAnalyzers,
+            verifyExportCallback,
+            runBuild,
+            verifyBuildResult);
 
-    internal static void TestExport(ITestOutputHelper testOutputHelper, string compilerLogFilePath, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true)
+    internal static void TestExport(
+        ITestOutputHelper testOutputHelper,
+        string compilerLogFilePath,
+        int? expectedCount,
+        bool includeAnalyzers = true,
+        Action<string>? verifyExportCallback = null,
+        bool runBuild = true,
+        Action<ProcessResult>? verifyBuildResult = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
-        TestExport(testOutputHelper, reader, expectedCount, includeAnalyzers, verifyExportCallback, runBuild);
+        TestExport(
+            testOutputHelper,
+            reader,
+            expectedCount,
+            includeAnalyzers,
+            verifyExportCallback,
+            runBuild,
+            verifyBuildResult);
     }
 
-    internal static void TestExport(ITestOutputHelper testOutputHelper, CompilerLogReader reader, int? expectedCount, bool includeAnalyzers = true, Action<string>? verifyExportCallback = null, bool runBuild = true)
+    internal static void TestExport(
+        ITestOutputHelper testOutputHelper,
+        CompilerLogReader reader,
+        int? expectedCount,
+        bool includeAnalyzers = true,
+        Action<string>? verifyExportCallback = null,
+        bool runBuild = true,
+        Action<ProcessResult>? verifyBuildResult = null)
     {
 #if NET
         var sdkDirs = SdkUtil.GetSdkDirectories();
@@ -71,6 +114,7 @@ public sealed class ExportUtilTests : TestBase
                 var buildResult = RunBuildCmd(tempDir.DirectoryPath);
                 testOutputHelper.WriteLine(buildResult.StandardOut);
                 testOutputHelper.WriteLine(buildResult.StandardError);
+                verifyBuildResult?.Invoke(buildResult);
                 Assert.True(buildResult.Succeeded, $"Cannot build {compilerCall.ProjectFileName}");
             }
 
@@ -322,6 +366,33 @@ public sealed class ExportUtilTests : TestBase
             expectedCount: 1,
             includeAnalyzers: false,
             runBuild: true);
+    }
+
+    /// <summary>
+    /// <c>/noconfig</c> should not be part of <c>.rsp</c> files
+    /// (the compiler gives a warning if it is and ignores the option).
+    /// </summary>
+    [Fact]
+    public void ExportNoconfig()
+    {
+        RunDotNet("new console --name example --output .");
+        RunDotNet("build -bl -nr:false");
+
+        var binlog = Path.Combine(RootDirectory, "msbuild.binlog");
+        var complog = Path.Combine(RootDirectory, "msbuild.complog");
+        var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
+        Assert.True(result.Succeeded);
+
+        TestExport(
+            compilerLogFilePath: complog,
+            expectedCount: 1,
+            includeAnalyzers: false,
+            runBuild: true,
+            verifyBuildResult: static result =>
+            {
+                // warning CS2023: Ignoring /noconfig option because it was specified in a response file
+                Assert.DoesNotContain("CS2023", result.StandardOut);
+            });
     }
 
     private void EmbedLineCore(string contentFilePath)
