@@ -440,12 +440,24 @@ public sealed class CompilerLogReaderTests : TestBase
 
     [Theory]
     [InlineData("MetadataVersion1.console.complog")]
-    public void MetadataCompat(string resourceName)
+    public void MetadataCompatV1(string resourceName)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             using var stream = ResourceLoader.GetResourceStream(resourceName);
             Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, BasicAnalyzerKind.None, leaveOpen: true));
+        }
+    }
+
+    [Theory]
+    [InlineData("MetadataVersion2.console.complog")]
+    public void MetadataCompatV2(string resourceName)
+    {
+        using var stream = ResourceLoader.GetResourceStream(resourceName);
+        using var reader = CompilerLogReader.Create(stream);
+        foreach (var compilerCall in reader.ReadAllCompilerCalls())
+        {
+            Assert.NotNull(compilerCall.ProjectFileName);
         }
     }
 
@@ -505,5 +517,41 @@ public sealed class CompilerLogReaderTests : TestBase
             }
         }
         Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void ProjectReferences_Corrupted()
+    {
+        RunDotNet($"new console --name example --output .", Root.DirectoryPath);
+        RunDotNet("build -bl -nr:false", Root.DirectoryPath);
+        var binlogFilePath = Path.Combine(Root.DirectoryPath, "msbuild.binlog");
+
+        var mvidList = CorruptAssemblies();
+        Assert.NotEmpty(mvidList);
+        using var reader = CompilerLogReader.Create(binlogFilePath);
+        foreach (var mvid in mvidList)
+        {
+            Assert.False(reader.TryGetCompilerCallIndex(mvid, out _));
+        }
+
+        List<Guid> CorruptAssemblies()
+        {
+            var list = new List<Guid>();
+            using var binlogReader = BinaryLogReader.Create(binlogFilePath);
+            foreach (var compilerCall in binlogReader.ReadAllCompilerCalls())
+            {
+                var (assemblyPath, refAssemblyPath) = RoslynUtil.GetAssemblyOutputFilePaths(BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+                Assert.NotNull(assemblyPath);
+                Assert.NotNull(refAssemblyPath);
+                list.Add(RoslynUtil.ReadMvid(assemblyPath));
+                list.Add(RoslynUtil.ReadMvid(refAssemblyPath));
+
+                File.WriteAllText(assemblyPath, "hello");
+                File.WriteAllText(refAssemblyPath, "hello ref");
+
+            }
+
+            return list;
+        }
     }
 }
