@@ -7,4 +7,12 @@
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)key.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 
+      The CVE in System.Text.Json doesn't apply us. Will remove suppressing once MSBuild / Roslyn 
+      produces a package that handles the issue.
+    -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8g4q-xg66-9fp4" />
+  </ItemGroup>
 </Project>
