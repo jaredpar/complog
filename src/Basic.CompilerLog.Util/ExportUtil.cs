@@ -111,7 +111,7 @@ public sealed partial class ExportUtil
         var builder = new ContentBuilder(destinationDir, compilerCall.ProjectFilePath);
 
         var commandLineList = new List<string>();
-        var nonRspCommandLineList = new List<string>();
+        bool hasNoConfigOption = false;
         var data = Reader.ReadRawCompilationData(compilerCall);
         Directory.CreateDirectory(destinationDir);
         WriteGeneratedFiles();
@@ -155,11 +155,11 @@ public sealed partial class ExportUtil
                 ? Path.Combine(execPath, "csc.dll")
                 : Path.Combine(execPath, "vbc.dll");
 
-            var nonRspCommandLine = nonRspCommandLineList.Count == 0
-                ? string.Empty
-                : string.Join(" ", nonRspCommandLineList) + " ";
+            var noConfig = hasNoConfigOption
+                ? "/noconfig "
+                : string.Empty;
 
-            lines.Add($@"dotnet exec ""{execPath}"" {nonRspCommandLine}@build.rsp");
+            lines.Add($@"dotnet exec ""{execPath}"" {noConfig}@build.rsp");
             var cmdFilePath = Path.Combine(destinationDir, cmdFileName);
             File.WriteAllLines(cmdFilePath, lines);
 
@@ -195,7 +195,7 @@ public sealed partial class ExportUtil
 
                 if (span.Equals("noconfig".AsSpan(), comparison))
                 {
-                    nonRspCommandLineList.Add(line);
+                    hasNoConfigOption = true;
                     continue;
                 }
 
