@@ -493,7 +493,7 @@ public sealed class CompilerLogReaderTests : TestBase
             .ReadAllCompilerCalls(cc => cc.ProjectFileName == "util.csproj")
             .Single();
         var consoleCompilerCall = reader
-            .ReadAllCompilerCalls(cc => cc.ProjectFileName == "console.csproj")
+            .ReadAllCompilerCalls(cc => cc.ProjectFileName == "console-with-reference.csproj")
             .Single();
         var count = 0;
         foreach (var rawReferenceData in reader.ReadAllReferenceData(consoleCompilerCall))
