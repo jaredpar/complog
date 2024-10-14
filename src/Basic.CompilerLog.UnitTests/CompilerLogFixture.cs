@@ -58,6 +58,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     internal Lazy<LogData> ConsoleNoGenerator { get; }
 
     /// <summary>
+    /// A console project that has a reference to a library
+    /// </summary>
+    internal Lazy<LogData> ConsoleWithReference { get; }
+
+    /// <summary>
     /// This is a console project that has every nasty feature that can be thought of
     /// like resources, line directives, embeds, etc ... Rather than running a 
     /// `dotnet build` for every one of these individually (which is expensive) in 
@@ -333,6 +338,45 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 }
                 """;
             File.WriteAllText(Path.Combine(scratchPath, "Class1.cs"), program, TestBase.DefaultEncoding);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+        });
+
+        ConsoleWithReference = WithBuild("console-with-project-ref..complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand("new sln -n ConsoleWithProjectRef", scratchPath);
+
+            // Create a class library for referencing
+            var classLibPath = Path.Combine(scratchPath, "classlib");
+            _ = Directory.CreateDirectory(classLibPath);
+            RunDotnetCommand("new classlib -o . -n util", classLibPath);
+            File.WriteAllText(
+                Path.Combine(classLibPath, "Class1.cs"),
+                """
+                using System;
+                namespace Util;
+                public static class NameInfo
+                {
+                    public static string GetName() => "Hello World";
+                }
+                """,
+                TestBase.DefaultEncoding);
+            RunDotnetCommand($@"sln add ""{classLibPath}""", scratchPath);
+
+            // Create a console project that references the class library
+            var consolePath = Path.Combine(scratchPath, "console");
+            _ = Directory.CreateDirectory(consolePath);
+            RunDotnetCommand("new console -o . -n console-with-reference", consolePath);
+            File.WriteAllText(
+                Path.Combine(consolePath, "Program.cs"),
+                """
+                using System;
+                using Util;
+                Console.WriteLine(NameInfo.GetName());
+                """,
+                TestBase.DefaultEncoding);
+            RunDotnetCommand($@"add . reference ""{classLibPath}""", consolePath);
+            RunDotnetCommand($@"sln add ""{consolePath}""", scratchPath);
+
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 

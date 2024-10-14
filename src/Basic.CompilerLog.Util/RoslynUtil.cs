@@ -301,6 +301,24 @@ internal static class RoslynUtil
         };
     }
 
+    internal static (string? AssemblyFilePath, string? RefAssemblyFilePath) GetAssemblyOutputFilePaths(CommandLineArguments arguments)
+    {
+        var assemblyFileName = RoslynUtil.GetAssemblyFileName(arguments);
+        string? assemblyFilePath = null;
+        if (arguments.OutputDirectory is { } outputDirectory)
+        {
+            assemblyFilePath = Path.Combine(outputDirectory, assemblyFileName);
+        }
+
+        string? refAssemblyFilePath = null;
+        if (arguments.OutputRefFilePath is { })
+        {
+            refAssemblyFilePath = arguments.OutputRefFilePath;
+        }
+
+        return (assemblyFilePath, refAssemblyFilePath);
+    }
+
     /// <summary>
     /// This checks determines if this compilation should have the files from source generators
     /// embedded in the PDB. This does not look at anything on disk, it makes a determination

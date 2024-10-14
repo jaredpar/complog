@@ -13,13 +13,13 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class SolutionReader : IDisposable
 {
-    private readonly ImmutableArray<(CompilerCall CompilerCall, ProjectId ProjectId)> _projectDataList;
+    private readonly SortedDictionary<int, (CompilerCall CompilerCall, ProjectId ProjectId)> _indexToProjectDataMap;
 
     internal CompilerLogReader Reader { get; }
     internal VersionStamp VersionStamp { get; }
     internal SolutionId SolutionId { get; } = SolutionId.CreateNewId();
 
-    public int ProjectCount => _projectDataList.Length;
+    public int ProjectCount => _indexToProjectDataMap.Count;
 
     internal SolutionReader(CompilerLogReader reader, Func<CompilerCall, bool>? predicate = null, VersionStamp? versionStamp = null)
     {
@@ -27,17 +27,18 @@ public sealed class SolutionReader : IDisposable
         VersionStamp = versionStamp ?? VersionStamp.Default;
 
         predicate ??= static c => c.Kind == CompilerCallKind.Regular;
-        var builder = ImmutableArray.CreateBuilder<(CompilerCall, ProjectId)>();
+        var map = new SortedDictionary<int, (CompilerCall, ProjectId)>();
         for (int i = 0; i < reader.Count; i++)
         {
             var call = reader.ReadCompilerCall(i);
             if (predicate(call))
             {
                 var projectId = ProjectId.CreateNewId(debugName: i.ToString());
-                builder.Add((call, projectId));
+                map[i] = (call, projectId);
             }
         }
-        _projectDataList = builder.ToImmutableArray();
+
+        _indexToProjectDataMap = map;
     }
 
     public void Dispose()
@@ -56,18 +57,17 @@ public sealed class SolutionReader : IDisposable
 
     public SolutionInfo ReadSolutionInfo()
     {
-        var projectInfoList = new List<ProjectInfo>();
-        for (var i = 0; i < ProjectCount; i++)
+        var projectInfoList = new List<ProjectInfo>(capacity: ProjectCount);
+        foreach (var kvp in _indexToProjectDataMap)
         {
-            projectInfoList.Add(ReadProjectInfo(i));
+            projectInfoList.Add(ReadProjectInfo(kvp.Value.CompilerCall, kvp.Value.ProjectId));
         }
 
         return SolutionInfo.Create(SolutionId, VersionStamp, projects: projectInfoList);
     }
 
-    public ProjectInfo ReadProjectInfo(int index)
+    private ProjectInfo ReadProjectInfo(CompilerCall compilerCall, ProjectId projectId)
     {
-        var (compilerCall, projectId) = _projectDataList[index];
         var rawCompilationData = Reader.ReadRawCompilationData(compilerCall);
         var documents = new List<DocumentInfo>();
         var additionalDocuments = new List<DocumentInfo>();
@@ -115,12 +115,7 @@ public sealed class SolutionReader : IDisposable
             }
         }
 
-        // https://github.com/jaredpar/complog/issues/24
-        // Need to store project reference information at the builder point so they can be properly repacked
-        // here and setup in the Workspace
-        var projectReferences = new List<ProjectReference>();
-
-        var referenceList = Reader.RenameMetadataReferences(FilterToUnique(rawCompilationData.References));
+        var refTuple = ReadReferences(rawCompilationData.References);
         var analyzers = Reader.ReadAnalyzers(rawCompilationData);
         var options = Reader.ReadCompilerOptions(compilerCall);
         var projectInfo = ProjectInfo.Create(
@@ -134,8 +129,8 @@ public sealed class SolutionReader : IDisposable
             compilationOptions: options.CompilationOptions,
             parseOptions: options.ParseOptions,
             documents,
-            projectReferences,
-            referenceList,
+            refTuple.Item1,
+            refTuple.Item2,
             analyzerReferences: analyzers.AnalyzerReferences,
             additionalDocuments,
             isSubmission: false,
@@ -143,22 +138,34 @@ public sealed class SolutionReader : IDisposable
 
         return projectInfo.WithAnalyzerConfigDocuments(analyzerConfigDocuments);
 
-        // The command line compiler supports having the same reference added multiple times. It's actually
-        // not uncommon for Microsoft.VisualBasic.dll to be passed twice when working on Visual Basic projects. 
-        // The workspaces layer though cannot handle duplicates hence we need to run a de-dupe pass here.
-        static List<RawReferenceData> FilterToUnique(List<RawReferenceData> referenceList)
+        (List<ProjectReference>, List<MetadataReference>) ReadReferences(List<RawReferenceData> rawReferenceDataList)
         {
+            // The command line compiler supports having the same reference added multiple times. It's actually
+            // not uncommon for Microsoft.VisualBasic.dll to be passed twice when working on Visual Basic projects. 
+            // The workspaces layer though cannot handle duplicates hence we need to run a de-dupe pass here.
             var hashSet = new HashSet<Guid>();
-            var list = new List<RawReferenceData>(capacity: referenceList.Count);
-            foreach (var data in referenceList)
+            var projectReferences = new List<ProjectReference>();
+            var metadataReferences = new List<MetadataReference>(rawReferenceDataList.Count);
+            foreach (var rawReferenceData in rawCompilationData.References)
             {
-                if (hashSet.Add(data.Mvid))
+                if (!hashSet.Add(rawReferenceData.Mvid))
                 {
-                    list.Add(data);
+                    continue;
+                }
+
+                if (Reader.TryGetCompilerCallIndex(rawReferenceData.Mvid, out var refCompilerCallIndex))
+                {
+                    var refProjectId = _indexToProjectDataMap[refCompilerCallIndex].ProjectId;
+                    projectReferences.Add(new ProjectReference(refProjectId, rawReferenceData.Aliases, rawReferenceData.EmbedInteropTypes));
+                }
+                else
+                {
+                    var metadataReference = Reader.ReadMetadataReference(rawReferenceData);
+                    metadataReferences.Add(metadataReference);
                 }
             }
 
-            return list;
+            return (projectReferences, metadataReferences);
         }
     }
 }

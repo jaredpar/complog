@@ -17,6 +17,7 @@ internal static class CommonUtil
 {
     internal const string MetadataFileName = "metadata.txt";
     internal const string AssemblyInfoFileName = "assemblyinfo.txt";
+    internal const string LogInfoFileName = "loginfo.txt";
     internal static readonly Encoding ContentEncoding = Encoding.UTF8;
     internal static readonly MessagePackSerializerOptions SerializerOptions = MessagePackSerializerOptions.Standard.WithAllowAssemblyVersionMismatch(true);
 
