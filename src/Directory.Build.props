@@ -10,9 +10,11 @@
 
   <ItemGroup>
     <!-- 
-      The CVE in System.Text.Json doesn't apply us. Will remove suppressing once MSBuild / Roslyn 
+      The CVE in System.Text.Json, Microsoft.IO.Redist don't apply us. Will remove suppressing once MSBuild / Roslyn 
       produces a package that handles the issue.
     -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8g4q-xg66-9fp4" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-hh2w-p6rv-4g7w" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-hq7w-xv5x-g34j" />
   </ItemGroup>
 </Project>

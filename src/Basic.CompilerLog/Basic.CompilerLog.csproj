@@ -33,7 +33,6 @@
     <Content Include="..\..\LICENSE" PackagePath="\" />
     <PackageReference Include="Mono.Options" />
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
-    <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 
 </Project>
