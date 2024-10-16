@@ -76,11 +76,11 @@ jobs:
           test-coverage-dir: ${{ env.TEST_COVERAGE_PATH }}
       if: matrix.os == 'windows-latest'
 
-    - name: Test Windows .NET Core
+    - name: Test Windows Framework
       uses: ./.github/actions/dotnet-test
       with:
           name: 'Test-Windows-Framework'
-          framework: 'net471'
+          framework: 'net472'
           test-results-dir: ${{ env.TEST_RESULTS_PATH }}
           test-coverage-dir: ${{ env.TEST_COVERAGE_PATH }}
       if: matrix.os == 'windows-latest'
