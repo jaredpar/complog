@@ -23,9 +23,9 @@ runs:
         dotnet test --no-build --framework ${{ inputs.framework }}
         --blame-hang --blame-hang-dump-type full --blame-hang-timeout 10m
         --logger "console;verbosity=detailed"
-        --logger "trx;LogFileName=${{ input.test-results-dir }}/TestResults-${{ inputs.name }}.trx"
+        --logger "trx;LogFileName=${{ inputs.test-results-dir }}/TestResults-${{ inputs.name }}.trx"
         -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ inputs.test-coverage-dir }}/${{ inputs.name }}.xml
       env:
         DOTNET_DbgEnableMiniDump: 1
-        DOTNET_DbgMiniDumpType: 2
+        DOTNET_DbgMiniDumptype: 2
         DOTNET_CreateDumpLogToFile: ${{ inputs.test-results-dir }}test-%e-%p.dmp
