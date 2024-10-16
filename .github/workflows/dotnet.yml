@@ -32,9 +32,6 @@ jobs:
       TEST_ARTIFACTS_PATH: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}test
       TEST_RESULTS_PATH: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}test-results
       TEST_COVERAGE_PATH: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}coverage
-      DOTNET_DbgEnableMiniDump: 1
-      DOTNET_DbgMiniDumpType: 2
-      DOTNET_CreateDumpLogToFile: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}test${{ matrix.slash }}%e-%p.dmp
 
     timeout-minutes: 30
 
@@ -62,30 +59,30 @@ jobs:
       run: dotnet build --no-restore -bl 
 
     - name: Test Linux
-      run: >
-        dotnet test --no-build --framework net8.0 
-        --blame-hang --blame-hang-dump-type full --blame-hang-timeout 10m
-        --logger "console;verbosity=detailed"
-        --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH }}/TestResults-Linux.trx"
-        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.linux.xml
+      uses: ./.github/actions/dotnet-test
+      with:
+          name: 'Test-Linux'
+          framework: 'net8.0'
+          test-results-dir: ${{ env.TEST_RESULTS_PATH }}
+          test-coverage-dir: ${{ env.TEST_COVERAGE_PATH }}
       if: matrix.os == 'ubuntu-latest'
 
     - name: Test Windows .NET Core
-      run: >
-        dotnet test --no-build --framework net8.0
-        --blame-hang --blame-hang-dump-type full --blame-hang-timeout 10m
-        --logger "console;verbosity=detailed"
-        --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH}}/TestResults-Windows-Core.trx"
-        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.windows.core.xml
+      uses: ./.github/actions/dotnet-test
+      with:
+          name: 'Test-Windows-Core'
+          framework: 'net8.0'
+          test-results-dir: ${{ env.TEST_RESULTS_PATH }}
+          test-coverage-dir: ${{ env.TEST_COVERAGE_PATH }}
       if: matrix.os == 'windows-latest'
 
-    - name: Test Windows .NET Framework
-      run: >
-        dotnet test --no-build --framework net8.0
-        --blame-hang --blame-hang-dump-type full --blame-hang-timeout 10m
-        --logger "console;verbosity=detailed"
-        --logger "trx;LogFileName=${{ env.TEST_RESULTS_PATH}}/TestResults-Windows-Framework.trx"
-        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ env.TEST_COVERAGE_PATH }}/coverage.windows.framework.xml
+    - name: Test Windows .NET Core
+      uses: ./.github/actions/dotnet-test
+      with:
+          name: 'Test-Windows-Framework'
+          framework: 'net471'
+          test-results-dir: ${{ env.TEST_RESULTS_PATH }}
+          test-coverage-dir: ${{ env.TEST_COVERAGE_PATH }}
       if: matrix.os == 'windows-latest'
 
     - name: Create Compiler Log
