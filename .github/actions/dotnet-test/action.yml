@@ -25,6 +25,7 @@ runs:
         --logger "console;verbosity=detailed"
         --logger "trx;LogFileName=${{ inputs.test-results-dir }}/TestResults-${{ inputs.name }}.trx"
         -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ inputs.test-coverage-dir }}/${{ inputs.name }}.xml
+      shell: pwsh
       env:
         DOTNET_DbgEnableMiniDump: 1
         DOTNET_DbgMiniDumptype: 2
