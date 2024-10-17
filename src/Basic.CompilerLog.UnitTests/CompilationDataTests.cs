@@ -20,60 +20,69 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void EmitToMemoryCombinations()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath);
-        var data = reader.ReadCompilationData(0);
+        RunInContext(Fixture.ClassLib.Value.CompilerLogPath, static (testOutputHelper, filePath) =>
+        {
+            using var reader = CompilerLogReader.Create(filePath);
+            var data = reader.ReadCompilationData(0);
 
-        var emitResult = data.EmitToMemory();
-        Assert.True(emitResult.Success);
-        AssertEx.HasData(emitResult.AssemblyStream);
-        AssertEx.HasData(emitResult.PdbStream);
-        Assert.Null(emitResult.XmlStream);
-        AssertEx.HasData(emitResult.MetadataStream);
+            var emitResult = data.EmitToMemory();
+            Assert.True(emitResult.Success);
+            AssertEx.HasData(emitResult.AssemblyStream);
+            AssertEx.HasData(emitResult.PdbStream);
+            Assert.Null(emitResult.XmlStream);
+            AssertEx.HasData(emitResult.MetadataStream);
 
-        emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream);
-        Assert.True(emitResult.Success);
-        AssertEx.HasData(emitResult.AssemblyStream);
-        AssertEx.HasData(emitResult.PdbStream);
-        Assert.Null(emitResult.XmlStream);
-        Assert.Null(emitResult.MetadataStream);
+            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream);
+            Assert.True(emitResult.Success);
+            AssertEx.HasData(emitResult.AssemblyStream);
+            AssertEx.HasData(emitResult.PdbStream);
+            Assert.Null(emitResult.XmlStream);
+            Assert.Null(emitResult.MetadataStream);
 
-        emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream);
-        Assert.True(emitResult.Success);
-        AssertEx.HasData(emitResult.AssemblyStream);
-        AssertEx.HasData(emitResult.PdbStream);
-        AssertEx.HasData(emitResult.XmlStream);
-        Assert.Null(emitResult.MetadataStream);
+            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream);
+            Assert.True(emitResult.Success);
+            AssertEx.HasData(emitResult.AssemblyStream);
+            AssertEx.HasData(emitResult.PdbStream);
+            AssertEx.HasData(emitResult.XmlStream);
+            Assert.Null(emitResult.MetadataStream);
 
-        emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream | EmitFlags.IncludeMetadataStream);
-        Assert.True(emitResult.Success);
-        AssertEx.HasData(emitResult.AssemblyStream);
-        AssertEx.HasData(emitResult.PdbStream);
-        AssertEx.HasData(emitResult.XmlStream);
-        AssertEx.HasData(emitResult.MetadataStream);
+            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream | EmitFlags.IncludeMetadataStream);
+            Assert.True(emitResult.Success);
+            AssertEx.HasData(emitResult.AssemblyStream);
+            AssertEx.HasData(emitResult.PdbStream);
+            AssertEx.HasData(emitResult.XmlStream);
+            AssertEx.HasData(emitResult.MetadataStream);
 
-        emitResult = data.EmitToMemory(EmitFlags.MetadataOnly);
-        Assert.True(emitResult.Success);
-        AssertEx.HasData(emitResult.AssemblyStream);
-        Assert.Null(emitResult.PdbStream);
-        Assert.Null(emitResult.XmlStream);
-        Assert.Null(emitResult.MetadataStream);
+            emitResult = data.EmitToMemory(EmitFlags.MetadataOnly);
+            Assert.True(emitResult.Success);
+            AssertEx.HasData(emitResult.AssemblyStream);
+            Assert.Null(emitResult.PdbStream);
+            Assert.Null(emitResult.XmlStream);
+            Assert.Null(emitResult.MetadataStream);
+        });
     }
 
     [Fact]
     public void EmitToMemoryRefOnly()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLibRefOnly.Value.CompilerLogPath);
-        var data = reader.ReadCompilationData(0);
-        var result = data.EmitToMemory();
-        Assert.True(result.Success);
+        RunInContext(Fixture.ClassLibRefOnly.Value.CompilerLogPath, static (testOutputHelper, filePath) =>
+        {
+            using var reader = CompilerLogReader.Create(filePath);
+            var data = reader.ReadCompilationData(0);
+            var result = data.EmitToMemory();
+            Assert.True(result.Success);
+        });
     }
 
     [Fact]
     public void GetAnalyzersNormal()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath);
-        var data = reader.ReadCompilationData(0);
-        Assert.NotEmpty(data.GetAnalyzers());
+        RunInContext(Fixture.ClassLib.Value.CompilerLogPath, static (testOtputHelper, filePath) =>
+        {
+            using var reader = CompilerLogReader.Create(filePath);
+            var data = reader.ReadCompilationData(0);
+            Assert.NotEmpty(data.GetAnalyzers());
+        });
     }
 
     [Fact]
@@ -87,33 +96,29 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void GetDiagnostics()
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerHost.DefaultKind);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
         Assert.NotEmpty(data.GetDiagnostics());
     }
 
-    [Fact]
-    public async Task GetAllDiagnostics()
+    [Theory]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
+    public void GetAllDiagnostics(BasicAnalyzerKind basicAnalyzerKind)
     {
-        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerHost.DefaultKind);
-        var data = reader.ReadCompilationData(0);
-        Assert.NotEmpty(await data.GetAllDiagnosticsAsync());
+        RunInContext((FilePath: Fixture.ClassLib.Value.CompilerLogPath, Kind: basicAnalyzerKind), static (testOutputHelper, state) =>
+        {
+            using var reader = CompilerLogReader.Create(state.FilePath, state.Kind);
+            var data = reader.ReadCompilationData(0);
+            Assert.NotEmpty(data.GetAllDiagnosticsAsync().Result);
+        });
     }
 
     [Fact]
-    public void GetCompilationAfterGeneratorsDiagnostics()
+    public async Task GetAllDiagnosticsNoAnalyzers()
     {
-        using var reader = CompilerLogReader.Create(
-            Fixture.Console.Value.CompilerLogPath,
-            BasicAnalyzerHost.DefaultKind);
-        var rawData = reader.ReadRawCompilationData(0).Item2;
-        var analyzers = rawData.Analyzers
-            .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
-            .ToList();
-        BasicAnalyzerHost host = DotnetUtil.IsNetCore
-            ? new BasicAnalyzerHostInMemory(reader, analyzers)
-            : new BasicAnalyzerHostOnDisk(reader, analyzers);
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = (CSharpCompilationData)reader.ReadCompilationData(0);
+        var host = new BasicAnalyzerHostOnDisk(reader, []);
         data = new CSharpCompilationData(
             data.CompilerCall,
             data.Compilation,
@@ -123,12 +128,41 @@ public sealed class CompilationDataTests : TestBase
             data.AdditionalTexts,
             host,
             data.AnalyzerConfigOptionsProvider);
-        _ = data.GetCompilationAfterGenerators(out var diagnostics);
-        Assert.NotEmpty(diagnostics);
+        Assert.NotEmpty(await data.GetAllDiagnosticsAsync());
+    }
+
+    [Fact]
+    public void GetCompilationAfterGeneratorsDiagnostics()
+    {
+        RunInContext(Fixture.Console.Value.CompilerLogPath, static (testOutputHelper, logFilePath) =>
+        {
+            using var reader = CompilerLogReader.Create(
+                logFilePath,
+                BasicAnalyzerHost.DefaultKind);
+            var rawData = reader.ReadRawCompilationData(0).Item2;
+            var analyzers = rawData.Analyzers
+                .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
+                .ToList();
+            BasicAnalyzerHost host = DotnetUtil.IsNetCore
+                ? new BasicAnalyzerHostInMemory(reader, analyzers)
+                : new BasicAnalyzerHostOnDisk(reader, analyzers);
+            var data = (CSharpCompilationData)reader.ReadCompilationData(0);
+            data = new CSharpCompilationData(
+                data.CompilerCall,
+                data.Compilation,
+                data.ParseOptions,
+                data.EmitOptions,
+                data.EmitData,
+                data.AdditionalTexts,
+                host,
+                data.AnalyzerConfigOptionsProvider);
+            _ = data.GetCompilationAfterGenerators(out var diagnostics);
+            Assert.NotEmpty(diagnostics);
+        });
     }
 
     [Theory]
-    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
+    [MemberData(nameof(GetSimpleBasicAnalyzerKinds))]
     public void GetGeneratedSyntaxTrees(BasicAnalyzerKind basicAnalyzerKind)
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);

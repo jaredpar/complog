@@ -11,15 +11,13 @@ namespace Basic.CompilerLog.UnitTests;
 public sealed class CommonUtilTests
 {
 #if NET
-
     [Fact]
-    public void GetAssemlbyLoadContext()
+    public void GetAssemblyLoadContext()
     {
         var alc = new AssemblyLoadContext("Custom", isCollectible: true);
         Assert.Same(alc, CommonUtil.GetAssemblyLoadContext(alc));
         alc.Unload();
     }
-
 #endif
 
     [Fact]

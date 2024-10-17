@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -42,7 +43,7 @@ public sealed class SolutionReaderTests : TestBase
     }
 
     [Theory]
-    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
+    [MemberData(nameof(GetSimpleBasicAnalyzerKinds))]
     public async Task DocumentsGeneratedDefaultHost(BasicAnalyzerKind basicAnalyzerKind)
     {
         var solution = GetSolution(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);

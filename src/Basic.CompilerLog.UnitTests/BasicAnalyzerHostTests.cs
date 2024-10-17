@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Xunit;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp;
+using Xunit.Abstractions;
 
 #if NET
 using System.Runtime.Loader;
@@ -18,8 +19,17 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
-public sealed class BasicAnalyzerHostTests
+[Collection(CompilerLogCollection.Name)]
+public sealed class BasicAnalyzerHostTests : TestBase
 {
+    public CompilerLogFixture Fixture { get; }
+
+    public BasicAnalyzerHostTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
+        : base(testOutputHelper, nameof(CompilerLogReaderTests))
+    {
+        Fixture = fixture;
+    }
+
     [Fact]
     public void Supported()
     {
@@ -93,4 +103,16 @@ public sealed class BasicAnalyzerHostTests
         var diagnostic = host.GetDiagnostics().Single();
         Assert.Contains(message, diagnostic.GetMessage());
     }
+
+#if NETFRAMEWORK
+    [Fact]
+    public void InMemory()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.InMemory);
+        var data = reader.ReadCompilationData(0);
+        var host = (BasicAnalyzerHostInMemory)data.BasicAnalyzerHost;
+        Assert.NotEmpty(host.AnalyzerReferences);
+        Assert.Throws<PlatformNotSupportedException>(() => host.Loader.LoadFromAssemblyName(typeof(BasicAnalyzerHost).Assembly.GetName()));
+    }
+#endif
 }

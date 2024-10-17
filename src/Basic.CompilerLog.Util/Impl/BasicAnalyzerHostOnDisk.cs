@@ -57,6 +57,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 
     protected override void DisposeCore()
     {
+        Loader.Dispose();
         try
         {
             Directory.Delete(AnalyzerDirectory, recursive: true);
@@ -131,7 +132,7 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
 {
     public static readonly DiagnosticDescriptor CannotFindAssembly =
         new DiagnosticDescriptor(
-            "BCLA0002",
+            "BCLA0003",
             "Cannot find assembly",
             "Cannot find assembly {0}",
             "BasicCompilerLog",

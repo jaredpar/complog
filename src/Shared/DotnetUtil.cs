@@ -16,12 +16,20 @@ internal static class DotnetUtil
 {
     private static readonly Lazy<Dictionary<string, string>> _lazyDotnetEnvironmentVariables = new(CreateDotnetEnvironmentVariables);
 
+    // Have simple helpers in a real tfm (i.e. not netstandard)
+#if NET || NETFRAMEWORK
+    internal static bool IsNetCore
+    {
+        get
+        {
 #if NET
-    internal static bool IsNetCore => true;
-    internal static bool IsNetFramework => false;
-#elif NETFRAMEWORK
-    internal static bool IsNetCore => false;
-    internal static bool IsNetFramework => true;
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
+    internal static bool IsNetFramework => !IsNetCore;
 #endif
 
     private static Dictionary<string, string> CreateDotnetEnvironmentVariables()

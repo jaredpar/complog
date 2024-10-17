@@ -29,7 +29,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         {
             var task = Task.Run(() => 
             {
-                using var reader = CompilerLogReader.Create(complogPath);
+                using var reader = CompilerLogReader.Create(complogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
                 foreach (var data in reader.ReadAllCompilationData())
                 {
                     using var testDir = new TempDir();
@@ -95,7 +95,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Theory]
-    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
+    [MemberData(nameof(GetSimpleBasicAnalyzerKinds))]
     public async Task EmitToMemory(BasicAnalyzerKind basicAnalyzerKind)
     {
         TestOutputHelper.WriteLine($"BasicAnalyzerKind: {basicAnalyzerKind}");

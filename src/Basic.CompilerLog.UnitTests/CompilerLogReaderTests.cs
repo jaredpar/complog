@@ -179,19 +179,13 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.NotNull(options);
     }
 
-    [Fact]
-    public void AnalyzerLoadOptions()
+    [Theory]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
+    public void AnalyzerLoadOptions(BasicAnalyzerKind basicAnalyzerKind)
     {
-        var any = false;
-        foreach (BasicAnalyzerKind kind in Enum.GetValues(typeof(BasicAnalyzerKind)))
+        RunInContext((FilePath: Fixture.Console.Value.CompilerLogPath, Kind: basicAnalyzerKind), static (testOutputHelper, state) =>
         {
-            if (!BasicAnalyzerHost.IsSupported(kind))
-            {
-                continue;
-            }
-            any = true;
-
-            using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, kind);
+            using var reader = CompilerLogReader.Create(state.FilePath, state.Kind);
             var data = reader.ReadCompilationData(0);
             var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
             Assert.Empty(diagnostics);
@@ -206,9 +200,7 @@ public sealed class CompilerLogReaderTests : TestBase
             }
             Assert.True(found);
             data.BasicAnalyzerHost.Dispose();
-        }
-
-        Assert.True(any);
+        });
     }
 
     [Theory]

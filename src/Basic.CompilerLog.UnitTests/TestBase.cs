@@ -1,13 +1,17 @@
 ﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Impl;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -16,11 +20,17 @@ public abstract class TestBase : IDisposable
     private static readonly object Guard = new();
 
     internal static readonly Encoding DefaultEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+    private List<string> BadAssemblyLoadList { get; } = new();
     internal ITestOutputHelper TestOutputHelper { get; }
     internal TempDir Root { get; }
     internal Util.LogReaderState State { get; }
     internal string RootDirectory => Root.DirectoryPath;
 
+    /// <summary>
+    /// Get all of the supported <see cref="BasicAnalyzerKind"/>
+    /// </summary>
+    /// <returns></returns>
     public static IEnumerable<object[]> GetSupportedBasicAnalyzerKinds()
     {
         yield return new object[] { BasicAnalyzerKind.None };
@@ -32,15 +42,42 @@ public abstract class TestBase : IDisposable
         }
     }
 
+    /// <summary>
+    /// Return the <see cref="BasicAnalyzerKind"/> that do not pollute address space and 
+    /// can be run simply.
+    /// </summary>
+    /// <returns></returns>
+    public static IEnumerable<object[]> GetSimpleBasicAnalyzerKinds()
+    {
+        yield return new object[] { BasicAnalyzerKind.None };
+
+        if (DotnetUtil.IsNetCore)
+        {
+            yield return new object[] { BasicAnalyzerKind.OnDisk };
+            yield return new object[] { BasicAnalyzerKind.InMemory };
+        }
+    }
+
     protected TestBase(ITestOutputHelper testOutputHelper, string name)
     {
         TestOutputHelper = testOutputHelper;
         Root = new TempDir(name);
         State = new Util.LogReaderState(Root.NewDirectory("state"));
+        AppDomain.CurrentDomain.AssemblyLoad += OnAssemblyLoad;
     }
 
     public virtual void Dispose()
     {
+        AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
+        if (BadAssemblyLoadList.Count > 0)
+        {
+            TestOutputHelper.WriteLine("Bad assembly loads");
+            foreach (var assemblyFilePath in BadAssemblyLoadList)
+            {
+                TestOutputHelper.WriteLine($"\t{assemblyFilePath}");
+            }
+            Assert.Fail("Bad assembly loads");
+        }
         TestOutputHelper.WriteLine("Deleting temp directory");
         Root.Dispose();
     }
@@ -125,4 +162,84 @@ public abstract class TestBase : IDisposable
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
          ? ProcessUtil.Run("cmd", args: "/c build.cmd", workingDirectory: directory)
          : ProcessUtil.Run(Path.Combine(directory, "build.sh"), args: "", workingDirectory: directory);
+
+    protected void RunInContext<T>(T state, Action<ITestOutputHelper, T> action, [CallerMemberName] string? testMethod = null)
+    {
+#if NETFRAMEWORK
+        AppDomain? appDomain = null;
+        try
+        {
+            appDomain = AppDomainUtils.Create($"Test {testMethod}");
+            var testOutputHelper = new AppDomainTestOutputHelper(TestOutputHelper);
+            var type = typeof(InvokeUtil);
+            var util = (InvokeUtil)appDomain.CreateInstanceAndUnwrap(type.Assembly.FullName, type.FullName);
+            util.Invoke(action.Method.DeclaringType.FullName, action.Method.Name, testOutputHelper, state);
+        }
+        finally
+        {
+            AppDomain.Unload(appDomain);
+        }
+#else
+        // On .NET Core the analyzers naturally load into child load contexts so no need for complicated
+        // marshalling here.
+        action(TestOutputHelper, state);
+#endif
+
+    }
+
+    /// <summary>
+    /// This tracks assembly loads to make sure that we aren't polluting the main <see cref="AppDomain"/>
+    /// When we load analyzers from tests into the main <see cref="AppDomain"/> that potentially pollutes
+    /// or interferes with other tests. Instead each test should be loading into their own.
+    /// </summary>
+    private void OnAssemblyLoad(object? sender, AssemblyLoadEventArgs e)
+    {
+        var testBaseAssembly = typeof(TestBase).Assembly;
+        var assembly = e.LoadedAssembly;
+        if (assembly.IsDynamic)
+        {
+            return;
+        }
+
+#if NETFRAMEWORK
+        if (assembly.GlobalAssemblyCache)
+        {
+            return;
+        }
+
+        string[] legalDirs =
+        [
+            Path.GetDirectoryName(testBaseAssembly.Location)!,
+        ];
+#else
+        var mainContext = System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(testBaseAssembly);
+        var assemblyContext = System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(e.LoadedAssembly);
+        if (mainContext != assemblyContext)
+        {
+            return;
+        }
+
+        string[] legalDirs =
+        [
+            Path.GetDirectoryName(testBaseAssembly.Location)!,
+            Path.GetDirectoryName(typeof(object).Assembly.Location)!
+        ];
+#endif
+
+        var testDir = Path.GetDirectoryName(testBaseAssembly.Location);
+        var assemblyDir = Path.GetDirectoryName(e.LoadedAssembly.Location);
+        var any = false;
+        foreach (var legalDir in legalDirs)
+        {
+            if (string.Equals(legalDir, assemblyDir, PathUtil.Comparison))
+            {
+                any = true;
+            }
+        }
+
+        if (!any)
+        {
+            BadAssemblyLoadList.Add(Path.GetFileName(e.LoadedAssembly.Location));
+        }
+    }
 }

@@ -24,9 +24,10 @@ runs:
         --blame-hang --blame-hang-dump-type full --blame-hang-timeout 10m
         --logger "console;verbosity=detailed"
         --logger "trx;LogFileName=${{ inputs.test-results-dir }}/TestResults-${{ inputs.name }}.trx"
-        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ inputs.test-coverage-dir }}/${{ inputs.name }}.xml
+        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ inputs.test-coverage-dir }}/coverage.${{ inputs.name }}.xml
       shell: pwsh
       env:
         DOTNET_DbgEnableMiniDump: 1
         DOTNET_DbgMiniDumptype: 2
         DOTNET_CreateDumpLogToFile: ${{ inputs.test-results-dir }}test-%e-%p.dmp
+
