@@ -124,8 +124,7 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [Theory]
-    [InlineData(BasicAnalyzerKind.InMemory)]
-    [InlineData(BasicAnalyzerKind.OnDisk)]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public void VerifyBasicAnalyzerKind(BasicAnalyzerKind basicAnalyzerKind)
     {
         using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, basicAnalyzerKind);
@@ -135,15 +134,18 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [Theory]
-    [CombinatorialData]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public void GetCompilationSimple(BasicAnalyzerKind basicAnalyzerKind)
     {
-        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, basicAnalyzerKind);
-        var compilerCall = reader.ReadAllCompilerCalls().First();
-        var compilationData = reader.ReadCompilationData(compilerCall);
-        Assert.NotNull(compilationData);
-        var emitResult = compilationData.EmitToMemory();
-        Assert.True(emitResult.Success);
+        RunInContext((FilePath: Fixture.Console.Value.BinaryLogPath!, Kind: basicAnalyzerKind), static (testOutptuHelper, state) =>
+        {
+            using var reader = BinaryLogReader.Create(state.FilePath, state.Kind);
+            var compilerCall = reader.ReadAllCompilerCalls().First();
+            var compilationData = reader.ReadCompilationData(compilerCall);
+            Assert.NotNull(compilationData);
+            var emitResult = compilationData.EmitToMemory();
+            Assert.True(emitResult.Success);
+        });
     }
 
     [Fact]

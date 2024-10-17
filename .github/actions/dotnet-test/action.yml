@@ -1,0 +1,33 @@
+name: 'dotnet test'
+description: 'Wrap dotnet test command with common arguments'
+author: 'Jared Parsons <jared@paranoidcoding.org>'
+inputs:
+  name:
+    description: 'Name of the test run'
+    required: true
+  framework:
+    description: 'Target framework to test'
+    required: true
+  test-results-dir:
+    description: 'Path to store the test results'
+    required: true
+  test-coverage-dir:
+    description: 'Path to store the test coverage'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Test $${ inputs.name }
+      run: >
+        dotnet test --no-build --framework ${{ inputs.framework }}
+        --blame-hang --blame-hang-dump-type full --blame-hang-timeout 10m
+        --logger "console;verbosity=detailed"
+        --logger "trx;LogFileName=${{ inputs.test-results-dir }}/TestResults-${{ inputs.name }}.trx"
+        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ inputs.test-coverage-dir }}/coverage.${{ inputs.name }}.xml
+      shell: pwsh
+      env:
+        DOTNET_DbgEnableMiniDump: 1
+        DOTNET_DbgMiniDumptype: 2
+        DOTNET_CreateDumpLogToFile: ${{ inputs.test-results-dir }}test-%e-%p.dmp
+

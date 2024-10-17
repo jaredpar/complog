@@ -94,7 +94,13 @@ internal sealed class InMemoryLoader
 
     internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
     {
-        throw new PlatformNotSupportedException();
+        var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
+        foreach (var analyzer in analyzers)
+        {
+            builder.Add(new BasicAnalyzerReference(new AssemblyName(analyzer.AssemblyName), this, onDiagnostic));
+        }
+
+        AnalyzerReferences = builder.MoveToImmutable();
     }
 
     public Assembly LoadFromAssemblyName(AssemblyName assemblyName)

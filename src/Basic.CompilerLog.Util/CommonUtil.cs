@@ -27,7 +27,7 @@ internal static class CommonUtil
 
 #if NET
 
-    internal static AssemblyLoadContext GetAssemblyLoadContext(AssemblyLoadContext? context)
+    internal static AssemblyLoadContext GetAssemblyLoadContext(AssemblyLoadContext? context = null)
     {
         if (context is { })
         {

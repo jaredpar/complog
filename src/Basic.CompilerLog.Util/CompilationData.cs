@@ -198,8 +198,18 @@ public abstract class CompilationData
     public async Task<ImmutableArray<Diagnostic>> GetAllDiagnosticsAsync(CancellationToken cancellationToken = default)
     {
         var compilation = GetCompilationAfterGenerators(out var hostDiagnostics, cancellationToken);
-        var cwa = new CompilationWithAnalyzers(compilation, GetAnalyzers(), AnalyzerOptions);
-        var diagnostics = await cwa.GetAllDiagnosticsAsync().ConfigureAwait(false);
+        var analyzers = GetAnalyzers();
+        ImmutableArray<Diagnostic> diagnostics;
+        if (analyzers.IsDefaultOrEmpty)
+        {
+            diagnostics = compilation.GetDiagnostics(cancellationToken);
+        }
+        else
+        {
+            var cwa = new CompilationWithAnalyzers(compilation, GetAnalyzers(), AnalyzerOptions);
+            diagnostics = await cwa.GetAllDiagnosticsAsync().ConfigureAwait(false);
+        }
+
         return diagnostics.AddRange(hostDiagnostics);
     }
 
