@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -31,6 +32,16 @@ namespace Basic.CompilerLog.Util
 #endif
             return new StreamWriter(stream, encoding, bufferSize, leaveOpen);
         }
+
+        internal static unsafe ref T GetNonNullPinnableReference<T>(Span<T> span) => 
+            ref (span.Length != 0) 
+                ? ref MemoryMarshal.GetReference(span)
+                : ref Unsafe.AsRef<T>((void*)1);
+
+        internal static unsafe ref T GetNonNullPinnableReference<T>(ReadOnlySpan<T> span) => 
+            ref (span.Length != 0) 
+                ? ref MemoryMarshal.GetReference(span)
+                : ref Unsafe.AsRef<T>((void*)1);
     }
 
 #if !NET
@@ -92,12 +103,7 @@ namespace Basic.CompilerLog.Util
 
         internal static unsafe int GetByteCount(this Encoding @this, ReadOnlySpan<char> chars)
         {
-            if (chars.IsEmpty)
-            {
-                return 0;
-            }
-
-            fixed (char* charsPtr = &MemoryMarshal.GetReference(chars))
+            fixed (char* charsPtr = &Polyfill.GetNonNullPinnableReference(chars))
             {
                 return @this.GetByteCount(charsPtr, chars.Length);
             }
@@ -105,18 +111,8 @@ namespace Basic.CompilerLog.Util
 
         internal static unsafe int GetBytes(this Encoding @this, ReadOnlySpan<char> chars, Span<byte> bytes)
         {
-            if (chars.IsEmpty)
-            {
-                return 0;
-            }
-
-            if (bytes.IsEmpty)
-            {
-                return 0;
-            }
-
-            fixed (char* charsPtr = &MemoryMarshal.GetReference(chars))
-            fixed (byte* bytesPtr = &MemoryMarshal.GetReference(bytes))
+            fixed (char* charsPtr = &Polyfill.GetNonNullPinnableReference(chars))
+            fixed (byte* bytesPtr = &Polyfill.GetNonNullPinnableReference(bytes))
             {
                 return @this.GetBytes(charsPtr, chars.Length, bytesPtr, bytes.Length);
             }
@@ -143,6 +139,7 @@ namespace Basic.CompilerLog.Util
 namespace System.Diagnostics.CodeAnalysis
 {
     /// <summary>Specifies that when a method returns <see cref="ReturnValue"/>, the parameter will not be null even if the corresponding type allows it.</summary>
+    [ExcludeFromCodeCoverage]
     [AttributeUsage(AttributeTargets.Parameter, Inherited = false)]
     public sealed class NotNullWhenAttribute : Attribute
     {
@@ -157,6 +154,7 @@ namespace System.Diagnostics.CodeAnalysis
     }
 
     /// <summary>Specifies that the output will be non-null if the named parameter is non-null.</summary>
+    [ExcludeFromCodeCoverage]
     [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property | AttributeTargets.ReturnValue, AllowMultiple = true, Inherited = false)]
     public sealed class NotNullIfNotNullAttribute : Attribute
     {

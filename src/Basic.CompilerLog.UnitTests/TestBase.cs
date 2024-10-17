@@ -27,6 +27,15 @@ public abstract class TestBase : IDisposable
     internal Util.LogReaderState State { get; }
     internal string RootDirectory => Root.DirectoryPath;
 
+    // Have simple helpers in a real tfm (i.e. not netstandard)
+#if NET 
+    internal static bool IsNetCore => true;
+    internal static bool IsNetFramework => false;
+#else
+    internal static bool IsNetCore => false;
+    internal static bool IsNetFramework => true;
+#endif
+
     /// <summary>
     /// Get all of the supported <see cref="BasicAnalyzerKind"/>
     /// </summary>
@@ -36,7 +45,7 @@ public abstract class TestBase : IDisposable
         yield return new object[] { BasicAnalyzerKind.None };
         yield return new object[] { BasicAnalyzerKind.OnDisk };
 
-        if (DotnetUtil.IsNetCore)
+        if (IsNetCore)
         {
             yield return new object[] { BasicAnalyzerKind.InMemory };
         }
@@ -51,7 +60,7 @@ public abstract class TestBase : IDisposable
     {
         yield return new object[] { BasicAnalyzerKind.None };
 
-        if (DotnetUtil.IsNetCore)
+        if (IsNetCore)
         {
             yield return new object[] { BasicAnalyzerKind.OnDisk };
             yield return new object[] { BasicAnalyzerKind.InMemory };
