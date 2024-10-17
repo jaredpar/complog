@@ -143,6 +143,7 @@ namespace Basic.CompilerLog.Util
 namespace System.Diagnostics.CodeAnalysis
 {
     /// <summary>Specifies that when a method returns <see cref="ReturnValue"/>, the parameter will not be null even if the corresponding type allows it.</summary>
+    [ExcludeFromCodeCoverage]
     [AttributeUsage(AttributeTargets.Parameter, Inherited = false)]
     public sealed class NotNullWhenAttribute : Attribute
     {
@@ -157,6 +158,7 @@ namespace System.Diagnostics.CodeAnalysis
     }
 
     /// <summary>Specifies that the output will be non-null if the named parameter is non-null.</summary>
+    [ExcludeFromCodeCoverage]
     [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property | AttributeTargets.ReturnValue, AllowMultiple = true, Inherited = false)]
     public sealed class NotNullIfNotNullAttribute : Attribute
     {

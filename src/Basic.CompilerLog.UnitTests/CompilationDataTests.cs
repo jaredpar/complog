@@ -143,7 +143,7 @@ public sealed class CompilationDataTests : TestBase
             var analyzers = rawData.Analyzers
                 .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
                 .ToList();
-            BasicAnalyzerHost host = DotnetUtil.IsNetCore
+            BasicAnalyzerHost host = IsNetCore
                 ? new BasicAnalyzerHostInMemory(reader, analyzers)
                 : new BasicAnalyzerHostOnDisk(reader, analyzers);
             var data = (CSharpCompilationData)reader.ReadCompilationData(0);
