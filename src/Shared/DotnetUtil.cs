@@ -16,6 +16,14 @@ internal static class DotnetUtil
 {
     private static readonly Lazy<Dictionary<string, string>> _lazyDotnetEnvironmentVariables = new(CreateDotnetEnvironmentVariables);
 
+#if NET
+    internal static bool IsNetCore => true;
+    internal static bool IsNetFramework => false;
+#elif NETFRAMEWORK
+    internal static bool IsNetCore => false;
+    internal static bool IsNetFramework => true;
+#endif
+
     private static Dictionary<string, string> CreateDotnetEnvironmentVariables()
     {
         // The CLI, particularly when run from dotnet test, will set the MSBuildSDKsPath environment variable

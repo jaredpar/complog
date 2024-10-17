@@ -1,11 +1,15 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
+using System.Reflection.PortableExecutable;
+
 #if NET
 using System.Runtime.Loader;
 #endif
@@ -33,7 +37,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
         AnalyzerDirectory = Path.Combine(provider.LogReaderState.AnalyzerDirectory, dirName);
         Directory.CreateDirectory(AnalyzerDirectory);
 
-        Loader = new OnDiskLoader(name, AnalyzerDirectory, provider.LogReaderState);
+        Loader = new OnDiskLoader(name, AnalyzerDirectory, provider.LogReaderState, AddDiagnostic);
 
         // Now create the AnalyzerFileReference. This won't actually pull on any assembly loading
         // until later so it can be done at the same time we're building up the files.
@@ -71,7 +75,7 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
     internal string AnalyzerDirectory { get; }
 
-    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
+    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state, Action<Diagnostic> _)
         : base(name, isCollectible: true)
     {
         CompilerLoadContext = state.CompilerLoadContext;
@@ -125,15 +129,44 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
 
 internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
 {
+    public static readonly DiagnosticDescriptor CannotFindAssembly =
+        new DiagnosticDescriptor(
+            "BCLA0002",
+            "Cannot find assembly",
+            "Cannot find assembly {0}",
+            "BasicCompilerLog",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
     internal string Name { get; }
     internal string AnalyzerDirectory { get; }
+    internal Action<Diagnostic> OnDiagnostic { get; }
+    internal Dictionary<string, Assembly> AssemblyMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
+    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state, Action<Diagnostic> onDiagnostic)
     {
         Name = name;
         AnalyzerDirectory = analyzerDirectory;
+        OnDiagnostic = onDiagnostic;
 
         AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
+
+        // When running as a library there is no guarantee that we have a app.config with correct
+        // binding redirects. To account for this we will map the core compiler assemblies by 
+        // simple name and resolve them in assembly resolve.
+        Assembly[] platformAssemblies =
+        [
+            typeof(Compilation).Assembly,
+            typeof(CSharpSyntaxNode).Assembly,
+            typeof(VisualBasicSyntaxNode).Assembly,
+            typeof(ImmutableArray).Assembly,
+            typeof(PEReader).Assembly,
+        ];
+
+        foreach (var assembly in platformAssemblies)
+        {
+            AssemblyMap[assembly.GetName().Name] = assembly;
+        }
     }
 
     public void Dispose()
@@ -143,12 +176,20 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
 
     private Assembly? OnAssemblyResolve(object sender, ResolveEventArgs e)
     {
+        var assemblyName = new AssemblyName(e.Name);
+        if (AssemblyMap.TryGetValue(assemblyName.Name, out var assembly))
+        {
+            return assembly;
+        }
+
         var name = Path.Combine(AnalyzerDirectory, $"{e.Name}.dll");
         if (File.Exists(name))
         {
             return Assembly.LoadFrom(name);
         }
 
+        var diagnostic = Diagnostic.Create(CannotFindAssembly, Location.None, assemblyName);
+        OnDiagnostic(diagnostic);
         return null;
     }
 

@@ -42,7 +42,7 @@ public sealed class SolutionReaderTests : TestBase
     }
 
     [Theory]
-    [CombinatorialData]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public async Task DocumentsGeneratedDefaultHost(BasicAnalyzerKind basicAnalyzerKind)
     {
         var solution = GetSolution(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);

@@ -95,7 +95,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Theory]
-    [CombinatorialData]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public async Task EmitToMemory(BasicAnalyzerKind basicAnalyzerKind)
     {
         TestOutputHelper.WriteLine($"BasicAnalyzerKind: {basicAnalyzerKind}");

@@ -124,8 +124,7 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [Theory]
-    [InlineData(BasicAnalyzerKind.InMemory)]
-    [InlineData(BasicAnalyzerKind.OnDisk)]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public void VerifyBasicAnalyzerKind(BasicAnalyzerKind basicAnalyzerKind)
     {
         using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, basicAnalyzerKind);
@@ -135,7 +134,7 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [Theory]
-    [CombinatorialData]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public void GetCompilationSimple(BasicAnalyzerKind basicAnalyzerKind)
     {
         using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, basicAnalyzerKind);

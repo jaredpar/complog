@@ -269,6 +269,7 @@ public sealed class CompilerLogReaderTests : TestBase
         }
         Assert.NotEmpty(host.GetDiagnostics());
     }
+
 #endif
 
     [Fact]

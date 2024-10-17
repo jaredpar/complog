@@ -280,6 +280,7 @@ public sealed class ExportUtilTests : TestBase
         TestExport(Fixture.ConsoleSigned.Value.CompilerLogPath, expectedCount: 1, runBuild: false);
     }
 
+#if NET
     [Fact]
     public void ExportAll()
     {
@@ -297,6 +298,7 @@ public sealed class ExportUtilTests : TestBase
         var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
         Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
     }
+#endif
 
     /// <summary>
     /// Make sure that unix paths aren't confused as options when exporting the RSP file

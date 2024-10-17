@@ -105,12 +105,14 @@ public sealed class CompilationDataTests : TestBase
     {
         using var reader = CompilerLogReader.Create(
             Fixture.Console.Value.CompilerLogPath,
-            BasicAnalyzerKind.InMemory);
+            BasicAnalyzerHost.DefaultKind);
         var rawData = reader.ReadRawCompilationData(0).Item2;
         var analyzers = rawData.Analyzers
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
             .ToList();
-        var host = new BasicAnalyzerHostInMemory(reader, analyzers);
+        BasicAnalyzerHost host = DotnetUtil.IsNetCore
+            ? new BasicAnalyzerHostInMemory(reader, analyzers)
+            : new BasicAnalyzerHostOnDisk(reader, analyzers);
         var data = (CSharpCompilationData)reader.ReadCompilationData(0);
         data = new CSharpCompilationData(
             data.CompilerCall,
@@ -126,7 +128,7 @@ public sealed class CompilationDataTests : TestBase
     }
 
     [Theory]
-    [CombinatorialData]
+    [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public void GetGeneratedSyntaxTrees(BasicAnalyzerKind basicAnalyzerKind)
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);

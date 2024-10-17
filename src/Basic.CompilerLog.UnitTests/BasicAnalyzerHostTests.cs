@@ -12,8 +12,6 @@ using Xunit;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp;
 
-
-
 #if NET
 using System.Runtime.Loader;
 #endif

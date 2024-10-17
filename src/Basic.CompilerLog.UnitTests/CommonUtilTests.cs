@@ -21,4 +21,17 @@ public sealed class CommonUtilTests
     }
 
 #endif
+
+    [Fact]
+    public void Defines()
+    {
+#if NET
+        Assert.True(DotnetUtil.IsNetCore);
+        Assert.False(DotnetUtil.IsNetFramework);
+#elif NETFRAMEWORK
+        Assert.False(DotnetUtil.IsNetCore);
+        Assert.True(DotnetUtil.IsNetFramework);
+#endif
+    }
 }
+

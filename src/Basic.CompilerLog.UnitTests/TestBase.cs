@@ -21,6 +21,17 @@ public abstract class TestBase : IDisposable
     internal Util.LogReaderState State { get; }
     internal string RootDirectory => Root.DirectoryPath;
 
+    public static IEnumerable<object[]> GetSupportedBasicAnalyzerKinds()
+    {
+        yield return new object[] { BasicAnalyzerKind.None };
+        yield return new object[] { BasicAnalyzerKind.OnDisk };
+
+        if (DotnetUtil.IsNetCore)
+        {
+            yield return new object[] { BasicAnalyzerKind.InMemory };
+        }
+    }
+
     protected TestBase(ITestOutputHelper testOutputHelper, string name)
     {
         TestOutputHelper = testOutputHelper;
