@@ -58,6 +58,6 @@ public class PolyfillTests
     {
         var buffer = new byte[10];
         Assert.Equal(0, TestBase.DefaultEncoding.GetBytes(ReadOnlySpan<char>.Empty, buffer.AsSpan()));
-        Assert.Equal(0, TestBase.DefaultEncoding.GetBytes("hello".AsSpan(), buffer.AsSpan(0, 0)));
+        Assert.Throws<ArgumentException>(() => TestBase.DefaultEncoding.GetBytes("hello".AsSpan(), buffer.AsSpan(0, 0)));
     }
 }
