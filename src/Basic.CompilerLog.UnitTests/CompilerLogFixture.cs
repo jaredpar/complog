@@ -89,6 +89,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     internal Lazy<LogData>? WpfApp { get; }
 
+    internal Lazy<LogData>? ConsoleWithNativePdb { get; }
+
     /// <summary>
     /// Named complog value that makes intent of getting signed one clear
     /// </summary>
@@ -456,6 +458,37 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             WpfApp = WithBuild("wpfapp.complog", void (string scratchPath) =>
             {
                 RunDotnetCommand("new wpf --name wpfapp --output .", scratchPath);
+                RunDotnetCommand("build -bl -nr:false", scratchPath);
+            });
+
+            ConsoleWithNativePdb = WithBuild("console-with-nativepdb.complog", void (string scratchPath) =>
+            {
+                RunDotnetCommand($"new console --name console --output .", scratchPath);
+                var projectFileContent = """
+                    <Project Sdk="Microsoft.NET.Sdk">
+                      <PropertyGroup>
+                        <OutputType>Exe</OutputType>
+                        <DebugType>full</DebugType>
+                        <TargetFramework>net8.0</TargetFramework>
+                        <ImplicitUsings>enable</ImplicitUsings>
+                        <Nullable>enable</Nullable>
+                      </PropertyGroup>
+                    </Project>
+                    """;
+                File.WriteAllText(Path.Combine(scratchPath, "console.csproj"), projectFileContent, TestBase.DefaultEncoding);
+                var program = """
+                    using System;
+                    using System.Text.RegularExpressions;
+                    // This is an amazing resource
+                    var r = Util.GetRegex();
+                    Console.WriteLine(r);
+
+                    partial class Util {
+                        [GeneratedRegex("abc|def", RegexOptions.IgnoreCase, "en-US")]
+                        internal static partial Regex GetRegex();
+                    }
+                    """;
+                File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
                 RunDotnetCommand("build -bl -nr:false", scratchPath);
             });
         }
