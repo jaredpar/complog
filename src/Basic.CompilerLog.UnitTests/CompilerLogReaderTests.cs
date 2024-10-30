@@ -216,8 +216,8 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, kind);
         var (compilerCall, data) = reader.ReadRawCompilationData(0);
 
-        var host1 = reader.ReadAnalyzers(data);
-        var host2 = reader.ReadAnalyzers(data);
+        var host1 = reader.CreateBasicAnalyzerHost(data);
+        var host2 = reader.CreateBasicAnalyzerHost(data);
         Assert.Same(host1, host2);
         host1.Dispose();
         Assert.True(host1.IsDisposed);
@@ -250,8 +250,8 @@ public sealed class CompilerLogReaderTests : TestBase
     public void AnalyzerDiagnostics()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.InMemory);
-        var data = reader.ReadRawCompilationData(0).Item2;
-        var analyzers = data.Analyzers
+        var data = reader.ReadAllAnalyzerData(0);
+        var analyzers = data
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
             .ToList();
         var host = new BasicAnalyzerHostInMemory(reader, analyzers);

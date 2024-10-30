@@ -145,6 +145,7 @@ internal static class RoslynUtil
         return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
     }
 
+    // TODO: this should take CompilerCallData?
     internal static CSharpCompilationData CreateCSharpCompilationData(
         CompilerCall compilerCall,
         string? compilationName,
@@ -183,6 +184,7 @@ internal static class RoslynUtil
             analyzerProvider);
     }
 
+    // TODO: this should take CompilerCallData?
     internal static VisualBasicCompilationData CreateVisualBasicCompilationData(
         CompilerCall compilerCall,
         string? compilationName,
@@ -663,7 +665,7 @@ internal static class RoslynUtil
         return MetadataReader.GetAssemblyName(assemblyFilePath).Name;
     }
 
-    internal static (Guid Mvid, string? AssemblyName, string? AssemblyInformationalVersion) ReadAssemblyIdentityData(string assemblyFilePath)
+    internal static AssemblyIdentityData ReadAssemblyIdentityData(string assemblyFilePath)
     {
         using var stream = OpenBuildFileForRead(assemblyFilePath);
         using var peReader = new PEReader(stream);
@@ -672,6 +674,6 @@ internal static class RoslynUtil
         var assemblyName = def.GetAssemblyName().Name;
         var mvid = ReadMvid(metadataReader);
         var assemblyInformationalVersion = ReadStringAssemblyAttribute(metadataReader, nameof(AssemblyInformationalVersionAttribute));
-        return (mvid, assemblyName, assemblyInformationalVersion);
+        return new(mvid, assemblyName, assemblyInformationalVersion);
     }
 }

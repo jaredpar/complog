@@ -33,6 +33,7 @@ internal enum RawContentKind
     CryptoKeyFile,
 }
 
+// TODO: do we need this type anymore?
 internal readonly struct RawAnalyzerData
 {
     internal readonly Guid Mvid;
@@ -51,6 +52,7 @@ internal readonly struct RawAnalyzerData
     }
 }
 
+// TODO: do we need this type anymore?
 internal readonly struct RawReferenceData
 {
     internal readonly Guid Mvid;
@@ -108,7 +110,7 @@ internal readonly struct RawContent
 
 internal sealed class RawCompilationData
 {
-    internal int Index { get; }
+    internal object? OwnerState { get; }
     internal string? CompilationName { get; }
     internal string AssemblyFileName { get; }
     internal string? XmlFilePath { get; }
@@ -129,7 +131,7 @@ internal sealed class RawCompilationData
     internal bool HasAllGeneratedFileContent { get; }
 
     internal RawCompilationData(
-        int index,
+        object? ownerState,
         string? compilationName,
         string assemblyFileName,
         string? xmlFilePath,
@@ -142,7 +144,7 @@ internal sealed class RawCompilationData
         bool isCSharp,
         bool hasAllGeneratedFileContent)
     {
-        Index = index;
+        OwnerState = ownerState;
         CompilationName = compilationName;
         AssemblyFileName = assemblyFileName;
         XmlFilePath = xmlFilePath;

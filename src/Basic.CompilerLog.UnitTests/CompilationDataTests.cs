@@ -139,8 +139,8 @@ public sealed class CompilationDataTests : TestBase
             using var reader = CompilerLogReader.Create(
                 logFilePath,
                 BasicAnalyzerHost.DefaultKind);
-            var rawData = reader.ReadRawCompilationData(0).Item2;
-            var analyzers = rawData.Analyzers
+            var rawData = reader.ReadAllAnalyzerData(0);
+            var analyzers = rawData
                 .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
                 .ToList();
             BasicAnalyzerHost host = IsNetCore

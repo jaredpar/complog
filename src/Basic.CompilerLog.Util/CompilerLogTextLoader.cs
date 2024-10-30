@@ -5,17 +5,15 @@ namespace Basic.CompilerLog.Util;
 
 internal sealed class CompilerLogTextLoader : TextLoader
 {
-    internal CompilerLogReader Reader { get; }
+    internal ICompilerCallReader Reader { get; }
     internal VersionStamp VersionStamp { get; }
-    internal string ContentHash { get; }
-    internal string FilePath { get; }
+    internal SourceTextData SourceTextData { get; }
 
-    internal CompilerLogTextLoader(CompilerLogReader reader, VersionStamp versionStamp, string contentHash, string filePath)
+    internal CompilerLogTextLoader(ICompilerCallReader reader, VersionStamp versionStamp, SourceTextData sourceTextData)
     {
         Reader = reader;
         VersionStamp = versionStamp;
-        ContentHash = contentHash;
-        FilePath = filePath;
+        SourceTextData = sourceTextData;
     }
 
     public override Task<TextAndVersion> LoadTextAndVersionAsync(LoadTextOptions options, CancellationToken cancellationToken)
@@ -27,10 +25,10 @@ internal sealed class CompilerLogTextLoader : TextLoader
         // reader are not safe for paralell reads.
         lock (Reader)
         {
-            sourceText = Reader.GetSourceText(ContentHash, options.ChecksumAlgorithm);
+            sourceText = Reader.ReadSourceText(SourceTextData);
         }
 
-        var textAndVersion = TextAndVersion.Create(sourceText, VersionStamp, FilePath);
+        var textAndVersion = TextAndVersion.Create(sourceText, VersionStamp, SourceTextData.FilePath);
         return Task.FromResult(textAndVersion);
     }
 }

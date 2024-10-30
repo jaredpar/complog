@@ -29,7 +29,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 
     internal string AnalyzerDirectory { get; }
 
-    internal BasicAnalyzerHostOnDisk(IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers)
+    internal BasicAnalyzerHostOnDisk(IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
         : base(BasicAnalyzerKind.OnDisk)
     {
         var dirName = Guid.NewGuid().ToString("N");
@@ -46,7 +46,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
         {
             var path = Path.Combine(Loader.AnalyzerDirectory, data.FileName);
             using var fileStream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-            provider.CopyAssemblyBytes(data, fileStream);
+            provider.CopyAssemblyBytes(data.AssemblyData, fileStream);
             fileStream.Dispose();
 
             builder.Add(new AnalyzerFileReference(path, Loader));

@@ -23,7 +23,16 @@ using Scratch;
 using TraceReloggerLib;
 
 #pragma warning disable 8321
-CountReferences();
+Bing();
+void Bing()
+{
+    var filePath = @"C:\Users\jaredpar\code\snrcode\msbuild.binlog";
+    using var reader = BinaryLogReader.Create(filePath, BasicAnalyzerKind.None);
+    foreach (var cc in reader.ReadAllCompilerCalls())
+    {
+        Console.WriteLine(cc.ToString());
+    }
+}
 
 // PrintGeneratedFiles();
 
@@ -96,7 +105,9 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
     _ = analyzer.GetAnalyzersForAllLanguages();
     _ = analyzer.GetGeneratorsForAllLanguages();
 }
+
 */
+
 
 void CountReferences()
 {

@@ -114,8 +114,8 @@ public sealed class LogReaderState : IDisposable
 
     internal BasicAnalyzerHost GetOrCreate(
         BasicAnalyzerKind kind,
-        List<RawAnalyzerData> analyzers,
-        Func<BasicAnalyzerKind, List<RawAnalyzerData>, BasicAnalyzerHost> createFunc)
+        List<AnalyzerData> analyzers,
+        Func<BasicAnalyzerKind, List<AnalyzerData>, BasicAnalyzerHost> createFunc)
     {
         BasicAnalyzerHost? basicAnalyzerHost;
         string? key = null;
@@ -143,7 +143,7 @@ public sealed class LogReaderState : IDisposable
 
         return basicAnalyzerHost;
 
-        static string GetKey(List<RawAnalyzerData> analyzers)
+        static string GetKey(List<AnalyzerData> analyzers)
         {
             var builder = new StringBuilder();
             foreach (var analyzer in analyzers.OrderBy(x => x.Mvid))

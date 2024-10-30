@@ -23,7 +23,7 @@ namespace Basic.CompilerLog.Util;
 
 public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostDataProvider
 {
-    private readonly struct CompilerCallState(CompilerLogReader reader, int index)
+    private sealed class CompilerCallState(CompilerLogReader reader, int index)
     {
         internal CompilerLogReader Reader { get; } = reader;
         internal int Index { get; } = index;
@@ -179,12 +179,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return Create(stream, basicAnalyzerKind, state: state, leaveOpen: false);
     }
 
-    private CompilationInfoPack ReadCompilationInfo(int index)
-    {
-        using var stream = ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index));
-        return MessagePackSerializer.Deserialize<CompilationInfoPack>(stream);
-    }
-
     private CompilerCall ReadCompilerCallCore(int index, CompilationInfoPack pack)
     {
         return new CompilerCall(
@@ -197,9 +191,24 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             new CompilerCallState(this, index));
     }
 
-    private RawCompilationData ReadRawCompilationDataCore(int index, CompilationInfoPack pack)
+    public CompilerCallData ReadCompilerCallData(CompilerCall compilerCall)
     {
-        var dataPack = GetContentPack<CompilationDataPack>(pack.CompilationDataPackHash);
+        var index = GetIndex(compilerCall);
+        var infoPack = GetOrReadCompilationInfoPack(index);
+        var dataPack = ReadCompilationDataPack(infoPack);
+        var tuple = ReadCompilerOptions(infoPack);
+        return new CompilerCallData(
+            compilerCall,
+            assemblyFileName: dataPack.ValueMap["assemblyFileName"]!,
+            outputDirectory: NormalizePath(dataPack.ValueMap["outputDirectory"]),
+            tuple.ParseOptions,
+            tuple.CompilationOptions,
+            tuple.EmitOptions);
+    }
+
+    private RawCompilationData ReadRawCompilationDataCore(int index, CompilationInfoPack infoPack)
+    {
+        var dataPack = ReadCompilationDataPack(infoPack);
 
         var references = dataPack
             .References
@@ -224,7 +233,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             : dataPack.IncludesGeneratedText;
 
         return new RawCompilationData(
-            index,
+            new CompilerCallState(this, index),
             compilationName: dataPack.ValueMap["compilationName"],
             assemblyFileName: dataPack.ValueMap["assemblyFileName"]!,
             xmlFilePath: NormalizePath(dataPack.ValueMap["xmlFilePath"]),
@@ -234,11 +243,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             analyzers,
             contents,
             resources,
-            pack.IsCSharp,
+            infoPack.IsCSharp,
             hasAllGeneratedFileContent);
     }
 
-    private CompilationInfoPack GetOrReadCompilationInfo(int index)
+    private CompilationInfoPack GetOrReadCompilationInfoPack(int index)
     {
         if (!_compilationInfoMap.TryGetValue(index, out var info))
         {
@@ -247,6 +256,21 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
 
         return info;
+
+        CompilationInfoPack ReadCompilationInfo(int index)
+        {
+            using var stream = ZipArchive.OpenEntryOrThrow(GetCompilerEntryName(index));
+            return MessagePackSerializer.Deserialize<CompilationInfoPack>(stream);
+        }
+    }
+
+    private CompilationDataPack ReadCompilationDataPack(CompilationInfoPack infoPack) =>
+        GetContentPack<CompilationDataPack>(infoPack.CompilationDataPackHash);
+
+    private CompilationDataPack ReadCompilationDataPack(int index)
+    {
+        var infoPack = GetOrReadCompilationInfoPack(index);
+        return ReadCompilationDataPack(infoPack);
     }
 
     public CompilerCall ReadCompilerCall(int index)
@@ -254,7 +278,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         if (index < 0 || index >= Count)
             throw new ArgumentException("Invalid index", nameof(index));
 
-        return ReadCompilerCallCore(index, GetOrReadCompilationInfo(index));
+        return ReadCompilerCallCore(index, GetOrReadCompilationInfoPack(index));
     }
 
     public List<CompilerCall> ReadAllCompilerCalls(Func<CompilerCall, bool>? predicate = null)
@@ -279,7 +303,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var map = new Dictionary<string, (AssemblyName, string?)>(PathUtil.Comparer);
         for (int i = 0; i < Count; i++)
         {
-            var pack = GetOrReadCompilationInfo(i);
+            var pack = GetOrReadCompilationInfoPack(i);
             if (pack.CompilerFilePath is not null && 
                 pack.CompilerAssemblyName is not null &&
                 !map.ContainsKey(pack.CompilerFilePath))
@@ -293,13 +317,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .OrderBy(x => x.Key, PathUtil.Comparer)
             .Select(x => new CompilerAssemblyData(x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
-    }
-
-    public (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilerCall compilerCall)
-    {
-        var index = GetIndex(compilerCall);
-        var pack = GetOrReadCompilationInfo(index);
-        return ReadCompilerOptions(pack);
     }
 
     private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)
@@ -332,7 +349,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     public CompilationData ReadCompilationData(CompilerCall compilerCall)
     {
-        var pack = GetOrReadCompilationInfo(GetIndex(compilerCall));
+        var pack = GetOrReadCompilationInfoPack(GetIndex(compilerCall));
         var rawCompilationData = ReadRawCompilationData(compilerCall);
         var referenceList = ReadMetadataReferences(rawCompilationData.References);
         var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(pack);
@@ -413,7 +430,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             resources: resources,
             embeddedTexts: embeddedTexts);
 
-        var basicAnalyzerHost = ReadAnalyzers(rawCompilationData);
+        var basicAnalyzerHost = CreateBasicAnalyzerHost(rawCompilationData);
 
         return compilerCall.IsCSharp
             ? CreateCSharp()
@@ -484,7 +501,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     internal (CompilerCall, RawCompilationData) ReadRawCompilationData(int index)
     {
-        var info = GetOrReadCompilationInfo(index);
+        var info = GetOrReadCompilationInfoPack(index);
         var compilerCall = ReadCompilerCallCore(index, info);
         var rawCompilationData = ReadRawCompilationDataCore(index, info);
         return (compilerCall, rawCompilationData);
@@ -493,13 +510,19 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     internal RawCompilationData ReadRawCompilationData(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);
-        var info = GetOrReadCompilationInfo(index);
+        var info = GetOrReadCompilationInfoPack(index);
         return ReadRawCompilationDataCore(index, info);
     }
 
-    internal int GetIndex(CompilerCall compilerCall)
+    internal int GetIndex(RawCompilationData rawCompilation) =>
+        GetIndexCore(rawCompilation.OwnerState);
+
+    internal int GetIndex(CompilerCall compilerCall) =>
+        GetIndexCore(compilerCall.OwnerState);
+
+    internal int GetIndexCore(object? ownerState)
     {
-        if (compilerCall.OwnerState is CompilerCallState state &&
+        if (ownerState is CompilerCallState state &&
             state.Index >= 0 &&
             state.Index < Count &&
             object.ReferenceEquals(this, state.Reader))
@@ -520,32 +543,90 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var filePath = referenceData.FilePath is string fp
                 ? fp
                 : PathNormalizationUtil.RootFileName(GetMetadataReferenceFileName(referenceData.Mvid));
-            var data = new ReferenceData(filePath, referenceData.Mvid, referenceData.AssemblyName, referenceData.AssemblyInformationalVersion, GetAssemblyBytes(referenceData.Mvid));
+            var assemblyIdentityData = new AssemblyIdentityData(
+                referenceData.Mvid,
+                referenceData.AssemblyName,
+                referenceData.AssemblyInformationalVersion);
+
+            var data = new ReferenceData(assemblyIdentityData, filePath, referenceData.Aliases, referenceData.EmbedInteropTypes);
             list.Add(data);
         }
 
         return list;
     }
 
-    public List<ReferenceData> ReadAllAnalyzerData(CompilerCall compilerCall)
+    public List<AnalyzerData> ReadAllAnalyzerData(CompilerCall compilerCall) =>
+        ReadAllAnalyzerData(GetIndex(compilerCall));
+
+    public List<AnalyzerData> ReadAllAnalyzerData(int index)
     {
-        var index = GetIndex(compilerCall);
-        var (_, rawCompilationData) = ReadRawCompilationData(index);
-        var list = new List<ReferenceData>(rawCompilationData.Analyzers.Count);
-        foreach (var analyzerData in rawCompilationData.Analyzers)
+        var dataPack = ReadCompilationDataPack(index);
+        var list = new List<AnalyzerData>(capacity: dataPack.Analyzers.Count);
+        foreach (var analyzerPack in dataPack.Analyzers)
         {
-            var data = new ReferenceData(analyzerData.FilePath, analyzerData.Mvid, analyzerData.AssemblyName, analyzerData.AssemblyInformationalVersion, GetAssemblyBytes(analyzerData.Mvid));
-            list.Add(data);
+            var assemblyIdentityData = new AssemblyIdentityData(
+                analyzerPack.Mvid,
+                analyzerPack.AssemblyName,
+                analyzerPack.AssemblyInformationalVersion);
+            list.Add(new AnalyzerData(assemblyIdentityData, analyzerPack.FilePath));
+        }
+        return list;
+    }
+
+    public List<SourceTextData> ReadAllSourceTextData(CompilerCall compilerCall)
+    {
+        // TODO: think about if this method is efficent or not
+        var dataPack = ReadCompilationDataPack(GetIndex(compilerCall));
+        var list = new List<SourceTextData>();
+        foreach (var tuple in dataPack.ContentList)
+        {
+            var kind = (RawContentKind)tuple.Item1 switch
+            {
+                RawContentKind.SourceText => SourceTextKind.SourceCode,
+                RawContentKind.AnalyzerConfig => SourceTextKind.AnalyzerConfig,
+                RawContentKind.AdditionalText => SourceTextKind.AdditionalText,
+                _ => (SourceTextKind?)null,
+            };
+
+            if (kind is { } k)
+            {
+                var data = new SourceTextData(compilerCall, tuple.Item2.FilePath, dataPack.ChecksumAlgorithm, k);
+                list.Add(data);
+            }
         }
 
         return list;
     }
 
-    internal BasicAnalyzerHost ReadAnalyzers(RawCompilationData rawCompilationData)
+    public SourceText ReadSourceText(SourceTextData sourceTextData)
+    {
+        // TODO: this method is very inefficent, think about putting the checksum into the sourcetext data so it can
+        // be read faster
+        var index = GetIndex(sourceTextData.CompilerCall);
+        var infoPack = GetOrReadCompilationInfoPack(index);
+        var dataPack = ReadCompilationDataPack(infoPack);
+        foreach (var tuple in dataPack.ContentList)
+        {
+            if (PathUtil.Comparer.Equals(tuple.Item2.FilePath, sourceTextData.FilePath))
+            {
+                return GetSourceText(tuple.Item2.ContentHash, dataPack.ChecksumAlgorithm, canBeEmbedded: false);
+            }
+        }
+
+        throw new InvalidOperationException();
+    }
+
+    public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall)
+    {
+        var rawCompilationData = ReadRawCompilationData(compilerCall);
+        return CreateBasicAnalyzerHost(rawCompilationData);
+    }
+
+    internal BasicAnalyzerHost CreateBasicAnalyzerHost(RawCompilationData rawCompilationData)
     {
         return LogReaderState.GetOrCreate(
             BasicAnalyzerKind,
-            rawCompilationData.Analyzers,
+            ReadAllAnalyzerData(GetIndex(rawCompilationData)),
             (kind, analyzers) => kind switch
             {
                 BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
@@ -615,6 +696,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return reference;
     }
 
+    public MetadataReference ReadMetadataReference(ReferenceData referenceData)
+    {
+        var mdRef = ReadMetadataReference(referenceData.Mvid);
+        return mdRef.With(referenceData.Aliases, referenceData.EmbedInteropTypes);
+    }
+
     internal List<MetadataReference> ReadMetadataReferences(List<RawReferenceData> referenceDataList)
     {
         var list = new List<MetadataReference>(capacity: referenceDataList.Count);
@@ -676,13 +763,16 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     internal Stream GetAssemblyStream(Guid mvid) =>
         ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
 
+    public void CopyAssemblyBytes(AssemblyData assemblyData, Stream destination) =>
+        CopyAssemblyBytes(assemblyData.Mvid, destination);
+
     internal void CopyAssemblyBytes(Guid mvid, Stream destination)
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
         stream.CopyTo(destination);
     }
 
-    internal bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex) =>
+    public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex) =>
         _mvidToCompilerCallIndexMap.TryGetValue(mvid, out compilerCallIndex);
 
     [return: NotNullIfNotNull("path")]
@@ -704,6 +794,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
     }
 
-    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream) => CopyAssemblyBytes(data.Mvid, stream);
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(RawAnalyzerData data) => GetAssemblyBytes(data.Mvid);
+    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(AssemblyData data, Stream stream) => CopyAssemblyBytes(data.Mvid, stream);
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) => GetAssemblyBytes(data.Mvid);
 }
