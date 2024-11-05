@@ -568,7 +568,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 analyzerPack.Mvid,
                 analyzerPack.AssemblyName,
                 analyzerPack.AssemblyInformationalVersion);
-            list.Add(new AnalyzerData(assemblyIdentityData, analyzerPack.FilePath));
+            list.Add(new AnalyzerData(assemblyIdentityData, NormalizePath(analyzerPack.FilePath)));
         }
         return list;
     }
