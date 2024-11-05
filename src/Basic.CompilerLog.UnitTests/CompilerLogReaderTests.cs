@@ -120,7 +120,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void ResourceSimpleEmbedded()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
-        var d = reader.GetOrReadCompilationDataPack(0).Resources.Single();
+        var d = reader.ReadAllResourceData(0).Single();
         Assert.Equal("console-complex.resource.txt", reader.ReadResourceDescription(d).GetResourceName());
     }
 
@@ -344,8 +344,8 @@ public sealed class CompilerLogReaderTests : TestBase
         RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"), BasicAnalyzerKind.None);
-        var dataPack = reader.GetOrReadCompilationDataPack(0);
-        Assert.False(reader.HasAllGeneratedFileContent(dataPack));
+        var compilerCall = reader.ReadCompilerCall(0);
+        Assert.False(reader.HasAllGeneratedFileContent(compilerCall));
         var data = reader.ReadCompilationData(0);
         var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
         Assert.Single(diagnostics);

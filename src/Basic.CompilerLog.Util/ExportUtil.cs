@@ -112,7 +112,7 @@ public sealed partial class ExportUtil
 
         var commandLineList = new List<string>();
         bool hasNoConfigOption = false;
-        var dataPack = Reader.GetOrReadCompilationDataPack(compilerCall);
+        var checksumAlgorithm = Reader.GetChecksumAlgorithm(compilerCall);
         Directory.CreateDirectory(destinationDir);
         WriteGeneratedFiles();
         WriteEmbedLines();
@@ -247,7 +247,7 @@ public sealed partial class ExportUtil
             var refDir = Path.Combine(destinationDir, "ref");
             Directory.CreateDirectory(refDir);
 
-            foreach (var pack in dataPack.References)
+            foreach (var pack in Reader.ReadAllReferenceData(compilerCall))
             {
                 var mvid = pack.Mvid;
                 var filePath = Path.Combine(refDir, Reader.GetMetadataReferenceFileName(mvid));
@@ -283,7 +283,7 @@ public sealed partial class ExportUtil
                 return;
             }
 
-            foreach (var analyzer in dataPack.Analyzers)
+            foreach (var analyzer in Reader.ReadAllAnalyzerData(compilerCall))
             {
                 using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
                 var filePath = builder.AnalyzerDirectory.WriteContent(analyzer.FilePath, analyzerStream);
@@ -322,7 +322,7 @@ public sealed partial class ExportUtil
                 string? filePath = null;
                 if (rawContent.Kind == RawContentKind.AnalyzerConfig)
                 {
-                    var sourceText = Reader.GetSourceText(rawContent.ContentHash, dataPack.ChecksumAlgorithm);
+                    var sourceText = Reader.GetSourceText(rawContent.ContentHash, checksumAlgorithm);
                     if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
                     {
                         var content = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, x => builder.GetNewSourcePath(x));
@@ -342,10 +342,10 @@ public sealed partial class ExportUtil
 
         void WriteGeneratedFiles()
         {
-            foreach (var tuple in dataPack.ContentList.Where(x => (RawContentKind)x.Item1 == RawContentKind.GeneratedText))
+            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.GeneratedText))
             {
-                using var contentStream = Reader.GetContentStream(tuple.Item2.ContentHash);
-                var filePath = builder.GeneratedCodeDirectory.WriteContent(tuple.Item2.FilePath, contentStream);
+                using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
+                var filePath = builder.GeneratedCodeDirectory.WriteContent(rawContent.OriginalFilePath, contentStream);
 
                 if (!IncludeAnalyzers)
                 {
@@ -365,7 +365,7 @@ public sealed partial class ExportUtil
 
         void WriteResources()
         {
-            foreach (var resourceData in dataPack.Resources)
+            foreach (var resourceData in Reader.ReadAllResourceData(compilerCall))
             {
                 // The name of file resources isn't that important. It doesn't contribute to the compilation 
                 // output. What is important is all the other parts of the string. Just need to create a

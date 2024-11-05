@@ -240,10 +240,10 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
     }
 
-    internal CompilationDataPack GetOrReadCompilationDataPack(CompilerCall compilerCall) =>
+    private CompilationDataPack GetOrReadCompilationDataPack(CompilerCall compilerCall) =>
         GetOrReadCompilationDataPack(GetIndex(compilerCall));
 
-    internal CompilationDataPack GetOrReadCompilationDataPack(int index)
+    private CompilationDataPack GetOrReadCompilationDataPack(int index)
     {
         if (!_compilationDataPackMap.TryGetValue(index, out var dataPack))
         {
@@ -325,6 +325,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         return (emitOptions, parseOptions, compilationOptions);
     }
+
+    public SourceHashAlgorithm GetChecksumAlgorithm(CompilerCall compilerCall) =>
+        GetOrReadCompilationDataPack(compilerCall).ChecksumAlgorithm;
 
     public CompilationData ReadCompilationData(int index) =>
         ReadCompilationData(ReadCompilerCall(index));
@@ -495,7 +498,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var list = new List<ResourceDescription>(capacity: resourcePacks.Count);
             foreach (var resourcePack in resourcePacks)
             {
-                list.Add(ReadResourceDescription(resourcePack));
+                var desc = ReadResourceDescription(resourcePack.ContentHash, resourcePack.FileName, resourcePack.Name, resourcePack.IsPublic);
+                list.Add(desc);
             }
 
             return list;
@@ -569,6 +573,21 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return list;
     }
 
+    public List<ResourceData> ReadAllResourceData(CompilerCall compilerCall) =>
+        ReadAllResourceData(GetIndex(compilerCall));
+
+    public List<ResourceData> ReadAllResourceData(int index)
+    {
+        var dataPack = GetOrReadCompilationDataPack(index);
+        var list = new List<ResourceData>(dataPack.Resources.Count);
+        foreach (var pack in dataPack.Resources)
+        {
+            list.Add(new ResourceData(pack.ContentHash, pack.FileName, pack.Name, pack.IsPublic));
+        }
+
+        return list;
+    }
+
     public List<SourceTextData> ReadAllSourceTextData(CompilerCall compilerCall)
     {
         // TODO: think about if this method is efficent or not
@@ -616,7 +635,10 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     /// <remarks>
     /// Older versions of compiler log aren't guaranteed to have HasGeneratedFilesInPdb set
     /// </remarks>
-    internal bool HasAllGeneratedFileContent(CompilationDataPack dataPack) =>
+    internal bool HasAllGeneratedFileContent(CompilerCall compilerCall) =>
+        HasAllGeneratedFileContent(GetOrReadCompilationDataPack(compilerCall));
+
+    private bool HasAllGeneratedFileContent(CompilationDataPack dataPack) =>
         dataPack.HasGeneratedFilesInPdb is true
             ? dataPack.IncludesGeneratedText
             : dataPack.IncludesGeneratedText;
@@ -718,13 +740,16 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     internal Stream GetContentStream(string contentHash) =>
         ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
 
-    internal ResourceDescription ReadResourceDescription(ResourcePack pack)
+    internal ResourceDescription ReadResourceDescription(ResourceData pack) =>
+        ReadResourceDescription(pack.ContentHash, pack.FileName, pack.Name, pack.IsPublic);
+
+    private ResourceDescription ReadResourceDescription(string contentHash, string? fileName, string name, bool isPublic)
     {
-        var stream = GetContentBytes(pack.ContentHash).AsSimpleMemoryStream(writable: false);
+        var stream = GetContentBytes(contentHash).AsSimpleMemoryStream(writable: false);
         var dataProvider = () => stream;
-        return string.IsNullOrEmpty(pack.FileName)
-            ? new ResourceDescription(pack.Name, dataProvider, pack.IsPublic)
-            : new ResourceDescription(pack.Name, pack.FileName, dataProvider, pack.IsPublic);
+        return string.IsNullOrEmpty(fileName)
+            ? new ResourceDescription(name, dataProvider, isPublic)
+            : new ResourceDescription(name, fileName, dataProvider, isPublic);
     }
 
     internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded = false)

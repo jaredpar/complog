@@ -59,5 +59,19 @@ public sealed class AnalyzerData(
     public override string ToString() => $"{FileName} {Mvid}";
 }
 
+public sealed class ResourceData(
+    string contentHash,
+    string? fileName,
+    string name,
+    bool isPublic)
+{
+    public string ContentHash { get; } = contentHash;
+    public string? FileName { get; } = fileName;
+    public string Name { get; } = name;
+    public bool IsPublic { get; } = isPublic;
+
+    [ExcludeFromCodeCoverage]
+    public override string ToString() => Name;
+}
 
 
