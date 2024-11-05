@@ -51,7 +51,7 @@ public sealed class SolutionReaderTests : TestBase
 
         async Task Run(string filePath)
         {
-            var solution = GetSolution(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);
+            var solution = GetSolution(filePath, basicAnalyzerKind);
             var project = solution.Projects.Single();
             Assert.NotEmpty(project.AnalyzerReferences);
             var docs = project.Documents.ToList();

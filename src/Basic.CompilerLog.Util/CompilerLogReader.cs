@@ -702,26 +702,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return metadataReference;
     }
 
-    /// <summary>
-    /// Reads a <see cref="MetadataReference"/> from the given <paramref name="data"/> and applies
-    /// all of the properties like alias, embedded interop types, etc ...
-    /// </summary>
-    internal MetadataReference ReadMetadataReference(in RawReferenceData data)
-    {
-        var reference = ReadMetadataReference(data.Mvid);
-        if (data.EmbedInteropTypes)
-        {
-            reference = reference.WithEmbedInteropTypes(true);
-        }
-
-        if (data.Aliases is { Length: > 0 })
-        {
-            reference = reference.WithAliases(data.Aliases);
-        }
-
-        return reference;
-    }
-
     public MetadataReference ReadMetadataReference(ReferenceData referenceData)
     {
         var mdRef = ReadMetadataReference(referenceData.Mvid);

@@ -33,63 +33,6 @@ internal enum RawContentKind
     CryptoKeyFile,
 }
 
-// TODO: do we need this type anymore?
-internal readonly struct RawAnalyzerData
-{
-    internal readonly Guid Mvid;
-    internal readonly string FilePath;
-    internal readonly string? AssemblyName;
-    internal readonly string? AssemblyInformationalVersion;
-
-    internal string FileName => Path.GetFileName(FilePath);
-
-    internal RawAnalyzerData(Guid mvid, string filePath, string? assemblyName, string? assemblyInformationalVersion)
-    {
-        Mvid = mvid;
-        FilePath = filePath;
-        AssemblyName = assemblyName;
-        AssemblyInformationalVersion = assemblyInformationalVersion;
-    }
-}
-
-// TODO: do we need this type anymore?
-internal readonly struct RawReferenceData
-{
-    internal readonly Guid Mvid;
-    internal readonly ImmutableArray<string> Aliases;
-    internal readonly bool EmbedInteropTypes;
-    internal readonly string? FilePath;
-    internal readonly string? AssemblyName;
-    internal readonly string? AssemblyInformationalVersion;
-
-    internal RawReferenceData(Guid mvid, ImmutableArray<string> aliases, bool embedInteropTypes, string? filePath, string? assemblyName, string? assemblyInformationalVersion)
-    {
-        Mvid = mvid;
-        Aliases = aliases;
-        EmbedInteropTypes = embedInteropTypes;
-        FilePath = filePath;
-        AssemblyName = assemblyName;
-        AssemblyInformationalVersion = assemblyInformationalVersion;
-    }
-}
-
-// TODO: do we need this type anymore?
-internal readonly struct RawResourceData
-{
-    internal readonly string Name;
-    internal readonly string? FileName;
-    internal readonly bool IsPublic;
-    internal readonly string ContentHash; 
-
-    internal RawResourceData(string name, string? fileName, bool isPublic, string contentHash)
-    {
-        Name = name;
-        FileName = fileName;
-        IsPublic = isPublic;
-        ContentHash = contentHash;
-    }
-}
-
 internal readonly struct RawContent
 {
     internal string OriginalFilePath { get; }
