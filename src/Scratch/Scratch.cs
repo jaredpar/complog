@@ -286,10 +286,7 @@ static void PrintGeneratedFiles()
     using var reader = CompilerLogReader.Create(binlogPath);
     foreach (var cc in reader.ReadAllCompilerCalls())
     {
-        var data = reader.ReadRawCompilationData(cc);
-        var generatedFiles = data
-            .Contents
-            .Where(x => x.Kind == RawContentKind.GeneratedText);
+        var generatedFiles = reader.ReadAllRawContent(cc, RawContentKind.GeneratedText);
         if (!generatedFiles.Any())
         {
             continue;
@@ -298,7 +295,7 @@ static void PrintGeneratedFiles()
         Console.WriteLine(cc.GetDiagnosticName());
         foreach (var file in generatedFiles)
         {
-            Console.WriteLine($"  {file.FilePath}");
+            Console.WriteLine($"  {file.OriginalFilePath}");
         }
     }
 }

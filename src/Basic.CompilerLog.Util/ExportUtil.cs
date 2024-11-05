@@ -112,7 +112,7 @@ public sealed partial class ExportUtil
 
         var commandLineList = new List<string>();
         bool hasNoConfigOption = false;
-        var data = Reader.ReadRawCompilationData(compilerCall);
+        var dataPack = Reader.GetOrReadCompilationDataPack(compilerCall);
         Directory.CreateDirectory(destinationDir);
         WriteGeneratedFiles();
         WriteEmbedLines();
@@ -247,23 +247,23 @@ public sealed partial class ExportUtil
             var refDir = Path.Combine(destinationDir, "ref");
             Directory.CreateDirectory(refDir);
 
-            foreach (var tuple in data.References)
+            foreach (var pack in dataPack.References)
             {
-                var mvid = tuple.Mvid;
+                var mvid = pack.Mvid;
                 var filePath = Path.Combine(refDir, Reader.GetMetadataReferenceFileName(mvid));
 
                 using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
                 Reader.CopyAssemblyBytes(mvid, fileStream);
 
-                if (tuple.Aliases.Length > 0)
+                if (pack.Aliases.Length > 0)
                 {
-                    foreach (var alias in tuple.Aliases)
+                    foreach (var alias in pack.Aliases)
                     {
                         var arg = $@"/reference:{alias}=""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
                         commandLineList.Add(arg);
                     }
                 }
-                else if (tuple.EmbedInteropTypes)
+                else if (pack.EmbedInteropTypes)
                 {
                     var arg = $@"/link:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
                     commandLineList.Add(arg);
@@ -283,7 +283,7 @@ public sealed partial class ExportUtil
                 return;
             }
 
-            foreach (var analyzer in data.Analyzers)
+            foreach (var analyzer in dataPack.Analyzers)
             {
                 using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
                 var filePath = builder.AnalyzerDirectory.WriteContent(analyzer.FilePath, analyzerStream);
@@ -294,9 +294,9 @@ public sealed partial class ExportUtil
 
         void WriteContent()
         {
-            foreach (var tuple in data.Contents)
+            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall))
             {
-                var prefix = tuple.Kind switch
+                var prefix = rawContent.Kind switch
                 {
                     RawContentKind.SourceText => "",
                     RawContentKind.GeneratedText => null,
@@ -320,20 +320,20 @@ public sealed partial class ExportUtil
                 }
 
                 string? filePath = null;
-                if (tuple.Kind == RawContentKind.AnalyzerConfig)
+                if (rawContent.Kind == RawContentKind.AnalyzerConfig)
                 {
-                    var sourceText = Reader.GetSourceText(tuple.ContentHash, data.ChecksumAlgorithm);
+                    var sourceText = Reader.GetSourceText(rawContent.ContentHash, dataPack.ChecksumAlgorithm);
                     if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
                     {
                         var content = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, x => builder.GetNewSourcePath(x));
-                        filePath = builder.WriteContent(tuple.FilePath, content);
+                        filePath = builder.WriteContent(rawContent.OriginalFilePath, content);
                     }
                 }
 
                 if (filePath is null)
                 {
-                    using var contentStream = Reader.GetContentStream(tuple.ContentHash);
-                    filePath = builder.WriteContent(tuple.FilePath, contentStream);
+                    using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
+                    filePath = builder.WriteContent(rawContent.OriginalFilePath, contentStream);
                 }
 
                 commandLineList.Add($@"{prefix}{FormatPathArgument(filePath)}");
@@ -342,10 +342,10 @@ public sealed partial class ExportUtil
 
         void WriteGeneratedFiles()
         {
-            foreach (var tuple in data.Contents.Where(x => x.Kind == RawContentKind.GeneratedText))
+            foreach (var tuple in dataPack.ContentList.Where(x => (RawContentKind)x.Item1 == RawContentKind.GeneratedText))
             {
-                using var contentStream = Reader.GetContentStream(tuple.ContentHash);
-                var filePath = builder.GeneratedCodeDirectory.WriteContent(tuple.FilePath, contentStream);
+                using var contentStream = Reader.GetContentStream(tuple.Item2.ContentHash);
+                var filePath = builder.GeneratedCodeDirectory.WriteContent(tuple.Item2.FilePath, contentStream);
 
                 if (!IncludeAnalyzers)
                 {
@@ -356,16 +356,16 @@ public sealed partial class ExportUtil
 
         void WriteEmbedLines()
         {
-            foreach (var tuple in data.Contents.Where(x => x.Kind == RawContentKind.EmbedLine))
+            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.EmbedLine))
             {
-                using var contentStream = Reader.GetContentStream(tuple.ContentHash);
-                var newPath = builder.WriteContent(tuple.FilePath, contentStream);
+                using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
+                var newPath = builder.WriteContent(rawContent.OriginalFilePath, contentStream);
             }
         }
 
         void WriteResources()
         {
-            foreach (var resourceData in data.Resources)
+            foreach (var resourceData in dataPack.Resources)
             {
                 // The name of file resources isn't that important. It doesn't contribute to the compilation 
                 // output. What is important is all the other parts of the string. Just need to create a

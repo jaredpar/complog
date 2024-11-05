@@ -73,6 +73,7 @@ internal readonly struct RawReferenceData
     }
 }
 
+// TODO: do we need this type anymore?
 internal readonly struct RawResourceData
 {
     internal readonly string Name;
@@ -91,70 +92,23 @@ internal readonly struct RawResourceData
 
 internal readonly struct RawContent
 {
-    internal string FilePath { get; }
+    internal string OriginalFilePath { get; }
+    internal string NormalizedFilePath { get; }
     internal string ContentHash { get; }
     internal RawContentKind Kind { get; }
 
     internal RawContent(
-        string filePath,
+        string originalFilePath,
+        string normalizedFilePath,
         string contentHash,
         RawContentKind kind)
     {
-        FilePath = filePath;
+        OriginalFilePath = originalFilePath;
+        NormalizedFilePath = normalizedFilePath;
         ContentHash = contentHash;
         Kind = kind;
     }
 
-    public override string ToString() => $"{Path.GetFileName(FilePath)} {Kind}";
+    public override string ToString() => $"{Path.GetFileName(OriginalFilePath)} {Kind}";
 }
 
-internal sealed class RawCompilationData
-{
-    internal object? OwnerState { get; }
-    internal string? CompilationName { get; }
-    internal string AssemblyFileName { get; }
-    internal string? XmlFilePath { get; }
-    internal string? OutputDirectory { get; }
-    internal SourceHashAlgorithm ChecksumAlgorithm { get; }
-    internal List<RawReferenceData> References { get; }
-    internal List<RawAnalyzerData> Analyzers { get; }
-    internal List<RawContent> Contents { get; }
-    internal List<RawResourceData> Resources { get; }
-    internal bool IsCSharp { get; }
-
-    /// <summary>
-    /// This is true when the generated files were successfully read from the original 
-    /// compilation. This can be true when there are no generated files. A successful read
-    /// for example happens on a compilation where there are no analyzers (successfully 
-    /// read zero files)
-    /// </summary>
-    internal bool HasAllGeneratedFileContent { get; }
-
-    internal RawCompilationData(
-        object? ownerState,
-        string? compilationName,
-        string assemblyFileName,
-        string? xmlFilePath,
-        string? outputDirectory,
-        SourceHashAlgorithm checksumAlgorithm,
-        List<RawReferenceData> references,
-        List<RawAnalyzerData> analyzers,
-        List<RawContent> contents,
-        List<RawResourceData> resources,
-        bool isCSharp,
-        bool hasAllGeneratedFileContent)
-    {
-        OwnerState = ownerState;
-        CompilationName = compilationName;
-        AssemblyFileName = assemblyFileName;
-        XmlFilePath = xmlFilePath;
-        OutputDirectory = outputDirectory;
-        ChecksumAlgorithm = checksumAlgorithm;
-        References = references;
-        Analyzers = analyzers;
-        Contents = contents;
-        Resources = resources;
-        IsCSharp = isCSharp;
-        HasAllGeneratedFileContent = hasAllGeneratedFileContent;
-    }
-}
