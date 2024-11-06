@@ -104,7 +104,7 @@ jobs:
       uses: actions/upload-artifact@v3
       if: always()
       with:
-        name: Test Results ${{ matrix.os }}
+        name: test-results
         path: ${{ env.TEST_RESULTS_PATH }}
 
     - name: Publish Test Artifacts
