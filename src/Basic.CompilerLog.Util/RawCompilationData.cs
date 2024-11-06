@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Configuration.Internal;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -52,6 +53,7 @@ internal readonly struct RawContent
         Kind = kind;
     }
 
+    [ExcludeFromCodeCoverage]
     public override string ToString() => $"{Path.GetFileName(OriginalFilePath)} {Kind}";
 }
 
