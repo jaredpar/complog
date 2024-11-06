@@ -2,7 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    <_RoslynVersion>4.10.0</_RoslynVersion>
+    <_RoslynVersion>4.11.0</_RoslynVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Basic.Reference.Assemblies.Net60" Version="1.6.0" />
