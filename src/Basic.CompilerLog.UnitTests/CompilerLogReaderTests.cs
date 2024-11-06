@@ -508,6 +508,19 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
+    public void ProjectReferences_Alias()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithAliasReference.Value.CompilerLogPath);
+        var consoleCompilerCall = reader
+            .ReadAllCompilerCalls(cc => cc.ProjectFileName == "console-with-alias-reference.csproj")
+            .Single();
+        var referenceData = reader
+            .ReadAllReferenceData(consoleCompilerCall)
+            .Single(x => x.Aliases.Length == 1);
+        Assert.Equal("Util", referenceData.Aliases.Single());
+    }
+
+    [Fact]
     public void ProjectReferences_Corrupted()
     {
         RunDotNet($"new console --name example --output .", Root.DirectoryPath);

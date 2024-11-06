@@ -7,6 +7,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
 using Xunit;
@@ -61,6 +62,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     /// A console project that has a reference to a library
     /// </summary>
     internal Lazy<LogData> ConsoleWithReference { get; }
+
+    /// <summary>
+    /// A console project that has a reference to a library with an alias
+    /// </summary>
+    internal Lazy<LogData> ConsoleWithAliasReference { get; }
 
     /// <summary>
     /// This is a console project that has every nasty feature that can be thought of
@@ -341,7 +347,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
 
-        ConsoleWithReference = WithBuild("console-with-project-ref..complog", void (string scratchPath) =>
+        ConsoleWithReference = WithBuild("console-with-project-ref.complog", void (string scratchPath) =>
         {
             RunDotnetCommand("new sln -n ConsoleWithProjectRef", scratchPath);
 
@@ -378,6 +384,71 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             RunDotnetCommand($@"sln add ""{consolePath}""", scratchPath);
 
             RunDotnetCommand("build -bl -nr:false", scratchPath);
+        });
+
+        ConsoleWithAliasReference = WithBuild("console-with-alias-project-ref.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand("new sln -n ConsoleWithProjectAliasRef", scratchPath);
+
+            // Create a class library for referencing
+            var classLibPath = Path.Combine(scratchPath, "classlib");
+            _ = Directory.CreateDirectory(classLibPath);
+            RunDotnetCommand("new classlib -o . -n util", classLibPath);
+            File.WriteAllText(
+                Path.Combine(classLibPath, "Class1.cs"),
+                """
+                using System;
+                namespace Util;
+                public static class NameInfo
+                {
+                    public static string GetName() => "Hello World";
+                }
+                """,
+                TestBase.DefaultEncoding);
+            RunDotnetCommand($@"sln add ""{classLibPath}""", scratchPath);
+
+            // Create a console project that references the class library
+            var consolePath = Path.Combine(scratchPath, "console");
+            _ = Directory.CreateDirectory(consolePath);
+            RunDotnetCommand("new console -o . -n console-with-alias-reference", consolePath);
+            File.WriteAllText(
+                Path.Combine(consolePath, "Program.cs"),
+                """
+                extern alias Util;
+                using System;
+                using Util;
+                Console.WriteLine(Util::Util.NameInfo.GetName());
+                """,
+                TestBase.DefaultEncoding);
+            RunDotnetCommand($@"add . reference ""{classLibPath}""", consolePath);
+
+            var consoleProjectPath = Path.Combine(consolePath, "console-with-alias-reference.csproj");
+            AddExternAlias(consoleProjectPath, "Util");
+            RunDotnetCommand($@"sln add ""{consolePath}""", scratchPath);
+
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+
+            static void AddExternAlias(string projectFilePath, string aliasName)
+            {
+                var oldLines = File.ReadAllLines(projectFilePath);
+                var newlines = new List<string>(capacity: oldLines.Length + 2);
+
+                for (int i = 0; i < oldLines.Length; i++)
+                {
+                    var line = oldLines[i];
+                    if (line.Contains("<ProjectReference", StringComparison.Ordinal))
+                    {
+                        newlines.Add(line.Replace("/>", ">"));
+                        newlines.Add($"        <Aliases>{aliasName}</Aliases>");
+                        newlines.Add($"    </ProjectReference>");
+                    }
+                    else
+                    {
+                        newlines.Add(line); 
+                    }
+                }
+                File.WriteAllLines(projectFilePath, newlines);
+            }
         });
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
