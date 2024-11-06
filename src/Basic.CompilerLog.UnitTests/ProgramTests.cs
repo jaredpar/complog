@@ -271,6 +271,25 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void CreateFilePathOutput()
+    {
+        var complogFilePath = Path.Combine(RootDirectory, "file.complog");
+        var (exitCode, output) = RunCompLogEx($"create {Fixture.ClassLibProjectPath} -o {complogFilePath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains($"Wrote {complogFilePath}", output);
+    }
+
+    [Fact]
+    public void CreateMultipleFiles()
+    {
+        File.Copy(Fixture.ConsoleWithDiagnosticsBinaryLogPath, Path.Combine(RootDirectory, "console1.binlog"));
+        File.Copy(Fixture.ConsoleWithDiagnosticsBinaryLogPath, Path.Combine(RootDirectory, "console2.binlog"));
+        var (exitCode, output) = RunCompLogEx($"create");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains($"Found multiple log files in {RootDirectory}", output);
+    }
+
+    [Fact]
     public void References()
     {
         RunWithBoth(logPath =>
