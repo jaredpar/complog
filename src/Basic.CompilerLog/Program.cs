@@ -101,6 +101,8 @@ int RunCreate(IEnumerable<string> args)
             return ExitFailure;
         }
 
+        WriteLine($"Wrote {complogFilePath}");
+
         return convertResult.Succeeded ? ExitSuccess : ExitFailure;
     }
     catch (OptionException e)
@@ -701,12 +703,13 @@ static void CheckCompilerLogReader(CompilerLogReader reader, bool checkVersion)
 string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
 {
     string? logFilePath;
+    bool foundMultiple = false;
     IEnumerable<string> args = Array.Empty<string>();
     string baseDirectory = CurrentDirectory;
     var printFile = false;
     if (extra.Count == 0)
     {
-        logFilePath = FindLogFilePath(baseDirectory, includeCompilerLogs);
+        (logFilePath, foundMultiple) = FindLogFilePath(baseDirectory, includeCompilerLogs);
         printFile = true;
     }
     else
@@ -716,7 +719,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
         if (string.IsNullOrEmpty(Path.GetExtension(logFilePath)) && Directory.Exists(logFilePath))
         {
             baseDirectory = logFilePath;
-            logFilePath = FindLogFilePath(baseDirectory, includeCompilerLogs);
+            (logFilePath, foundMultiple) = FindLogFilePath(baseDirectory, includeCompilerLogs);
             printFile = true;
         }
     }
@@ -729,6 +732,11 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
     // If the file wasn't explicitly specified let the user know what file we are using
     if (printFile)
     {
+        if (foundMultiple)
+        {
+            WriteLine($"Found multiple log files in {baseDirectory}");
+        }
+
         WriteLine($"Using {logFilePath}");
     }
 
@@ -750,7 +758,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
             throw new OptionException($"Not a valid log file {logFilePath}", "log");
     }
 
-    static string? FindLogFilePath(string baseDirectory, bool includeCompilerLogs = true) =>
+    static (string? FilePath, bool FoundMultiple) FindLogFilePath(string baseDirectory, bool includeCompilerLogs = true) =>
         includeCompilerLogs
             ? FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj")
             : FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj");
@@ -778,21 +786,21 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
     static OptionException CreateOptionException() => new("Need a file to analyze", "log");
 }
 
-static string? FindFirstFileWithPattern(string baseDirectory, params string[] patterns)
+static (string? FilePath, bool FoundMultiple) FindFirstFileWithPattern(string baseDirectory, params string[] patterns)
 {
     foreach (var pattern in patterns)
     {
-        var path = Directory
+        using var e = Directory
             .EnumerateFiles(baseDirectory, pattern)
             .OrderBy(x => Path.GetFileName(x), PathUtil.Comparer)
-            .FirstOrDefault();
-        if (path is not null)
+            .GetEnumerator();
+        if (e.MoveNext())
         {
-            return path;
+            return (e.Current, e.MoveNext());
         }
     }
 
-    return null;
+    return (null, false);
 }
 
 string GetBaseOutputPath(string? baseOutputPath, string? directoryName = null)
