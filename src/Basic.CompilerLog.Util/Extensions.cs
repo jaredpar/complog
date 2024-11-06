@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Basic.CompilerLog.Util;
 
-internal static class Extensions
+public static class Extensions
 {
     internal static void CheckEmitFlags(this EmitFlags flags)
     {
@@ -77,4 +77,19 @@ internal static class Extensions
     internal static string? GetFileName(this ResourceDescription d) => ReflectionUtil.ReadField<string?>(d, "FileName");
     internal static bool IsPublic(this ResourceDescription d) => ReflectionUtil.ReadField<bool>(d, "IsPublic");
     internal static Func<Stream> GetDataProvider(this ResourceDescription d) => ReflectionUtil.ReadField<Func<Stream>>(d, "DataProvider");
+
+    public static MetadataReference With(this MetadataReference mdRef, ImmutableArray<string> aliases, bool embedInteropTypes)
+    {
+        if (aliases is { Length: > 0 })
+        {
+            mdRef = mdRef.WithAliases(aliases);
+        }
+
+        if (embedInteropTypes)
+        {
+            mdRef = mdRef.WithEmbedInteropTypes(true);
+        }
+
+        return mdRef;
+    }
 }

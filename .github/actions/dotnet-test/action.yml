@@ -22,8 +22,9 @@ runs:
       run: >
         dotnet test --no-build --framework ${{ inputs.framework }}
         --blame-hang --blame-hang-dump-type full --blame-hang-timeout 10m
+        --results-directory ${{ inputs.test-results-dir }}
         --logger "console;verbosity=detailed"
-        --logger "trx;LogFileName=${{ inputs.test-results-dir }}/TestResults-${{ inputs.name }}.trx"
+        --logger "trx;LogFileName=TestResults-${{ inputs.name }}.trx"
         -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ inputs.test-coverage-dir }}/coverage.${{ inputs.name }}.xml
       shell: pwsh
       env:

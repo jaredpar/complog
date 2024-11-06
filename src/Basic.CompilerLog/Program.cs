@@ -190,8 +190,8 @@ int RunPrint(IEnumerable<string> args)
 
                 foreach (var analyzer in reader.ReadAllAnalyzerData(compilerCall))
                 {
-                    WriteLine($"\t\tName: {analyzer.AssemblyName ?? "<null>"}");
-                    WriteLine($"\t\tInformational Version: {analyzer.AssemblyInformationalVersion ?? "<null>"}");
+                    WriteLine($"\t\tName: {analyzer.AssemblyIdentityData.AssemblyName ?? "<null>"}");
+                    WriteLine($"\t\tInformational Version: {analyzer.AssemblyIdentityData.AssemblyInformationalVersion ?? "<null>"}");
                     WriteLine($"\t\tFile Path: {analyzer.FilePath}");
                 }
             }
@@ -256,7 +256,7 @@ int RunReferences(IEnumerable<string> args)
             foreach (var data in reader.ReadAllReferenceData(compilerCall))
             {
                 var filePath = Path.Combine(refDirPath, data.FileName);
-                File.WriteAllBytes(filePath, data.ImageBytes);
+                WriteTo(data.AssemblyData, filePath);
             }
 
             var analyzerDirPath = Path.Combine(GetOutputPath(baseOutputPath, compilerCalls, i), "analyzers");
@@ -265,7 +265,7 @@ int RunReferences(IEnumerable<string> args)
             {
                 var groupDir = GetGroupDirectoryPath();
                 var filePath = Path.Combine(groupDir, data.FileName);
-                File.WriteAllBytes(filePath, data.ImageBytes);
+                WriteTo(data.AssemblyData, filePath);
 
                 string GetGroupDirectoryPath()
                 {
@@ -288,6 +288,12 @@ int RunReferences(IEnumerable<string> args)
 
                     return groupDir;
                 }
+            }
+
+            void WriteTo(AssemblyData referenceData, string filePath)
+            {
+                using var stream = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+                reader.CopyAssemblyBytes(referenceData, stream);
             }
         }
 

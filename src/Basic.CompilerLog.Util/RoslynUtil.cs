@@ -268,6 +268,23 @@ internal static class RoslynUtil
         return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
 
+    internal static Guid? TryReadMvid(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ReadMvid(filePath);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     internal static Guid ReadMvid(string filePath)
     {
         using var stream = OpenBuildFileForRead(filePath);
@@ -663,7 +680,7 @@ internal static class RoslynUtil
         return MetadataReader.GetAssemblyName(assemblyFilePath).Name;
     }
 
-    internal static (Guid Mvid, string? AssemblyName, string? AssemblyInformationalVersion) ReadAssemblyIdentityData(string assemblyFilePath)
+    internal static AssemblyIdentityData ReadAssemblyIdentityData(string assemblyFilePath)
     {
         using var stream = OpenBuildFileForRead(assemblyFilePath);
         using var peReader = new PEReader(stream);
@@ -672,6 +689,6 @@ internal static class RoslynUtil
         var assemblyName = def.GetAssemblyName().Name;
         var mvid = ReadMvid(metadataReader);
         var assemblyInformationalVersion = ReadStringAssemblyAttribute(metadataReader, nameof(AssemblyInformationalVersionAttribute));
-        return (mvid, assemblyName, assemblyInformationalVersion);
+        return new(mvid, assemblyName, assemblyInformationalVersion);
     }
 }

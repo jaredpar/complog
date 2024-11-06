@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Net.Http.Headers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.VisualBasic;
@@ -107,4 +108,7 @@ public sealed class CompilerCall
     }
 
     public IReadOnlyCollection<string> GetArguments() => _lazyArguments.Value;
+
+    [ExcludeFromCodeCoverage]
+    public override string ToString() => GetDiagnosticName();
 }

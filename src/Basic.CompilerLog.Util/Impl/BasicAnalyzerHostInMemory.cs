@@ -20,7 +20,7 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
     internal InMemoryLoader Loader { get; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore => Loader.AnalyzerReferences;
 
-    internal BasicAnalyzerHostInMemory(IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers)
+    internal BasicAnalyzerHostInMemory(IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
         :base(BasicAnalyzerKind.InMemory)
     {
         var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
@@ -41,7 +41,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     internal AssemblyLoadContext CompilerLoadContext { get; }
 
-    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
+    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
         :base(name, isCollectible: true)
     {
         CompilerLoadContext = provider.LogReaderState.CompilerLoadContext;
@@ -49,7 +49,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
         foreach (var analyzer in analyzers)
         {
             var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
-            _map[simpleName] = provider.GetAssemblyBytes(analyzer);
+            _map[simpleName] = provider.GetAssemblyBytes(analyzer.AssemblyData);
             builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), this, onDiagnostic));
         }
 
@@ -92,12 +92,12 @@ internal sealed class InMemoryLoader
 {
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
-    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<RawAnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
+    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
     {
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
-            builder.Add(new BasicAnalyzerReference(new AssemblyName(analyzer.AssemblyName), this, onDiagnostic));
+            builder.Add(new BasicAnalyzerReference(new AssemblyName(analyzer.AssemblyIdentityData.AssemblyName), this, onDiagnostic));
         }
 
         AnalyzerReferences = builder.MoveToImmutable();

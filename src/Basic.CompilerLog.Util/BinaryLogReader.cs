@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Basic.CompilerLog.Util.Impl;
 using MessagePack.Formatters;
@@ -9,6 +10,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
+using Microsoft.CodeAnalysis.VisualBasic.Syntax;
 
 namespace Basic.CompilerLog.Util;
 
@@ -16,8 +18,12 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 {
     private Stream _stream;
     private readonly bool _leaveOpen;
-    private readonly Dictionary<string, ReferenceData> _referenceDataCache = new(PathUtil.Comparer);
-    private readonly Dictionary<string, RawAnalyzerData> _rawAnalyzerDataCache = new(PathUtil.Comparer);
+
+    private readonly Dictionary<string, PortableExecutableReference> _metadataReferenceMap = new(PathUtil.Comparer);
+    private readonly Dictionary<string, AssemblyIdentityData> _assemblyIdentityDataMap = new(PathUtil.Comparer);
+    private readonly Dictionary<CompilerCall, CommandLineArguments> _argumentsMap = new();
+    private readonly Lazy<List<CompilerCall>> _lazyCompilerCalls;
+    private readonly Lazy<Dictionary<Guid, int>> _lazyMvidToCompilerCallIndexMap;
 
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
@@ -31,6 +37,12 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         OwnsLogReaderState = state is null;
         LogReaderState = state ?? new LogReaderState();
         _leaveOpen = leaveOpen;
+        _lazyCompilerCalls = new(() =>
+        {
+            _stream.Position = 0;
+            return BinaryLogUtil.ReadAllCompilerCalls(_stream, ownerState: this);
+        });
+        _lazyMvidToCompilerCallIndexMap = new(() => BuildMvidToCompilerCallIndexMap());
     } 
 
     public static BinaryLogReader Create(
@@ -84,9 +96,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     public List<CompilerCall> ReadAllCompilerCalls(Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
-
-        _stream.Position = 0;
-        return BinaryLogUtil.ReadAllCompilerCalls(_stream, predicate, ownerState: this);
+        return _lazyCompilerCalls.Value.Where(predicate).ToList();
     }
 
     public List<CompilationData> ReadAllCompilationData(Func<CompilerCall, bool>? predicate = null)
@@ -97,6 +107,26 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             list.Add(ReadCompilationData(compilerCall));
         }
         return list;
+    }
+
+    public CompilerCall ReadCompilerCall(int index) =>
+        _lazyCompilerCalls.Value[index];
+
+    public CompilerCallData ReadCompilerCallData(CompilerCall compilerCall) =>
+            ReadCompilerCallDataCore(compilerCall).CompilerCallData;
+
+    private (CompilerCallData CompilerCallData, CommandLineArguments Arguments) ReadCompilerCallDataCore(CompilerCall compilerCall)
+    {
+        var args = ReadCommandLineArguments(compilerCall);
+        var assemblyFileName = RoslynUtil.GetAssemblyFileName(args);
+        var data = new CompilerCallData(
+            compilerCall,
+            assemblyFileName,
+            args.OutputDirectory,
+            args.ParseOptions,
+            args.CompilationOptions,
+            args.EmitOptions);
+        return (data, args);
     }
 
     /// <summary>
@@ -115,20 +145,25 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     public CommandLineArguments ReadCommandLineArguments(CompilerCall compilerCall)
     {
         CheckOwnership(compilerCall);
-        return BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
+        if (!_argumentsMap.TryGetValue(compilerCall, out var args))
+        {
+            args = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
+            _argumentsMap[compilerCall] = args;
+        }
+        return args;
     }
 
     public CompilationData ReadCompilationData(CompilerCall compilerCall)
     {
         CheckOwnership(compilerCall);
-        var args = ReadCommandLineArguments(compilerCall);
+        var (compilerCallData, args) = ReadCompilerCallDataCore(compilerCall);
 
         var references = GetReferences();
         var sourceTexts = GetSourceTexts();
         var additionalTexts = GetAdditionalTexts();
         var analyzerConfigs = GetAnalyzerConfigs();
         var emitData = GetEmitData();
-        var basicAnalyzerHost = CreateAnalyzerHost();
+        var basicAnalyzerHost = CreateBasicAnalyzerHost(compilerCall);
 
         return compilerCall.IsCSharp ? GetCSharp() : GetVisualBasic();
 
@@ -136,7 +171,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         {
             return RoslynUtil.CreateCSharpCompilationData(
                 compilerCall,
-                args.CompilationName,
+                compilerCallData.AssemblyFileName,
                 (CSharpParseOptions)args.ParseOptions,
                 (CSharpCompilationOptions)args.CompilationOptions,
                 sourceTexts,
@@ -166,46 +201,6 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 PathNormalizationUtil.Empty);
         }
 
-        BasicAnalyzerHost CreateAnalyzerHost()
-        {
-            var list = ReadAllRawAnalyzerData(args);
-            return LogReaderState.GetOrCreate(
-                BasicAnalyzerKind,
-                list,
-                (kind, analyzers) => kind switch
-                {
-                    BasicAnalyzerKind.None => CreateNoneHost(),
-                    BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
-                    BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
-                    _ => throw new ArgumentOutOfRangeException(nameof(kind)),
-                });
-
-            BasicAnalyzerHostNone CreateNoneHost()
-            {
-                if (!RoslynUtil.HasGeneratedFilesInPdb(args))
-                {
-                    return new BasicAnalyzerHostNone("Compilation does not have a PDB compatible with generated files");
-                }
-
-                try
-                {
-                    var generatedFiles = RoslynUtil.ReadGeneratedFiles(compilerCall, args);
-                    var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>(generatedFiles.Count);
-                    foreach (var tuple in generatedFiles)
-                    {
-                        var sourceText = RoslynUtil.GetSourceText(tuple.Stream, args.ChecksumAlgorithm, canBeEmbedded: false);
-                        builder.Add((sourceText, tuple.FilePath));
-                    }
-
-                    return new BasicAnalyzerHostNone(builder.MoveToImmutable());
-                }
-                catch (Exception ex)
-                {
-                    return new BasicAnalyzerHostNone(ex.Message);
-                }
-            }
-        }
-
         List<(SourceText SourceText, string Path)> GetAnalyzerConfigs() => 
             GetSourceTextsFromPaths(args.AnalyzerConfigPaths, args.AnalyzerConfigPaths.Length, args.ChecksumAlgorithm);
 
@@ -214,8 +209,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             var list = new List<MetadataReference>(capacity: args.MetadataReferences.Length);
             foreach (var reference in args.MetadataReferences)
             {
-                var mdref = MetadataReference.CreateFromFile(reference.Reference, reference.Properties);
-                list.Add(mdref);
+                var mdRef = ReadMetadataReference(reference.Reference).With(reference.Properties.Aliases, reference.Properties.EmbedInteropTypes);
+                list.Add(mdRef);
             }
             return list;
         }
@@ -286,21 +281,59 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             }
 
             return list;
+
         }
     }
 
-    public List<ReferenceData> ReadAllAnalyzerData(CompilerCall compilerCall)
+    public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall)
     {
-        CheckOwnership(compilerCall);
         var args = ReadCommandLineArguments(compilerCall);
-        return ReadAllReferenceDataCore(args.AnalyzerReferences.Select(x => x.FilePath), args.AnalyzerReferences.Length);
+        var list = ReadAllAnalyzerData(compilerCall);
+        return LogReaderState.GetOrCreate(
+            BasicAnalyzerKind,
+            list,
+            (kind, analyzers) => kind switch
+            {
+                BasicAnalyzerKind.None => CreateNoneHost(),
+                BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
+                BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
+                _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+            });
+
+        BasicAnalyzerHostNone CreateNoneHost()
+        {
+            if (!RoslynUtil.HasGeneratedFilesInPdb(args))
+            {
+                return new BasicAnalyzerHostNone("Compilation does not have a PDB compatible with generated files");
+            }
+
+            try
+            {
+                var generatedFiles = RoslynUtil.ReadGeneratedFiles(compilerCall, args);
+                var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>(generatedFiles.Count);
+                foreach (var tuple in generatedFiles)
+                {
+                    var sourceText = RoslynUtil.GetSourceText(tuple.Stream, args.ChecksumAlgorithm, canBeEmbedded: false);
+                    builder.Add((sourceText, tuple.FilePath));
+                }
+
+                return new BasicAnalyzerHostNone(builder.MoveToImmutable());
+            }
+            catch (Exception ex)
+            {
+                return new BasicAnalyzerHostNone(ex.Message);
+            }
+        }
     }
+
+    public SourceText ReadSourceText(SourceTextData sourceTextData) =>
+        RoslynUtil.GetSourceText(sourceTextData.FilePath, sourceTextData.ChecksumAlgorithm, canBeEmbedded: false);
 
     public List<ReferenceData> ReadAllReferenceData(CompilerCall compilerCall)
     {
         CheckOwnership(compilerCall);
         var args = ReadCommandLineArguments(compilerCall);
-        return ReadAllReferenceDataCore(args.MetadataReferences.Select(x => x.Reference), args.MetadataReferences.Length);
+        return ReadAllReferenceDataCore(args.MetadataReferences, args.MetadataReferences.Length);
     }
 
     public List<CompilerAssemblyData> ReadAllCompilerAssemblies()
@@ -349,43 +382,53 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         return RoslynUtil.ReadGeneratedFiles(compilerCall, args);
     }
 
-    private List<ReferenceData> ReadAllReferenceDataCore(IEnumerable<string> filePaths, int count)
+    public List<SourceTextData> ReadAllSourceTextData(CompilerCall compilerCall)
     {
-        var list = new List<ReferenceData>(capacity: count);
-        foreach (var filePath in filePaths)
-        {
-            if (!_referenceDataCache.TryGetValue(filePath, out var data))
-            {
-                var identityData = RoslynUtil.ReadAssemblyIdentityData(filePath);
-                data = new ReferenceData(
-                    filePath,
-                    identityData.Mvid,
-                    identityData.AssemblyName,
-                    identityData.AssemblyInformationalVersion,
-                    File.ReadAllBytes(filePath));
-                _referenceDataCache[filePath] = data;
-            }
-
-            list.Add(data);
-        }
+        var args = ReadCommandLineArguments(compilerCall);
+        var list = new List<SourceTextData>(args.SourceFiles.Length + args.AnalyzerConfigPaths.Length + args.AdditionalFiles.Length);
+        list.AddRange(args.SourceFiles.Select(x => new SourceTextData(this, x.Path, args.ChecksumAlgorithm, SourceTextKind.SourceCode)));
+        list.AddRange(args.AnalyzerConfigPaths.Select(x => new SourceTextData(this, x, args.ChecksumAlgorithm, SourceTextKind.AnalyzerConfig)));
+        list.AddRange(args.AdditionalFiles.Select(x => new SourceTextData(this, x.Path, args.ChecksumAlgorithm, SourceTextKind.AnalyzerConfig)));
         return list;
     }
 
-    private List<RawAnalyzerData> ReadAllRawAnalyzerData(CommandLineArguments args)
+    private AssemblyIdentityData GetOrReadAssemblyIdentityData(string filePath)
     {
-        var list = new List<RawAnalyzerData>(args.AnalyzerReferences.Length);
+        if (!_assemblyIdentityDataMap.TryGetValue(filePath, out var assemblyIdentityData))
+        {
+            assemblyIdentityData = RoslynUtil.ReadAssemblyIdentityData(filePath);
+            _assemblyIdentityDataMap[filePath] = assemblyIdentityData;
+        }
+
+        return assemblyIdentityData;
+    }
+
+    private List<ReferenceData> ReadAllReferenceDataCore(IEnumerable<CommandLineReference> commandLineReferences, int count)
+    {
+        var list = new List<ReferenceData>(capacity: count);
+        foreach (var commandLineReference in commandLineReferences)
+        {
+            var identityData = GetOrReadAssemblyIdentityData(commandLineReference.Reference);
+            var data = new ReferenceData(
+                identityData,
+                commandLineReference.Reference,
+                commandLineReference.Properties.Aliases,
+                commandLineReference.Properties.EmbedInteropTypes);
+
+            list.Add(data);
+        }
+
+        return list;
+    }
+
+    public List<AnalyzerData> ReadAllAnalyzerData(CompilerCall compilerCall)
+    {
+        var args = ReadCommandLineArguments(compilerCall);
+        var list = new List<AnalyzerData>(args.AnalyzerReferences.Length);
         foreach (var analyzer in args.AnalyzerReferences)
         {
-            if (!_rawAnalyzerDataCache.TryGetValue(analyzer.FilePath, out var data))
-            {
-                var identityData = RoslynUtil.ReadAssemblyIdentityData(analyzer.FilePath);
-                data = new RawAnalyzerData(
-                    identityData.Mvid,
-                    analyzer.FilePath,
-                    identityData.AssemblyName,
-                    identityData.AssemblyInformationalVersion);
-                _rawAnalyzerDataCache[analyzer.FilePath] = data;
-            }
+            var identityData = GetOrReadAssemblyIdentityData(analyzer.FilePath);
+            var data = new AnalyzerData(identityData, analyzer.FilePath);
             list.Add(data);
         }
         return list;
@@ -401,12 +444,60 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         throw new ArgumentException($"The provided {nameof(CompilerCall)} is not from this instance");
     }
 
-    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(RawAnalyzerData data, Stream stream)
+    public MetadataReference ReadMetadataReference(ReferenceData referenceData)
+    {
+        var mdRef = ReadMetadataReference(referenceData.FilePath);
+        return mdRef.With(referenceData.Aliases, referenceData.EmbedInteropTypes);
+    }
+
+    public MetadataReference ReadMetadataReference(string filePath)
+    {
+        if (!_metadataReferenceMap.TryGetValue(filePath, out var mdRef))
+        {
+            mdRef = MetadataReference.CreateFromFile(filePath);
+            _metadataReferenceMap[filePath] = mdRef;
+        }
+
+        return mdRef;
+    }
+
+    public void CopyAssemblyBytes(AssemblyData data, Stream stream)
     {
         using var fileStream = RoslynUtil.OpenBuildFileForRead(data.FilePath);
         fileStream.CopyTo(stream);
     }
 
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(RawAnalyzerData data) =>
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
         File.ReadAllBytes(data.FilePath);
+
+    public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)
+    {
+        var map = _lazyMvidToCompilerCallIndexMap.Value;
+        return map.TryGetValue(mvid, out compilerCallIndex);
+    }
+
+    private Dictionary<Guid, int> BuildMvidToCompilerCallIndexMap()
+    {
+        var map =  new Dictionary<Guid, int>();
+        var compilerCalls = _lazyCompilerCalls.Value;
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            var compilerCall = compilerCalls[i];
+            var args = ReadCommandLineArguments(compilerCall);
+            var assemblyName = RoslynUtil.GetAssemblyFileName(args);
+            if (args.OutputDirectory is not null &&
+                RoslynUtil.TryReadMvid(Path.Combine(args.OutputDirectory, assemblyName)) is Guid assemblyMvid)
+            {
+                map[assemblyMvid] = i;
+            }
+
+            if (args.OutputRefFilePath is not null &&
+                RoslynUtil.TryReadMvid(args.OutputRefFilePath) is Guid refAssemblyMvid)
+            {
+                map[refAssemblyMvid] = i;
+            }
+        }
+
+        return map;
+    }
 }

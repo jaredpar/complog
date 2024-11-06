@@ -211,4 +211,19 @@ public sealed class RoslynUtilTests
         var name = RoslynUtil.ReadAssemblyName(path);
         Assert.Equal("Basic.CompilerLog.Util", name);
     }
+
+    [Fact]
+    public void TryReadMvid_FileMissing()
+    {
+        using var temp = new TempDir();
+        Assert.Null(RoslynUtil.TryReadMvid(Path.Combine(temp.DirectoryPath, "test.dll")));
+    }
+
+    [Fact]
+    public void TryReadMvid_FileNotPE()
+    {
+        using var temp = new TempDir();
+        var filePath = temp.NewFile("test.dll", "hello world");
+        Assert.Null(RoslynUtil.TryReadMvid(filePath));
+    }
 }

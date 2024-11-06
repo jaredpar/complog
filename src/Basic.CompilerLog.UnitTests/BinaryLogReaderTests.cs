@@ -42,6 +42,21 @@ public sealed class BinaryLogReaderTests : TestBase
         Assert.Throws<ArgumentException>(() => reader.ReadCommandLineArguments(compilerCall));
     }
 
+    /// <summary>
+    /// Creating a <see cref="CommandLineArguments"/> instance requires a non-trivial amount of 
+    /// work as it's parsed from a raw string. Several parts of the code base expect to be able
+    /// to get them cheaply with an amortized cost of a single parse. Verify that happens here.
+    /// </summary>
+    [Fact]
+    public void ReadCommandLineArgumentsIdentity()
+    {
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!);
+        var compilerCall = reader.ReadAllCompilerCalls().First();
+        var arg1 = reader.ReadCommandLineArguments(compilerCall);
+        var arg2 = reader.ReadCommandLineArguments(compilerCall);
+        Assert.Same(arg1, arg2);
+    }
+
     [Fact]
     public void DisposeDouble()
     {

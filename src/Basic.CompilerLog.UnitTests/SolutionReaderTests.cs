@@ -46,14 +46,20 @@ public sealed class SolutionReaderTests : TestBase
     [MemberData(nameof(GetSimpleBasicAnalyzerKinds))]
     public async Task DocumentsGeneratedDefaultHost(BasicAnalyzerKind basicAnalyzerKind)
     {
-        var solution = GetSolution(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);
-        var project = solution.Projects.Single();
-        Assert.NotEmpty(project.AnalyzerReferences);
-        var docs = project.Documents.ToList();
-        var generatedDocs = (await project.GetSourceGeneratedDocumentsAsync()).ToList();
-        Assert.Null(docs.FirstOrDefault(x => x.Name == "RegexGenerator.g.cs"));
-        Assert.Single(generatedDocs);
-        Assert.NotNull(generatedDocs.First(x => x.Name == "RegexGenerator.g.cs"));
+        await Run(Fixture.Console.Value.BinaryLogPath!);
+        await Run(Fixture.Console.Value.CompilerLogPath);
+
+        async Task Run(string filePath)
+        {
+            var solution = GetSolution(filePath, basicAnalyzerKind);
+            var project = solution.Projects.Single();
+            Assert.NotEmpty(project.AnalyzerReferences);
+            var docs = project.Documents.ToList();
+            var generatedDocs = (await project.GetSourceGeneratedDocumentsAsync()).ToList();
+            Assert.Null(docs.FirstOrDefault(x => x.Name == "RegexGenerator.g.cs"));
+            Assert.Single(generatedDocs);
+            Assert.NotNull(generatedDocs.First(x => x.Name == "RegexGenerator.g.cs"));
+        }
     }
 
     [Fact]
@@ -70,17 +76,23 @@ public sealed class SolutionReaderTests : TestBase
     [Fact]
     public async Task ProjectReference_Simple()
     {
-        var solution = GetSolution(Fixture.ConsoleWithReference.Value.CompilerLogPath, BasicAnalyzerKind.None);
-        var consoleProject = solution.Projects
-            .Where(x => x.Name == "console-with-reference.csproj")
-            .Single();
-        var projectReference = consoleProject.ProjectReferences.Single();
-        var utilProject = solution.GetProject(projectReference.ProjectId);
-        Assert.NotNull(utilProject);
-        Assert.Equal("util.csproj", utilProject.Name);
-        var compilation = await consoleProject.GetCompilationAsync();
-        Assert.NotNull(compilation);
-        var result = compilation.EmitToMemory();
-        Assert.True(result.Success);
+        await Run(Fixture.ConsoleWithReference.Value.BinaryLogPath!);
+        await Run(Fixture.ConsoleWithReference.Value.CompilerLogPath);
+
+        async Task Run(string filePath)
+        {
+            var solution = GetSolution(filePath, BasicAnalyzerKind.None);
+            var consoleProject = solution.Projects
+                .Where(x => x.Name == "console-with-reference.csproj")
+                .Single();
+            var projectReference = consoleProject.ProjectReferences.Single();
+            var utilProject = solution.GetProject(projectReference.ProjectId);
+            Assert.NotNull(utilProject);
+            Assert.Equal("util.csproj", utilProject.Name);
+            var compilation = await consoleProject.GetCompilationAsync();
+            Assert.NotNull(compilation);
+            var result = compilation.EmitToMemory();
+            Assert.True(result.Success);
+        }
     }
 }

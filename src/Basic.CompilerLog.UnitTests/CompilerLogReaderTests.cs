@@ -49,8 +49,7 @@ public sealed class CompilerLogReaderTests : TestBase
         RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
-        var rawData = reader.ReadRawCompilationData(0).Item2;
-        var extraData = rawData.Contents.Single(x => Path.GetFileName(x.FilePath) == fileName);
+        var extraData = reader.ReadAllRawContent(0).Single(x => Path.GetFileName(x.OriginalFilePath) == fileName);
         Assert.Equal("84C9FAFCF8C92F347B96D26B149295128B08B07A3C4385789FE4758A2B520FDE", extraData.ContentHash);
         var contentBytes = reader.GetContentBytes(extraData.ContentHash);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
@@ -121,8 +120,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void ResourceSimpleEmbedded()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
-        var rawData = reader.ReadRawCompilationData(0).Item2;
-        var d = rawData.Resources.Single();
+        var d = reader.ReadAllResourceData(0).Single();
         Assert.Equal("console-complex.resource.txt", reader.ReadResourceDescription(d).GetResourceName());
     }
 
@@ -214,10 +212,8 @@ public sealed class CompilerLogReaderTests : TestBase
         }
 
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, kind);
-        var (compilerCall, data) = reader.ReadRawCompilationData(0);
-
-        var host1 = reader.ReadAnalyzers(data);
-        var host2 = reader.ReadAnalyzers(data);
+        var host1 = reader.CreateBasicAnalyzerHost(0);
+        var host2 = reader.CreateBasicAnalyzerHost(0);
         Assert.Same(host1, host2);
         host1.Dispose();
         Assert.True(host1.IsDisposed);
@@ -250,8 +246,8 @@ public sealed class CompilerLogReaderTests : TestBase
     public void AnalyzerDiagnostics()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.InMemory);
-        var data = reader.ReadRawCompilationData(0).Item2;
-        var analyzers = data.Analyzers
+        var data = reader.ReadAllAnalyzerData(0);
+        var analyzers = data
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
             .ToList();
         var host = new BasicAnalyzerHostInMemory(reader, analyzers);
@@ -287,8 +283,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void NoneHostGeneratedFilesInRaw()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
-        var (_, data) = reader.ReadRawCompilationData(0);
-        Assert.Equal(1, data.Contents.Count(x => x.Kind == RawContentKind.GeneratedText));
+        Assert.Single(reader.ReadAllRawContent(0, RawContentKind.GeneratedText));
     }
 
     [Fact]
@@ -349,8 +344,8 @@ public sealed class CompilerLogReaderTests : TestBase
         RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"), BasicAnalyzerKind.None);
-        var rawData = reader.ReadRawCompilationData(0).Item2;
-        Assert.False(rawData.HasAllGeneratedFileContent);
+        var compilerCall = reader.ReadCompilerCall(0);
+        Assert.False(reader.HasAllGeneratedFileContent(compilerCall));
         var data = reader.ReadCompilationData(0);
         var compilation = data.GetCompilationAfterGenerators(out var diagnostics);
         Assert.Single(diagnostics);
@@ -510,6 +505,19 @@ public sealed class CompilerLogReaderTests : TestBase
             }
         }
         Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void ProjectReferences_Alias()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithAliasReference.Value.CompilerLogPath);
+        var consoleCompilerCall = reader
+            .ReadAllCompilerCalls(cc => cc.ProjectFileName == "console-with-alias-reference.csproj")
+            .Single();
+        var referenceData = reader
+            .ReadAllReferenceData(consoleCompilerCall)
+            .Single(x => x.Aliases.Length == 1);
+        Assert.Equal("Util", referenceData.Aliases.Single());
     }
 
     [Fact]
