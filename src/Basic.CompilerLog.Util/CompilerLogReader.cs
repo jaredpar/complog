@@ -606,7 +606,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
             if (kind is { } k)
             {
-                var data = new SourceTextData(compilerCall, rawContent.NormalizedFilePath, dataPack.ChecksumAlgorithm, k);
+                var data = new SourceTextData(rawContent.ContentHash, rawContent.NormalizedFilePath, dataPack.ChecksumAlgorithm, k);
                 list.Add(data);
             }
         }
