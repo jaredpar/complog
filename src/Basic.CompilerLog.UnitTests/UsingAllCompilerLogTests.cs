@@ -1,5 +1,6 @@
 
 using System.Configuration;
+using System.Runtime.InteropServices;
 using System.Windows.Markup;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
@@ -36,7 +37,15 @@ public sealed class UsingAllCompilerLogTests : TestBase
         {
             count++;
         }
-        Assert.Equal(Fixture.AllLogs.Length - 1, count);
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.Equal(Fixture.AllLogs.Length - 1, count);
+        }
+        else
+        {
+            Assert.Equal(Fixture.AllLogs.Length, count);
+        }
     }
 
     [Fact]
