@@ -164,7 +164,7 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [Fact]
-    public void ReadDeletedPdb()
+    public void ReadGeneratedFilesDeletedPdb()
     {
         var dir = Root.NewDirectory();
         RunDotNet($"new console --name example --output .", dir);
@@ -182,7 +182,7 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [Fact]
-    public void ReadGeneratedFiles()
+    public void ReadGeneratedFilesSimple()
     {
         using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, BasicAnalyzerKind.None);
         var compilerCall = reader.ReadAllCompilerCalls().Single();
@@ -190,5 +190,14 @@ public sealed class BinaryLogReaderTests : TestBase
         Assert.Single(generatedFiles);
         var tuple = generatedFiles.Single();
         Assert.True(tuple.Stream.TryGetBuffer(out var _));
+    }
+
+    [WindowsFact]
+    public void ReadGeneratedFilesNativePdb()
+    {
+        Assert.NotNull(Fixture.ConsoleWithNativePdb);
+        using var reader = BinaryLogReader.Create(Fixture.ConsoleWithNativePdb.Value.BinaryLogPath!, BasicAnalyzerKind.None);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        Assert.Throws<InvalidOperationException>(() => _ = reader.ReadAllGeneratedFiles(compilerCall));
     }
 }

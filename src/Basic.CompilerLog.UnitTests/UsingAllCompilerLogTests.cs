@@ -1,5 +1,6 @@
 
 using System.Configuration;
+using System.Runtime.InteropServices;
 using System.Windows.Markup;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
@@ -22,6 +23,32 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Fact]
+    public async Task GetAllLogData()
+    {
+        var count = 0;
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper, BasicAnalyzerKind.OnDisk))
+        {
+            count++;
+        }
+        Assert.Equal(Fixture.AllLogs.Length, count);
+
+        count = 0;
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper, BasicAnalyzerKind.None))
+        {
+            count++;
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Assert.Equal(Fixture.AllLogs.Length - 1, count);
+        }
+        else
+        {
+            Assert.Equal(Fixture.AllLogs.Length, count);
+        }
+    }
+
+    [Fact]
     public async Task EmitToDisk()
     {
         var list = new List<Task>();
@@ -32,6 +59,11 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 using var reader = CompilerLogReader.Create(complogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
                 foreach (var data in reader.ReadAllCompilationData())
                 {
+                    if (!reader.HasAllGeneratedFileContent(data.CompilerCall))
+                    {
+                        continue;
+                    }
+
                     using var testDir = new TempDir();
                     TestOutputHelper.WriteLine($"{Path.GetFileName(complogPath)}: {data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
                     var emitResult = data.EmitToDisk(testDir.DirectoryPath);
@@ -73,13 +105,11 @@ public sealed class UsingAllCompilerLogTests : TestBase
     public async Task GeneratedFilePathsNoneHost()
     {
         char[] illegalChars = ['<', '>'];
-        var count = 0;
         await foreach (var logPath in Fixture.GetAllLogs(TestOutputHelper))
         {
-            count++;
             TestOutputHelper.WriteLine(logPath);
             using var reader = CompilerCallReaderUtil.Create(logPath, BasicAnalyzerKind.None);
-            foreach (var data in reader.ReadAllCompilationData())
+            foreach (var data in reader.ReadAllCompilationData(reader.HasAllGeneratedFileContent))
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
                 var generatedTrees = data.GetGeneratedSyntaxTrees();
@@ -99,20 +129,17 @@ public sealed class UsingAllCompilerLogTests : TestBase
     public async Task EmitToMemory(BasicAnalyzerKind basicAnalyzerKind)
     {
         TestOutputHelper.WriteLine($"BasicAnalyzerKind: {basicAnalyzerKind}");
-        var count = 0;
         await foreach (var logPath in Fixture.GetAllLogs(TestOutputHelper))
         {
-            count++;
             TestOutputHelper.WriteLine(logPath);
             using var reader = CompilerCallReaderUtil.Create(logPath, basicAnalyzerKind);
-            foreach (var data in reader.ReadAllCompilationData())
+            foreach (var data in reader.ReadAllCompilationData(cc => basicAnalyzerKind != BasicAnalyzerKind.None || reader.HasAllGeneratedFileContent(cc)))
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
                 var emitResult = data.EmitToMemory();
                 AssertEx.Success(TestOutputHelper, emitResult);
             }
         }
-        Assert.True(count >= 10);
     }
 
     /// <summary>
@@ -122,7 +149,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [Fact]
     public async Task EmitToMemoryCompilerLogWithSeparateState()
     {
-        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper, BasicAnalyzerKind.None))
         {
             TestOutputHelper.WriteLine(complogPath);
             using var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
@@ -172,7 +199,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [Fact]
     public async Task ClassifyAll()
     {
-        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper, BasicAnalyzerKind.None))
         {
             using var reader = SolutionReader.Create(complogPath, BasicAnalyzerKind.None);
             using var workspace = new AdhocWorkspace();
@@ -196,9 +223,14 @@ public sealed class UsingAllCompilerLogTests : TestBase
     {
         using var fileLock = Fixture.LockScratchDirectory();
         var list = new List<Task>();
-        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        await foreach (var logData in Fixture.GetAllLogData(TestOutputHelper))
         {
-            var task = Task.Run(() => ExportUtilTests.TestExport(TestOutputHelper, complogPath, expectedCount: null, includeAnalyzers, runBuild: true));
+            if (!includeAnalyzers && !logData.SupportsNoneHost)
+            {
+                continue;
+            }
+
+            var task = Task.Run(() =>ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true));
             list.Add(task);
         }
 
@@ -210,10 +242,10 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [InlineData(false)]
     public async Task LoadAllCore(bool none)
     {
-        var options = none ? BasicAnalyzerKind.None : BasicAnalyzerHost.DefaultKind;
-        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper))
+        var kind = none ? BasicAnalyzerKind.None : BasicAnalyzerHost.DefaultKind;
+        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper, kind))
         {
-            using var reader = SolutionReader.Create(complogPath, options);
+            using var reader = SolutionReader.Create(complogPath, kind);
             var workspace = new AdhocWorkspace();
             var solution = workspace.AddSolution(reader.ReadSolutionInfo());
             Assert.NotEmpty(solution.Projects);
@@ -228,7 +260,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [Fact]
     public async Task VerifyConsistentOptions()
     {
-        await foreach (var logData in Fixture.GetAllLogDatas(TestOutputHelper))
+        await foreach (var logData in Fixture.GetAllLogData(TestOutputHelper))
         {
             if (logData.BinaryLogPath is null)
             {
