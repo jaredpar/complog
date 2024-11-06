@@ -38,8 +38,6 @@ public interface ICompilerCallReader : IDisposable
 
     public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall);
 
-    // TODO: can't commit this, just a temp solution for now while I see if this is going 
-    // to work
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex);
 
     /// <summary>

@@ -21,11 +21,9 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     private readonly Dictionary<string, PortableExecutableReference> _metadataReferenceMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, AssemblyIdentityData> _assemblyIdentityDataMap = new(PathUtil.Comparer);
-
-    // TODO: test that repeated calls to ReadCompilerCall produce the same instance as instance identity
-    // is important for compiler call in the binlog reader
     private readonly Dictionary<CompilerCall, CommandLineArguments> _argumentsMap = new();
-    private Lazy<List<CompilerCall>> _lazyCompilerCalls;
+    private readonly Lazy<List<CompilerCall>> _lazyCompilerCalls;
+    private readonly Lazy<Dictionary<Guid, int>> _lazyMvidToCompilerCallIndexMap;
 
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
@@ -44,6 +42,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             _stream.Position = 0;
             return BinaryLogUtil.ReadAllCompilerCalls(_stream, ownerState: this);
         });
+        _lazyMvidToCompilerCallIndexMap = new(() => BuildMvidToCompilerCallIndexMap());
     } 
 
     public static BinaryLogReader Create(
@@ -387,9 +386,9 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     {
         var args = ReadCommandLineArguments(compilerCall);
         var list = new List<SourceTextData>(args.SourceFiles.Length + args.AnalyzerConfigPaths.Length + args.AdditionalFiles.Length);
-        list.AddRange(args.SourceFiles.Select(x => new SourceTextData(compilerCall, x.Path, args.ChecksumAlgorithm, SourceTextKind.SourceCode)));
-        list.AddRange(args.AnalyzerConfigPaths.Select(x => new SourceTextData(compilerCall, x, args.ChecksumAlgorithm, SourceTextKind.AnalyzerConfig)));
-        list.AddRange(args.AdditionalFiles.Select(x => new SourceTextData(compilerCall, x.Path, args.ChecksumAlgorithm, SourceTextKind.AnalyzerConfig)));
+        list.AddRange(args.SourceFiles.Select(x => new SourceTextData(this, x.Path, args.ChecksumAlgorithm, SourceTextKind.SourceCode)));
+        list.AddRange(args.AnalyzerConfigPaths.Select(x => new SourceTextData(this, x, args.ChecksumAlgorithm, SourceTextKind.AnalyzerConfig)));
+        list.AddRange(args.AdditionalFiles.Select(x => new SourceTextData(this, x.Path, args.ChecksumAlgorithm, SourceTextKind.AnalyzerConfig)));
         return list;
     }
 
@@ -471,10 +470,34 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
         File.ReadAllBytes(data.FilePath);
 
-    // TODO: this is temp
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)
     {
-        compilerCallIndex = -1;
-        return false;
+        var map = _lazyMvidToCompilerCallIndexMap.Value;
+        return map.TryGetValue(mvid, out compilerCallIndex);
+    }
+
+    private Dictionary<Guid, int> BuildMvidToCompilerCallIndexMap()
+    {
+        var map =  new Dictionary<Guid, int>();
+        var compilerCalls = _lazyCompilerCalls.Value;
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            var compilerCall = compilerCalls[i];
+            var args = ReadCommandLineArguments(compilerCall);
+            var assemblyName = RoslynUtil.GetAssemblyFileName(args);
+            if (args.OutputDirectory is not null &&
+                RoslynUtil.TryReadMvid(Path.Combine(args.OutputDirectory, assemblyName)) is Guid assemblyMvid)
+            {
+                map[assemblyMvid] = i;
+            }
+
+            if (args.OutputRefFilePath is not null &&
+                RoslynUtil.TryReadMvid(args.OutputRefFilePath) is Guid refAssemblyMvid)
+            {
+                map[refAssemblyMvid] = i;
+            }
+        }
+
+        return map;
     }
 }

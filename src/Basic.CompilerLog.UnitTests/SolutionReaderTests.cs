@@ -76,17 +76,23 @@ public sealed class SolutionReaderTests : TestBase
     [Fact]
     public async Task ProjectReference_Simple()
     {
-        var solution = GetSolution(Fixture.ConsoleWithReference.Value.CompilerLogPath, BasicAnalyzerKind.None);
-        var consoleProject = solution.Projects
-            .Where(x => x.Name == "console-with-reference.csproj")
-            .Single();
-        var projectReference = consoleProject.ProjectReferences.Single();
-        var utilProject = solution.GetProject(projectReference.ProjectId);
-        Assert.NotNull(utilProject);
-        Assert.Equal("util.csproj", utilProject.Name);
-        var compilation = await consoleProject.GetCompilationAsync();
-        Assert.NotNull(compilation);
-        var result = compilation.EmitToMemory();
-        Assert.True(result.Success);
+        await Run(Fixture.ConsoleWithReference.Value.BinaryLogPath!);
+        await Run(Fixture.ConsoleWithReference.Value.CompilerLogPath);
+
+        async Task Run(string filePath)
+        {
+            var solution = GetSolution(filePath, BasicAnalyzerKind.None);
+            var consoleProject = solution.Projects
+                .Where(x => x.Name == "console-with-reference.csproj")
+                .Single();
+            var projectReference = consoleProject.ProjectReferences.Single();
+            var utilProject = solution.GetProject(projectReference.ProjectId);
+            Assert.NotNull(utilProject);
+            Assert.Equal("util.csproj", utilProject.Name);
+            var compilation = await consoleProject.GetCompilationAsync();
+            Assert.NotNull(compilation);
+            var result = compilation.EmitToMemory();
+            Assert.True(result.Success);
+        }
     }
 }

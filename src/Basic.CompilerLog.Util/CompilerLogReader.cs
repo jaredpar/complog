@@ -590,10 +590,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     public List<SourceTextData> ReadAllSourceTextData(CompilerCall compilerCall)
     {
-        // TODO: think about if this method is efficent or not
+        var index = GetIndex(compilerCall);
+        var dataPack = GetOrReadCompilationDataPack(index);
+
         var list = new List<SourceTextData>();
-        var dataPack = GetOrReadCompilationDataPack(compilerCall);
-        foreach (var rawContent in ReadAllRawContent(GetIndex(compilerCall)))
+        foreach (var rawContent in ReadAllRawContent(index))
         {
             var kind = rawContent.Kind switch
             {
@@ -615,18 +616,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     public SourceText ReadSourceText(SourceTextData sourceTextData)
     {
-        // TODO: this method is very inefficent, think about putting the checksum into the sourcetext data so it can
-        // be read faster
-        var index = GetIndex(sourceTextData.CompilerCall);
-        foreach (var rawContent in ReadAllRawContent(index))
-        {
-            if (PathUtil.Comparer.Equals(rawContent.NormalizedFilePath, sourceTextData.FilePath))
-            {
-                return GetSourceText(rawContent.ContentHash, sourceTextData.ChecksumAlgorithm, canBeEmbedded: false);
-            }
-        }
-
-        throw new InvalidOperationException();
+        var contentHash = (string)sourceTextData.Id;
+        return GetSourceText(contentHash, sourceTextData.ChecksumAlgorithm, canBeEmbedded: false);
     }
 
     /// <summary>

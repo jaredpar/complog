@@ -145,7 +145,6 @@ internal static class RoslynUtil
         return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
     }
 
-    // TODO: this should take CompilerCallData?
     internal static CSharpCompilationData CreateCSharpCompilationData(
         CompilerCall compilerCall,
         string? compilationName,
@@ -184,7 +183,6 @@ internal static class RoslynUtil
             analyzerProvider);
     }
 
-    // TODO: this should take CompilerCallData?
     internal static VisualBasicCompilationData CreateVisualBasicCompilationData(
         CompilerCall compilerCall,
         string? compilationName,
@@ -268,6 +266,23 @@ internal static class RoslynUtil
         }
 
         return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+    }
+
+    internal static Guid? TryReadMvid(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ReadMvid(filePath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     internal static Guid ReadMvid(string filePath)
