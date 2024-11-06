@@ -620,13 +620,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return GetSourceText(contentHash, sourceTextData.ChecksumAlgorithm, canBeEmbedded: false);
     }
 
-    /// <summary>
-    /// Are all the generated files contained in the data?
-    /// </summary>
-    /// <remarks>
-    /// Older versions of compiler log aren't guaranteed to have HasGeneratedFilesInPdb set
-    /// </remarks>
-    internal bool HasAllGeneratedFileContent(CompilerCall compilerCall) =>
+    /// <inheritdoc cref="ICompilerCallReader.HasAllGeneratedFileContent(CompilerCall)"/>
+    public bool HasAllGeneratedFileContent(CompilerCall compilerCall) =>
         HasAllGeneratedFileContent(GetOrReadCompilationDataPack(compilerCall));
 
     private bool HasAllGeneratedFileContent(CompilationDataPack dataPack) =>

@@ -46,4 +46,14 @@ public interface ICompilerCallReader : IDisposable
     public void CopyAssemblyBytes(AssemblyData referenceData, Stream stream);
 
     public MetadataReference ReadMetadataReference(ReferenceData referenceData);
+
+    /// <summary>
+    /// Are all the generated files contained in the data?
+    /// </summary>
+    /// <remarks>
+    /// This can fail in a few cases
+    ///   - Older compiler log versions don't encode all the data
+    ///   - Compilations using native PDBS don't have this capability
+    /// </remarks>
+    public bool HasAllGeneratedFileContent(CompilerCall compilerCall);
 }

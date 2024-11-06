@@ -16,10 +16,11 @@ using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
-public readonly struct LogData(string compilerLogPath, string? binaryLogPath)
+public readonly struct LogData(string compilerLogPath, string? binaryLogPath, bool supportsNoneHost = true)
 {
     public string CompilerLogPath { get; } = compilerLogPath;
     public string? BinaryLogPath { get; } = binaryLogPath;
+    public bool SupportsNoneHost { get; } = supportsNoneHost;
 
     public override string ToString() => $"{Path.GetFileName(CompilerLogPath)}";
 }
@@ -40,14 +41,14 @@ public sealed class FileLockHold(List<Stream> streams) : IDisposable
 
 public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
-    private readonly ImmutableArray<Lazy<LogData>> _allLogs;
+    internal ImmutableArray<Lazy<LogData>> AllLogs { get; }
 
     /// <summary>
-    /// Storage directory for all the generated artifacts and scatch directories
+    /// Storage directory for all the generated artifacts and scratch directories
     /// </summary>
     internal string StorageDirectory { get; }
 
-    internal string ScratchDirecectory { get; }
+    internal string ScratchDirectory { get; }
 
     /// <summary>
     /// Directory that holds the log files
@@ -105,9 +106,9 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     {
         StorageDirectory = Path.Combine(Path.GetTempPath(), nameof(CompilerLogFixture), Guid.NewGuid().ToString("N"));
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
-        ScratchDirecectory = Path.Combine(StorageDirectory, "scratch dir");
+        ScratchDirectory = Path.Combine(StorageDirectory, "scratch dir");
         Directory.CreateDirectory(ComplogDirectory);
-        Directory.CreateDirectory(ScratchDirecectory);
+        Directory.CreateDirectory(ScratchDirectory);
 
         var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_PATH");
         if (testArtifactsDir is not null)
@@ -490,21 +491,21 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     """;
                 File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
                 RunDotnetCommand("build -bl -nr:false", scratchPath);
-            });
+            }, supportsNoneHost: false);
         }
 
         WithResource("linux-console.complog");
         WithResource("windows-console.complog");
 
-        _allLogs = builder.ToImmutable();
-        Lazy<LogData> WithBuild(string name, Action<string> action, bool expectDiagnosticMessages = false)
+        AllLogs = builder.ToImmutable();
+        Lazy<LogData> WithBuild(string name, Action<string> action, bool expectDiagnosticMessages = false, bool supportsNoneHost = true)
         {
             var lazy = new Lazy<LogData>(() =>
             {
                 var start = DateTime.UtcNow;
                 try
                 {
-                    var scratchPath = Path.Combine(ScratchDirecectory, Guid.NewGuid().ToString("N"));
+                    var scratchPath = Path.Combine(ScratchDirectory, Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
                     RunDotnetCommand("new globaljson --sdk-version 8.0.400", scratchPath);
@@ -529,7 +530,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         Assert.Empty(diagnostics);
                     }
 
-                    return new LogData(complogFilePath, binlogFilePath);
+                    return new LogData(complogFilePath, binlogFilePath, supportsNoneHost);
                 }
                 catch (Exception ex)
                 {
@@ -553,15 +554,16 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         }
     }
 
-    public async IAsyncEnumerable<LogData> GetAllLogDatas(ITestOutputHelper testOutputHelper)
+    public async IAsyncEnumerable<LogData> GetAllLogData(ITestOutputHelper testOutputHelper, BasicAnalyzerKind? kind = null)
     {
         var start = DateTime.UtcNow;
-        foreach (var logData in _allLogs)
+        foreach (var lazyLogData in AllLogs)
         {
-            if (logData.IsValueCreated)
+            LogData logData;
+            if (lazyLogData.IsValueCreated)
             {
                 testOutputHelper.WriteLine($"Using cached value");
-                yield return logData.Value;
+                logData = lazyLogData.Value;
             }
             else
             {
@@ -571,7 +573,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     try
                     {
                         testOutputHelper.WriteLine($"Starting {nameof(GetAllCompilerLogs)}");
-                        tcs.SetResult(logData.Value);
+                        tcs.SetResult(lazyLogData.Value);
                         testOutputHelper.WriteLine($"Finished {nameof(GetAllCompilerLogs)} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
                     }
                     catch (Exception ex)
@@ -580,7 +582,12 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     }
                 }, TaskCreationOptions.LongRunning);
 
-                yield return await tcs.Task;
+                logData = await tcs.Task;
+            }
+
+            if (kind is not BasicAnalyzerKind.None || logData.SupportsNoneHost)
+            {
+                yield return logData;
             }
         }
     } 
@@ -593,7 +600,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     public FileLockHold LockScratchDirectory()
     {
         var list = new List<Stream>();
-        foreach (var filePath in Directory.EnumerateFiles(ScratchDirecectory, "*", SearchOption.AllDirectories))
+        foreach (var filePath in Directory.EnumerateFiles(ScratchDirectory, "*", SearchOption.AllDirectories))
         {
             // Don't lock the binlog or complogs as that is what the code is actually going to be reading
             if (Path.GetExtension(filePath) is ".binlog" or ".complog")
@@ -607,9 +614,9 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         return new FileLockHold(list);
     }
 
-    public async IAsyncEnumerable<string> GetAllLogs(ITestOutputHelper testOutputHelper)
+    public async IAsyncEnumerable<string> GetAllLogs(ITestOutputHelper testOutputHelper, BasicAnalyzerKind? kind = null)
     {
-        await foreach (var logData in GetAllLogDatas(testOutputHelper))
+        await foreach (var logData in GetAllLogData(testOutputHelper, kind))
         {
             yield return logData.CompilerLogPath;
             if (logData.BinaryLogPath is { } binaryLogPath)
@@ -619,17 +626,17 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         }
     }
 
-    public async IAsyncEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper)
+    public async IAsyncEnumerable<string> GetAllCompilerLogs(ITestOutputHelper testOutputHelper, BasicAnalyzerKind? kind = null)
     {
-        await foreach (var logData in GetAllLogDatas(testOutputHelper))
+        await foreach (var logData in GetAllLogData(testOutputHelper, kind))
         {
             yield return logData.CompilerLogPath;
         }
     }
 
-    public async IAsyncEnumerable<string> GetAllBinaryLogs(ITestOutputHelper testOutputHelper)
+    public async IAsyncEnumerable<string> GetAllBinaryLogs(ITestOutputHelper testOutputHelper, BasicAnalyzerKind? kind = null)
     {
-        await foreach (var logData in GetAllLogDatas(testOutputHelper))
+        await foreach (var logData in GetAllLogData(testOutputHelper, kind))
         {
             if (logData.BinaryLogPath is { } binaryLog)
             {

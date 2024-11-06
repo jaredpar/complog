@@ -320,6 +320,20 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Single(data.AnalyzerReferences);
     }
 
+    [WindowsFact]
+    public void HasAllGeneratedFileContent()
+    {
+        Run(Fixture.Console.Value.CompilerLogPath, true);
+        Run(Fixture.ConsoleWithNativePdb!.Value.CompilerLogPath, false);
+
+        void Run(string complogFilePath, bool expected)
+        {
+            using var reader = CompilerLogReader.Create(complogFilePath, BasicAnalyzerKind.None);
+            var compilerCall = reader.ReadCompilerCall(0);
+            Assert.Equal(expected, reader.HasAllGeneratedFileContent(compilerCall));
+        }
+    }
+
     [Fact]
     public void NoneHostNativePdb()
     {

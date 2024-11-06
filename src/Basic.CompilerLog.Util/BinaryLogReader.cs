@@ -368,6 +368,10 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             .ToList();
     }
 
+    /// <inheritdoc cref="ICompilerCallReader.HasAllGeneratedFileContent(CompilerCall)"/>
+    public bool HasAllGeneratedFileContent(CompilerCall compilerCall) =>
+        RoslynUtil.HasGeneratedFilesInPdb(ReadCommandLineArguments(compilerCall));
+
     /// <summary>
     /// Attempt to add all the generated files from generators. When successful the generators
     /// don't need to be run when re-hydrating the compilation.
