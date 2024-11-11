@@ -5,7 +5,7 @@
     <_RoslynVersion>4.11.0</_RoslynVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Basic.Reference.Assemblies.Net60" Version="1.6.0" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net60" Version="1.7.9" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.13.5" />
     <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.5" />
     <PackageVersion Include="coverlet.msbuild" Version="6.0.2" />
