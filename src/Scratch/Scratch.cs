@@ -23,6 +23,10 @@ using Scratch;
 using TraceReloggerLib;
 
 #pragma warning disable 8321
+
+var temp = CompilerLogUtil.GetOrCreateCompilerLogStream(@"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog");
+
+
 Bing();
 void Bing()
 {

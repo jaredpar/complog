@@ -245,6 +245,7 @@ int RunReferences(IEnumerable<string> args)
 
         using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCallNames = GetCompilerCallNames(compilerCalls);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath, "refs");
         WriteLine($"Copying references to {baseOutputPath}");
@@ -253,7 +254,7 @@ int RunReferences(IEnumerable<string> args)
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var refDirPath = Path.Combine(GetOutputPath(baseOutputPath, compilerCalls, i), "refs");
+            var refDirPath = Path.Combine(baseOutputPath, compilerCallNames[i], "refs");
             Directory.CreateDirectory(refDirPath);
             foreach (var data in reader.ReadAllReferenceData(compilerCall))
             {
@@ -261,7 +262,7 @@ int RunReferences(IEnumerable<string> args)
                 WriteTo(data.AssemblyData, filePath);
             }
 
-            var analyzerDirPath = Path.Combine(GetOutputPath(baseOutputPath, compilerCalls, i), "analyzers");
+            var analyzerDirPath = Path.Combine(baseOutputPath, compilerCallNames[i], "analyzers");
             var groupMap = new Dictionary<string, string>(PathUtil.Comparer);
             foreach (var data in reader.ReadAllAnalyzerData(compilerCall))
             {
@@ -335,6 +336,7 @@ int RunExport(IEnumerable<string> args)
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.BasicAnalyzerKind);
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCallNames = GetCompilerCallNames(compilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath, "export");
@@ -345,7 +347,7 @@ int RunExport(IEnumerable<string> args)
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
-            var exportDir = GetOutputPath(baseOutputPath, compilerCalls, i);
+            var exportDir = Path.Combine(baseOutputPath, compilerCallNames[i]);
             exportUtil.Export(compilerCall, exportDir, sdkDirs);
         }
 
@@ -405,12 +407,13 @@ int RunResponseFile(IEnumerable<string> args)
         }
 
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCallNames = GetCompilerCallNames(compilerCalls);
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
             var rspDirPath = inline
                 ? compilerCall.ProjectDirectory
-                : GetOutputPath(baseOutputPath, compilerCalls, i);
+                : Path.Combine(baseOutputPath, compilerCallNames[i]);
             Directory.CreateDirectory(rspDirPath);
             var rspFilePath = Path.Combine(rspDirPath, GetRspFileName());
             using var writer = new StreamWriter(rspFilePath, append: false, Encoding.UTF8);
@@ -420,7 +423,7 @@ int RunResponseFile(IEnumerable<string> args)
             {
                 if (inline)
                 {
-                    return IsSingleTarget(compilerCalls, i)
+                    return IsSingleTarget(compilerCall, compilerCalls)
                         ? "build.rsp"
                         : $"build-{compilerCall.TargetFramework}.rsp";
                 }
@@ -478,6 +481,7 @@ int RunReplay(IEnumerable<string> args)
             return ExitFailure;
         }
 
+        var compilerCallNames = GetCompilerCallNames(compilerCalls);
         var sdkDirs = SdkUtil.GetSdkDirectories();
         var success = true;
 
@@ -493,7 +497,7 @@ int RunReplay(IEnumerable<string> args)
             IEmitResult emitResult;
             if (baseOutputPath is not null)
             {
-                var path = GetOutputPath(baseOutputPath, compilerCalls, i);
+                var path = Path.Combine(baseOutputPath, compilerCallNames[i]);
                 Directory.CreateDirectory(path);
                 emitResult = compilationData.EmitToDisk(path);
             }
@@ -556,6 +560,7 @@ int RunGenerated(IEnumerable<string> args)
             return ExitFailure;
         }
 
+        var compilerCallNames = GetCompilerCallNames(compilerCalls);
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
@@ -579,7 +584,7 @@ int RunGenerated(IEnumerable<string> args)
                 var fileRelativePath = generatedTree.FilePath.StartsWith(compilerCall.ProjectDirectory, StringComparison.OrdinalIgnoreCase)
                     ? generatedTree.FilePath.Substring(compilerCall.ProjectDirectory.Length + 1)
                     : Path.GetFileName(generatedTree.FilePath);
-                var outputPath = GetOutputPath(baseOutputPath, compilerCalls, i);
+                var outputPath = Path.Combine(baseOutputPath, compilerCallNames[i]);
                 var filePath = Path.Combine(outputPath, fileRelativePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                 File.WriteAllText(filePath, generatedTree.ToString());
@@ -822,26 +827,53 @@ string GetBaseOutputPath(string? baseOutputPath, string? directoryName = null)
     return baseOutputPath;
 }
 
-string GetOutputPath(string baseOutputPath, List<CompilerCall> compilerCalls, int index)
+// Is the project for this <see cref="CompilerCall"/> only occur once in the list as a
+// non-satellite assembly? 
+static bool IsSingleTarget(CompilerCall compilerCall, List<CompilerCall> compilerCalls)
 {
-    var projectName = GetProjectUniqueName(compilerCalls, index);
-    return Path.Combine(baseOutputPath, projectName);
+    return compilerCalls.Count(x => 
+        x.ProjectFilePath == compilerCall.ProjectFilePath &&
+        x.Kind == CompilerCallKind.Regular) == 1;
 }
 
-bool IsSingleTarget(List<CompilerCall> compilerCalls, int index)
+// Convert the CompilerCall instances into a list of unique names that are
+// valid file names
+List<string> GetCompilerCallNames(List<CompilerCall> compilerCalls)
 {
-    var compilerCall = compilerCalls[index];
-    var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
-    return compilerCalls.Count(x => x.ProjectFilePath == compilerCall.ProjectFilePath) == 1;
-}
+    var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var list = new List<string>();
+    foreach (var compilerCall in compilerCalls)
+    {
+        var name = GetName(compilerCall, compilerCalls);
+        if (!hashSet.Add(name))
+        {
+            var suffix = 1;
+            string newName;
+            do
+            {
+                newName = $"{name}-{suffix}";
+                suffix++;
+            } while (!hashSet.Add(newName));
 
-string GetProjectUniqueName(List<CompilerCall> compilerCalls, int index)
-{
-    var compilerCall = compilerCalls[index];
-    var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
-    return IsSingleTarget(compilerCalls, index)
-        ? name
-        : $"{name}-{compilerCall.TargetFramework}";
+            name = newName;
+        }
+
+        list.Add(name);
+    }
+
+    return list;
+
+    string GetName(CompilerCall compilerCall, List<CompilerCall> compilerCalls)
+    {
+        var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
+        return compilerCall.Kind switch
+        {
+            CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || IsSingleTarget(compilerCall, compilerCalls)
+                ? name
+                : $"{name}-{compilerCall.TargetFramework}",
+            _ => $"{name}-{compilerCall.Kind.ToString().ToLowerInvariant()}",
+        };
+    }
 }
 
 static string GetResolvedPath(string baseDirectory, string path)
