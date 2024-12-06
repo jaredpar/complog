@@ -162,6 +162,22 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
+    public void KeyFileAssemblyName()
+    {
+        Go(Fixture.ConsoleComplex.Value.BinaryLogPath!);
+        Go(Fixture.ConsoleComplex.Value.CompilerLogPath);
+
+        void Go(string filePath)
+        {
+            using var reader = CompilerCallReaderUtil.Create(filePath, BasicAnalyzerKind.None);
+            var compilerCall = reader.ReadCompilerCall(0);
+            var data = reader.ReadCompilationData(compilerCall);
+            var compilation = data.GetCompilationAfterGenerators();
+            Assert.Equal("console-complex", compilation.AssemblyName);
+        }
+    }
+
+    [Fact]
     public void AdditionalFiles()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
