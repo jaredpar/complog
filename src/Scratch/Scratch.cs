@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
+using System.IO.Pipelines;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -24,8 +25,14 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-var temp = CompilerLogUtil.GetOrCreateCompilerLogStream(@"C:\Users\jaredpar\code\roslyn\src\Compilers\Core\Portable\msbuild.binlog");
-
+using var reader = CompilerCallReaderUtil.Create("/home/jaredpar/code/msbuild/artifacts/log/Debug/Build.binlog", BasicAnalyzerKind.None);
+var compilerCall = reader
+    .ReadAllCompilerCalls()
+    .Single(x => x.ProjectFileName == "StringTools.UnitTests.csproj");
+var data = reader.ReadCompilationData(compilerCall);
+var compilation = data.GetCompilationAfterGenerators();
+Console.WriteLine(compilation.AssemblyName);
+var diagnostics = compilation.GetDiagnostics();
 
 Bing();
 void Bing()

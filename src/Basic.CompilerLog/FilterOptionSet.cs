@@ -35,7 +35,6 @@ internal sealed class FilterOptionSet : OptionSet
         Add("all", "include all compilation kinds", i => { if (i is not null) IncludeAllKinds = true; });
         Add("f|framework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
         Add("p|project=", "include only compilations for the given project (allows multiple)", ProjectNames.Add);
-        Add("n|projectName=", "include only compilations for the project", ProjectNames.Add, hidden: true);
         Add("h|help", "print help", h => { if (h != null) Help = true; });
 
         if (analyzers)
@@ -43,7 +42,7 @@ internal sealed class FilterOptionSet : OptionSet
             _hasAnalyzerOptions = true;
             _basicAnalyzerKind = BasicAnalyzerHost.DefaultKind;
             Add("a|analyzers=", "analyzer load strategy: none, ondisk, inmemory", void (BasicAnalyzerKind k) => _basicAnalyzerKind = k);
-            Add("none", "Do not run analyzers", i => { if (i is not null) _basicAnalyzerKind = BasicAnalyzerKind.None; }, hidden: true);
+            Add("n|none", "Do not run analyzers", i => { if (i is not null) _basicAnalyzerKind = BasicAnalyzerKind.None; }, hidden: true);
         }
     }
 

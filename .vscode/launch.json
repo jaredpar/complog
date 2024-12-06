@@ -10,9 +10,14 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/artifacts/bin/Basic.CompilerLog/debug_net8.0/Basic.CompilerLog.dll",
-            "args": ["export", "C:\\Users\\jaredpar\\Downloads\\Build1.complog"],
-            "cwd": "C:\\Users\\jaredpar\\Downloads",
+            "program": "${workspaceFolder}/artifacts/bin/Basic.CompilerLog/debug_net9.0/Basic.CompilerLog.dll",
+            "args": [
+                "replay",
+                "/home/jaredpar/code/msbuild/artifacts/log/Debug/Build.binlog",
+                "-p",
+                "StringTools.UnitTests.csproj",
+                "-n"],
+            "cwd": "/home/jaredpar/code/msbuild/artifacts/log/Debug",
             // "cwd": "${workspaceFolder}/src/Basic.CompilerLog",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
             "console": "internalConsole",
