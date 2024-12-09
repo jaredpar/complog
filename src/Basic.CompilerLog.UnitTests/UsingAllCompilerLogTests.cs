@@ -230,7 +230,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 continue;
             }
 
-            var task = Task.Run(() =>ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true));
+            var task = Task.Run(() => ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true));
             list.Add(task);
         }
 

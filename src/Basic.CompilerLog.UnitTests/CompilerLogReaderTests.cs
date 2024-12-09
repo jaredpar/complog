@@ -409,6 +409,21 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(index));
     }
 
+    [Fact]
+    public void Satellite()
+    {
+        Go(Fixture.ClassLibWithResourceLibs.Value.BinaryLogPath!);
+        Go(Fixture.ClassLibWithResourceLibs.Value.CompilerLogPath);
+
+        void Go(string logFilePath)
+        {
+            using var reader = CompilerCallReaderUtil.Create(logFilePath, BasicAnalyzerKind.None);
+            var compilerCalls = reader.ReadAllCompilerCalls();
+            Assert.Equal(3, compilerCalls.Count);
+            Assert.Equal(2, compilerCalls.Count(x => x.Kind == CompilerCallKind.Satellite));
+        }
+    }
+
     [WindowsFact]
     public void KindWpf()
     {

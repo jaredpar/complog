@@ -32,6 +32,11 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
     internal string ClassLibMultiProjectPath { get; }
 
+    /// <summary>
+    /// A class library that has resource dlls
+    /// </summary>
+    internal string ClassLibWithResourceLibs { get; }
+
     internal string ConsoleWithDiagnosticsBinaryLogPath { get; }
 
     internal string ConsoleWithDiagnosticsProjectPath { get; }
@@ -106,6 +111,38 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
                 """;
             File.WriteAllText(Path.Combine(dir, "classlibmulti.csproj"), projectFileContent, TestBase.DefaultEncoding);
             return Path.Combine(dir, "classlibmulti.csproj");
+        });
+
+        ClassLibWithResourceLibs = WithProject("classlibwithresources", string (string dir) =>
+        {
+            RunDotnetCommand($"new classlib --name classlibwithresources --output .", dir);
+            var resx = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <root>
+                <resheader name="resmimetype">
+                    <value>text/microsoft-resx</value>
+                </resheader>
+                <resheader name="version">
+                    <value>2.0</value>
+                </resheader>
+                <resheader name="reader">
+                    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+                </resheader>
+                <resheader name="writer">
+                    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+                </resheader>
+                <data name="String1" xml:space="preserve">
+                    <value>Hello, World!</value>
+                </data>
+                <data name="String2" xml:space="preserve">
+                    <value>Welcome to .NET</value>
+                </data>
+                </root>
+                """;
+            File.WriteAllText(Path.Combine(dir, "strings.resx"), resx, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(dir, "strings.de.resx"), resx, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(dir, "strings.ko.resx"), resx, TestBase.DefaultEncoding);
+            return Path.Combine(dir, "classlibwithresources.csproj");
         });
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

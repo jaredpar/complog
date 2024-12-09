@@ -493,6 +493,28 @@ public sealed class ProgramTests : TestBase
         });
     }
 
+    /// <summary>
+    /// The --all option should force all the compilations, including satellite ones, to be exported.
+    /// </summary>
+    [Fact]
+    public void ExportSatellite()
+    {
+        using var exportDir = new TempDir();
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} --all {Fixture.ClassLibWithResourceLibs} ", RootDirectory));
+        Assert.Equal(3, Directory.EnumerateDirectories(exportDir.DirectoryPath).Count());
+    }
+
+    /// <summary>
+    /// Lacking the --all option only the core assemblies should be generated
+    /// </summary>
+    [Fact]
+    public void ExportSatelliteDefault()
+    {
+        using var exportDir = new TempDir();
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} {Fixture.ClassLibWithResourceLibs} ", RootDirectory));
+        Assert.Single(Directory.EnumerateDirectories(exportDir.DirectoryPath));
+    }
+
     [Fact]
     public void ExportHelp()
     {
