@@ -748,8 +748,8 @@ public sealed class ProgramTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("console.csproj (net8.0)", output);
-        Assert.Contains("classlib.csproj (net8.0)", output);
+        Assert.Contains("console.csproj (net9.0)", output);
+        Assert.Contains("classlib.csproj (net9.0)", output);
     }
 
     [Fact]
@@ -757,8 +757,8 @@ public sealed class ProgramTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -p classlib.csproj");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.DoesNotContain("console.csproj (net8.0)", output);
-        Assert.Contains("classlib.csproj (net8.0)", output);
+        Assert.DoesNotContain("console.csproj (net9.0)", output);
+        Assert.Contains("classlib.csproj (net9.0)", output);
     }
 
     [Fact]
