@@ -86,6 +86,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     /// </summary>
     internal Lazy<LogData> ClassLibMulti { get; }
 
+    /// <summary>
+    /// A class library that has resource dlls
+    /// </summary>
+    internal Lazy<LogData> ClassLibWithResourceLibs { get; }
+
     internal Lazy<LogData> ConsoleVisualBasic { get; }
 
     internal Lazy<LogData>? WpfApp { get; }
@@ -195,6 +200,38 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             File.WriteAllText(Path.Combine(scratchPath, "Util.cs"), program, TestBase.DefaultEncoding);
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         }, expectDiagnosticMessages: true);
+
+        ClassLibWithResourceLibs = WithBuild("classlibwithresources.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand($"new classlib --name classlibwithresources --output .", scratchPath);
+            var resx = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <root>
+                <resheader name="resmimetype">
+                    <value>text/microsoft-resx</value>
+                </resheader>
+                <resheader name="version">
+                    <value>2.0</value>
+                </resheader>
+                <resheader name="reader">
+                    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+                </resheader>
+                <resheader name="writer">
+                    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+                </resheader>
+                <data name="String1" xml:space="preserve">
+                    <value>Hello, World!</value>
+                </data>
+                <data name="String2" xml:space="preserve">
+                    <value>Welcome to .NET</value>
+                </data>
+                </root>
+                """;
+            File.WriteAllText(Path.Combine(scratchPath, "strings.resx"), resx, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "strings.de.resx"), resx, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(scratchPath, "strings.ko.resx"), resx, TestBase.DefaultEncoding);
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+        });
 
         ConsoleNoGenerator = WithBuild("console-no-generator.complog", void (string scratchPath) =>
         {
@@ -508,7 +545,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     var scratchPath = Path.Combine(ScratchDirectory, Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
-                    RunDotnetCommand("new globaljson --sdk-version 8.0.400", scratchPath);
+                    RunDotnetCommand("new globaljson --sdk-version 9.0.100", scratchPath);
                     action(scratchPath);
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));

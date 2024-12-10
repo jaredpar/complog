@@ -48,7 +48,8 @@ public interface ICompilerCallReader : IDisposable
     public MetadataReference ReadMetadataReference(ReferenceData referenceData);
 
     /// <summary>
-    /// Are all the generated files contained in the data?
+    /// Are all the generated files contained in the data? This should be true in the cases
+    /// where there are provably no generated files (like a compilation without analyzers)
     /// </summary>
     /// <remarks>
     /// This can fail in a few cases
@@ -56,4 +57,10 @@ public interface ICompilerCallReader : IDisposable
     ///   - Compilations using native PDBS don't have this capability
     /// </remarks>
     public bool HasAllGeneratedFileContent(CompilerCall compilerCall);
+
+    /// <summary>
+    /// Read the set of generated sources from the compilation. This should only be called
+    /// when <see cref="HasAllGeneratedFileContent(CompilerCall)"/> returns true
+    /// </summary>
+    public List<(SourceText SourceText, string FilePath)> ReadAllGeneratedSourceTexts(CompilerCall compilerCall);
 }

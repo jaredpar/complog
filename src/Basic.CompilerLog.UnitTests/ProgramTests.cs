@@ -493,6 +493,28 @@ public sealed class ProgramTests : TestBase
         });
     }
 
+    /// <summary>
+    /// The --all option should force all the compilations, including satellite ones, to be exported.
+    /// </summary>
+    [Fact]
+    public void ExportSatellite()
+    {
+        using var exportDir = new TempDir();
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} --all {Fixture.ClassLibWithResourceLibs} ", RootDirectory));
+        Assert.Equal(3, Directory.EnumerateDirectories(exportDir.DirectoryPath).Count());
+    }
+
+    /// <summary>
+    /// Lacking the --all option only the core assemblies should be generated
+    /// </summary>
+    [Fact]
+    public void ExportSatelliteDefault()
+    {
+        using var exportDir = new TempDir();
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} {Fixture.ClassLibWithResourceLibs} ", RootDirectory));
+        Assert.Single(Directory.EnumerateDirectories(exportDir.DirectoryPath));
+    }
+
     [Fact]
     public void ExportHelp()
     {
@@ -726,8 +748,8 @@ public sealed class ProgramTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("console.csproj (net8.0)", output);
-        Assert.Contains("classlib.csproj (net8.0)", output);
+        Assert.Contains("console.csproj (net9.0)", output);
+        Assert.Contains("classlib.csproj (net9.0)", output);
     }
 
     [Fact]
@@ -735,8 +757,8 @@ public sealed class ProgramTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -p classlib.csproj");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.DoesNotContain("console.csproj (net8.0)", output);
-        Assert.Contains("classlib.csproj (net8.0)", output);
+        Assert.DoesNotContain("console.csproj (net9.0)", output);
+        Assert.Contains("classlib.csproj (net9.0)", output);
     }
 
     [Fact]

@@ -59,8 +59,9 @@ public abstract class CompilationData
         get
         {
             var flags = EmitFlags.Default;
-            if (IncludePdbStream())
+            if (EmitData.EmitPdb)
             {
+                Debug.Assert(!EmitOptions.EmitMetadataOnly);
                 flags |= EmitFlags.IncludePdbStream;
             }
 
@@ -119,6 +120,12 @@ public abstract class CompilationData
     public Compilation GetCompilationAfterGenerators(CancellationToken cancellationToken = default) =>
         GetCompilationAfterGenerators(out _, cancellationToken);
 
+    /// <summary>
+    /// Gets the <see cref="Compilation"/> after generators execute.
+    /// </summary>
+    /// <param name="diagnostics">The collection of <see cref="Diagnostic"/> that result from running generators</param>
+    /// <param name="cancellationToken">Token to cancel generators</param>
+    /// <returns></returns>
     public Compilation GetCompilationAfterGenerators(
         out ImmutableArray<Diagnostic> diagnostics,
         CancellationToken cancellationToken = default)
@@ -220,6 +227,18 @@ public abstract class CompilationData
     {
         var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
         var assemblyName = EmitData.AssemblyFileName;
+        if (diagnostics.Any(x => x.Severity == DiagnosticSeverity.Error))
+        {
+            return new EmitDiskResult(
+                success: false,
+                directory,
+                EmitData.AssemblyFileName,
+                null,
+                null,
+                null,
+                diagnostics);
+        }
+
         string assemblyFilePath = Path.Combine(directory, assemblyName);
         emitOptions ??= EmitOptions;
         Stream? peStream = null;
@@ -273,7 +292,6 @@ public abstract class CompilationData
                 result.Success,
                 directory,
                 assemblyName,
-                assemblyFilePath,
                 pdbFilePath,
                 xmlFilePath,
                 metadataFilePath,
@@ -300,7 +318,18 @@ public abstract class CompilationData
         CancellationToken cancellationToken = default)
     {
         var compilation = GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
-        var emitResult = compilation.EmitToMemory(
+        if (diagnostics.Any(x => x.Severity == DiagnosticSeverity.Error))
+        {
+            return new EmitMemoryResult(
+                success: false,
+                assemblyStream: new MemoryStream(),
+                pdbStream: null,
+                xmlStream: null,
+                metadataStream: null,
+                diagnostics);
+        }
+
+        return compilation.EmitToMemory(
             emitFlags ?? EmitFlags,
             win32ResourceStream: EmitData.Win32ResourceStream,
             manifestResources: EmitData.Resources,
@@ -308,23 +337,7 @@ public abstract class CompilationData
             sourceLinkStream: EmitData.SourceLinkStream,
             embeddedTexts: EmitData.EmbeddedTexts,
             cancellationToken: cancellationToken);
-        if (!diagnostics.IsDefaultOrEmpty)
-        {
-            emitResult = new EmitMemoryResult(
-                emitResult.Success,
-                emitResult.AssemblyStream,
-                emitResult.PdbStream,
-                emitResult.XmlStream,
-                emitResult.MetadataStream,
-                emitResult.Diagnostics.AddRange(diagnostics));
-        }
-
-        return emitResult;
     }
-
-    private bool IncludePdbStream() =>
-        EmitOptions.DebugInformationFormat != DebugInformationFormat.Embedded &&
-        !EmitOptions.EmitMetadataOnly;
 
     private bool IncludeMetadataStream() =>
         !EmitOptions.EmitMetadataOnly &&

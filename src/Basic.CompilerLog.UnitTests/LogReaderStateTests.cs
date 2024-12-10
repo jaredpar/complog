@@ -9,11 +9,15 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
+[Collection(CompilerLogCollection.Name)]
 public class LogReaderStateTests : TestBase
 {
-    public LogReaderStateTests(ITestOutputHelper testOutputHelper)
+    public CompilerLogFixture Fixture { get; }
+
+    public LogReaderStateTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
         : base(testOutputHelper, nameof(LogReaderState))
     {
+        Fixture = fixture;
     }
 
     [Fact]
@@ -36,6 +40,17 @@ public class LogReaderStateTests : TestBase
         var fileStream = new FileStream(Path.Combine(state.AnalyzerDirectory, "example.txt"), FileMode.Create, FileAccess.ReadWrite, FileShare.None);
         state.Dispose();
         fileStream.Dispose();
+    }
+
+    [Fact]
+    public void CreateBasicAnalyzerHostBadKind()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        Assert.Throws<InvalidOperationException>(() => LogReaderState.CreateBasicAnalyzerHost(
+            reader,
+            (BasicAnalyzerKind)42,
+            reader.ReadCompilerCall(0),
+            []));
     }
 
 #if NET

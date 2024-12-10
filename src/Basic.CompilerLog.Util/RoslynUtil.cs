@@ -352,7 +352,7 @@ internal static class RoslynUtil
     /// Attempt to add all the generated files from generators. When successful the generators
     /// don't need to be run when re-hydrating the compilation.
     /// </summary>
-    internal static List<(string FilePath, MemoryStream Stream)> ReadGeneratedFiles(
+    internal static List<(string FilePath, MemoryStream Stream)> ReadGeneratedFilesFromPdb(
         CompilerCall compilerCall,
         CommandLineArguments args)
     {

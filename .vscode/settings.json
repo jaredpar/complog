@@ -1,6 +1,7 @@
 {
     "dotnet-test-explorer.testProjectPath": "**/*UnitTests.csproj",
     "dotnet.defaultSolution": "BasicCompilerLog.sln",
+    "dotnet.testWindow.disableAutoDiscovery": false,
     "cSpell.words": [
         "appconfig",
         "binlog",

@@ -16,6 +16,7 @@ public sealed class EmitData
 {
     public string AssemblyFileName { get; }
     public string? XmlFilePath { get; }
+    public bool EmitPdb { get; }
     public MemoryStream? Win32ResourceStream { get; }
     public MemoryStream? SourceLinkStream { get; }
     public IEnumerable<ResourceDescription>? Resources { get; }
@@ -24,12 +25,14 @@ public sealed class EmitData
     public EmitData(
         string assemblyFileName,
         string? xmlFilePath,
+        bool emitPdb,
         MemoryStream? win32ResourceStream,
         MemoryStream? sourceLinkStream,
         IEnumerable<ResourceDescription>? resources,
         IEnumerable<EmbeddedText>? embeddedTexts)
     {
         AssemblyFileName = assemblyFileName;
+        EmitPdb = emitPdb;
         XmlFilePath = xmlFilePath;
         Win32ResourceStream = win32ResourceStream;
         SourceLinkStream = sourceLinkStream;
@@ -60,7 +63,6 @@ public readonly struct EmitDiskResult : IEmitResult
         bool success,
         string directory,
         string assemblyFileName,
-        string assemblyFilePath,
         string? pdbFilePath,
         string? xmlFilePath,
         string? metadataFilePath,
@@ -69,7 +71,7 @@ public readonly struct EmitDiskResult : IEmitResult
         Success = success;
         Directory = directory;
         AssemblyFileName = assemblyFileName;
-        AssemblyFilePath = assemblyFilePath;
+        AssemblyFilePath = Path.Combine(Directory, assemblyFileName);
         PdbFilePath = pdbFilePath;
         XmlFilePath = xmlFilePath;
         MetadataFilePath  = metadataFilePath;

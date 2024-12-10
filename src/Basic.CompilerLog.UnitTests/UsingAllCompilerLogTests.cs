@@ -155,8 +155,16 @@ public sealed class UsingAllCompilerLogTests : TestBase
             using var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
             foreach (var data in ReadAll(complogPath, state))
             {
+                // Cannot replay metadata only with a None host. There is no PDB from which generated source files
+                // can be read.
+                if (data.EmitOptions.EmitMetadataOnly)
+                {
+                    continue;
+                }
+
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
                 var emitResult = data.EmitToMemory();
+                TestOutputHelper.WriteLine(string.Join(Environment.NewLine, emitResult.Diagnostics.Select(d => d.ToString())));
                 AssertEx.Success(TestOutputHelper, emitResult);
             }
         }
@@ -230,7 +238,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 continue;
             }
 
-            var task = Task.Run(() =>ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true));
+            var task = Task.Run(() => ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true));
             list.Add(task);
         }
 

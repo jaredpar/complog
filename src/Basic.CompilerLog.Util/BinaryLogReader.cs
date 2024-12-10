@@ -249,6 +249,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             return new EmitData(
                 RoslynUtil.GetAssemblyFileName(args),
                 args.DocumentationPath,
+                args.EmitPdb,
                 win32ResourceStream: ReadFileAsMemoryStream(args.Win32ResourceFile),
                 sourceLinkStream: ReadFileAsMemoryStream(args.SourceLink),
                 resources: args.ManifestResources,
@@ -286,46 +287,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         }
     }
 
-    public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall)
-    {
-        var args = ReadCommandLineArguments(compilerCall);
-        var list = ReadAllAnalyzerData(compilerCall);
-        return LogReaderState.GetOrCreate(
-            BasicAnalyzerKind,
-            list,
-            (kind, analyzers) => kind switch
-            {
-                BasicAnalyzerKind.None => CreateNoneHost(),
-                BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
-                BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
-                _ => throw new ArgumentOutOfRangeException(nameof(kind)),
-            });
-
-        BasicAnalyzerHostNone CreateNoneHost()
-        {
-            if (!RoslynUtil.HasGeneratedFilesInPdb(args))
-            {
-                return new BasicAnalyzerHostNone("Compilation does not have a PDB compatible with generated files");
-            }
-
-            try
-            {
-                var generatedFiles = RoslynUtil.ReadGeneratedFiles(compilerCall, args);
-                var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string Path)>(generatedFiles.Count);
-                foreach (var tuple in generatedFiles)
-                {
-                    var sourceText = RoslynUtil.GetSourceText(tuple.Stream, args.ChecksumAlgorithm, canBeEmbedded: false);
-                    builder.Add((sourceText, tuple.FilePath));
-                }
-
-                return new BasicAnalyzerHostNone(builder.MoveToImmutable());
-            }
-            catch (Exception ex)
-            {
-                return new BasicAnalyzerHostNone(ex.Message);
-            }
-        }
-    }
+    public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall) =>
+        LogReaderState.GetOrCreateBasicAnalyzerHost(this, BasicAnalyzerKind, compilerCall);
 
     public SourceText ReadSourceText(SourceTextData sourceTextData) =>
         RoslynUtil.GetSourceText(sourceTextData.FilePath, sourceTextData.ChecksumAlgorithm, canBeEmbedded: false);
@@ -370,21 +333,34 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     }
 
     /// <inheritdoc cref="ICompilerCallReader.HasAllGeneratedFileContent(CompilerCall)"/>
-    public bool HasAllGeneratedFileContent(CompilerCall compilerCall) =>
-        RoslynUtil.HasGeneratedFilesInPdb(ReadCommandLineArguments(compilerCall));
-
-    /// <summary>
-    /// Attempt to add all the generated files from generators. When successful the generators
-    /// don't need to be run when re-hydrating the compilation.
-    /// </summary>
-    /// <remarks>
-    /// This method will throw if the compilation does not have a PDB compatible with generated files
-    /// available to read
-    /// </remarks>
-    public List<(string FilePath, MemoryStream Stream)> ReadAllGeneratedFiles(CompilerCall compilerCall)
+    public bool HasAllGeneratedFileContent(CompilerCall compilerCall)
     {
         var args = ReadCommandLineArguments(compilerCall);
-        return RoslynUtil.ReadGeneratedFiles(compilerCall, args);
+        if (args.AnalyzerReferences.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        return RoslynUtil.HasGeneratedFilesInPdb(args);
+    }
+
+    /// <inheritdoc cref="ICompilerCallReader.ReadAllGeneratedSourceTexts(CompilerCall)"/>
+    public List<(SourceText SourceText, string FilePath)> ReadAllGeneratedSourceTexts(CompilerCall compilerCall)
+    {
+        var args = ReadCommandLineArguments(compilerCall);
+        if (args.AnalyzerReferences.IsDefaultOrEmpty)
+        {
+            return [];
+        }
+
+        var generatedFiles = RoslynUtil.ReadGeneratedFilesFromPdb(compilerCall, args);
+        var list = new List<(SourceText SourceText, string Path)>(generatedFiles.Count);
+        foreach (var tuple in generatedFiles)
+        {
+            var sourceText = RoslynUtil.GetSourceText(tuple.Stream, args.ChecksumAlgorithm, canBeEmbedded: false);
+            list.Add((sourceText, tuple.FilePath));
+        }
+        return list;
     }
 
     public List<SourceTextData> ReadAllSourceTextData(CompilerCall compilerCall)

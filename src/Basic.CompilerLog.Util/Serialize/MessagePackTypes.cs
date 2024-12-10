@@ -266,6 +266,8 @@ public class CompilationDataPack
     public SourceHashAlgorithm ChecksumAlgorithm { get; set; }
     [Key(7)]
     public bool? HasGeneratedFilesInPdb { get; set; }
+    [Key(8)]
+    public bool? EmitPdb { get; set; }
 }
 
 /// <summary>

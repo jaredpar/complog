@@ -74,6 +74,50 @@ public sealed class CompilationDataTests : TestBase
         });
     }
 
+    [WindowsFact]
+    public void EmitToMemoryGeneratorError()
+    {
+        // Can't use None with a native PDB which leads to generator error
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithNativePdb!.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var data = reader.ReadCompilationData(0);
+        var result = data.EmitToMemory();
+        Assert.False(result.Success);
+        Assert.NotEmpty(result.Diagnostics);
+        Assert.True(result.Diagnostics.Any(x => x.Id == "BCLA0001"));
+    }
+
+    [Fact]
+    public void EmitToMemorySatellite()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibWithResourceLibs.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var data = reader.ReadCompilationData(1);
+        Assert.Equal(CompilerCallKind.Satellite, data.Kind);
+        var result = data.EmitToMemory();
+        Assert.True(result.Success);
+    }
+
+    [WindowsFact]
+    public void EmitToDiskGeneratorError()
+    {
+        // Can't use None with a native PDB which leads to generator error
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithNativePdb!.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var data = reader.ReadCompilationData(0);
+        var result = data.EmitToDisk(Root.DirectoryPath);
+        Assert.False(result.Success);
+        Assert.NotEmpty(result.Diagnostics);
+        Assert.True(result.Diagnostics.Any(x => x.Id == "BCLA0001"));
+    }
+
+    [Fact]
+    public void EmitToDiskMemorySatellite()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibWithResourceLibs.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var data = reader.ReadCompilationData(1);
+        Assert.Equal(CompilerCallKind.Satellite, data.Kind);
+        var result = data.EmitToDisk(Root.DirectoryPath);
+        Assert.True(result.Success);
+    }
+
     [Fact]
     public void GetAnalyzersNormal()
     {
