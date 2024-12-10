@@ -48,7 +48,7 @@ public sealed class BasicAnalyzerHostTests : TestBase
     [Fact]
     public void NoneDispose()
     {
-        var host = new BasicAnalyzerHostNone(ImmutableArray<(SourceText, string)>.Empty);
+        var host = new BasicAnalyzerHostNone([]);
         host.Dispose();
         Assert.Throws<ObjectDisposedException>(() => { _ = host.AnalyzerReferences; });
     }
@@ -56,7 +56,7 @@ public sealed class BasicAnalyzerHostTests : TestBase
     [Fact]
     public void NoneProps()
     {
-        var host = new BasicAnalyzerHostNone(ImmutableArray<(SourceText, string)>.Empty);
+        var host = new BasicAnalyzerHostNone([]);
         host.Dispose();
         Assert.Equal(BasicAnalyzerKind.None, host.Kind);
         Assert.Empty(host.GeneratedSourceTexts);
@@ -73,7 +73,7 @@ public sealed class BasicAnalyzerHostTests : TestBase
             : "/code";
         var sourceText1 = SourceText.From("// file 1", CommonUtil.ContentEncoding);
         var sourceText2 = SourceText.From("// file 2", CommonUtil.ContentEncoding);
-        ImmutableArray<(SourceText SourceText, string FilePath)> generatedTexts = 
+        List<(SourceText SourceText, string FilePath)> generatedTexts = 
         [
             (sourceText1, Path.Combine(root, "file.cs")),
             (sourceText2, Path.Combine(root, "file.cs")),
@@ -83,7 +83,7 @@ public sealed class BasicAnalyzerHostTests : TestBase
             "example",
             [],
             Basic.Reference.Assemblies.Net60.References.All);
-        var driver = CSharpGeneratorDriver.Create([host.Generator]);
+        var driver = CSharpGeneratorDriver.Create([host.Generator!]);
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var compilation2, out var diagnostics);
         Assert.Empty(diagnostics);
         var syntaxTrees = compilation2.SyntaxTrees.ToList();

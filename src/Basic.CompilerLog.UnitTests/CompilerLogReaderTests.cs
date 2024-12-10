@@ -228,8 +228,9 @@ public sealed class CompilerLogReaderTests : TestBase
         }
 
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, kind);
-        var host1 = reader.CreateBasicAnalyzerHost(0);
-        var host2 = reader.CreateBasicAnalyzerHost(0);
+        var compilerCall = reader.ReadCompilerCall(0);
+        var host1 = reader.CreateBasicAnalyzerHost(compilerCall);
+        var host2 = reader.CreateBasicAnalyzerHost(compilerCall);
         Assert.Same(host1, host2);
         host1.Dispose();
         Assert.True(host1.IsDisposed);
@@ -421,6 +422,23 @@ public sealed class CompilerLogReaderTests : TestBase
             var compilerCalls = reader.ReadAllCompilerCalls();
             Assert.Equal(3, compilerCalls.Count);
             Assert.Equal(2, compilerCalls.Count(x => x.Kind == CompilerCallKind.Satellite));
+        }
+    }
+
+    [Fact]
+    public void SatellitePdb()
+    {
+        Go(Fixture.ClassLibWithResourceLibs.Value.BinaryLogPath!);
+        Go(Fixture.ClassLibWithResourceLibs.Value.CompilerLogPath);
+
+        void Go(string logFilePath)
+        {
+            using var reader = CompilerCallReaderUtil.Create(logFilePath, BasicAnalyzerKind.None);
+            var compilerCall = reader
+                .ReadAllCompilerCalls()
+                .First(x => x.Kind == CompilerCallKind.Satellite);
+            var data = reader.ReadCompilationData(compilerCall);
+            Assert.False(data.EmitData.EmitPdb);
         }
     }
 

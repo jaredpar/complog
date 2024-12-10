@@ -339,6 +339,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         dataPack.ValueMap.Add("outputDirectory", args.OutputDirectory);
         dataPack.ValueMap.Add("compilationName", args.CompilationName);
         dataPack.ChecksumAlgorithm = args.ChecksumAlgorithm;
+        dataPack.EmitPdb = args.EmitPdb;
     }
 
     private void AddSources(CompilationDataPack dataPack, CommandLineArguments args)
@@ -365,7 +366,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         dataPack.HasGeneratedFilesInPdb = true;
         try
         {
-            var generatedFiles = RoslynUtil.ReadGeneratedFiles(compilerCall, args);
+            var generatedFiles = RoslynUtil.ReadGeneratedFilesFromPdb(compilerCall, args);
             foreach (var tuple in generatedFiles)
             {
                 AddContent(dataPack, RawContentKind.GeneratedText, tuple.FilePath, tuple.Stream);

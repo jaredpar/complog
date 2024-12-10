@@ -22,12 +22,17 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
-    internal ImmutableArray<(SourceText SourceText, string FilePath)> GeneratedSourceTexts { get; }
-    internal BasicAnalyzerHostNoneAnalyzerReference Generator { get; }
+    internal List<(SourceText SourceText, string FilePath)> GeneratedSourceTexts { get; }
+    internal BasicAnalyzerHostNoneAnalyzerReference? Generator { get; }
 
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
-    internal BasicAnalyzerHostNone(ImmutableArray<(SourceText SourceText, string FilePath)> generatedSourceTexts)
+    /// <summary>
+    /// This creates a host with a single analyzer that returns <paramref name="generatedSourceTexts"/>. This
+    /// should be used if there is an analyzer even if it generated no files.
+    /// </summary>
+    /// <param name="generatedSourceTexts"></param>
+    internal BasicAnalyzerHostNone(List<(SourceText SourceText, string FilePath)> generatedSourceTexts)
         : base(BasicAnalyzerKind.None)
     {
         GeneratedSourceTexts = generatedSourceTexts;
@@ -36,9 +41,20 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
     }
 
     internal BasicAnalyzerHostNone(string errorMessage)
-        : this(ImmutableArray<(SourceText SourceText, string FilePath)>.Empty)
+        : this([])
     {
         AddDiagnostic(Diagnostic.Create(CannotReadGeneratedFiles, Location.None, errorMessage));
+    }
+
+    /// <summary>
+    /// This creates a none host with no analyzers.
+    /// </summary>
+    internal BasicAnalyzerHostNone()
+        : base(BasicAnalyzerKind.None)
+    {
+        GeneratedSourceTexts = [];
+        Generator = null;
+        AnalyzerReferencesCore = [];
     }
 
     protected override void DisposeCore()

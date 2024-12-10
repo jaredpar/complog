@@ -347,6 +347,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var sourceTexts = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigs = new List<(SourceText SourceText, string Path)>();
         var additionalTexts = ImmutableArray.CreateBuilder<AdditionalText>();
+        var emitPdb = dataPack.EmitPdb ?? !emitOptions.EmitMetadataOnly;
 
         MemoryStream? win32ResourceStream = null;
         MemoryStream? sourceLinkStream = null;
@@ -415,12 +416,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var emitData = new EmitData(
             assemblyFileName,
             xmlFilePath,
+            emitPdb,
             win32ResourceStream: win32ResourceStream,
             sourceLinkStream: sourceLinkStream,
             resources: resourceList,
             embeddedTexts: embeddedTexts);
 
-        var basicAnalyzerHost = CreateBasicAnalyzerHost(index);
+        var basicAnalyzerHost = CreateBasicAnalyzerHost(compilerCall);
 
         return compilerCall.IsCSharp
             ? CreateCSharp()
@@ -624,41 +626,33 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     public bool HasAllGeneratedFileContent(CompilerCall compilerCall) =>
         HasAllGeneratedFileContent(GetOrReadCompilationDataPack(compilerCall));
 
-    private bool HasAllGeneratedFileContent(CompilationDataPack dataPack) =>
-        dataPack.HasGeneratedFilesInPdb is true
+    private bool HasAllGeneratedFileContent(CompilationDataPack dataPack)
+    {
+        if (dataPack.Analyzers.Count == 0)
+        {
+            return true;
+        }
+
+        return dataPack.HasGeneratedFilesInPdb is true
             ? dataPack.IncludesGeneratedText
             : dataPack.IncludesGeneratedText;
+    }
+
+    /// <inheritdoc cref="ICompilerCallReader.ReadAllGeneratedSourceTexts(CompilerCall)"/>
+    public List<(SourceText SourceText, string FilePath)> ReadAllGeneratedSourceTexts(CompilerCall compilerCall)
+    {
+        var index = GetIndex(compilerCall);
+        var dataPack = GetOrReadCompilationDataPack(index);
+        var list = new List<(SourceText SourceText, string FilePath)>();
+        foreach (var rawContent in ReadAllRawContent(index, RawContentKind.GeneratedText))
+        {
+            list.Add((GetSourceText(rawContent.ContentHash, dataPack.ChecksumAlgorithm), rawContent.NormalizedFilePath));
+        }
+        return list;
+    }
 
     public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall) =>
-        CreateBasicAnalyzerHost(GetIndex(compilerCall));
-
-    internal BasicAnalyzerHost CreateBasicAnalyzerHost(int index)
-    {
-        var dataPack = GetOrReadCompilationDataPack(index);
-
-        return LogReaderState.GetOrCreate(
-            BasicAnalyzerKind,
-            ReadAllAnalyzerData(index),
-            (kind, analyzers) => kind switch
-            {
-                BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(this, analyzers),
-                BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(this, analyzers),
-                BasicAnalyzerKind.None => HasAllGeneratedFileContent(dataPack)
-                    ? new BasicAnalyzerHostNone(ReadGeneratedSourceTexts())
-                    : new BasicAnalyzerHostNone("Generated files not available when compiler log created"),
-                _ => throw new InvalidOperationException()
-            });
-
-        ImmutableArray<(SourceText SourceText, string FilePath)> ReadGeneratedSourceTexts()
-        {
-            var builder = ImmutableArray.CreateBuilder<(SourceText SourceText, string FilePath)>();
-            foreach (var rawContent in ReadAllRawContent(index, RawContentKind.GeneratedText))
-            {
-                builder.Add((GetSourceText(rawContent.ContentHash, dataPack.ChecksumAlgorithm), rawContent.NormalizedFilePath));
-            }
-            return builder.ToImmutableArray();
-        }
-    }
+        RoslynUtil.CreateBasicAnalyzerHost(this, this, compilerCall);
 
     internal string GetMetadataReferenceFileName(Guid mvid)
     {
