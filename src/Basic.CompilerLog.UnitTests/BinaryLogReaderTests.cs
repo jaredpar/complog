@@ -164,7 +164,7 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [Fact]
-    public void ReadGeneratedFilesDeletedPdb()
+    public void ReadAllGeneratedSourceTextsDeletedPdb()
     {
         var dir = Root.NewDirectory();
         RunDotNet($"new console --name example --output .", dir);
@@ -182,7 +182,7 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [Fact]
-    public void ReadGeneratedFilesSimple()
+    public void ReadAllGeneratedSourceTextsSimple()
     {
         using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, BasicAnalyzerKind.None);
         var compilerCall = reader.ReadAllCompilerCalls().Single();
@@ -193,11 +193,20 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     [WindowsFact]
-    public void ReadGeneratedFilesNativePdb()
+    public void ReadAllGeneratedSourceTextsNativePdb()
     {
         Assert.NotNull(Fixture.ConsoleWithNativePdb);
         using var reader = BinaryLogReader.Create(Fixture.ConsoleWithNativePdb.Value.BinaryLogPath!, BasicAnalyzerKind.None);
         var compilerCall = reader.ReadAllCompilerCalls().Single();
         Assert.Throws<InvalidOperationException>(() => _ = reader.ReadAllGeneratedSourceTexts(compilerCall));
+    }
+
+    [Fact]
+    public void ReadAllGeneratedSourceTextsNoAnalyzers()
+    {
+        using var reader = BinaryLogReader.Create(Fixture.ClassLibWithResourceLibs.Value.BinaryLogPath!, BasicAnalyzerKind.None);
+        var compilerCall = reader.ReadAllCompilerCalls(x => x.Kind == CompilerCallKind.Satellite).First();
+        var list = reader.ReadAllGeneratedSourceTexts(compilerCall);
+        Assert.Empty(list);
     }
 }

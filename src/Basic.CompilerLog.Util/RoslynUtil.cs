@@ -336,43 +336,6 @@ internal static class RoslynUtil
         return (assemblyFilePath, refAssemblyFilePath);
     }
 
-    internal static BasicAnalyzerHost CreateBasicAnalyzerHost(ICompilerCallReader reader, IBasicAnalyzerHostDataProvider dataProvider, CompilerCall compilerCall)
-    {
-        return reader.LogReaderState.GetOrCreate(
-            reader.BasicAnalyzerKind,
-            reader.ReadAllAnalyzerData(compilerCall),
-            (kind, analyzers) => kind switch
-            {
-                BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(dataProvider, analyzers),
-                BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(dataProvider, analyzers),
-                BasicAnalyzerKind.None => CreateNone(analyzers),
-                _ => throw new InvalidOperationException()
-            });
-
-        BasicAnalyzerHostNone CreateNone(List<AnalyzerData> analyzers)
-        {
-            if (analyzers.Count == 0)
-            {
-                return new BasicAnalyzerHostNone();
-            }
-
-            if (!reader.HasAllGeneratedFileContent(compilerCall))
-            {
-                return new("Generated files not available in the PDB");
-            }
-
-            try
-            {
-                var generatedSourceTexts = reader.ReadAllGeneratedSourceTexts(compilerCall);
-                return new BasicAnalyzerHostNone(generatedSourceTexts);
-            }
-            catch (Exception ex)
-            {
-                return new BasicAnalyzerHostNone(ex.Message);
-            }
-        }
-    }
-
     /// <summary>
     /// This checks determines if this compilation should have the files from source generators
     /// embedded in the PDB. This does not look at anything on disk, it makes a determination

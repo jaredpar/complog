@@ -652,7 +652,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     }
 
     public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall) =>
-        RoslynUtil.CreateBasicAnalyzerHost(this, this, compilerCall);
+        LogReaderState.GetOrCreateBasicAnalyzerHost(this, BasicAnalyzerKind, compilerCall);
 
     internal string GetMetadataReferenceFileName(Guid mvid)
     {

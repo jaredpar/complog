@@ -288,7 +288,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     }
 
     public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall) =>
-        RoslynUtil.CreateBasicAnalyzerHost(this, this, compilerCall);
+        LogReaderState.GetOrCreateBasicAnalyzerHost(this, BasicAnalyzerKind, compilerCall);
 
     public SourceText ReadSourceText(SourceTextData sourceTextData) =>
         RoslynUtil.GetSourceText(sourceTextData.FilePath, sourceTextData.ChecksumAlgorithm, canBeEmbedded: false);

@@ -329,7 +329,7 @@ public abstract class CompilationData
                 diagnostics);
         }
 
-        var emitResult = compilation.EmitToMemory(
+        return compilation.EmitToMemory(
             emitFlags ?? EmitFlags,
             win32ResourceStream: EmitData.Win32ResourceStream,
             manifestResources: EmitData.Resources,
@@ -337,18 +337,6 @@ public abstract class CompilationData
             sourceLinkStream: EmitData.SourceLinkStream,
             embeddedTexts: EmitData.EmbeddedTexts,
             cancellationToken: cancellationToken);
-        if (!diagnostics.IsDefaultOrEmpty)
-        {
-            emitResult = new EmitMemoryResult(
-                emitResult.Success,
-                emitResult.AssemblyStream,
-                emitResult.PdbStream,
-                emitResult.XmlStream,
-                emitResult.MetadataStream,
-                emitResult.Diagnostics.AddRange(diagnostics));
-        }
-
-        return emitResult;
     }
 
     private bool IncludeMetadataStream() =>
