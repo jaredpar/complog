@@ -1,6 +1,5 @@
 using Basic.CompilerLog.Util;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -22,7 +21,7 @@ public sealed class CompilerCallReaderUtilTests : TestBase
     }
 
     [Theory]
-    [CombinatorialData]
+    [MemberData(nameof(GetBasicAnalyzerKinds))]
     public void GetAllAnalyzerKinds(BasicAnalyzerKind basicAnalyzerKind)
     {
         using var reader = CompilerCallReaderUtil.Create(Fixture.Console.Value.CompilerLogPath!, basicAnalyzerKind);

@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using Xunit;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp;
-using Xunit.Abstractions;
 
 #if NET
 using System.Runtime.Loader;

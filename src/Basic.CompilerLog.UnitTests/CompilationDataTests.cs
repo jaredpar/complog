@@ -2,7 +2,6 @@
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 

@@ -10,7 +10,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -35,6 +34,18 @@ public abstract class TestBase : IDisposable
     internal static bool IsNetCore => false;
     internal static bool IsNetFramework => true;
 #endif
+
+    /// <summary>
+    /// Get all of the <see cref="BasicAnalyzerKind"/>
+    /// </summary>
+    /// <returns></returns>
+    public static IEnumerable<object[]> GetBasicAnalyzerKinds()
+    {
+        foreach (BasicAnalyzerKind e in Enum.GetValues(typeof(BasicAnalyzerKind)))
+        {
+            yield return new object[] { e };
+        }
+    }
 
     /// <summary>
     /// Get all of the supported <see cref="BasicAnalyzerKind"/>

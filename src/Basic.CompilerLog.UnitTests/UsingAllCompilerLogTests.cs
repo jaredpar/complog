@@ -7,7 +7,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Classification;
 using Microsoft.CodeAnalysis.Text;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 

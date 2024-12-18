@@ -1,6 +1,5 @@
 using Basic.CompilerLog.Util;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 

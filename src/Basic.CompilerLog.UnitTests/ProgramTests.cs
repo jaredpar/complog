@@ -19,7 +19,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -689,7 +688,7 @@ public sealed class ProgramTests : TestBase
     }
 
     [Theory]
-    [CombinatorialData]
+    [MemberData(nameof(GetBasicAnalyzerKinds))]
     public void GeneratedBoth(BasicAnalyzerKind basicAnalyzerKind)
     {
         RunWithBoth(logPath =>

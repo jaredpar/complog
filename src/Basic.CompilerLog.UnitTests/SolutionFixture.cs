@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
 using Xunit;
-using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 

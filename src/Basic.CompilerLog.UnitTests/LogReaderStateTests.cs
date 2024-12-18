@@ -1,7 +1,6 @@
 
 using Basic.CompilerLog.Util;
 using Xunit;
-using Xunit.Abstractions;
 
 #if NET
 using System.Runtime.Loader;
