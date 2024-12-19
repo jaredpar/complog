@@ -6,7 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Runner.Common;
 using Xunit.Sdk;
+using AssemblyMetadata=Microsoft.CodeAnalysis.AssemblyMetadata;
 
 namespace Basic.CompilerLog.UnitTests;
 

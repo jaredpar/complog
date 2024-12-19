@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net472</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <NoWarn>CS0436</NoWarn>
+    <NoWarn>$(NoWarn);CS0436;xUnit1051</NoWarn>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 

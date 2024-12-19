@@ -1,6 +1,7 @@
 
 using System.Text;
 using Xunit;
+using Xunit.Runner.Common;
 using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
