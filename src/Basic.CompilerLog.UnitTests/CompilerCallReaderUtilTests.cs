@@ -1,6 +1,5 @@
 using Basic.CompilerLog.Util;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -9,8 +8,8 @@ public sealed class CompilerCallReaderUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public CompilerCallReaderUtilTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilerLogReaderTests))
+    public CompilerCallReaderUtilTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(CompilerLogReaderTests))
     {
         Fixture = fixture;
     }
@@ -22,7 +21,7 @@ public sealed class CompilerCallReaderUtilTests : TestBase
     }
 
     [Theory]
-    [CombinatorialData]
+    [MemberData(nameof(GetBasicAnalyzerKinds))]
     public void GetAllAnalyzerKinds(BasicAnalyzerKind basicAnalyzerKind)
     {
         using var reader = CompilerCallReaderUtil.Create(Fixture.Console.Value.CompilerLogPath!, basicAnalyzerKind);

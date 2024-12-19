@@ -1,6 +1,5 @@
 using Basic.CompilerLog.Util;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -9,8 +8,8 @@ public sealed class CompilerLogUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public CompilerLogUtilTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilerLogReaderTests))
+    public CompilerLogUtilTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(CompilerLogReaderTests))
     {
         Fixture = fixture;
     }

@@ -16,7 +16,6 @@ using System.Runtime.Loader;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -25,8 +24,8 @@ public sealed class BinaryLogReaderTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public BinaryLogReaderTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilerLogReaderTests))
+    public BinaryLogReaderTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(CompilerLogReaderTests))
     {
         Fixture = fixture;
     }
@@ -152,13 +151,13 @@ public sealed class BinaryLogReaderTests : TestBase
     [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public void GetCompilationSimple(BasicAnalyzerKind basicAnalyzerKind)
     {
-        RunInContext((FilePath: Fixture.Console.Value.BinaryLogPath!, Kind: basicAnalyzerKind), static (testOutptuHelper, state) =>
+        RunInContext((FilePath: Fixture.Console.Value.BinaryLogPath!, Kind: basicAnalyzerKind), static (testOutptuHelper, state, cancellationToken) =>
         {
             using var reader = BinaryLogReader.Create(state.FilePath, state.Kind);
             var compilerCall = reader.ReadAllCompilerCalls().First();
             var compilationData = reader.ReadCompilationData(compilerCall);
             Assert.NotNull(compilationData);
-            var emitResult = compilationData.EmitToMemory();
+            var emitResult = compilationData.EmitToMemory(cancellationToken: cancellationToken);
             Assert.True(emitResult.Success);
         });
     }
@@ -175,7 +174,7 @@ public sealed class BinaryLogReaderTests : TestBase
 
         using var reader = BinaryLogReader.Create(Path.Combine(dir, "msbuild.binlog"), BasicAnalyzerKind.None);
         var data = reader.ReadAllCompilationData().Single();
-        var diagnostic = data.GetDiagnostics().Where(x => x.Severity == DiagnosticSeverity.Error).Single();
+        var diagnostic = data.GetDiagnostics(CancellationToken).Where(x => x.Severity == DiagnosticSeverity.Error).Single();
         Assert.Contains("Can't find portable pdb file for", diagnostic.GetMessage());
 
         Assert.Throws<InvalidOperationException>(() => reader.ReadAllGeneratedSourceTexts(data.CompilerCall));

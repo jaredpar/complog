@@ -1,8 +1,8 @@
 
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
+using Microsoft.Testing.Platform.Extensions.Messages;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -11,8 +11,8 @@ public sealed class CompilationDataTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public CompilationDataTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilationDataTests))
+    public CompilationDataTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(CompilationDataTests))
     {
         Fixture = fixture;
     }
@@ -20,40 +20,40 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void EmitToMemoryCombinations()
     {
-        RunInContext(Fixture.ClassLib.Value.CompilerLogPath, static (testOutputHelper, filePath) =>
+        RunInContext(Fixture.ClassLib.Value.CompilerLogPath, static (testOutputHelper, filePath, cancellationToken) =>
         {
             using var reader = CompilerLogReader.Create(filePath);
             var data = reader.ReadCompilationData(0);
 
-            var emitResult = data.EmitToMemory();
+            var emitResult = data.EmitToMemory(cancellationToken: cancellationToken);
             Assert.True(emitResult.Success);
             AssertEx.HasData(emitResult.AssemblyStream);
             AssertEx.HasData(emitResult.PdbStream);
             Assert.Null(emitResult.XmlStream);
             AssertEx.HasData(emitResult.MetadataStream);
 
-            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream);
+            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream, cancellationToken: cancellationToken);
             Assert.True(emitResult.Success);
             AssertEx.HasData(emitResult.AssemblyStream);
             AssertEx.HasData(emitResult.PdbStream);
             Assert.Null(emitResult.XmlStream);
             Assert.Null(emitResult.MetadataStream);
 
-            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream);
+            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream, cancellationToken: cancellationToken);
             Assert.True(emitResult.Success);
             AssertEx.HasData(emitResult.AssemblyStream);
             AssertEx.HasData(emitResult.PdbStream);
             AssertEx.HasData(emitResult.XmlStream);
             Assert.Null(emitResult.MetadataStream);
 
-            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream | EmitFlags.IncludeMetadataStream);
+            emitResult = data.EmitToMemory(EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream | EmitFlags.IncludeMetadataStream, cancellationToken: cancellationToken);
             Assert.True(emitResult.Success);
             AssertEx.HasData(emitResult.AssemblyStream);
             AssertEx.HasData(emitResult.PdbStream);
             AssertEx.HasData(emitResult.XmlStream);
             AssertEx.HasData(emitResult.MetadataStream);
 
-            emitResult = data.EmitToMemory(EmitFlags.MetadataOnly);
+            emitResult = data.EmitToMemory(EmitFlags.MetadataOnly, cancellationToken: cancellationToken);
             Assert.True(emitResult.Success);
             AssertEx.HasData(emitResult.AssemblyStream);
             Assert.Null(emitResult.PdbStream);
@@ -65,11 +65,11 @@ public sealed class CompilationDataTests : TestBase
     [Fact]
     public void EmitToMemoryRefOnly()
     {
-        RunInContext(Fixture.ClassLibRefOnly.Value.CompilerLogPath, static (testOutputHelper, filePath) =>
+        RunInContext(Fixture.ClassLibRefOnly.Value.CompilerLogPath, static (testOutputHelper, filePath, cancellationToken) =>
         {
             using var reader = CompilerLogReader.Create(filePath);
             var data = reader.ReadCompilationData(0);
-            var result = data.EmitToMemory();
+            var result = data.EmitToMemory(cancellationToken: cancellationToken);
             Assert.True(result.Success);
         });
     }
@@ -92,7 +92,7 @@ public sealed class CompilationDataTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ClassLibWithResourceLibs.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(1);
         Assert.Equal(CompilerCallKind.Satellite, data.Kind);
-        var result = data.EmitToMemory();
+        var result = data.EmitToMemory(cancellationToken: CancellationToken);
         Assert.True(result.Success);
     }
 
@@ -114,14 +114,14 @@ public sealed class CompilationDataTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ClassLibWithResourceLibs.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(1);
         Assert.Equal(CompilerCallKind.Satellite, data.Kind);
-        var result = data.EmitToDisk(Root.DirectoryPath);
+        var result = data.EmitToDisk(Root.DirectoryPath, cancellationToken: CancellationToken);
         Assert.True(result.Success);
     }
 
     [Fact]
     public void GetAnalyzersNormal()
     {
-        RunInContext(Fixture.ClassLib.Value.CompilerLogPath, static (testOtputHelper, filePath) =>
+        RunInContext(Fixture.ClassLib.Value.CompilerLogPath, static (testOtputHelper, filePath, _) =>
         {
             using var reader = CompilerLogReader.Create(filePath);
             var data = reader.ReadCompilationData(0);
@@ -142,18 +142,18 @@ public sealed class CompilationDataTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
-        Assert.NotEmpty(data.GetDiagnostics());
+        Assert.NotEmpty(data.GetDiagnostics(CancellationToken));
     }
 
     [Theory]
     [MemberData(nameof(GetSupportedBasicAnalyzerKinds))]
     public void GetAllDiagnostics(BasicAnalyzerKind basicAnalyzerKind)
     {
-        RunInContext((FilePath: Fixture.ClassLib.Value.CompilerLogPath, Kind: basicAnalyzerKind), static (testOutputHelper, state) =>
+        RunInContext((FilePath: Fixture.ClassLib.Value.CompilerLogPath, Kind: basicAnalyzerKind), static (testOutputHelper, state, cancellationToken) =>
         {
             using var reader = CompilerLogReader.Create(state.FilePath, state.Kind);
             var data = reader.ReadCompilationData(0);
-            Assert.NotEmpty(data.GetAllDiagnosticsAsync().Result);
+            Assert.NotEmpty(data.GetAllDiagnosticsAsync(cancellationToken).Result);
         });
     }
 
@@ -172,13 +172,13 @@ public sealed class CompilationDataTests : TestBase
             data.AdditionalTexts,
             host,
             data.AnalyzerConfigOptionsProvider);
-        Assert.NotEmpty(await data.GetAllDiagnosticsAsync());
+        Assert.NotEmpty(await data.GetAllDiagnosticsAsync(CancellationToken));
     }
 
     [Fact]
     public void GetCompilationAfterGeneratorsDiagnostics()
     {
-        RunInContext(Fixture.Console.Value.CompilerLogPath, static (testOutputHelper, logFilePath) =>
+        RunInContext(Fixture.Console.Value.CompilerLogPath, static (testOutputHelper, logFilePath, cancellationToken) =>
         {
             using var reader = CompilerLogReader.Create(
                 logFilePath,
@@ -200,7 +200,7 @@ public sealed class CompilationDataTests : TestBase
                 data.AdditionalTexts,
                 host,
                 data.AnalyzerConfigOptionsProvider);
-            _ = data.GetCompilationAfterGenerators(out var diagnostics);
+            _ = data.GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
             Assert.NotEmpty(diagnostics);
         });
     }
@@ -211,10 +211,10 @@ public sealed class CompilationDataTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, basicAnalyzerKind);
         var data = reader.ReadAllCompilationData().Single();
-        var trees = data.GetGeneratedSyntaxTrees();
+        var trees = data.GetGeneratedSyntaxTrees(CancellationToken);
         Assert.Single(trees);
 
-        trees = data.GetGeneratedSyntaxTrees(out var diagnostics);
+        trees = data.GetGeneratedSyntaxTrees(out var diagnostics, CancellationToken);
         Assert.Single(trees);
         Assert.Empty(diagnostics);
     }

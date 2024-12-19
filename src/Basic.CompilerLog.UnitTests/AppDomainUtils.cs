@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -59,20 +59,35 @@ public sealed class AppDomainTestOutputHelper : MarshalByRefObject, ITestOutputH
 {
     public ITestOutputHelper TestOutputHelper { get; }
 
+    public string Output => TestOutputHelper.Output;
+
     public AppDomainTestOutputHelper(ITestOutputHelper testOutputHelper)
     {
         TestOutputHelper = testOutputHelper;
     }
+
+    public void Write(string message) =>
+        TestOutputHelper.Write(message);
 
     public void WriteLine(string message) =>
         TestOutputHelper.WriteLine(message);
 
     public void WriteLine(string format, params object[] args) =>
         TestOutputHelper.WriteLine(format, args);
+
+    public void Write(string format, params object[] args) =>
+        TestOutputHelper.Write(format, args);
 }
 
 public sealed class InvokeUtil : MarshalByRefObject
 {
+    private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+
+    internal void Cancel()
+    {
+        _cts.Cancel();
+    }
+
     internal void Invoke<T>(string typeName, string methodName, ITestOutputHelper testOutputHelper, T state)
     {
         var type = typeof(AppDomainUtils).Assembly.GetType(typeName, throwOnError: false)!;
@@ -86,7 +101,7 @@ public sealed class InvokeUtil : MarshalByRefObject
 
         try
         {
-            member.Invoke(obj, [testOutputHelper, state]);
+            member.Invoke(obj, [testOutputHelper, state, _cts.Token]);
         }
         catch (TargetInvocationException ex)
         {

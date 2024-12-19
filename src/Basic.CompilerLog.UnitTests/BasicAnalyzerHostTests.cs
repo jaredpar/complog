@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using Xunit;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp;
-using Xunit.Abstractions;
 
 #if NET
 using System.Runtime.Loader;
@@ -24,8 +23,8 @@ public sealed class BasicAnalyzerHostTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public BasicAnalyzerHostTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilerLogReaderTests))
+    public BasicAnalyzerHostTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(CompilerLogReaderTests))
     {
         Fixture = fixture;
     }
@@ -84,7 +83,7 @@ public sealed class BasicAnalyzerHostTests : TestBase
             [],
             Basic.Reference.Assemblies.Net60.References.All);
         var driver = CSharpGeneratorDriver.Create([host.Generator!]);
-        driver.RunGeneratorsAndUpdateCompilation(compilation, out var compilation2, out var diagnostics);
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var compilation2, out var diagnostics, CancellationToken);
         Assert.Empty(diagnostics);
         var syntaxTrees = compilation2.SyntaxTrees.ToList();
         Assert.Equal(2, syntaxTrees.Count);
