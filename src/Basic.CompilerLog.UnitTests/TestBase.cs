@@ -21,9 +21,14 @@ public abstract class TestBase : IDisposable
     internal static readonly Encoding DefaultEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
     private List<string> BadAssemblyLoadList { get; } = new();
-    internal ITestOutputHelper TestOutputHelper { get; }
+    public ITestOutputHelper TestOutputHelper { get; }
+    public ITestContextAccessor TestContextAccessor { get; }
+    
     internal TempDir Root { get; }
     internal Util.LogReaderState State { get; }
+
+    public ITestContext TestContext => TestContextAccessor.Current;
+    public CancellationToken CancellationToken => TestContext.CancellationToken;
     internal string RootDirectory => Root.DirectoryPath;
 
     // Have simple helpers in a real tfm (i.e. not netstandard)
@@ -78,9 +83,10 @@ public abstract class TestBase : IDisposable
         }
     }
 
-    protected TestBase(ITestOutputHelper testOutputHelper, string name)
+    protected TestBase(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, string name)
     {
         TestOutputHelper = testOutputHelper;
+        TestContextAccessor = testContextAccessor;
         Root = new TempDir(name);
         State = new Util.LogReaderState(Root.NewDirectory("state"));
         AppDomain.CurrentDomain.AssemblyLoad += OnAssemblyLoad;
@@ -183,7 +189,7 @@ public abstract class TestBase : IDisposable
          ? ProcessUtil.Run("cmd", args: "/c build.cmd", workingDirectory: directory)
          : ProcessUtil.Run(Path.Combine(directory, "build.sh"), args: "", workingDirectory: directory);
 
-    protected void RunInContext<T>(T state, Action<ITestOutputHelper, T> action, [CallerMemberName] string? testMethod = null)
+    protected void RunInContext<T>(T state, Action<ITestOutputHelper, T, CancellationToken> action, [CallerMemberName] string? testMethod = null)
     {
 #if NETFRAMEWORK
         AppDomain? appDomain = null;
@@ -193,7 +199,9 @@ public abstract class TestBase : IDisposable
             var testOutputHelper = new AppDomainTestOutputHelper(TestOutputHelper);
             var type = typeof(InvokeUtil);
             var util = (InvokeUtil)appDomain.CreateInstanceAndUnwrap(type.Assembly.FullName, type.FullName);
+            CancellationToken.Register(() => util.Cancel());
             util.Invoke(action.Method.DeclaringType.FullName, action.Method.Name, testOutputHelper, state);
+
         }
         finally
         {
@@ -202,7 +210,7 @@ public abstract class TestBase : IDisposable
 #else
         // On .NET Core the analyzers naturally load into child load contexts so no need for complicated
         // marshalling here.
-        action(TestOutputHelper, state);
+        action(TestOutputHelper, state, CancellationToken);
 #endif
 
     }

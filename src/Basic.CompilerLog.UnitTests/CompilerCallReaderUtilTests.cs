@@ -8,8 +8,8 @@ public sealed class CompilerCallReaderUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public CompilerCallReaderUtilTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilerLogReaderTests))
+    public CompilerCallReaderUtilTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(CompilerLogReaderTests))
     {
         Fixture = fixture;
     }

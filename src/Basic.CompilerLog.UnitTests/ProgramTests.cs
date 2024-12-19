@@ -29,8 +29,8 @@ public sealed class ProgramTests : TestBase
 
     public SolutionFixture Fixture { get; }
 
-    public ProgramTests(ITestOutputHelper testOutputHelper, SolutionFixture fixture) 
-        : base(testOutputHelper, nameof(ProgramTests))
+    public ProgramTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture) 
+        : base(testOutputHelper, testContextAccessor, nameof(ProgramTests))
     {
         Fixture = fixture;
     }
@@ -643,22 +643,22 @@ public sealed class ProgramTests : TestBase
                 Fixture.SolutionBinaryLogPath,
                 logFilePath,
                 cc => cc.ProjectFileName == "console.csproj");
-            MutateArchive(logFilePath);
+            MutateArchive(logFilePath, CancellationToken);
             return logFilePath;
         }
 
-        static void MutateArchive(string complogFilePath)
+        static void MutateArchive(string complogFilePath, CancellationToken cancellationToken)
         {
             using var fileStream = new FileStream(complogFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             using var zipArchive = new ZipArchive(fileStream, ZipArchiveMode.Update, leaveOpen: true);
             using var entryStream = zipArchive.OpenEntryOrThrow(CommonUtil.GetCompilerEntryName(0));
-            var infoPack = MessagePackSerializer.Deserialize<CompilationInfoPack>(entryStream, CommonUtil.SerializerOptions);
+            var infoPack = MessagePackSerializer.Deserialize<CompilationInfoPack>(entryStream, CommonUtil.SerializerOptions, cancellationToken);
             infoPack.CompilerAssemblyName = Regex.Replace(
                 infoPack.CompilerAssemblyName!,
                 @"\d+\.\d+\.\d+\.\d+",
                 "99.99.99.99");
             entryStream.Position = 0;
-            MessagePackSerializer.Serialize(entryStream, infoPack, CommonUtil.SerializerOptions);
+            MessagePackSerializer.Serialize(entryStream, infoPack, CommonUtil.SerializerOptions, cancellationToken);
         }
     }
 

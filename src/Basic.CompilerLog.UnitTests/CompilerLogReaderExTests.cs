@@ -29,8 +29,8 @@ public sealed class CompilerLogReaderExTests : TestBase
 {
     public SolutionFixture Fixture { get; }
 
-    public CompilerLogReaderExTests(ITestOutputHelper testOutputHelper, SolutionFixture fixture)
-        : base(testOutputHelper, nameof(CompilerLogReaderTests))
+    public CompilerLogReaderExTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(CompilerLogReaderTests))
     {
         Fixture = fixture;
     }

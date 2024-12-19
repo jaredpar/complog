@@ -17,8 +17,8 @@ public sealed class SolutionReaderTests : TestBase
     public List<SolutionReader> ReaderList { get; } = new();
     public CompilerLogFixture Fixture { get; }
 
-    public SolutionReaderTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(SolutionReader))
+    public SolutionReaderTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(SolutionReader))
     {
         Fixture = fixture;
     }
@@ -54,7 +54,7 @@ public sealed class SolutionReaderTests : TestBase
             var project = solution.Projects.Single();
             Assert.NotEmpty(project.AnalyzerReferences);
             var docs = project.Documents.ToList();
-            var generatedDocs = (await project.GetSourceGeneratedDocumentsAsync()).ToList();
+            var generatedDocs = (await project.GetSourceGeneratedDocumentsAsync(CancellationToken)).ToList();
             Assert.Null(docs.FirstOrDefault(x => x.Name == "RegexGenerator.g.cs"));
             Assert.Single(generatedDocs);
             Assert.NotNull(generatedDocs.First(x => x.Name == "RegexGenerator.g.cs"));
@@ -88,9 +88,9 @@ public sealed class SolutionReaderTests : TestBase
             var utilProject = solution.GetProject(projectReference.ProjectId);
             Assert.NotNull(utilProject);
             Assert.Equal("util.csproj", utilProject.Name);
-            var compilation = await consoleProject.GetCompilationAsync();
+            var compilation = await consoleProject.GetCompilationAsync(CancellationToken);
             Assert.NotNull(compilation);
-            var result = compilation.EmitToMemory();
+            var result = compilation.EmitToMemory(cancellationToken: CancellationToken);
             Assert.True(result.Success);
         }
     }

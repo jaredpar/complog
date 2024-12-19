@@ -11,8 +11,8 @@ public sealed class ExtensionsTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public ExtensionsTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(CompilationDataTests))
+    public ExtensionsTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(CompilationDataTests))
     {
         Fixture = fixture;
     }

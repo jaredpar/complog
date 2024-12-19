@@ -13,8 +13,8 @@ public class LogReaderStateTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public LogReaderStateTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(LogReaderState))
+    public LogReaderStateTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(LogReaderState))
     {
         Fixture = fixture;
     }

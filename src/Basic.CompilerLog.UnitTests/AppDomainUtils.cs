@@ -81,6 +81,13 @@ public sealed class AppDomainTestOutputHelper : MarshalByRefObject, ITestOutputH
 
 public sealed class InvokeUtil : MarshalByRefObject
 {
+    private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+
+    internal void Cancel()
+    {
+        _cts.Cancel();
+    }
+
     internal void Invoke<T>(string typeName, string methodName, ITestOutputHelper testOutputHelper, T state)
     {
         var type = typeof(AppDomainUtils).Assembly.GetType(typeName, throwOnError: false)!;
@@ -94,7 +101,7 @@ public sealed class InvokeUtil : MarshalByRefObject
 
         try
         {
-            member.Invoke(obj, [testOutputHelper, state]);
+            member.Invoke(obj, [testOutputHelper, state, _cts.Token]);
         }
         catch (TargetInvocationException ex)
         {

@@ -18,8 +18,8 @@ public sealed class ExportUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public ExportUtilTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(ExportUtilTests))
+    public ExportUtilTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(ExportUtilTests))
     {
         Fixture = fixture;
     }

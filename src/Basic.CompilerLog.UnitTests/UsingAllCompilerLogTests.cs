@@ -15,8 +15,8 @@ public sealed class UsingAllCompilerLogTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public UsingAllCompilerLogTests(ITestOutputHelper testOutputHelper, CompilerLogFixture fixture)
-        : base(testOutputHelper, nameof(UsingAllCompilerLogTests))
+    public UsingAllCompilerLogTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(UsingAllCompilerLogTests))
     {
         Fixture = fixture;
     }
@@ -65,7 +65,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
                     using var testDir = new TempDir();
                     TestOutputHelper.WriteLine($"{Path.GetFileName(complogPath)}: {data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                    var emitResult = data.EmitToDisk(testDir.DirectoryPath);
+                    var emitResult = data.EmitToDisk(testDir.DirectoryPath, cancellationToken: CancellationToken);
                     AssertEx.Success(TestOutputHelper, emitResult);
                     Assert.NotEmpty(emitResult.Directory);
                     Assert.NotEmpty(emitResult.AssemblyFileName);
@@ -87,7 +87,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                         Assert.NotNull(emitResult.MetadataFilePath);
                     }
                 }
-            });
+            }, CancellationToken);
 
             list.Add(task);
         }
@@ -111,7 +111,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             foreach (var data in reader.ReadAllCompilationData(reader.HasAllGeneratedFileContent))
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                var generatedTrees = data.GetGeneratedSyntaxTrees();
+                var generatedTrees = data.GetGeneratedSyntaxTrees(CancellationToken);
                 foreach (var tree in generatedTrees)
                 {
                     foreach (var c in illegalChars)
@@ -135,7 +135,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             foreach (var data in reader.ReadAllCompilationData(cc => basicAnalyzerKind != BasicAnalyzerKind.None || reader.HasAllGeneratedFileContent(cc)))
             {
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                var emitResult = data.EmitToMemory();
+                var emitResult = data.EmitToMemory(cancellationToken: CancellationToken);
                 AssertEx.Success(TestOutputHelper, emitResult);
             }
         }
@@ -162,7 +162,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 }
 
                 TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
-                var emitResult = data.EmitToMemory();
+                var emitResult = data.EmitToMemory(cancellationToken: CancellationToken);
                 TestOutputHelper.WriteLine(string.Join(Environment.NewLine, emitResult.Diagnostics.Select(d => d.ToString())));
                 AssertEx.Success(TestOutputHelper, emitResult);
             }
@@ -215,9 +215,9 @@ public sealed class UsingAllCompilerLogTests : TestBase
             {
                 foreach (var document in project.Documents)
                 {
-                    var text = await document.GetTextAsync();
+                    var text = await document.GetTextAsync(CancellationToken);
                     var textSpan = new TextSpan(0, text.Length);
-                    _ = await Classifier.GetClassifiedSpansAsync(document, textSpan);
+                    _ = await Classifier.GetClassifiedSpansAsync(document, textSpan, CancellationToken);
                 }
             }
         }
@@ -237,7 +237,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 continue;
             }
 
-            var task = Task.Run(() => ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true));
+            var task = Task.Run(() => ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true), CancellationToken);
             list.Add(task);
         }
 
