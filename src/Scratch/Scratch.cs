@@ -119,6 +119,24 @@ foreach (var analyzer in analyzers.AnalyzerReferences)
 
 */
 
+// Sample from README used to validate in still compiles
+void ReadMeSample1(string logFilePath)
+{
+    using var reader = CompilerCallReaderUtil.Create(logFilePath);
+    foreach (var compilationData in reader.ReadAllCompilationData())
+    {
+        var compilation = compilationData.GetCompilationAfterGenerators();
+    }
+}
+
+// Sample from README used to validate in still compiles
+void ReadMeSample2(string logFilePath)
+{
+    var reader = SolutionReader.Create(logFilePath);
+    var workspace = new AdhocWorkspace();
+    var solution = workspace.AddSolution(reader.ReadSolutionInfo());
+}
+
 
 void CountReferences()
 {
