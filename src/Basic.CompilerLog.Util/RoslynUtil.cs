@@ -16,6 +16,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
@@ -239,7 +240,7 @@ internal static class RoslynUtil
                 {
                     var mapped = pathMapFunc(line.Slice(1, index - 1).ToString());
                     builder.Append('[');
-                    builder.Append(mapped);
+                    builder.Append(EscapeEditorConfigSectionPath(mapped));
                     builder.Append(line.Slice(index));
                 }
             }
@@ -253,6 +254,22 @@ internal static class RoslynUtil
         });
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// The path used in a editor config section needs to be escaped on Windows.
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
+    internal static string EscapeEditorConfigSectionPath(string path)
+    {
+        // The \ on windows need to be escaped when emitted as part of a section header
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return path.Replace(@"\", @"/");
+        }
+
+        return path;
     }
 
     /// <summary>

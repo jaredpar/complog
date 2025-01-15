@@ -151,11 +151,11 @@ public sealed class RoslynUtilTests
         Core(
             """
             is_global = true
-            [c:\example.cs]
+            [c:/example.cs]
             """,
             """
             is_global = true
-            [d:\example.cs]
+            [d:/example.cs]
             """,
             x => x.Replace("c:", "d:"));
 
@@ -166,7 +166,18 @@ public sealed class RoslynUtilTests
             """,
             """
             is_global = true
-            [c:\test.cs]
+            [c:/test.cs]
+            """,
+            x => x.Replace("example", "test"));
+
+        Core(
+            """
+            is_global = true
+            [c:/example.cs]
+            """,
+            """
+            is_global = true
+            [c:/test.cs]
             """,
             x => x.Replace("example", "test"));
 
