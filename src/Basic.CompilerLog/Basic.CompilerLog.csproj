@@ -18,7 +18,7 @@
     <NoWarn>$(NoWarn);CS8002</NoWarn>
 
     <!-- NuPkg information -->
-    <Version>0.1.2</Version>
+    <Version>42.42.42.42</Version>
     <PackageProjectUrl>https://github.com/jaredpar/basic-compiler-logger</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jaredpar/basic-compiler-logger</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -35,4 +35,23 @@
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 
+  <Target Name="GenerateConstants" BeforeTargets="BeforeBuild">
+    <PropertyGroup>
+      <_BasicToolVersion>$(PackageVersion)</_BasicToolVersion>
+      <_BasicToolVersion Condition="'$(_BasicToolVersion)' == ''">42.42.42.42</_BasicToolVersion>
+      <_BasicGeneratedConstantsFile>$(IntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
+      <_BasicCode>internal static partial class Constants
+{
+    public const string ToolVersion = &quot;$(_BasicToolVersion)&quot;%3B
+}
+      </_BasicCode>
+    </PropertyGroup>
+    <ItemGroup>
+      <Compile Include="$(_BasicGeneratedConstantsFile)" />
+    </ItemGroup>
+    <WriteLinesToFile
+      File="$(_BasicGeneratedConstantsFile)"
+      Lines="$(_BasicCode)"
+      Overwrite="true" />
+  </Target>
 </Project>

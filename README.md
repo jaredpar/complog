@@ -101,6 +101,29 @@ The next step is to setup csc / vbc to use the build.rsp file for debugging. Ope
 
 Then launch csc / vbc and it will debug that project.
 
+## Using the API
 
+The samples below for creating Roslyn objects work for both compiler and binary logs. For a binary log though it must be done on the same machine where the build occurred.
 
+### Creating a Compilation
 
+Log files can be used to recreate a `Compilation` instance. This is done by calling the `Compilation.Create` method and passing in the path to the compiler log file.
+
+```csharp
+  using var reader = CompilerCallReaderUtil.Create(logFilePath);
+  foreach (var compilationData in reader.ReadAllCompilationData())
+  {
+      var compilation = compilationData.GetCompilationAfterGenerators();
+      // ...
+  }
+```
+
+### Creating a Workspace
+
+The `SolutionReader` type can be used to create a `SolutionInfo` instance from the log file:
+
+```csharp
+var reader = SolutionReader.Create(logFilePath);
+var workspace = new AdhocWorkspace();
+var solution = workspace.AddSolution(reader.ReadSolutionInfo());
+```

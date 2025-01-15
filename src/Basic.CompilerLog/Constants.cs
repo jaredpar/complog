@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Basic.CompilerLog.Util;
 
-internal static class Constants
+internal static partial class Constants
 {
     internal const int ExitFailure = 1;
     internal const int ExitSuccess = 0;
