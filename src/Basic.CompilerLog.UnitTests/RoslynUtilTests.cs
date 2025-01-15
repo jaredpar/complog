@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
@@ -148,38 +149,76 @@ public sealed class RoslynUtilTests
     [Fact]
     public void RewriteGlobalEditorConfigPaths()
     {
-        Core(
-            """
-            is_global = true
-            [c:/example.cs]
-            """,
-            """
-            is_global = true
-            [d:/example.cs]
-            """,
-            x => x.Replace("c:", "d:"));
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Core(
+                """
+                is_global = true
+                [c:/example.cs]
+                """,
+                """
+                is_global = true
+                [d:/example.cs]
+                """,
+                x => x.Replace("c:", "d:"));
 
-        Core(
-            """
-            is_global = true
-            [c:\example.cs]
-            """,
-            """
-            is_global = true
-            [c:/test.cs]
-            """,
-            x => x.Replace("example", "test"));
+            Core(
+                """
+                is_global = true
+                [c:\example.cs]
+                """,
+                """
+                is_global = true
+                [d:\example.cs]
+                """,
+                x => x.Replace("c:", "d:"));
 
-        Core(
-            """
-            is_global = true
-            [c:/example.cs]
-            """,
-            """
-            is_global = true
-            [c:/test.cs]
-            """,
-            x => x.Replace("example", "test"));
+            Core(
+                """
+                is_global = true
+                [c:\example.cs]
+                """,
+                """
+                is_global = true
+                [c:/test.cs]
+                """,
+                x => x.Replace("example", "test"));
+
+            Core(
+                """
+                is_global = true
+                [c:/example.cs]
+                """,
+                """
+                is_global = true
+                [c:/test.cs]
+                """,
+                x => x.Replace("example", "test"));
+        }
+        else
+        {
+            Core(
+                """
+                is_global = true
+                [/c/example.cs]
+                """,
+                """
+                is_global = true
+                [/d/example.cs]
+                """,
+                x => x.Replace("/c", "/d"));
+
+            Core(
+                """
+                is_global = true
+                [/c/example.cs]
+                """,
+                """
+                is_global = true
+                [/c/test.cs]
+                """,
+                x => x.Replace("example", "test"));
+        }
 
         void Core(string content, string expected, Func<string, string> mapFunc)
         {
