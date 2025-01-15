@@ -169,7 +169,7 @@ public sealed class RoslynUtilTests
                 """,
                 """
                 is_global = true
-                [d:\example.cs]
+                [d:/example.cs]
                 """,
                 x => x.Replace("c:", "d:"));
 
