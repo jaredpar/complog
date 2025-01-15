@@ -626,8 +626,10 @@ int RunHelp(IEnumerable<string>? args)
         options.Parse(args);
     }
 
-    WriteLine("""
+    WriteLine($"""
         complog [command] [args]
+        version: {ToolVersion}
+
         Commands
           create        Create a compiler log file 
           replay        Replay compilations from the log
