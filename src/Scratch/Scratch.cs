@@ -25,6 +25,20 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
+var export = @"C:\Users\jaredpar\Downloads\customer-bug\.complog";
+if (Directory.Exists(export))
+{
+    Directory.Delete(export, recursive: true);
+}
+
+var sdkDirs = SdkUtil.GetSdkDirectories();
+using var reader = CompilerLogReader.Create(@"C:\Users\jaredpar\Downloads\customer-bug\msbuild.complog");
+var exportUtil = new ExportUtil(reader, includeAnalyzers: true);
+exportUtil.ExportAll(export, sdkDirs);
+
+
+
+/*
 using var reader = CompilerCallReaderUtil.Create("/home/jaredpar/code/msbuild/artifacts/log/Debug/Build.binlog", BasicAnalyzerKind.None);
 var compilerCall = reader
     .ReadAllCompilerCalls()
@@ -33,8 +47,9 @@ var data = reader.ReadCompilationData(compilerCall);
 var compilation = data.GetCompilationAfterGenerators();
 Console.WriteLine(compilation.AssemblyName);
 var diagnostics = compilation.GetDiagnostics();
+*/
 
-Bing();
+//Bing();
 void Bing()
 {
     var filePath = @"C:\Users\jaredpar\code\snrcode\msbuild.binlog";

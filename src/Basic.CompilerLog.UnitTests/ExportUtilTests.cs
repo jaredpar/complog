@@ -191,7 +191,7 @@ public sealed class ExportUtilTests : TestBase
                 .Single();
             
             var found = false;
-            var pattern = $"[{path}";
+            var pattern = $"[{RoslynUtil.EscapeEditorConfigSectionPath(path)}";
             foreach (var line in File.ReadAllLines(configFilePath))
             {
                 if (line.StartsWith(pattern, StringComparison.Ordinal))
