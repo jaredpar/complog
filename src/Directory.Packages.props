@@ -21,7 +21,7 @@
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.2.243" />
     <PackageVersion Include="System.Buffers" Version="4.6.0" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.1" />
     <PackageVersion Include="xunit.v3" Version="1.0.1" />
   </ItemGroup>
 </Project>
