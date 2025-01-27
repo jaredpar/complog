@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
 using System.Diagnostics;
+using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -97,13 +98,24 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
+    public void CreateFromZipEmpty()
+    {
+        var zipFilePath = Path.Combine(RootDirectory, "empty.zip");
+        {
+            using var fileStream = new FileStream(zipFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            using var zip = new ZipArchive(fileStream, ZipArchiveMode.Create);
+        }
+        Assert.Throws<Exception>(() => CompilerLogReader.Create(zipFilePath));
+    }
+
+    [Fact]
     public void GlobalConfigPathMap()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
         var data = reader.ReadCompilationData(0);
         var provider = (BasicAnalyzerConfigOptionsProvider)data.AnalyzerConfigOptionsProvider;
-        var additonalText = data.AdditionalTexts.Single(x => x.Path.Contains("additional.txt"));
-        var options = provider.GetOptions(additonalText);
+        var additionalText = data.AdditionalTexts.Single(x => x.Path.Contains("additional.txt"));
+        var options = provider.GetOptions(additionalText);
         Assert.True(options.TryGetValue("build_metadata.AdditionalFiles.FixtureKey", out var value));
         Assert.Equal("true", value);
     }
