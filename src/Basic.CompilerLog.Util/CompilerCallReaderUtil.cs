@@ -1,3 +1,5 @@
+using Microsoft.Build.Logging.StructuredLogger;
+
 namespace Basic.CompilerLog.Util;
 
 public static class CompilerCallReaderUtil
@@ -8,16 +10,28 @@ public static class CompilerCallReaderUtil
     public static ICompilerCallReader Create(string filePath, BasicAnalyzerKind? basicAnalyzerKind = null, LogReaderState? logReaderState = null)
     {
         var ext = Path.GetExtension(filePath);
-        if (ext is ".binlog")
+        return ext switch 
         {
-            return BinaryLogReader.Create(filePath, basicAnalyzerKind, logReaderState);
-        }
+            ".binlog" => BinaryLogReader.Create(filePath, basicAnalyzerKind, logReaderState),
+            ".complog" => CompilerLogReader.Create(filePath, basicAnalyzerKind, logReaderState),
+            ".zip" => CreateFromZip(),
+            _ => throw new ArgumentException($"Unrecognized extension: {ext}")
+        };
 
-        if (ext is ".complog")
+        ICompilerCallReader CreateFromZip()
         {
-            return CompilerLogReader.Create(filePath, basicAnalyzerKind, logReaderState);
-        }
+            if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".complog") is { } c)
+            {
+                return CompilerLogReader.Create(c, basicAnalyzerKind, logReaderState, leaveOpen: false);
+            }
 
-        throw new ArgumentException($"Unrecognized extension: {ext}");
+            if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".binlog") is { } b)
+            {
+                return BinaryLogReader.Create(b, basicAnalyzerKind, logReaderState, leaveOpen: false);
+            }
+
+            throw new Exception($"Could not find a .complog or .binlog file in {filePath}");
+        }
     }
+
 }

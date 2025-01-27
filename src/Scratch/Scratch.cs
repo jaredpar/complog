@@ -25,16 +25,9 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-var export = @"C:\Users\jaredpar\Downloads\customer-bug\.complog";
-if (Directory.Exists(export))
-{
-    Directory.Delete(export, recursive: true);
-}
-
-var sdkDirs = SdkUtil.GetSdkDirectories();
-using var reader = CompilerLogReader.Create(@"C:\Users\jaredpar\Downloads\customer-bug\msbuild.complog");
-var exportUtil = new ExportUtil(reader, includeAnalyzers: true);
-exportUtil.ExportAll(export, sdkDirs);
+var zipFilePath = @"C:\Users\jaredpar\Downloads\msbuild_logs.zip";
+//using var reader = CompilerLogReader.Create(zipFilePath);
+RunComplog($"print -c {zipFilePath}");
 
 
 
