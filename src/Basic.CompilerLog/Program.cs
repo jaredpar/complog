@@ -751,6 +751,7 @@ string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
     {
         case ".complog":
         case ".binlog":
+        case ".zip":
             if (args.Any())
             {
                 throw new OptionException($"Extra arguments: {string.Join(' ', args.Skip(1))}", "log");

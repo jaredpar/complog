@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Diagnostics;
+using System.IO.Compression;
+using System.Text;
 
 namespace Basic.CompilerLog.Util;
 
@@ -42,12 +44,44 @@ public static class CompilerLogUtil
             return memoryStream;
         }
 
+        if (ext is ".zip")
+        {
+            var memoryStream = TryCopySingleFileWithExtensionFromZip(filePath, ".complog");
+            if (memoryStream is not null)
+            {
+                return memoryStream;
+            }
+
+            throw new Exception($"Could not find a .complog file in {filePath}");
+        }
+
         if (ext is ".complog")
         {
             return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
 
         throw new Exception($"Unrecognized extension: {ext}");
+    }
+
+    public static MemoryStream? TryCopySingleFileWithExtensionFromZip(string filePath, string ext)
+    {
+        Debug.Assert(ext.Length > 0 && ext[0] == '.', "Extension must start with a period");
+
+        using var zipArchive = ZipFile.OpenRead(filePath);
+        var entry = zipArchive.Entries
+            .Where(x => Path.GetExtension(x.FullName) == ext)
+            .ToList();
+
+        if (entry.Count == 1)
+        {
+            var memoryStream = new MemoryStream();
+            using var entryStream = entry[0].Open();
+            entryStream.CopyTo(memoryStream);
+            memoryStream.Position = 0;
+            return memoryStream;
+        }
+
+        return null;
     }
 
     public static List<string> ConvertBinaryLog(string binaryLogFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)

@@ -874,5 +874,41 @@ public sealed class ProgramTests : TestBase
         var (exitCode, output) = RunCompLogEx($"print {dir}");
         Assert.Equal(Constants.ExitFailure, exitCode);
     }
+
+    [Fact]
+    public void PrintZipWithComplog()
+    {
+        var dir = Root.NewDirectory("empty");
+        var zipFilePath = Path.Combine(dir, "example.zip");
+        var exitCode = RunCompLog($"create -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath} -o build.complog", RootDirectory);
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        CreateZip();
+        exitCode = RunCompLog($"print {zipFilePath}", dir);
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+
+        void CreateZip()
+        {
+            using var zipArchive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create);
+            zipArchive.CreateEntryFromFile(Path.Combine(RootDirectory, "build.complog"), "build.complog");
+        }
+    }
+
+    [Fact]
+    public void PrintZipWithBinlog()
+    {
+        var dir = Root.NewDirectory("empty");
+        var zipFilePath = Path.Combine(dir, "example.zip");
+        CreateZip();
+        var exitCode = RunCompLog($"print {zipFilePath}", dir);
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+
+        void CreateZip()
+        {
+            using var zipArchive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create);
+            zipArchive.CreateEntryFromFile(Fixture.SolutionBinaryLogPath, "build.binlog");
+        }
+    }
+
+
 }
 #endif
