@@ -366,7 +366,7 @@ static void ExportScratch()
 
     using var reader = CompilerLogReader.Create(filePath, BasicAnalyzerKind.None);
     var exportUtil = new ExportUtil(reader);
-    exportUtil.ExportAll(dest, SdkUtil.GetSdkDirectories());
+    exportUtil.ExportAll(dest, SdkUtil.GetRoslynSdkDirectories());
 }
 
 static void RoslynScratch()
@@ -470,7 +470,7 @@ void ExportTest(CompilerLogReader reader)
     var dest = @"c:\users\jaredpar\temp\export";
     EmptyDirectory(dest);
 
-    var d = SdkUtil.GetSdkDirectories();
+    var d = SdkUtil.GetRoslynSdkDirectories();
     var util = new ExportUtil(reader);
     util.ExportAll(dest, d);
 }

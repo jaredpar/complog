@@ -94,9 +94,9 @@ public sealed class ExportUtilTests : TestBase
         Action<ProcessResult>? verifyBuildResult = null)
     {
 #if NET
-        var sdkDirs = SdkUtil.GetSdkDirectories();
+        var sdkDirs = SdkUtil.GetRoslynSdkDirectories();
 #else
-        var sdkDirs = SdkUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
+        var sdkDirs = SdkUtil.GetRoslynSdkDirectories(@"c:\Program Files\dotnet");
 #endif
         var exportUtil = new ExportUtil(reader, includeAnalyzers);
         var count = 0;
@@ -285,7 +285,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
-        exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkDirectories());
+        exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkDirectories().Select(x => x.RoslynDirectory));
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "1")));
     }
@@ -295,7 +295,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: false);
-        Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetRoslynSdkDirectories()));
     }
 #endif
 

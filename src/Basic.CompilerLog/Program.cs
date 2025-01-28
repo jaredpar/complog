@@ -344,7 +344,7 @@ int RunExport(IEnumerable<string> args)
         WriteLine($"Exporting to {baseOutputPath}");
         Directory.CreateDirectory(baseOutputPath);
 
-        var sdkDirs = SdkUtil.GetSdkDirectories();
+        var sdkDirs = SdkUtil.GetRoslynSdkDirectories();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
