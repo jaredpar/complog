@@ -39,4 +39,44 @@ internal static class CommonUtil
     }
 
 #endif
+
+    // write a function that can parse a command line string into a string array. It needs to 
+    // consider quotes and escape characters. The function should be able to handle items 
+    // like the following where "hello world" is a single argument without quotes
+    // a b -c "hello world"
+    internal static List<string> ParseCommandLine(string commandLine)
+    {
+        var args = new List<string>();
+        var currentArg = new StringBuilder();
+        var inQuotes = false;
+
+        foreach (var c in commandLine)
+        {
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(c) && !inQuotes)
+            {
+                if (currentArg.Length > 0)
+                {
+                    args.Add(currentArg.ToString());
+                    currentArg.Clear();
+                }
+
+                continue;
+            }
+
+            currentArg.Append(c);
+        }
+
+        if (currentArg.Length > 0)
+        {
+            args.Add(currentArg.ToString());
+        }
+
+        return args;
+    }
 }

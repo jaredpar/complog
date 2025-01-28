@@ -31,4 +31,13 @@ public sealed class CommonUtilTests
         Assert.True(TestBase.IsNetFramework);
 #endif
     }
+
+    [Theory]
+    [InlineData(@"""C:\Program Files"" a", (string[])[@"C:\Program Files", "a"])]
+    [InlineData(@"a b c", (string[])["a", "b", "c"])]
+    [InlineData(@"a  b  c", (string[])["a", "b", "c"])]
+    public void ParseCommandLine(string commandLine, string[] expected)
+    {
+        Assert.Equal(expected, CommonUtil.ParseCommandLine(commandLine));
+    }
 }

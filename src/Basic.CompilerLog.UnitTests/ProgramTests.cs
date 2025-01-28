@@ -97,7 +97,7 @@ public sealed class ProgramTests : TestBase
             var program = assembly.GetType("Program", throwOnError: true);
             var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
             Assert.NotNull(main);
-            var ret = main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
+            var ret = main!.Invoke(null, [CommonUtil.ParseCommandLine(args).ToArray()]);
             if (Directory.Exists(Constants.LocalAppDataDirectory))
             {
                 Assert.Empty(Directory.EnumerateFileSystemEntries(Constants.LocalAppDataDirectory));
@@ -685,6 +685,20 @@ public sealed class ProgramTests : TestBase
     {
         AssertCompilerCallReader(void (ICompilerCallReader reader) => Assert.IsType<BinaryLogReader>(reader));
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {Fixture.ConsoleProjectPath}"));
+    }
+
+    [Fact]
+    public void ReplayWithCustomCompiler()
+    {
+        var compilerDir = SdkUtil
+            .GetSdkDirectories()
+            .OrderByDescending(x => x.SdkVersion)
+            .Where(x => x.SdkVersion.StartsWith("8.0"))
+            .Select(x => x.RoslynDirectory)
+            .First();
+
+        var exitCode = RunCompLog($"replay --compiler \"{compilerDir}\" -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
     }
 
     [Theory]
