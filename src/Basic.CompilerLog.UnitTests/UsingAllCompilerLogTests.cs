@@ -304,6 +304,9 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
             // Cannot test GetGeneratorsForAllLanguages here as it has a bug. The 
             // de-dupe method not taking into account IncrementalGeneratorWrapper
+            //
+            // TODO: file a bug
+            // https://github.com/dotnet/roslyn/blob/99d8eeb69f19385838bf4e15dbe9bfcb50edc0eb/src/Compilers/Core/Portable/DiagnosticAnalyzer/AnalyzerFileReference.cs#L420
             var expectedGenerators = expected.GetGenerators(LanguageNames.CSharp);
             var actualGenerators = actual.GetGenerators(LanguageNames.CSharp);
             AssertEx.SequenceEqual(
