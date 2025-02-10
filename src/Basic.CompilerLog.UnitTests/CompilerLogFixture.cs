@@ -590,7 +590,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         }
     }
 
-    public async IAsyncEnumerable<LogData> GetAllLogData(ITestOutputHelper testOutputHelper, BasicAnalyzerKind? kind = null)
+    public async IAsyncEnumerable<LogData> GetAllLogData(ITestOutputHelper testOutputHelper)
     {
         var start = DateTime.UtcNow;
         foreach (var lazyLogData in AllLogs)
@@ -621,6 +621,14 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 logData = await tcs.Task;
             }
 
+            yield return logData;
+        }
+    }
+
+    public async IAsyncEnumerable<LogData> GetAllLogData(ITestOutputHelper testOutputHelper, BasicAnalyzerKind? kind = null)
+    {
+        await foreach (var logData in GetAllLogData(testOutputHelper))
+        {
             if (kind is not BasicAnalyzerKind.None || logData.SupportsNoneHost)
             {
                 yield return logData;
