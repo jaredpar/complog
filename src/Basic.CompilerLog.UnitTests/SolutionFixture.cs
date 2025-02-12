@@ -67,7 +67,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         var binlogDir = Path.Combine(StorageDirectory, "binlogs");
         Directory.CreateDirectory(binlogDir);
 
-        RunDotnetCommand("new globaljson --sdk-version 9.0.100", StorageDirectory);
+        RunDotnetCommand("new globaljson --sdk-version 9.0.100 --roll-forward minor", StorageDirectory);
         RunDotnetCommand("dotnet new sln -n Solution", StorageDirectory);
 
         var builder = ImmutableArray.CreateBuilder<string>();

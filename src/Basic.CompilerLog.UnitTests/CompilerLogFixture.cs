@@ -544,7 +544,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     var scratchPath = Path.Combine(ScratchDirectory, Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
-                    RunDotnetCommand("new globaljson --sdk-version 9.0.100", scratchPath);
+                    RunDotnetCommand("new globaljson --sdk-version 9.0.100 --roll-forward minor", scratchPath);
                     action(scratchPath);
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
