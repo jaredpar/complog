@@ -39,21 +39,11 @@ internal static class AssertEx
         {
             if (!e1.MoveNext())
             {
-                var b = e2.MoveNext();
-                if (b)
-                {
-
-                }
-                Assert.False(b);
+                Assert.False(e2.MoveNext());
                 break;
             }
 
             Assert.True(e2.MoveNext());
-            if (!e1.Current.Equals(e2.Current))
-            {
-
-            }
-
             Assert.Equal(e1.Current, e2.Current);
         }
     }

@@ -82,9 +82,6 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
         return null;
     }
 
-    public bool TryGetAssemblyBytes(AssemblyName assemblyName, [NotNullWhen(true)] out byte[]? bytes)
-        => _map.TryGetValue(assemblyName.Name!, out bytes);
-
     public void Dispose()
     {
         Unload();
@@ -305,7 +302,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
             if (languageName is null || RoslynUtil.IsLanguageName(metadataReader, attribute, languageName))
             {
                 var fqn = RoslynUtil.GetFullyQualifiedName(metadataReader, typeDef);
-                var type = assembly.GetType(fqn, throwOnError: false);
+                var type = assembly.GetType(fqn, throwOnError: true);
                 if (type is not null)
                 {
                     // When looking for "all languages" roslyn will include duplicates for all 

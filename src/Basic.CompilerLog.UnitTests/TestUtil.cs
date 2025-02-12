@@ -1,10 +1,17 @@
 
 using System.Reflection;
+using Microsoft.CodeAnalysis;
 
 namespace Basic.CompilerLog.UnitTests;
 
 internal static class TestUtil
 {
+    /// <summary>
+    /// Internally a <see cref="IIncrementalGenerator" /> is wrapped in a type called IncrementalGeneratorWrapper. 
+    /// This method will dig through that and return the original type.
+    /// </summary>
+    /// <param name="obj"></param>
+    /// <returns></returns>
     internal static Type GetGeneratorType(object obj)
     {
         var type = obj.GetType();
