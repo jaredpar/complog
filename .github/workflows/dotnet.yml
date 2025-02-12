@@ -89,7 +89,7 @@ jobs:
       run: dotnet run --framework net8.0 --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
 
     - name: Publish Compiler Log
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact }}
         path: msbuild.complog
@@ -101,14 +101,14 @@ jobs:
           directory: ${{ env.TEST_COVERAGE_PATH }}
 
     - name: Publish Test Results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-results
         path: ${{ env.TEST_RESULTS_PATH }}
 
     - name: Publish Test Artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: Test Artifacts ${{ matrix.os }}
