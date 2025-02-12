@@ -1,16 +1,7 @@
 ﻿using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Runtime.InteropServices;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Collections.Concurrent;
 
 namespace Basic.CompilerLog.Util;
@@ -122,6 +113,44 @@ public abstract class BasicAnalyzerHost : IDisposable
 #else
         return kind is BasicAnalyzerKind.OnDisk or BasicAnalyzerKind.None;
 #endif
+    }
+
+    internal static BasicAnalyzerHost Create(
+        IBasicAnalyzerHostDataProvider dataProvider,
+        BasicAnalyzerKind kind,
+        CompilerCall compilerCall,
+        List<AnalyzerData> analyzers)
+    {
+        return kind switch
+        {
+            BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(dataProvider, analyzers),
+            BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(dataProvider, analyzers),
+            BasicAnalyzerKind.None => CreateNone(analyzers),
+            _ => throw new InvalidOperationException()
+        };
+
+        BasicAnalyzerHostNone CreateNone(List<AnalyzerData> analyzers)
+        {
+            if (analyzers.Count == 0)
+            {
+                return new BasicAnalyzerHostNone();
+            }
+
+            if (!dataProvider.HasAllGeneratedFileContent(compilerCall))
+            {
+                return new("Generated files not available in the PDB");
+            }
+
+            try
+            {
+                var generatedSourceTexts = dataProvider.ReadAllGeneratedSourceTexts(compilerCall);
+                return new BasicAnalyzerHostNone(generatedSourceTexts);
+            }
+            catch (Exception ex)
+            {
+                return new BasicAnalyzerHostNone(ex.Message);
+            }
+        }
     }
 }
 

@@ -5,6 +5,7 @@ using System.Windows.Markup;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Classification;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
@@ -258,6 +259,62 @@ public sealed class UsingAllCompilerLogTests : TestBase
             Assert.NotEmpty(solution.Projects);
         }
     }
+
+#if NET
+
+    /// <summary>
+    /// Ensure that the in memory loader finds the same set of analyzers that the 
+    /// on disk loader. The in memory loader has a lot of custom logic and need to
+    /// verify it stays in sync with the disk versions
+    /// </summary>
+    [Fact]
+    public async Task VerifyAnalyzerConsistency()
+    {
+        await foreach (var logData in Fixture.GetAllLogData(TestOutputHelper))
+        {
+            TestOutputHelper.WriteLine(logData.CompilerLogPath);
+            using var diskReader = CompilerLogReader.Create(logData.CompilerLogPath, BasicAnalyzerKind.OnDisk);
+            var diskDataList = diskReader.ReadAllCompilationData();
+            using var memoryReader = CompilerLogReader.Create(logData.CompilerLogPath, BasicAnalyzerKind.InMemory);
+            var memoryDataList = memoryReader.ReadAllCompilationData();
+            Assert.Equal(diskDataList.Count, memoryDataList.Count);
+            for (int i = 0; i < diskDataList.Count; i++)
+            {
+                var diskData = diskDataList[i];
+                var memoryData = memoryDataList[i];
+
+                var diskAnalyzers = diskData.AnalyzerReferences;
+                var memoryAnalyzers = memoryData.AnalyzerReferences;
+                Assert.Equal(diskAnalyzers.Length, memoryAnalyzers.Length);
+                for (int j = 0; j < diskAnalyzers.Length; j++)
+                {
+                    AssertCore(diskAnalyzers[j], memoryAnalyzers[j]);
+                }
+            }
+        }
+
+        void AssertCore(AnalyzerReference expected, AnalyzerReference actual)
+        {
+            var expectedAnalyzers = expected.GetAnalyzersForAllLanguages();
+            var actualAnalyzers = actual.GetAnalyzersForAllLanguages();
+
+            AssertEx.SequenceEqual(
+                expectedAnalyzers.Select(x => x.GetType().FullName).OrderBy(x => x),
+                actualAnalyzers.Select(x => x.GetType().FullName).OrderBy(x => x));
+
+            // Cannot test GetGeneratorsForAllLanguages here as it has a bug. The 
+            // de-dupe method not taking into account IncrementalGeneratorWrapper
+            //
+            // https://github.com/dotnet/roslyn/blob/99d8eeb69f19385838bf4e15dbe9bfcb50edc0eb/src/Compilers/Core/Portable/DiagnosticAnalyzer/AnalyzerFileReference.cs#L420
+            var expectedGenerators = expected.GetGenerators(LanguageNames.CSharp);
+            var actualGenerators = actual.GetGenerators(LanguageNames.CSharp);
+            AssertEx.SequenceEqual(
+                expectedGenerators.Select(x => TestUtil.GetGeneratorType(x).FullName).OrderBy(x => x),
+                actualGenerators.Select(x => TestUtil.GetGeneratorType(x).FullName).OrderBy(x => x));
+        }
+    }
+
+#endif
 
     /// <summary>
     /// Ensure that our options round tripping code is correct and produces the same result as 

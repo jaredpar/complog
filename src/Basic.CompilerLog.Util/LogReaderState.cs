@@ -134,7 +134,7 @@ public sealed class LogReaderState : IDisposable
             }
         }
 
-        basicAnalyzerHost = CreateBasicAnalyzerHost(dataProvider, kind, compilerCall, analyzers);
+        basicAnalyzerHost = BasicAnalyzerHost.Create(dataProvider, kind, compilerCall, analyzers);
         BasicAnalyzerHosts.Add(basicAnalyzerHost);
 
         if (key is not null)
@@ -153,44 +153,6 @@ public sealed class LogReaderState : IDisposable
                 _ = builder.AppendLine($"{analyzer.Mvid}");
             }
             return builder.ToString();
-        }
-    }
-
-    internal static BasicAnalyzerHost CreateBasicAnalyzerHost(
-        IBasicAnalyzerHostDataProvider dataProvider,
-        BasicAnalyzerKind kind,
-        CompilerCall compilerCall,
-        List<AnalyzerData> analyzers)
-    {
-        return kind switch
-        {
-            BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(dataProvider, analyzers),
-            BasicAnalyzerKind.InMemory => new BasicAnalyzerHostInMemory(dataProvider, analyzers),
-            BasicAnalyzerKind.None => CreateNone(analyzers),
-            _ => throw new InvalidOperationException()
-        };
-
-        BasicAnalyzerHostNone CreateNone(List<AnalyzerData> analyzers)
-        {
-            if (analyzers.Count == 0)
-            {
-                return new BasicAnalyzerHostNone();
-            }
-
-            if (!dataProvider.HasAllGeneratedFileContent(compilerCall))
-            {
-                return new("Generated files not available in the PDB");
-            }
-
-            try
-            {
-                var generatedSourceTexts = dataProvider.ReadAllGeneratedSourceTexts(compilerCall);
-                return new BasicAnalyzerHostNone(generatedSourceTexts);
-            }
-            catch (Exception ex)
-            {
-                return new BasicAnalyzerHostNone(ex.Message);
-            }
         }
     }
 }

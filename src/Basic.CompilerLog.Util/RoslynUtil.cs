@@ -682,7 +682,7 @@ internal static class RoslynUtil
                     if (typeName.EndsWith(attributeName))
                     {
                         var value = metadataReader.GetBlobReader(attribute.Value);
-                        _ = value.ReadBytes(2); // prolog
+                        ReadAndValidatePrologue(ref value);
                         return value.ReadSerializedString();
                     }
                 }
@@ -707,5 +707,150 @@ internal static class RoslynUtil
         var mvid = ReadMvid(metadataReader);
         var assemblyInformationalVersion = ReadStringAssemblyAttribute(metadataReader, nameof(AssemblyInformationalVersionAttribute));
         return new(mvid, assemblyName, assemblyInformationalVersion);
+    }
+
+    /// <summary>
+    /// This will return the full name of any type in the assembly that has at least one attribute
+    /// applied to it.
+    /// </summary>
+    internal static void ForEachTypeWithAttribute(
+        MetadataReader metadataReader,
+        string attributeNamespace,
+        string attributeName,
+        Action<TypeDefinition, CustomAttribute> action)
+    {
+        foreach (var typeDefHandle in metadataReader.TypeDefinitions)
+        {
+            var typeDef = metadataReader.GetTypeDefinition(typeDefHandle);
+            foreach (var handle in typeDef.GetCustomAttributes())
+            {
+                var attribute = metadataReader.GetCustomAttribute(handle);
+                if (IsMatchingAttribute(attribute))
+                {
+                    action(typeDef, attribute);
+                }
+            }
+        }
+
+        bool IsMatchingAttribute(CustomAttribute attribute)
+        {
+            var ctorHandle = attribute.Constructor;
+            if (ctorHandle.Kind == HandleKind.MemberReference)
+            {
+                var memberRef = metadataReader.GetMemberReference((MemberReferenceHandle)ctorHandle);
+                var attributeTypeHandle = memberRef.Parent;
+
+                if (attributeTypeHandle.Kind != HandleKind.TypeReference)
+                {
+                    return false;
+                }
+
+                var attributeTypeRef = metadataReader.GetTypeReference((TypeReferenceHandle)attributeTypeHandle);
+                string name = metadataReader.GetString(attributeTypeRef.Name);
+                string @namespace = metadataReader.GetString(attributeTypeRef.Namespace);
+                return attributeName == name && attributeNamespace == @namespace;
+            }
+            
+            if (ctorHandle.Kind == HandleKind.MethodDefinition)
+            {
+                var memberDef = metadataReader.GetMethodDefinition((MethodDefinitionHandle)ctorHandle);
+                var typeDef = metadataReader.GetTypeDefinition(memberDef.GetDeclaringType());
+                string name = metadataReader.GetString(typeDef.Name);
+                string @namespace = metadataReader.GetString(typeDef.Namespace);
+                return attributeName == name && attributeNamespace == @namespace;
+            }
+
+            return false;
+        }
+    }
+
+    [ExcludeFromCodeCoverage]
+    private static void ReadAndValidatePrologue(ref BlobReader valueReader)
+    {
+        // Ensure the blob starts with the correct prolog (0x0001)
+        if (valueReader.ReadUInt16() != 0x0001)
+        {
+            throw new InvalidOperationException("Invalid CustomAttribute prolog.");
+        }
+    }
+
+    /// <summary>
+    /// Does the <see cref="DiagnosticAnalyzerAttribute"/> or <see cref="GeneratorAttribute"/> 
+    /// attribute match the specified language name.
+    /// </summary>
+    internal static bool IsLanguageName(
+        MetadataReader metadataReader,
+        CustomAttribute attribute,
+        string languageName)
+    {
+        Debug.Assert(!string.IsNullOrEmpty(languageName));
+
+        var valueReader = metadataReader.GetBlobReader(attribute.Value);
+        ReadAndValidatePrologue(ref valueReader);
+
+        // Read first argument (string)
+        string firstArgument = valueReader.ReadSerializedString()!;
+        if (firstArgument == languageName)
+        {
+            return true;
+        }
+
+        // Read second argument (string array)
+        int arrayLength = valueReader.ReadInt32();
+        for (int i = 0; i < arrayLength; i++)
+        {
+            var current =  valueReader.ReadSerializedString()!;
+            if (current == languageName)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Count the language names present in a <see cref="DiagnosticAnalyzerAttribute"/> or 
+    /// <see cref="GeneratorAttribute"/> attribute.
+    /// </summary>
+    internal static int CountLanguageNames(
+        MetadataReader metadataReader,
+        CustomAttribute attribute)
+    {
+        var valueReader = metadataReader.GetBlobReader(attribute.Value);
+        ReadAndValidatePrologue(ref valueReader);
+
+        _ = valueReader.ReadSerializedString()!;
+
+        // Read second argument (string array)
+        int arrayLength = valueReader.ReadInt32();
+
+        return arrayLength + 1;
+    }
+
+    internal static bool IsEmptyAttribute(MetadataReader metadataReader, CustomAttribute attribute)
+    {
+        var valueReader = metadataReader.GetBlobReader(attribute.Value);
+        ReadAndValidatePrologue(ref valueReader);
+        // the remaining 2 bytes is named argument count
+        return valueReader.RemainingBytes == 2;
+    }
+
+    internal static string GetFullyQualifiedName(MetadataReader reader, TypeDefinition typeDef)
+    {
+        string @namespace = reader.GetString(typeDef.Namespace);
+        string name = reader.GetString(typeDef.Name);
+
+        // Handle nested types
+        if (typeDef.GetDeclaringType().IsNil)
+        {
+            return string.IsNullOrEmpty(@namespace) ? name : $"{@namespace}.{name}";
+        }
+        else
+        {
+            // Recursively get the declaring type's name
+            var declaringType = reader.GetTypeDefinition(typeDef.GetDeclaringType());
+            return $"{GetFullyQualifiedName(reader, declaringType)}+{name}";
+        }
     }
 }
