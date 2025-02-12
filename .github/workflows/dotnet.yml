@@ -41,7 +41,6 @@ jobs:
 
     timeout-minutes: 30
 
-    name: Build and Test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
     steps:
