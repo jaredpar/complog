@@ -126,7 +126,7 @@ jobs:
     steps:
     - uses: dorny/test-reporter@v1
       with:
-        artifact: test-results-(.*)/
+        artifact: test-results-(.*)
         name: .NET Test Results
         path: '*.trx'
         reporter: dotnet-trx
