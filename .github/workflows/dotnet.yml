@@ -15,6 +15,9 @@ on:
     - 'doc/**'
     - 'README.md'
 
+permissions:
+  checks: write
+
 jobs:
   build:
     strategy:
@@ -115,4 +118,17 @@ jobs:
       with:
         name: Test Artifacts ${{ matrix.os }}
         path: ${{ env.TEST_ARTIFACTS_PATH }}
+
+  test-report:
+    name: Produce Test Report
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: dorny/test-reporter@v1
+      with:
+        artifact: test-results-(.*)/
+        name: .NET Test Results
+        path: '*.trx'
+        reporter: dotnet-trx
+
 
