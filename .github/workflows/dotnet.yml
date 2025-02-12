@@ -24,9 +24,11 @@ jobs:
           - os: windows-latest
             artifact: windows.complog
             slash: \
+            test-results: test-results-windows
           - os: ubuntu-latest
             artifact: ubuntu.complog
             slash: /
+            test-results: test-results-linux
 
     env:
       TEST_ARTIFACTS_PATH: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}test
@@ -104,7 +106,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results
+        name: ${{ matrix.test-results }}
         path: ${{ env.TEST_RESULTS_PATH }}
 
     - name: Publish Test Artifacts
