@@ -1,8 +1,13 @@
 namespace Basic.CompilerLog.UnitTests;
 
 using System.Runtime.InteropServices;
+#if NET
+using System.Runtime.Loader;
+#endif
 using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 [Collection(CompilerLogCollection.Name)]
@@ -51,5 +56,25 @@ public sealed class InMemoryLoaderTests : TestBase
         var specific = generators.Where(x => TestUtil.GetGeneratorType(x).Name == analyzerTypeName);
         Assert.Equal(expectedCount, specific.Count());
     }
+
+    [Fact]
+    public void AnalyzersBadDefinition()
+    {
+        var (fileName, image) = LibraryUtil.GetAnalyzersWithBadMetadata();
+        var alc = new AssemblyLoadContext("Custom", isCollectible: true);
+        var loader = new InMemoryLoader(
+            "test loader",
+            alc,
+            Path.GetFileNameWithoutExtension(fileName),
+            image.ToArray(),
+            d => { Assert.Fail(d.GetMessage()); });
+        var analyzerReference = loader.AnalyzerReferences.Single();
+        var analyzer = analyzerReference.GetAnalyzersForAllLanguages().Single();
+        Assert.Equal("GoodAnalyzer", analyzer.GetType().Name);
+        var generator = analyzerReference.GetGeneratorsForAllLanguages().Single();
+        Assert.Equal("GoodGenerator", TestUtil.GetGeneratorType(generator).Name);
+        loader.Unload();
+    }
+
 #endif
 }
