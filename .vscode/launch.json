@@ -13,11 +13,9 @@
             "program": "${workspaceFolder}/artifacts/bin/Basic.CompilerLog/debug_net9.0/Basic.CompilerLog.dll",
             "args": [
                 "replay",
-                "/home/jaredpar/code/msbuild/artifacts/log/Debug/Build.binlog",
-                "-p",
-                "StringTools.UnitTests.csproj",
-                "-n"],
-            "cwd": "/home/jaredpar/code/msbuild/artifacts/log/Debug",
+                "C:/Users/jaredpar/temp/console/build.complog"
+            ],
+            "cwd": "${workspaceFolder}/artifacts/",
             // "cwd": "${workspaceFolder}/src/Basic.CompilerLog",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
             "console": "internalConsole",

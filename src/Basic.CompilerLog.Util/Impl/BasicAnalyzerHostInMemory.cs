@@ -58,6 +58,15 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
         AnalyzerReferences = builder.MoveToImmutable();
     }
 
+    internal InMemoryLoader(string name, AssemblyLoadContext compilerLoadContext, string simpleName, byte[] bytes, Action<Diagnostic> onDiagnostic)
+        :base(name, isCollectible: true)
+    {
+        CompilerLoadContext = compilerLoadContext;
+        _map[simpleName] = bytes;
+        var reference = new BasicAnalyzerReference(new AssemblyName(simpleName), bytes, this, onDiagnostic);
+        AnalyzerReferences = [reference];
+    }
+
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         try
@@ -288,7 +297,10 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         var attributeType = typeof(DiagnosticAnalyzerAttribute);
         foreach (var type in GetTypes(attributeType.Namespace!, attributeType.Name, languageName, CoreAction))
         {
-            builder.Add((DiagnosticAnalyzer)CreateInstance(type));
+            if (Activator.CreateInstance(type) is DiagnosticAnalyzer d)
+            {
+                builder.Add(d);
+            }
         }
 
         static void CoreAction(
@@ -326,14 +338,13 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         var attributeType = typeof(GeneratorAttribute);
         foreach (var type in GetTypes(attributeType.Namespace!, attributeType.Name, languageName, CoreAction))
         {
-            var generator = CreateInstance(type);
+            var generator = Activator.CreateInstance(type);
             if (generator is ISourceGenerator sg)
             {
                 builder.Add(sg);
             }
-            else
+            else if (generator is IIncrementalGenerator ig)
             {
-                IIncrementalGenerator ig = (IIncrementalGenerator)generator;
                 builder.Add(ig.AsSourceGenerator());
             }
         }
@@ -371,14 +382,6 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
                 }
             }
         }
-    }
-
-    private static object CreateInstance(Type type)
-    {
-        var ctor = type.GetConstructors()
-            .Where(c => c.GetParameters().Length == 0)
-            .Single();
-        return ctor.Invoke(null);
     }
 
     public override string ToString() => $"In Memory {AssemblyName}";
