@@ -45,7 +45,7 @@ public class LogReaderStateTests : TestBase
     public void CreateBasicAnalyzerHostBadKind()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
-        Assert.Throws<InvalidOperationException>(() => LogReaderState.CreateBasicAnalyzerHost(
+        Assert.Throws<InvalidOperationException>(() => BasicAnalyzerHost.Create(
             reader,
             (BasicAnalyzerKind)42,
             reader.ReadCompilerCall(0),

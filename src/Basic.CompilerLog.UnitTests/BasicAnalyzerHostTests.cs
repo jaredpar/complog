@@ -81,7 +81,7 @@ public sealed class BasicAnalyzerHostTests : TestBase
         var compilation = CSharpCompilation.Create(
             "example",
             [],
-            Basic.Reference.Assemblies.Net60.References.All);
+            Basic.Reference.Assemblies.Net80.References.All);
         var driver = CSharpGeneratorDriver.Create([host.Generator!]);
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var compilation2, out var diagnostics, CancellationToken);
         Assert.Empty(diagnostics);

@@ -1,10 +1,11 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+
 
 #if NET
 using System.Runtime.Loader;
@@ -49,11 +50,21 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
         foreach (var analyzer in analyzers)
         {
             var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
-            _map[simpleName] = provider.GetAssemblyBytes(analyzer.AssemblyData);
-            builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), this, onDiagnostic));
+            var bytes = provider.GetAssemblyBytes(analyzer.AssemblyData);
+            _map[simpleName] = bytes;
+            builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), bytes, this, onDiagnostic));
         }
 
         AnalyzerReferences = builder.MoveToImmutable();
+    }
+
+    internal InMemoryLoader(string name, AssemblyLoadContext compilerLoadContext, string simpleName, byte[] bytes, Action<Diagnostic> onDiagnostic)
+        :base(name, isCollectible: true)
+    {
+        CompilerLoadContext = compilerLoadContext;
+        _map[simpleName] = bytes;
+        var reference = new BasicAnalyzerReference(new AssemblyName(simpleName), bytes, this, onDiagnostic);
+        AnalyzerReferences = [reference];
     }
 
     protected override Assembly? Load(AssemblyName assemblyName)
@@ -97,7 +108,8 @@ internal sealed class InMemoryLoader
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
-            builder.Add(new BasicAnalyzerReference(new AssemblyName(analyzer.AssemblyIdentityData.AssemblyName), this, onDiagnostic));
+            var bytes = provider.GetAssemblyBytes(analyzer.AssemblyData);
+            builder.Add(new BasicAnalyzerReference(new AssemblyName(analyzer.AssemblyIdentityData.AssemblyName), bytes, this, onDiagnostic));
         }
 
         AnalyzerReferences = builder.MoveToImmutable();
@@ -209,14 +221,17 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
             isEnabledByDefault: true);
 
     internal AssemblyName AssemblyName { get; }
+    internal byte[] AssemblyBytes { get; }
     internal InMemoryLoader Loader { get; }
     internal Action<Diagnostic> OnDiagnostic { get; }
     public override object Id { get; } = Guid.NewGuid();
     public override string? FullPath => null;
+    public override string Display => AssemblyName.Name ?? "";
 
-    internal BasicAnalyzerReference(AssemblyName assemblyName, InMemoryLoader loader, Action<Diagnostic> onDiagnostic)
+    internal BasicAnalyzerReference(AssemblyName assemblyName, byte[] assemblyBytes, InMemoryLoader loader, Action<Diagnostic> onDiagnostic)
     {
         AssemblyName = assemblyName;
+        AssemblyBytes = assemblyBytes;
         Loader = loader;
         OnDiagnostic = onDiagnostic;
     }
@@ -249,82 +264,124 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         return builder.ToImmutable();
     }
 
-    internal Type[] GetTypes(Assembly assembly)
+    internal List<Type> GetTypes(
+        string attributeNamespace,
+        string attributeName,
+        string? languageName,
+        Action<string?, Assembly, List<Type>, MetadataReader, TypeDefinition, CustomAttribute> action)
     {
         try
         {
-            return assembly.GetTypes();
+            var assembly = Loader.LoadFromAssemblyName(AssemblyName);
+            using var peReader = new PEReader(new MemoryStream(AssemblyBytes));
+            var list = new List<Type>();
+            var metadataReader = peReader.GetMetadataReader();
+            RoslynUtil.ForEachTypeWithAttribute(
+                metadataReader,
+                attributeNamespace,
+                attributeName,
+                (typeDef, attribute) => action(languageName, assembly, list, metadataReader, typeDef, attribute));
+
+            return list;
         }
         catch (Exception ex)
         {
-            var diagnostic = Diagnostic.Create(CannotLoadTypes, Location.None, assembly.FullName, ex.Message);
+            var diagnostic = Diagnostic.Create(CannotLoadTypes, Location.None, AssemblyName.FullName, ex.Message);
             OnDiagnostic(diagnostic);
-            return Array.Empty<Type>();
+            return [];
         }
     }
 
     internal void GetAnalyzers(ImmutableArray<DiagnosticAnalyzer>.Builder builder, string? languageName)
     {
-        var assembly = Loader.LoadFromAssemblyName(AssemblyName);
-        foreach (var type in GetTypes(assembly))
+        var attributeType = typeof(DiagnosticAnalyzerAttribute);
+        foreach (var type in GetTypes(attributeType.Namespace!, attributeType.Name, languageName, CoreAction))
         {
-            if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
+            if (Activator.CreateInstance(type) is DiagnosticAnalyzer d)
             {
-                foreach (var attribute in attributes)
+                builder.Add(d);
+            }
+        }
+
+        static void CoreAction(
+            string? languageName,
+            Assembly assembly,
+            List<Type> list,
+            MetadataReader metadataReader,
+            TypeDefinition typeDef,
+            CustomAttribute attribute)
+        {
+            if (languageName is null || RoslynUtil.IsLanguageName(metadataReader, attribute, languageName))
+            {
+                var fqn = RoslynUtil.GetFullyQualifiedName(metadataReader, typeDef);
+                var type = assembly.GetType(fqn, throwOnError: true);
+                if (type is not null)
                 {
-                    if (attribute is DiagnosticAnalyzerAttribute d &&
-                        IsLanguageMatch(d.Languages))
+                    // When looking for "all languages" roslyn will include duplicates for all 
+                    // supported languages. This is undocumented behavior that we need to mimic
+                    //
+                    // https://github.com/dotnet/roslyn/blob/329bb90e91561c8f26e4f8aeae17be1697db850b/src/Compilers/Core/Portable/DiagnosticAnalyzer/AnalyzerFileReference.cs#L111
+                    var count = languageName is not null
+                        ? 1
+                        : RoslynUtil.CountLanguageNames(metadataReader, attribute);
+                    for (int i = 0; i < count; i++)
                     {
-                        builder.Add((DiagnosticAnalyzer)CreateInstance(type));
-                        break;
+                        list.Add(type);
                     }
                 }
             }
         }
-
-        bool IsLanguageMatch(string[] languages) =>
-            languageName is null || languages.Contains(languageName);
     }
 
     internal void GetGenerators(ImmutableArray<ISourceGenerator>.Builder builder, string? languageName)
     {
-        var assembly = Loader.LoadFromAssemblyName(AssemblyName);
-        foreach (var type in GetTypes(assembly))
+        var attributeType = typeof(GeneratorAttribute);
+        foreach (var type in GetTypes(attributeType.Namespace!, attributeType.Name, languageName, CoreAction))
         {
-            if (type.GetCustomAttributes(inherit: false) is { Length: > 0 } attributes)
+            var generator = Activator.CreateInstance(type);
+            if (generator is ISourceGenerator sg)
             {
-                foreach (var attribute in attributes)
-                {
-                    if (attribute is GeneratorAttribute g &&
-                        IsLanguageMatch(g.Languages))
-                    {
-                        var generator = CreateInstance(type);
-                        if (generator is ISourceGenerator sg)
-                        {
-                            builder.Add(sg);
-                        }
-                        else
-                        {
-                            IIncrementalGenerator ig = (IIncrementalGenerator)generator;
-                            builder.Add(ig.AsSourceGenerator());
-                        }
-
-                        break;
-                    }
-                }
+                builder.Add(sg);
+            }
+            else if (generator is IIncrementalGenerator ig)
+            {
+                builder.Add(ig.AsSourceGenerator());
             }
         }
 
-        bool IsLanguageMatch(string[] languages) =>
-            languageName is null || languages.Contains(languageName);
-    }
+        static void CoreAction(
+            string? languageName,
+            Assembly assembly,
+            List<Type> list,
+            MetadataReader metadataReader,
+            TypeDefinition typeDef,
+            CustomAttribute attribute)
+        {
+            var match = false;
+            if (languageName is null)
+            {
+                match = true;
+            }
+            else if (RoslynUtil.IsEmptyAttribute(metadataReader, attribute))
+            {
+                // The empty attribute is an implicit C# 
+                match = languageName == LanguageNames.CSharp;
+            }
+            else
+            {
+                match = RoslynUtil.IsLanguageName(metadataReader, attribute, languageName);
+            }
 
-    private static object CreateInstance(Type type)
-    {
-        var ctor = type.GetConstructors()
-            .Where(c => c.GetParameters().Length == 0)
-            .Single();
-        return ctor.Invoke(null);
+            if (match)
+            {
+                var fqn = RoslynUtil.GetFullyQualifiedName(metadataReader, typeDef);
+                var type = assembly.GetType(fqn, throwOnError: false);
+                if (type is not null)
+                {
+                    list.Add(type);
+                }
+            }
+        }
     }
 
     public override string ToString() => $"In Memory {AssemblyName}";
