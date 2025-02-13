@@ -1,4 +1,5 @@
 
+using System.Drawing.Text;
 using System.Text;
 using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
@@ -40,10 +41,57 @@ internal static class LibraryUtil
 
         var compilation = CSharpCompilation.Create(
             "SimplePia",
-            [ CSharpSyntaxTree.ParseText(content1), CSharpSyntaxTree.ParseText(content2) ],
-            Net60.References.All,
+            [CSharpSyntaxTree.ParseText(content1), CSharpSyntaxTree.ParseText(content2)],
+            Net80.References.All,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
+        return Compile(compilation, "SimplePia.dll");
+    }
+
+    /// <summary>
+    /// Returns an assembly that has a set of well defined analyzers and generators and ones
+    /// with definition errors.
+    /// </summary>
+    internal static (string FileName, MemoryStream Image) GetAnalyzersWithBadMetadata()
+    {
+        var code = """
+            using System.Collections.Immutable;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.Diagnostics;
+
+            [DiagnosticAnalyzer(LanguageNames.CSharp)]
+            public class BadAnalyzer
+            {
+            }
+
+            [DiagnosticAnalyzer(LanguageNames.CSharp)]
+            public class GoodAnalyzer : DiagnosticAnalyzer
+            {
+                public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray<DiagnosticDescriptor>.Empty;
+                public override void Initialize(AnalysisContext context) { }
+            }
+
+            [Generator(LanguageNames.CSharp)]
+            public class BadGenerator { }
+
+            [Generator(LanguageNames.CSharp)]
+            public class GoodGenerator : IIncrementalGenerator
+            {
+                public void Initialize(IncrementalGeneratorInitializationContext context) { }
+            }
+            """;
+
+        var roslynReference = MetadataReference.CreateFromFile(typeof(Compilation).Assembly.Location);
+        var compilation = CSharpCompilation.Create(
+            "TestAnalyzers",
+            [CSharpSyntaxTree.ParseText(code)],
+            [.. Net80.References.All, roslynReference],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        return Compile(compilation, "TestAnalyzers.dll");
+    }
+
+    private static (string FileName, MemoryStream Image) Compile(Compilation compilation, string fileName)
+    {
         var peStream = new MemoryStream();
         var emitResult = compilation.Emit(peStream);
         if (!emitResult.Success)
@@ -52,7 +100,7 @@ internal static class LibraryUtil
         }
 
         peStream.Position = 0;
-        return ("SimplePia.dll", peStream);
+        return (fileName, peStream);
 
         string GetMessage(IEnumerable<Diagnostic> diagnostics)
         {
@@ -64,7 +112,5 @@ internal static class LibraryUtil
             }
             return builder.ToString();
         }
-
     }
-
 }
