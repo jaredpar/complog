@@ -443,13 +443,13 @@ public sealed class CompilerLogReaderTests : TestBase
         RunDotNet("build -bl:build.binlog -nr:false", dir);
 
         var binlogFilePath = Path.Combine(dir, "build.binlog");
-        using var binlogReader = BinaryLogReader.Create(binlogFilePath);
+        using var binlogReader = BinaryLogReader.Create(binlogFilePath, BasicAnalyzerKind.None);
         await Core(binlogReader, CancellationToken);
         binlogReader.Dispose();
 
         var complogFilePath = Path.Combine(dir, "build.complog");
         CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
-        using var complogReader = CompilerLogReader.Create(complogFilePath);
+        using var complogReader = CompilerLogReader.Create(complogFilePath, BasicAnalyzerKind.None);
         await Core(complogReader, CancellationToken);
 
         static async Task Core(ICompilerCallReader reader, CancellationToken cancellationToken)
