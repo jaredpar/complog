@@ -123,6 +123,7 @@ jobs:
     name: Produce Test Report
     needs: build
     runs-on: ubuntu-latest
+    if: always()
     steps:
     - uses: dorny/test-reporter@v1
       with:
