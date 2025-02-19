@@ -110,7 +110,7 @@ public sealed class ExportUtilTests : TestBase
             if (runBuild)
             {
                 // Now run the generated build.cmd and see if it succeeds;
-                var buildResult = RunBuildCmd(tempDir.DirectoryPath);
+                var buildResult = TestUtil.RunBuildCmd(tempDir.DirectoryPath);
                 testOutputHelper.WriteLine(buildResult.StandardOut);
                 testOutputHelper.WriteLine(buildResult.StandardError);
                 verifyBuildResult?.Invoke(buildResult);

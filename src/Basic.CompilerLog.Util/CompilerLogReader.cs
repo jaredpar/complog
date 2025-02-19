@@ -347,6 +347,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var sourceTexts = new List<(SourceText SourceText, string Path)>();
         var analyzerConfigs = new List<(SourceText SourceText, string Path)>();
         var additionalTexts = ImmutableArray.CreateBuilder<AdditionalText>();
+        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         var emitPdb = dataPack.EmitPdb ?? !emitOptions.EmitMetadataOnly;
 
         MemoryStream? win32ResourceStream = null;
@@ -362,33 +363,39 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             switch (kind)
             {
                 case RawContentKind.SourceText:
-                    sourceTexts.Add((GetSourceText(contentHash, hashAlgorithm), filePath));
+                    AppendSourceText(sourceTexts, contentHash, filePath);
                     break;
                 case RawContentKind.GeneratedText:
                     // Nothing to do here as these are handled by the generation process.
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    analyzerConfigs.Add((GetSourceText(contentHash, hashAlgorithm), filePath));
+                    AppendSourceText(analyzerConfigs, contentHash, filePath);
                     break;
                 case RawContentKind.AdditionalText:
-                    additionalTexts.Add(new BasicAdditionalTextFile(
+                    additionalTexts.Add(new BasicAdditionalSourceText(
                         filePath,
-                        GetSourceText(contentHash, hashAlgorithm)));
+                        contentHash is not null ? GetSourceText(contentHash, hashAlgorithm) : null));
                     break;
                 case RawContentKind.CryptoKeyFile:
-                    HandleCryptoKeyFile(contentHash);
+                    HandleCryptoKeyFile(contentHash, filePath);
                     break;
                 case RawContentKind.SourceLink:
-                    sourceLinkStream = GetContentBytes(contentHash).AsSimpleMemoryStream(writable: false);
+                    sourceLinkStream = TryGetContentAsStream(contentHash, filePath);
                     break;
                 case RawContentKind.Win32Resource:
-                    win32ResourceStream = GetContentBytes(contentHash).AsSimpleMemoryStream(writable: false);
+                    win32ResourceStream = TryGetContentAsStream(contentHash, filePath);
                     break;
                 case RawContentKind.Embed:
                 {
                     if (embeddedTexts is null)
                     {
                         embeddedTexts = new List<EmbeddedText>();
+                    }
+
+                    if (contentHash is null)
+                    {
+                        AddMissingFileDiagnostic(filePath);
+                        break;
                     }
 
                     var sourceText = GetSourceText(contentHash, hashAlgorithm, canBeEmbedded: true);
@@ -428,8 +435,14 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             ? CreateCSharp()
             : CreateVisualBasic();
 
-        void HandleCryptoKeyFile(string contentHash)
+        void HandleCryptoKeyFile(string? contentHash, string originalFilePath)
         {
+            if (contentHash is null)
+            {
+                diagnostics.Add(Diagnostic.Create(RoslynUtil.CannotReadFileDiagnosticDescriptor, Location.None, Path.GetFileName(originalFilePath)));
+                return;
+            }
+
             var dir = Path.Combine(LogReaderState.CryptoKeyFileDirectory, GetIndex(compilerCall).ToString());
             Directory.CreateDirectory(dir);
             var filePath = Path.Combine(dir, $"{contentHash}.snk");
@@ -437,13 +450,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
         }
 
-        CSharpCompilationData CreateCSharp()
-        {
-            var csharpOptions = (CSharpCompilationOptions)compilationOptions;
-            var parseOptions = (CSharpParseOptions)rawParseOptions;
-            var syntaxTrees = RoslynUtil.ParseAllCSharp(sourceTexts, parseOptions);
-
-            return RoslynUtil.CreateCSharpCompilationData(
+        CSharpCompilationData CreateCSharp() =>
+            RoslynUtil.CreateCSharpCompilationData(
                 compilerCall,
                 compilationName,
                 (CSharpParseOptions)rawParseOptions,
@@ -455,20 +463,15 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 emitOptions,
                 emitData,
                 basicAnalyzerHost,
-                PathNormalizationUtil);
-        }
+                PathNormalizationUtil,
+                diagnostics.ToImmutable());
 
-        VisualBasicCompilationData CreateVisualBasic()
-        {
-            var basicOptions = (VisualBasicCompilationOptions)compilationOptions;
-            var parseOptions = (VisualBasicParseOptions)rawParseOptions;
-            var syntaxTrees = RoslynUtil.ParseAllVisualBasic(sourceTexts, parseOptions);
-
-            return RoslynUtil.CreateVisualBasicCompilationData(
+        VisualBasicCompilationData CreateVisualBasic() =>
+            RoslynUtil.CreateVisualBasicCompilationData(
                 compilerCall,
                 compilationName,
-                parseOptions,
-                basicOptions,
+                (VisualBasicParseOptions)rawParseOptions,
+                (VisualBasicCompilationOptions)compilationOptions,
                 sourceTexts,
                 referenceList,
                 analyzerConfigs,
@@ -476,8 +479,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 emitOptions,
                 emitData,
                 basicAnalyzerHost,
-                PathNormalizationUtil);
-        }
+                PathNormalizationUtil,
+                diagnostics.ToImmutable());
 
         List<MetadataReference> ReadMetadataReferences(List<ReferencePack> referencePacks)
         {
@@ -505,6 +508,34 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             }
 
             return list;
+        }
+
+        void AppendSourceText(List<(SourceText, string)> list, string? contentHash, string filePath)
+        {
+            if (contentHash is null)
+            {
+                AddMissingFileDiagnostic(filePath);
+                return;
+            }
+
+            var sourceText = GetSourceText(contentHash, hashAlgorithm);
+            list.Add((sourceText, filePath));
+        }
+
+        MemoryStream? TryGetContentAsStream(string? contentHash, string filePath)
+        {
+            if (contentHash is null)
+            {
+                AddMissingFileDiagnostic(filePath);
+                return null;
+            }
+
+            return GetContentBytes(contentHash).AsSimpleMemoryStream(writable: false);
+        }
+
+        void AddMissingFileDiagnostic(string name)
+        {
+            diagnostics.Add(Diagnostic.Create(RoslynUtil.CannotReadFileDiagnosticDescriptor, Location.None, name));
         }
     }
 
@@ -608,7 +639,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
             if (kind is { } k)
             {
-                var data = new SourceTextData(rawContent.ContentHash, rawContent.NormalizedFilePath, dataPack.ChecksumAlgorithm, k);
+                object id = rawContent.ContentHash ?? rawContent.NormalizedFilePath;
+                var data = new SourceTextData(id, rawContent.NormalizedFilePath, dataPack.ChecksumAlgorithm, k);
                 list.Add(data);
             }
         }
@@ -646,7 +678,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var list = new List<(SourceText SourceText, string FilePath)>();
         foreach (var rawContent in ReadAllRawContent(index, RawContentKind.GeneratedText))
         {
-            list.Add((GetSourceText(rawContent.ContentHash, dataPack.ChecksumAlgorithm), rawContent.NormalizedFilePath));
+            list.Add((GetSourceText(rawContent.ContentHash!, dataPack.ChecksumAlgorithm), rawContent.NormalizedFilePath));
         }
         return list;
     }

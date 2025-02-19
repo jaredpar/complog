@@ -14,8 +14,12 @@ public sealed class CompilerLogBuilderTests : TestBase
         Fixture = fixture;
     }
 
+    /// <summary>
+    /// We should be able to create log files that are resilient to artifacts missing on disk. Basically we can create 
+    /// a <see cref="CompilationData"/> for this scenario, it will have diagnostics.
+    /// </summary>
     [Fact]
-    public void AddMissingFile()
+    public void MissingFileSourceLink()
     {
         using var stream = new MemoryStream();
         using var builder = new CompilerLogBuilder(stream, new());
@@ -23,7 +27,7 @@ public sealed class CompilerLogBuilderTests : TestBase
 
         var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(binlogStream).First(x => x.IsCSharp);
         compilerCall = compilerCall.WithArguments(["/sourcelink:does-not-exist.txt"]);
-        Assert.Throws<Exception>(() => builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall)));
+        builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
     }
 
     [Fact]

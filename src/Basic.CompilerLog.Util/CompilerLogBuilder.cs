@@ -308,10 +308,17 @@ internal sealed class CompilerLogBuilder : IDisposable
         }));
     }
 
-    private void AddContentFromDisk(CompilationDataPack dataPack, RawContentKind kind, string filePath)
+    private bool AddContentFromDisk(CompilationDataPack dataPack, RawContentKind kind, string filePath)
     {
-        using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
-        AddContent(dataPack, kind, filePath, fileStream);
+        var contentHash = WriteContentFromDisk(filePath);
+
+        dataPack.ContentList.Add(((int)kind, new ContentPack()
+        {
+            ContentHash = contentHash,
+            FilePath = filePath
+        }));
+
+        return contentHash is not null;
     }
 
     private void AddContent(CompilationDataPack dataPack, RawContentKind kind, string filePath, string content)
@@ -396,6 +403,18 @@ internal sealed class CompilerLogBuilder : IDisposable
         {
             _memoryStreamPool.Return(stream);
         }
+    }
+
+    private string? WriteContentFromDisk(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            Diagnostics.Add(RoslynUtil.GetMissingFileDiagnosticMessage(filePath));
+            return null;
+        }
+
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return WriteContent(stream);
     }
 
     /// <summary>
@@ -492,8 +511,10 @@ internal sealed class CompilerLogBuilder : IDisposable
         var resolver = new SourceFileResolver(ImmutableArray<string>.Empty, args.BaseDirectory, args.PathMap);
         foreach (var e in args.EmbeddedFiles)
         {
-            using var stream = RoslynUtil.OpenBuildFileForRead(e.Path);
-            AddContent(dataPack, RawContentKind.Embed, e.Path, stream);
+            if (!AddContentFromDisk(dataPack, RawContentKind.Embed, e.Path))
+            {
+                continue;
+            }
 
             // When the compiler embeds a source file it will also embed the targets of any 
             // #line directives in the code
@@ -528,7 +549,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
                 IEnumerable<string> GetLineTargets()
                 {
-                    var sourceText = RoslynUtil.GetSourceText(stream, args.ChecksumAlgorithm, canBeEmbedded: false);
+                    var sourceText = RoslynUtil.GetSourceText(e.Path, args.ChecksumAlgorithm, canBeEmbedded: false);
                     if (args.ParseOptions is CSharpParseOptions csharpParseOptions)
                     {
                         var syntaxTree = CSharpSyntaxTree.ParseText(sourceText, csharpParseOptions);

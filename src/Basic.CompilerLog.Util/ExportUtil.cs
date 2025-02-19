@@ -319,6 +319,12 @@ public sealed partial class ExportUtil
                     continue;
                 }
 
+                if (rawContent.ContentHash is null)
+                {
+                    commandLineList.Add($@"{prefix}{FormatPathArgument(builder.GetNewSourcePath(rawContent.OriginalFilePath))}");
+                    continue;
+                }
+
                 string? filePath = null;
                 if (rawContent.Kind == RawContentKind.AnalyzerConfig)
                 {
@@ -344,8 +350,16 @@ public sealed partial class ExportUtil
         {
             foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.GeneratedText))
             {
-                using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                var filePath = builder.GeneratedCodeDirectory.WriteContent(rawContent.OriginalFilePath, contentStream);
+                string filePath;
+                if (rawContent.ContentHash is not null)
+                {
+                    using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
+                    filePath = builder.GeneratedCodeDirectory.WriteContent(rawContent.OriginalFilePath, contentStream);
+                }
+                else
+                {
+                    filePath = builder.GetNewSourcePath(rawContent.OriginalFilePath);
+                }
 
                 if (!IncludeAnalyzers)
                 {
@@ -358,8 +372,11 @@ public sealed partial class ExportUtil
         {
             foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.EmbedLine))
             {
-                using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                var newPath = builder.WriteContent(rawContent.OriginalFilePath, contentStream);
+                if (rawContent.ContentHash is not null)
+                {
+                    using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
+                    _ = builder.WriteContent(rawContent.OriginalFilePath, contentStream);
+                }
             }
         }
 
