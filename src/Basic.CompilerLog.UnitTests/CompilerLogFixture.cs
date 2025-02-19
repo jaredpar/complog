@@ -616,7 +616,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     {
                         tcs.SetException(ex);
                     }
-                }, TaskCreationOptions.LongRunning);
+                }, TaskCreationOptions.LongRunning | TaskCreationOptions.RunContinuationsAsynchronously);
 
                 logData = await tcs.Task;
             }
