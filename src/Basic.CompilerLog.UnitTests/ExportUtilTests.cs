@@ -459,4 +459,29 @@ public sealed class ExportUtilTests : TestBase
 
             """, writer.ToString());
     }
+
+    [Theory]
+    [InlineData("keyfile", "does-not-exist.snk")]
+    [InlineData("embed", "data.txt")]
+    [InlineData("win32manifest", "data.manifest")]
+    [InlineData("analyzerconfig", "data.config")]
+    [InlineData(null, "data.cs")]
+    public void MissingFiles(string? option, string fileName)
+    {
+        var diagnostics = new List<string>();
+        var filePath = Path.Combine(RootDirectory, fileName);
+        var prefix = option is null ? "" : $"/{option}:";
+        using var reader = ChangeCompilerCall(
+            Fixture.Console.Value.BinaryLogPath!,
+            x => x.ProjectFileName == "console.csproj",
+            x => x.WithAdditionalArguments([$"{prefix}{filePath}"]),
+            diagnostics: diagnostics);
+        Assert.Equal([RoslynUtil.GetMissingFileDiagnosticMessage(filePath)], diagnostics);
+
+        using var scratchDir = new TempDir("export test");
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: true);
+        using var writer = new StringWriter();
+        ExportUtil.ExportRsp(reader.ReadCompilerCall(0), writer);
+        Assert.Contains(fileName, writer.ToString());
+    }
 }

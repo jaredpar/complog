@@ -148,6 +148,33 @@ public abstract class TestBase : IDisposable
     protected string GetBinaryLogFullPath(string? workingDirectory = null) =>
         Path.Combine(workingDirectory ?? RootDirectory, "msbuild.binlog");
 
+    /// <summary>
+    /// Dig through a compiler log for a single <see cref="CompilerCall"/>, change it and get a reader
+    /// over a new compiler log built from it.
+    /// </summary>
+    protected CompilerLogReader ChangeCompilerCall(
+        string logFilePath,
+        Func<CompilerCall, bool> predicate,
+        Func<CompilerCall, CompilerCall> func,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
+        List<string>? diagnostics = null)
+    {
+        var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind, State);
+        var compilerCall = reader
+            .ReadAllCompilerCalls(predicate)
+            .Single();
+
+        compilerCall = func(compilerCall);
+
+        diagnostics ??= new List<string>();
+        var stream = new MemoryStream();
+        var builder = new CompilerLogBuilder(stream, diagnostics);
+        builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+        builder.Close();
+        stream.Position = 0;
+        return CompilerLogReader.Create(stream, basicAnalyzerKind, State, leaveOpen: false);
+    }
+
     protected CompilerLogReader GetReader(bool emptyDirectory = true )
     {
         var reader = CompilerLogReader.Create(GetBinaryLogFullPath());
