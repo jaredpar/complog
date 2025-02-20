@@ -159,7 +159,7 @@ public abstract class TestBase : IDisposable
         BasicAnalyzerKind? basicAnalyzerKind = null,
         List<string>? diagnostics = null)
     {
-        var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind, State);
+        using var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind, State);
         var compilerCall = reader
             .ReadAllCompilerCalls(predicate)
             .Single();
