@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xaml;
 using Xunit;
 using Xunit.Sdk;
 
@@ -48,7 +49,7 @@ public abstract class TestBase : IDisposable
     {
         foreach (BasicAnalyzerKind e in Enum.GetValues(typeof(BasicAnalyzerKind)))
         {
-            yield return new object[] { e };
+            yield return [e];
         }
     }
 
@@ -58,12 +59,12 @@ public abstract class TestBase : IDisposable
     /// <returns></returns>
     public static IEnumerable<object[]> GetSupportedBasicAnalyzerKinds()
     {
-        yield return new object[] { BasicAnalyzerKind.None };
-        yield return new object[] { BasicAnalyzerKind.OnDisk };
+        yield return [BasicAnalyzerKind.None];
+        yield return [BasicAnalyzerKind.OnDisk];
 
         if (IsNetCore)
         {
-            yield return new object[] { BasicAnalyzerKind.InMemory };
+            yield return [BasicAnalyzerKind.InMemory];
         }
     }
 
@@ -74,13 +75,28 @@ public abstract class TestBase : IDisposable
     /// <returns></returns>
     public static IEnumerable<object[]> GetSimpleBasicAnalyzerKinds()
     {
-        yield return new object[] { BasicAnalyzerKind.None };
+        yield return [BasicAnalyzerKind.None];
 
         if (IsNetCore)
         {
-            yield return new object[] { BasicAnalyzerKind.OnDisk };
-            yield return new object[] { BasicAnalyzerKind.InMemory };
+            yield return [BasicAnalyzerKind.OnDisk];
+            yield return [BasicAnalyzerKind.InMemory];
         }
+    }
+
+    /// <summary>
+    /// This captures the set of "missing" files that we need to be tolerant of in our 
+    /// reading and creation of compiler logs.
+    /// </summary>
+    public static IEnumerable<object?[]> GetMissingFileArguments()
+    {
+        yield return ["keyfile", "does-not-exist.snk", false]; // key file isn't noticed until emit
+        yield return ["embed", "data.txt", true];
+        yield return ["win32manifest", "data.manifest", false]; // manifest isn't noticed until emit
+        yield return ["win32res", "data.res", true]; 
+        yield return ["sourcelink", "data.link", true];
+        yield return ["analyzerconfig", "data.config", true];
+        yield return [null, "data.cs", true];
     }
 
     protected TestBase(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, string name)

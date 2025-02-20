@@ -437,16 +437,15 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         void HandleCryptoKeyFile(string? contentHash, string originalFilePath)
         {
-            if (contentHash is null)
-            {
-                diagnostics.Add(Diagnostic.Create(RoslynUtil.CannotReadFileDiagnosticDescriptor, Location.None, Path.GetFileName(originalFilePath)));
-                return;
-            }
-
             var dir = Path.Combine(LogReaderState.CryptoKeyFileDirectory, GetIndex(compilerCall).ToString());
             Directory.CreateDirectory(dir);
-            var filePath = Path.Combine(dir, $"{contentHash}.snk");
-            File.WriteAllBytes(filePath, GetContentBytes(contentHash));
+            var filePath = Path.Combine(dir, Path.GetFileName(originalFilePath));
+
+            if (contentHash is not null)
+            {
+                File.WriteAllBytes(filePath, GetContentBytes(contentHash));
+            }
+
             compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
         }
 

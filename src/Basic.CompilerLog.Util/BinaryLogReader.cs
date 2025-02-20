@@ -272,6 +272,15 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 return null;
             }
 
+            if (!File.Exists(filePath))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    RoslynUtil.CannotReadFileDiagnosticDescriptor,
+                    Location.None,
+                    filePath));
+                return null;
+            }
+
             var bytes = File.ReadAllBytes(filePath);
             return new MemoryStream(bytes);
         }
@@ -286,6 +295,15 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             var list = new List<EmbeddedText>(args.EmbeddedFiles.Length);
             foreach (var item in args.EmbeddedFiles)
             {
+                if (!File.Exists(item.Path))
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        RoslynUtil.CannotReadFileDiagnosticDescriptor,
+                        Location.None,
+                        item.Path));
+                    continue;
+                }
+
                 var sourceText = RoslynUtil.GetSourceText(item.Path, args.ChecksumAlgorithm, canBeEmbedded: true);
                 var embeddedText = EmbeddedText.FromSource(item.Path, sourceText);
                 list.Add(embeddedText);

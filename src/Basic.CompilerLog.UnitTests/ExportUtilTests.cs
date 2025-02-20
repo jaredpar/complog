@@ -461,12 +461,8 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Theory]
-    [InlineData("keyfile", "does-not-exist.snk")]
-    [InlineData("embed", "data.txt")]
-    [InlineData("win32manifest", "data.manifest")]
-    [InlineData("analyzerconfig", "data.config")]
-    [InlineData(null, "data.cs")]
-    public void MissingFiles(string? option, string fileName)
+    [MemberData(nameof(GetMissingFileArguments))]
+    public void MissingFiles(string? option, string fileName, bool _)
     {
         var diagnostics = new List<string>();
         var filePath = Path.Combine(RootDirectory, fileName);
@@ -478,10 +474,12 @@ public sealed class ExportUtilTests : TestBase
             diagnostics: diagnostics);
         Assert.Equal([RoslynUtil.GetMissingFileDiagnosticMessage(filePath)], diagnostics);
 
-        using var scratchDir = new TempDir("export test");
-        var exportUtil = new ExportUtil(reader, includeAnalyzers: true);
         using var writer = new StringWriter();
         ExportUtil.ExportRsp(reader.ReadCompilerCall(0), writer);
         Assert.Contains(fileName, writer.ToString());
+
+        using var scratchDir = new TempDir("export test");
+        var exportUtil = new ExportUtil(reader, includeAnalyzers: true);
+        exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkDirectories());
     }
 }

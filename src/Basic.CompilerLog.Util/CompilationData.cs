@@ -137,16 +137,17 @@ public abstract class CompilationData
         out ImmutableArray<Diagnostic> diagnostics,
         CancellationToken cancellationToken = default)
     {
+        Compilation compilation;
         if (_afterGenerators is { } tuple)
         {
-            diagnostics = tuple.Item2;
-            return tuple.Item1;
+            (compilation, diagnostics) = tuple;
         }
-
-        var driver = CreateGeneratorDriver();
-        driver.RunGeneratorsAndUpdateCompilation(Compilation, out tuple.Item1, out tuple.Item2, cancellationToken);
-        _afterGenerators = tuple;
-        diagnostics = tuple.Item2;
+        else
+        {
+            var driver = CreateGeneratorDriver();
+            driver.RunGeneratorsAndUpdateCompilation(Compilation, out compilation, out diagnostics, cancellationToken);
+            _afterGenerators = (compilation, diagnostics);
+        }
 
         // Now that analyzers have completed running add any diagnostics the host has captured
         if (BasicAnalyzerHost.GetDiagnostics() is { Count: > 0 } list)
@@ -159,7 +160,7 @@ public abstract class CompilationData
             diagnostics = diagnostics.AddRange(CreationDiagnostics);
         }
 
-        return tuple.Item1;
+        return compilation;
     }
 
     public List<SyntaxTree> GetGeneratedSyntaxTrees(CancellationToken cancellationToken = default) =>

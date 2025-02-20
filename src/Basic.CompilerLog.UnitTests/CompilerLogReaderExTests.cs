@@ -1,6 +1,5 @@
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
-using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
@@ -98,12 +97,8 @@ public sealed class CompilerLogReaderExTests : TestBase
     }
 
     [Theory]
-    [InlineData("keyfile", "does-not-exist.snk", true)]
-    [InlineData("embed", "data.txt", true)]
-    [InlineData("win32manifest", "data.manifest", false)] // only noticed in emit
-    [InlineData("analyzerconfig", "data.config", true)]
-    [InlineData(null, "data.cs", true)]
-    public void MissingFiles(string? option, string fileName, bool hasDiagnostics)
+    [MemberData(nameof(GetMissingFileArguments))]
+    public async Task MissingFiles(string? option, string fileName, bool hasDiagnostics)
     {
         var diagnostics = new List<string>();
         var filePath = Path.Combine(RootDirectory, fileName);
@@ -114,6 +109,12 @@ public sealed class CompilerLogReaderExTests : TestBase
         if (hasDiagnostics)
         {
             Assert.Equal([RoslynUtil.CannotReadFileDiagnosticDescriptor], compilationData.CreationDiagnostics.Select(x => x.Descriptor));
+
+            _ = compilationData.GetCompilationAfterGenerators(out var diagnostics2, CancellationToken);
+            Assert.Contains(RoslynUtil.CannotReadFileDiagnosticDescriptor, diagnostics2.Select(x => x.Descriptor));
+
+            diagnostics2 = await compilationData.GetAllDiagnosticsAsync(CancellationToken);
+            Assert.Contains(RoslynUtil.CannotReadFileDiagnosticDescriptor, diagnostics2.Select(x => x.Descriptor));
         }
         else
         {
