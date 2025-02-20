@@ -139,25 +139,41 @@ public abstract class TestBase : IDisposable
         Assert.Equal(0, result.ExitCode);
     }
 
-    protected void AddProjectProperty(string property, string? workingDirectory = null)
-    {
-        workingDirectory ??= RootDirectory;
-        var projectFile = Directory.EnumerateFiles(workingDirectory, "*proj").Single();
-        var lines = File.ReadAllLines(projectFile);
-        using var writer = new StreamWriter(projectFile, append: false);
-        foreach (var line in lines)
-        {
-            if (line.Contains("</PropertyGroup>"))
-            {
-                writer.WriteLine(property);
-            }
+    protected void AddProjectProperty(string property, string? workingDirectory = null) =>
+        TestUtil.AddProjectProperty(property, workingDirectory ?? RootDirectory);
 
-            writer.WriteLine(line);
-        }
-    }
+    protected void SetProjectFileContent(string content, string? workingDirectory = null) =>
+        TestUtil.SetProjectFileContent(content, workingDirectory ?? RootDirectory);
 
     protected string GetBinaryLogFullPath(string? workingDirectory = null) =>
         Path.Combine(workingDirectory ?? RootDirectory, "msbuild.binlog");
+
+    /// <summary>
+    /// Dig through a compiler log for a single <see cref="CompilerCall"/>, change it and get a reader
+    /// over a new compiler log built from it.
+    /// </summary>
+    protected CompilerLogReader ChangeCompilerCall(
+        string logFilePath,
+        Func<CompilerCall, bool> predicate,
+        Func<CompilerCall, CompilerCall> func,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
+        List<string>? diagnostics = null)
+    {
+        using var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind, State);
+        var compilerCall = reader
+            .ReadAllCompilerCalls(predicate)
+            .Single();
+
+        compilerCall = func(compilerCall);
+
+        diagnostics ??= new List<string>();
+        var stream = new MemoryStream();
+        var builder = new CompilerLogBuilder(stream, diagnostics);
+        builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+        builder.Close();
+        stream.Position = 0;
+        return CompilerLogReader.Create(stream, basicAnalyzerKind, State, leaveOpen: false);
+    }
 
     protected CompilerLogReader GetReader(bool emptyDirectory = true )
     {
@@ -180,14 +196,6 @@ public abstract class TestBase : IDisposable
         stream.Position = 0;
         return CompilerLogReader.Create(stream, state, leaveOpen: false);
     }
-
-    /// <summary>
-    /// Run the build.cmd / .sh generated from an export command
-    /// </summary>
-    internal static ProcessResult RunBuildCmd(string directory) =>
-        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-         ? ProcessUtil.Run("cmd", args: "/c build.cmd", workingDirectory: directory)
-         : ProcessUtil.Run(Path.Combine(directory, "build.sh"), args: "", workingDirectory: directory);
 
     protected void RunInContext<T>(T state, Action<ITestOutputHelper, T, CancellationToken> action, [CallerMemberName] string? testMethod = null)
     {

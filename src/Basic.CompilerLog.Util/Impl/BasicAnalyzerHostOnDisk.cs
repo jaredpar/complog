@@ -130,15 +130,6 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
 
 internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
 {
-    public static readonly DiagnosticDescriptor CannotFindAssembly =
-        new DiagnosticDescriptor(
-            "BCLA0003",
-            "Cannot find assembly",
-            "Cannot find assembly {0}",
-            "BasicCompilerLog",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
     internal string Name { get; }
     internal string AnalyzerDirectory { get; }
     internal Action<Diagnostic> OnDiagnostic { get; }
@@ -189,7 +180,7 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
             return Assembly.LoadFrom(name);
         }
 
-        var diagnostic = Diagnostic.Create(CannotFindAssembly, Location.None, assemblyName);
+        var diagnostic = Diagnostic.Create(RoslynUtil.CannotFindAssemblyDiagnosticDescriptor, Location.None, assemblyName);
         OnDiagnostic(diagnostic);
         return null;
     }

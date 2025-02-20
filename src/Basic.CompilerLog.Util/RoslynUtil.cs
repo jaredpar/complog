@@ -35,6 +35,42 @@ internal static class RoslynUtil
     internal static readonly Guid LanguageTypeCSharp = new Guid("{3f5162f8-07c6-11d3-9053-00c04fa302a1}");
     internal static readonly Guid LanguageTypeBasic = new Guid("{3a12d0b8-c26c-11d0-b442-00a0244a1dd2}");
 
+    public static readonly DiagnosticDescriptor CannotReadGeneratedFilesDiagnosticDescriptor =
+        new DiagnosticDescriptor(
+            "BCLA0001",
+            "Cannot read generated files",
+            "Error reading generated files: {0}",
+            "BasicCompilerLog",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor CannotLoadTypesDiagnosticDescriptor =
+        new DiagnosticDescriptor(
+            "BCLA0002",
+            "Failed to load types from assembly",
+            "Failed to load types from {0}: {1}",
+            "BasicCompilerLog",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor CannotFindAssemblyDiagnosticDescriptor =
+        new DiagnosticDescriptor(
+            "BCLA0003",
+            "Cannot find assembly",
+            "Cannot find assembly {0}",
+            "BasicCompilerLog",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor CannotReadFileDiagnosticDescriptor =
+        new DiagnosticDescriptor(
+            "BCLA0004",
+            "Cannot read file",
+            "Cannot read file {0}",
+            "BasicCompilerLog",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
     internal delegate bool SourceTextLineFunc(ReadOnlySpan<char> line, ReadOnlySpan<char> newLine);
 
     /// <summary>
@@ -44,13 +80,38 @@ internal static class RoslynUtil
     /// TODO: need to expose the real API for how the compiler reads source files. 
     /// move this comment to the rehydration code when we write it.
     /// </remarks>
-    internal static SourceText GetSourceText(Stream stream, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded) =>
-        SourceText.From(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+    internal static SourceText GetSourceText(Stream stream, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded)
+    {
+        Debug.Assert(!stream.CanSeek || stream.Position == 0);
+        return SourceText.From(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+    }
 
     internal static SourceText GetSourceText(string filePath, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded)
     {
         using var stream = OpenBuildFileForRead(filePath);
         return GetSourceText(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);
+    }
+
+    /// <summary>
+    /// This mimics the CommonCompiler.TryReadFileContent API.
+    /// </summary>
+    internal static SourceText? TryGetSourceText(
+        string filePath,
+        SourceHashAlgorithm checksumAlgorithm,
+        bool canBeEmbedded,
+        out ImmutableArray<Diagnostic> diagnostics)
+    {
+        try
+        {
+            diagnostics = [];
+            return GetSourceText(filePath, checksumAlgorithm, canBeEmbedded);
+        }
+        catch (Exception ex)
+        {
+            var diagnostic = Diagnostic.Create(CannotReadFileDiagnosticDescriptor, Location.None, filePath, ex.Message);
+            diagnostics = [diagnostic];
+            return null;
+        }
     }
 
     internal static VisualBasicSyntaxTree[] ParseAllVisualBasic(IReadOnlyList<(SourceText SourceText, string Path)> sourceTextList, VisualBasicParseOptions parseOptions)
@@ -158,7 +219,8 @@ internal static class RoslynUtil
         EmitOptions emitOptions,
         EmitData emitData,
         BasicAnalyzerHost basicAnalyzerHost,
-        PathNormalizationUtil pathNormalizationUtil)
+        PathNormalizationUtil pathNormalizationUtil,
+        ImmutableArray<Diagnostic> creationDiagnostics)
     {
         var syntaxTrees = ParseAllCSharp(sourceTexts, parseOptions);
         var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, pathNormalizationUtil);
@@ -181,7 +243,8 @@ internal static class RoslynUtil
             emitData,
             additionalTexts,
             basicAnalyzerHost,
-            analyzerProvider);
+            analyzerProvider,
+            creationDiagnostics);
     }
 
     internal static VisualBasicCompilationData CreateVisualBasicCompilationData(
@@ -196,7 +259,8 @@ internal static class RoslynUtil
         EmitOptions emitOptions,
         EmitData emitData,
         BasicAnalyzerHost basicAnalyzerHost,
-        PathNormalizationUtil pathNormalizationUtil)
+        PathNormalizationUtil pathNormalizationUtil,
+        ImmutableArray<Diagnostic> creationDiagnostics)
     {
         var syntaxTrees = ParseAllVisualBasic(sourceTexts, parseOptions);
         var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, pathNormalizationUtil);
@@ -219,7 +283,8 @@ internal static class RoslynUtil
             emitData,
             additionalTexts.ToImmutableArray(),
             basicAnalyzerHost,
-            analyzerProvider);
+            analyzerProvider,
+            creationDiagnostics);
     }
 
     internal static string RewriteGlobalEditorConfigSections(SourceText sourceText, Func<string, string> pathMapFunc)
@@ -272,14 +337,17 @@ internal static class RoslynUtil
         return path;
     }
 
+    internal static string GetMissingFileDiagnosticMessage(string filePath) => 
+        $"Missing file, either build did not happen on this machine or the environment has changed: {filePath}";
+
     /// <summary>
-    /// Open a file from a build on the current machine.
+    /// Open a file from a build on the current machine and add a diagonstic if it's missing.
     /// </summary>
     internal static FileStream OpenBuildFileForRead(string filePath)
     {
         if (!File.Exists(filePath))
         {
-            throw new Exception($"Missing file, either build did not happen on this machine or the environment has changed: {filePath}");
+            throw new Exception(GetMissingFileDiagnosticMessage(filePath));
         }
 
         return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);

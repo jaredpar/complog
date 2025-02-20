@@ -211,15 +211,6 @@ internal sealed class InMemoryLoader
 
 file sealed class BasicAnalyzerReference : AnalyzerReference
 {
-    public static readonly DiagnosticDescriptor CannotLoadTypes =
-        new DiagnosticDescriptor(
-            "BCLA0002",
-            "Failed to load types from assembly",
-            "Failed to load types from {0}: {1}",
-            "BasicCompilerLog",
-            DiagnosticSeverity.Warning,
-            isEnabledByDefault: true);
-
     internal AssemblyName AssemblyName { get; }
     internal byte[] AssemblyBytes { get; }
     internal InMemoryLoader Loader { get; }
@@ -286,7 +277,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         }
         catch (Exception ex)
         {
-            var diagnostic = Diagnostic.Create(CannotLoadTypes, Location.None, AssemblyName.FullName, ex.Message);
+            var diagnostic = Diagnostic.Create(RoslynUtil.CannotLoadTypesDiagnosticDescriptor, Location.None, AssemblyName.FullName, ex.Message);
             OnDiagnostic(diagnostic);
             return [];
         }

@@ -16,7 +16,7 @@ public static class SdkUtil
 {
     public static string GetDotnetDirectory(string? path = null)
     {
-        // TODO: has to be a better way to find the runtime directory but this works for the moment
+        // TODO: has to be a better way to find the runtime directory but this works for the moment 
         path ??= Path.GetDirectoryName(typeof(object).Assembly.Location);
         while (path is not null && !IsDotNetDir(path))
         {

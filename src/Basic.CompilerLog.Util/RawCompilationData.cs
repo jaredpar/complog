@@ -38,13 +38,13 @@ internal readonly struct RawContent
 {
     internal string OriginalFilePath { get; }
     internal string NormalizedFilePath { get; }
-    internal string ContentHash { get; }
+    internal string? ContentHash { get; }
     internal RawContentKind Kind { get; }
 
     internal RawContent(
         string originalFilePath,
         string normalizedFilePath,
-        string contentHash,
+        string? contentHash,
         RawContentKind kind)
     {
         OriginalFilePath = originalFilePath;

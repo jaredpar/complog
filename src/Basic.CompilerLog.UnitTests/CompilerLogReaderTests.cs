@@ -17,6 +17,7 @@ using System.Runtime.Loader;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
+using Task = System.Threading.Tasks.Task;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -51,7 +52,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
         var extraData = reader.ReadAllRawContent(0).Single(x => Path.GetFileName(x.OriginalFilePath) == fileName);
         Assert.Equal("84C9FAFCF8C92F347B96D26B149295128B08B07A3C4385789FE4758A2B520FDE", extraData.ContentHash);
-        var contentBytes = reader.GetContentBytes(extraData.ContentHash);
+        var contentBytes = reader.GetContentBytes(extraData.ContentHash!);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
     }
 
@@ -391,7 +392,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var data = reader.ReadCompilationData(0);
         var compilation = data.GetCompilationAfterGenerators(out var diagnostics, CancellationToken);
         Assert.Single(diagnostics);
-        Assert.Equal(BasicAnalyzerHostNone.CannotReadGeneratedFiles.Id, diagnostics[0].Id);
+        Assert.Equal(RoslynUtil.CannotReadGeneratedFilesDiagnosticDescriptor.Id, diagnostics[0].Id);
     }
 
     [Theory]
@@ -419,6 +420,61 @@ public sealed class CompilerLogReaderTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         Assert.Throws<ArgumentException>(() => reader.ReadCompilationData(index));
+    }
+
+    [Fact]
+    public async Task ReadCompilationDataMissingAdditionalFiles()
+    {
+        var dir = Root.NewDirectory("missing-additional-files");
+        RunDotNet("new classlib --name example -o .", dir);
+        SetProjectFileContent("""
+            <Project Sdk="Microsoft.NET.Sdk">
+                <PropertyGroup>
+                    <TargetFramework>net8.0</TargetFramework>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                    <NoWarn>$(NoWarn);CS8933</NoWarn>
+                </PropertyGroup>
+                <ItemGroup>
+                    <AdditionalFiles Include="additional.txt" />
+                </ItemGroup>
+            </Project>
+            """, dir);
+        RunDotNet("build -bl:build.binlog -nr:false", dir);
+
+        var binlogFilePath = Path.Combine(dir, "build.binlog");
+        using var binlogReader = BinaryLogReader.Create(binlogFilePath, BasicAnalyzerKind.None);
+        await Core(binlogReader, CancellationToken);
+        binlogReader.Dispose();
+
+        var complogFilePath = Path.Combine(dir, "build.complog");
+        CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath);
+        using var complogReader = CompilerLogReader.Create(complogFilePath, BasicAnalyzerKind.None);
+        await Core(complogReader, CancellationToken);
+
+        static async Task Core(ICompilerCallReader reader, CancellationToken cancellationToken)
+        {
+            var compilerCall = reader.ReadAllCompilerCalls().Single();
+            var compilationData = reader.ReadCompilationData(compilerCall);
+            var diagnostics = compilationData.GetDiagnostics();
+
+            // This may seem counter intuitive but the compiler does not issue an error on a missing 
+            // additional file. The error only happens if something tries to read the file
+            Assert.Empty(diagnostics);
+
+            diagnostics = await compilationData.GetAllDiagnosticsAsync(cancellationToken);
+            Assert.Empty(diagnostics);
+
+            var additionalText = (BasicAdditionalText)compilationData.AdditionalTexts.Single();
+            Assert.Null(additionalText.GetText());
+            Assert.Single(additionalText.Diagnostics);
+            Assert.Equal(RoslynUtil.CannotReadFileDiagnosticDescriptor, additionalText.Diagnostics[0].Descriptor);
+
+            // Now that the text is observed to be empty the diagnostic should show up
+            diagnostics = await compilationData.GetAllDiagnosticsAsync(cancellationToken);
+            Assert.Single(diagnostics);
+            Assert.Equal(RoslynUtil.CannotReadFileDiagnosticDescriptor, additionalText.Diagnostics[0].Descriptor);
+        }
     }
 
     [Fact]

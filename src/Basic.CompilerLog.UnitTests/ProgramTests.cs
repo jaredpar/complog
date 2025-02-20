@@ -244,7 +244,9 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void CreateOverRemovedProject()
     {
-        Assert.Equal(Constants.ExitFailure, RunCompLog($"create {Fixture.RemovedBinaryLogPath}"));
+        var (exitCode, output) = RunCompLogEx($"create {Fixture.RemovedBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains(RoslynUtil.GetMissingFileDiagnosticMessage(""), output);
     }
 
     [Theory]
@@ -480,7 +482,7 @@ public sealed class ProgramTests : TestBase
 
             // Now run the generated build.cmd and see if it succeeds;
             var exportPath = Path.Combine(exportDir.DirectoryPath, "console");
-            var buildResult = RunBuildCmd(exportPath);
+            var buildResult = TestUtil.RunBuildCmd(exportPath);
             Assert.True(buildResult.Succeeded);
 
             // Check that the RSP file matches the analyzer intent

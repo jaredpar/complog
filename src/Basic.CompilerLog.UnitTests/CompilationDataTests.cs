@@ -171,7 +171,8 @@ public sealed class CompilationDataTests : TestBase
             data.EmitData,
             data.AdditionalTexts,
             host,
-            data.AnalyzerConfigOptionsProvider);
+            data.AnalyzerConfigOptionsProvider,
+            creationDiagnostics: []);
         Assert.NotEmpty(await data.GetAllDiagnosticsAsync(CancellationToken));
     }
 
@@ -199,7 +200,8 @@ public sealed class CompilationDataTests : TestBase
                 data.EmitData,
                 data.AdditionalTexts,
                 host,
-                data.AnalyzerConfigOptionsProvider);
+                data.AnalyzerConfigOptionsProvider,
+                creationDiagnostics: []);
             _ = data.GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
             Assert.NotEmpty(diagnostics);
         });

@@ -13,15 +13,6 @@ namespace Basic.CompilerLog.Util.Impl;
 /// </summary>
 internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
 {
-    public static readonly DiagnosticDescriptor CannotReadGeneratedFiles =
-        new DiagnosticDescriptor(
-            "BCLA0001",
-            "Cannot read generated files",
-            "Error reading generated files: {0}",
-            "BasicCompilerLog",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
     internal List<(SourceText SourceText, string FilePath)> GeneratedSourceTexts { get; }
     internal BasicAnalyzerHostNoneAnalyzerReference? Generator { get; }
 
@@ -43,7 +34,7 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
     internal BasicAnalyzerHostNone(string errorMessage)
         : this([])
     {
-        AddDiagnostic(Diagnostic.Create(CannotReadGeneratedFiles, Location.None, errorMessage));
+        AddDiagnostic(Diagnostic.Create(RoslynUtil.CannotReadGeneratedFilesDiagnosticDescriptor, Location.None, errorMessage));
     }
 
     /// <summary>
