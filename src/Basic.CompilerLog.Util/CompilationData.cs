@@ -48,6 +48,11 @@ public abstract class CompilationData
     public EmitOptions EmitOptions { get; }
     public ParseOptions ParseOptions { get; }
 
+    /// <summary>
+    /// Diagnostics that resulted from rehydrating the compilation.
+    /// </summary>
+    public ImmutableArray<Diagnostic> CreationDiagnostics { get; }
+
     public CompilationOptions CompilationOptions => Compilation.Options;
     public bool IsCSharp => Compilation is CSharpCompilation;
     public bool IsVisualBasic => !IsCSharp;
@@ -92,7 +97,8 @@ public abstract class CompilationData
         EmitData emitData,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
-        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
+        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider,
+        ImmutableArray<Diagnostic> creationDiagnostics)
     {
         CompilerCall = compilerCall;
         Compilation = compilation;
@@ -103,6 +109,7 @@ public abstract class CompilationData
         BasicAnalyzerHost = basicAnalyzerHost;
         AnalyzerReferences = basicAnalyzerHost.AnalyzerReferences;
         AnalyzerConfigOptionsProvider = analyzerConfigOptionsProvider;
+        CreationDiagnostics = creationDiagnostics;
     }
 
     public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers()
@@ -130,24 +137,30 @@ public abstract class CompilationData
         out ImmutableArray<Diagnostic> diagnostics,
         CancellationToken cancellationToken = default)
     {
+        Compilation compilation;
         if (_afterGenerators is { } tuple)
         {
-            diagnostics = tuple.Item2;
-            return tuple.Item1;
+            (compilation, diagnostics) = tuple;
+        }
+        else
+        {
+            var driver = CreateGeneratorDriver();
+            driver.RunGeneratorsAndUpdateCompilation(Compilation, out compilation, out diagnostics, cancellationToken);
+            _afterGenerators = (compilation, diagnostics);
         }
 
-        var driver = CreateGeneratorDriver();
-        driver.RunGeneratorsAndUpdateCompilation(Compilation, out tuple.Item1, out tuple.Item2, cancellationToken);
-        _afterGenerators = tuple;
-        diagnostics = tuple.Item2;
-
         // Now that analyzers have completed running add any diagnostics the host has captured
-        if (BasicAnalyzerHost.GetDiagnostics() is { Count: > 0} list)
+        if (BasicAnalyzerHost.GetDiagnostics() is { Count: > 0 } list)
         {
             diagnostics = diagnostics.AddRange(list);
         }
 
-        return tuple.Item1;
+        if (CreationDiagnostics.Length > 0)
+        {
+            diagnostics = diagnostics.AddRange(CreationDiagnostics);
+        }
+
+        return compilation;
     }
 
     public List<SyntaxTree> GetGeneratedSyntaxTrees(CancellationToken cancellationToken = default) =>
@@ -215,6 +228,14 @@ public abstract class CompilationData
         {
             var cwa = new CompilationWithAnalyzers(compilation, GetAnalyzers(), AnalyzerOptions);
             diagnostics = await cwa.GetAllDiagnosticsAsync().ConfigureAwait(false);
+        }
+
+        foreach (var additionalText in AdditionalTexts)
+        {
+            if (additionalText is BasicAdditionalText { Diagnostics.Length: > 0 } basicAdditionalText)
+            {
+                diagnostics = diagnostics.AddRange(basicAdditionalText.Diagnostics);
+            }
         }
 
         return diagnostics.AddRange(hostDiagnostics);
@@ -360,8 +381,9 @@ public abstract class CompilationData<TCompilation, TParseOptions> : Compilation
         EmitData emitData,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
-        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider,
+        ImmutableArray<Diagnostic> creationDiagnostics)
+        :base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider, creationDiagnostics)
     {
         
     }
@@ -377,8 +399,9 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
         EmitData emitData,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
-        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        :base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider,
+        ImmutableArray<Diagnostic> creationDiagnostics)
+        :base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider, creationDiagnostics)
     {
 
     }
@@ -397,8 +420,9 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
         EmitData emitData,
         ImmutableArray<AdditionalText> additionalTexts,
         BasicAnalyzerHost basicAnalyzerHost,
-        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider)
-        : base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider)
+        AnalyzerConfigOptionsProvider analyzerConfigOptionsProvider,
+        ImmutableArray<Diagnostic> creationDiagnostics)
+        : base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider, creationDiagnostics)
     {
     }
 

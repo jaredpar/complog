@@ -208,4 +208,25 @@ public sealed class BinaryLogReaderTests : TestBase
         var list = reader.ReadAllGeneratedSourceTexts(compilerCall);
         Assert.Empty(list);
     }
+
+    [Theory]
+    [MemberData(nameof(GetMissingFileArguments))]
+    public void MissingFiles(string? option, string fileName, bool hasDiagnostics)
+    {
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, BasicAnalyzerKind.None);
+        var originalCompilerCall = reader.ReadAllCompilerCalls().Single();
+
+        var filePath = Path.Combine(RootDirectory, fileName);
+        var prefix = option is null ? "" : $"/{option}:";
+        var compilerCall = originalCompilerCall.WithAdditionalArguments([$"{prefix}{filePath}"]);
+        var compilationData = reader.ReadCompilationData(compilerCall);
+        if (hasDiagnostics)
+        {
+            Assert.Equal([RoslynUtil.CannotReadFileDiagnosticDescriptor], compilationData.CreationDiagnostics.Select(x => x.Descriptor));
+        }
+        else
+        {
+            Assert.Empty(compilationData.CreationDiagnostics);
+        }
+    }
 }

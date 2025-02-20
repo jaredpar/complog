@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xaml;
 using Xunit;
 using Xunit.Sdk;
 
@@ -48,7 +49,7 @@ public abstract class TestBase : IDisposable
     {
         foreach (BasicAnalyzerKind e in Enum.GetValues(typeof(BasicAnalyzerKind)))
         {
-            yield return new object[] { e };
+            yield return [e];
         }
     }
 
@@ -58,12 +59,12 @@ public abstract class TestBase : IDisposable
     /// <returns></returns>
     public static IEnumerable<object[]> GetSupportedBasicAnalyzerKinds()
     {
-        yield return new object[] { BasicAnalyzerKind.None };
-        yield return new object[] { BasicAnalyzerKind.OnDisk };
+        yield return [BasicAnalyzerKind.None];
+        yield return [BasicAnalyzerKind.OnDisk];
 
         if (IsNetCore)
         {
-            yield return new object[] { BasicAnalyzerKind.InMemory };
+            yield return [BasicAnalyzerKind.InMemory];
         }
     }
 
@@ -74,13 +75,28 @@ public abstract class TestBase : IDisposable
     /// <returns></returns>
     public static IEnumerable<object[]> GetSimpleBasicAnalyzerKinds()
     {
-        yield return new object[] { BasicAnalyzerKind.None };
+        yield return [BasicAnalyzerKind.None];
 
         if (IsNetCore)
         {
-            yield return new object[] { BasicAnalyzerKind.OnDisk };
-            yield return new object[] { BasicAnalyzerKind.InMemory };
+            yield return [BasicAnalyzerKind.OnDisk];
+            yield return [BasicAnalyzerKind.InMemory];
         }
+    }
+
+    /// <summary>
+    /// This captures the set of "missing" files that we need to be tolerant of in our 
+    /// reading and creation of compiler logs.
+    /// </summary>
+    public static IEnumerable<object?[]> GetMissingFileArguments()
+    {
+        yield return ["keyfile", "does-not-exist.snk", false]; // key file isn't noticed until emit
+        yield return ["embed", "data.txt", true];
+        yield return ["win32manifest", "data.manifest", false]; // manifest isn't noticed until emit
+        yield return ["win32res", "data.res", true]; 
+        yield return ["sourcelink", "data.link", true];
+        yield return ["analyzerconfig", "data.config", true];
+        yield return [null, "data.cs", true];
     }
 
     protected TestBase(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, string name)
@@ -139,25 +155,41 @@ public abstract class TestBase : IDisposable
         Assert.Equal(0, result.ExitCode);
     }
 
-    protected void AddProjectProperty(string property, string? workingDirectory = null)
-    {
-        workingDirectory ??= RootDirectory;
-        var projectFile = Directory.EnumerateFiles(workingDirectory, "*proj").Single();
-        var lines = File.ReadAllLines(projectFile);
-        using var writer = new StreamWriter(projectFile, append: false);
-        foreach (var line in lines)
-        {
-            if (line.Contains("</PropertyGroup>"))
-            {
-                writer.WriteLine(property);
-            }
+    protected void AddProjectProperty(string property, string? workingDirectory = null) =>
+        TestUtil.AddProjectProperty(property, workingDirectory ?? RootDirectory);
 
-            writer.WriteLine(line);
-        }
-    }
+    protected void SetProjectFileContent(string content, string? workingDirectory = null) =>
+        TestUtil.SetProjectFileContent(content, workingDirectory ?? RootDirectory);
 
     protected string GetBinaryLogFullPath(string? workingDirectory = null) =>
         Path.Combine(workingDirectory ?? RootDirectory, "msbuild.binlog");
+
+    /// <summary>
+    /// Dig through a compiler log for a single <see cref="CompilerCall"/>, change it and get a reader
+    /// over a new compiler log built from it.
+    /// </summary>
+    protected CompilerLogReader ChangeCompilerCall(
+        string logFilePath,
+        Func<CompilerCall, bool> predicate,
+        Func<CompilerCall, CompilerCall> func,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
+        List<string>? diagnostics = null)
+    {
+        using var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind, State);
+        var compilerCall = reader
+            .ReadAllCompilerCalls(predicate)
+            .Single();
+
+        compilerCall = func(compilerCall);
+
+        diagnostics ??= new List<string>();
+        var stream = new MemoryStream();
+        var builder = new CompilerLogBuilder(stream, diagnostics);
+        builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+        builder.Close();
+        stream.Position = 0;
+        return CompilerLogReader.Create(stream, basicAnalyzerKind, State, leaveOpen: false);
+    }
 
     protected CompilerLogReader GetReader(bool emptyDirectory = true )
     {
@@ -180,14 +212,6 @@ public abstract class TestBase : IDisposable
         stream.Position = 0;
         return CompilerLogReader.Create(stream, state, leaveOpen: false);
     }
-
-    /// <summary>
-    /// Run the build.cmd / .sh generated from an export command
-    /// </summary>
-    internal static ProcessResult RunBuildCmd(string directory) =>
-        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-         ? ProcessUtil.Run("cmd", args: "/c build.cmd", workingDirectory: directory)
-         : ProcessUtil.Run(Path.Combine(directory, "build.sh"), args: "", workingDirectory: directory);
 
     protected void RunInContext<T>(T state, Action<ITestOutputHelper, T, CancellationToken> action, [CallerMemberName] string? testMethod = null)
     {

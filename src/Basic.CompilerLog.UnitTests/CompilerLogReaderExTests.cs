@@ -1,11 +1,11 @@
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
-using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
+using System.Data.Common;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Linq;
@@ -38,23 +38,13 @@ public sealed class CompilerLogReaderExTests : TestBase
     /// <summary>
     /// Convert the console binary log and return a reader over it
     /// </summary>
-    private CompilerLogReader ConvertConsole(Func<CompilerCall, CompilerCall> func, BasicAnalyzerKind? basicAnalyzerKind = null)
-    {
-        using var binlogStream = new FileStream(Fixture.SolutionBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var compilerCall = BinaryLogUtil.ReadAllCompilerCalls(
-            binlogStream,
-            static x => x.ProjectFileName == "console.csproj").Single();
-
-        compilerCall = func(compilerCall);
-
-        var diagnostics = new List<string>();
-        var stream = new MemoryStream();
-        var builder = new CompilerLogBuilder(stream, diagnostics);
-        builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
-        builder.Close();
-        stream.Position = 0;
-        return CompilerLogReader.Create(stream, basicAnalyzerKind, State, leaveOpen: false);
-    }
+    private CompilerLogReader ConvertConsole(Func<CompilerCall, CompilerCall> func, BasicAnalyzerKind? basicAnalyzerKind = null, List<string>? diagnostics = null) =>
+        ChangeCompilerCall(
+            Fixture.SolutionBinaryLogPath,
+            x => x.ProjectFileName == "console.csproj",
+            func,
+            basicAnalyzerKind,
+            diagnostics);
 
     private CompilerLogReader ConvertConsoleArgs(Func<IReadOnlyCollection<string>, IReadOnlyCollection<string>> func, BasicAnalyzerKind? basicAnalyzerKind = null) => 
         ConvertConsole(x =>
@@ -104,5 +94,31 @@ public sealed class CompilerLogReaderExTests : TestBase
 
         var syntaxTree = data.Compilation.SyntaxTrees.First();
         Assert.Equal(expectedKind, syntaxProvider.IsGenerated(syntaxTree, CancellationToken.None));
+    }
+
+    [Theory]
+    [MemberData(nameof(GetMissingFileArguments))]
+    public async Task MissingFiles(string? option, string fileName, bool hasDiagnostics)
+    {
+        var diagnostics = new List<string>();
+        var filePath = Path.Combine(RootDirectory, fileName);
+        var prefix = option is null ? "" : $"/{option}:";
+        using var reader = ConvertConsole(x => x.WithAdditionalArguments([$"{prefix}{filePath}"]), BasicAnalyzerKind.None, diagnostics);
+        Assert.Equal([RoslynUtil.GetMissingFileDiagnosticMessage(filePath)], diagnostics);
+        var compilationData = reader.ReadAllCompilationData().Single();
+        if (hasDiagnostics)
+        {
+            Assert.Equal([RoslynUtil.CannotReadFileDiagnosticDescriptor], compilationData.CreationDiagnostics.Select(x => x.Descriptor));
+
+            _ = compilationData.GetCompilationAfterGenerators(out var diagnostics2, CancellationToken);
+            Assert.Contains(RoslynUtil.CannotReadFileDiagnosticDescriptor, diagnostics2.Select(x => x.Descriptor));
+
+            diagnostics2 = await compilationData.GetAllDiagnosticsAsync(CancellationToken);
+            Assert.Contains(RoslynUtil.CannotReadFileDiagnosticDescriptor, diagnostics2.Select(x => x.Descriptor));
+        }
+        else
+        {
+            Assert.Empty(compilationData.CreationDiagnostics);
+        }
     }
 }

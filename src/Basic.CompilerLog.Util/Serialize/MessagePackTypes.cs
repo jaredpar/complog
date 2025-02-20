@@ -163,8 +163,11 @@ public class EmitOptionsPack
 [MessagePackObject]
 public class ContentPack
 {
+    /// <summary>
+    /// This will be null when the file was not able to be read at creation time
+    /// </summary>
     [Key(0)]
-    public string ContentHash { get; set; }
+    public string? ContentHash { get; set; }
     [Key(1)]
     public string FilePath { get; set; }
 }

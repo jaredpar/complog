@@ -159,6 +159,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         CheckOwnership(compilerCall);
         var (compilerCallData, args) = ReadCompilerCallDataCore(compilerCall);
 
+        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         var references = GetReferences();
         var sourceTexts = GetSourceTexts();
         var additionalTexts = GetAdditionalTexts();
@@ -182,7 +183,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 args.EmitOptions,
                 emitData,
                 basicAnalyzerHost,
-                PathNormalizationUtil.Empty);
+                PathNormalizationUtil.Empty,
+                diagnostics.ToImmutable());
         }
 
         VisualBasicCompilationData GetVisualBasic()
@@ -199,7 +201,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 args.EmitOptions,
                 emitData,
                 basicAnalyzerHost,
-                PathNormalizationUtil.Empty);
+                PathNormalizationUtil.Empty,
+                diagnostics.ToImmutable());
         }
 
         List<(SourceText SourceText, string Path)> GetAnalyzerConfigs() => 
@@ -219,11 +222,20 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         List<(SourceText SourceText, string Path)> GetSourceTexts() =>
             GetSourceTextsFromPaths(args.SourceFiles.Select(x => x.Path), args.SourceFiles.Length, args.ChecksumAlgorithm);
 
-        static List<(SourceText SourceText, string Path)> GetSourceTextsFromPaths(IEnumerable<string> filePaths, int count, SourceHashAlgorithm checksumAlgorithm)
+        List<(SourceText SourceText, string Path)> GetSourceTextsFromPaths(IEnumerable<string> filePaths, int count, SourceHashAlgorithm checksumAlgorithm)
         {
             var list = new List<(SourceText, string)>(capacity: count);
             foreach (var filePath in filePaths)
             {
+                if (!File.Exists(filePath))
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        RoslynUtil.CannotReadFileDiagnosticDescriptor,
+                        Location.None,
+                        filePath));
+                    continue;
+                }
+
                 var sourceText = RoslynUtil.GetSourceText(filePath, checksumAlgorithm, canBeEmbedded: false);
                 list.Add((sourceText, filePath));
             }
@@ -235,10 +247,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             var builder = ImmutableArray.CreateBuilder<AdditionalText>(args.AdditionalFiles.Length);
             foreach (var additionalFile in args.AdditionalFiles)
             {
-                var sourceText = RoslynUtil.GetSourceText(additionalFile.Path, args.ChecksumAlgorithm, canBeEmbedded: false);
-                var additionalText = new BasicAdditionalTextFile(
-                    additionalFile.Path,
-                    sourceText);
+                var additionalText = new BasicAdditionalTextFile(additionalFile.Path, args.ChecksumAlgorithm);
                 builder.Add(additionalText);
             }
             return builder.MoveToImmutable();
@@ -263,6 +272,15 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 return null;
             }
 
+            if (!File.Exists(filePath))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    RoslynUtil.CannotReadFileDiagnosticDescriptor,
+                    Location.None,
+                    filePath));
+                return null;
+            }
+
             var bytes = File.ReadAllBytes(filePath);
             return new MemoryStream(bytes);
         }
@@ -277,6 +295,15 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             var list = new List<EmbeddedText>(args.EmbeddedFiles.Length);
             foreach (var item in args.EmbeddedFiles)
             {
+                if (!File.Exists(item.Path))
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        RoslynUtil.CannotReadFileDiagnosticDescriptor,
+                        Location.None,
+                        item.Path));
+                    continue;
+                }
+
                 var sourceText = RoslynUtil.GetSourceText(item.Path, args.ChecksumAlgorithm, canBeEmbedded: true);
                 var embeddedText = EmbeddedText.FromSource(item.Path, sourceText);
                 list.Add(embeddedText);
