@@ -478,8 +478,10 @@ public sealed class ExportUtilTests : TestBase
         ExportUtil.ExportRsp(reader.ReadCompilerCall(0), writer);
         Assert.Contains(fileName, writer.ToString());
 
+#if NET
         using var scratchDir = new TempDir("export test");
         var exportUtil = new ExportUtil(reader, includeAnalyzers: true);
         exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkDirectories());
+#endif
     }
 }

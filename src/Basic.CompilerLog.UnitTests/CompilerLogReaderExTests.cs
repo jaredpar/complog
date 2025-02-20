@@ -103,7 +103,7 @@ public sealed class CompilerLogReaderExTests : TestBase
         var diagnostics = new List<string>();
         var filePath = Path.Combine(RootDirectory, fileName);
         var prefix = option is null ? "" : $"/{option}:";
-        using var reader = ConvertConsole(x => x.WithAdditionalArguments([$"{prefix}{filePath}"]), diagnostics: diagnostics);
+        using var reader = ConvertConsole(x => x.WithAdditionalArguments([$"{prefix}{filePath}"]), BasicAnalyzerKind.None, diagnostics);
         Assert.Equal([RoslynUtil.GetMissingFileDiagnosticMessage(filePath)], diagnostics);
         var compilationData = reader.ReadAllCompilationData().Single();
         if (hasDiagnostics)
