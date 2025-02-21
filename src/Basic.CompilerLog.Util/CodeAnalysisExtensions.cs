@@ -39,7 +39,7 @@ public static class CodeAnalysisExtensions
         MemoryStream? xmlStream = null;
         MemoryStream? metadataStream = null;
 
-        if ((emitFlags & EmitFlags.IncludePdbStream) != 0)
+        if ((emitFlags & EmitFlags.IncludePdbStream) != 0 && emitOptions.DebugInformationFormat != DebugInformationFormat.Embedded)
         {
             pdbStream = new MemoryStream();
         }
