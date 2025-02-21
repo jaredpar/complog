@@ -5,6 +5,7 @@ using System.IO.Pipelines;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Text;
 using System.Threading.Tasks;
 using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
@@ -25,10 +26,8 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
-var zipFilePath = @"C:\Users\jaredpar\Downloads\msbuild_logs.zip";
 //using var reader = CompilerLogReader.Create(zipFilePath);
-RunComplog($"print -c {zipFilePath}");
-
+RunComplog(@$"replay C:\Users\jaredpar\Downloads\msbuild.complog");
 
 
 /*

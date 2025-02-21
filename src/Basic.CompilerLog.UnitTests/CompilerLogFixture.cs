@@ -276,6 +276,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     <TargetFramework>net8.0</TargetFramework>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
+                    <DebugType>embedded</DebugType>
                     <EmbedAllSources>true</EmbedAllSources>
                     <CodeAnalysisRuleset>{scratchPath}\example.ruleset</CodeAnalysisRuleset>
                     <Win32Manifest>resource.txt</Win32Manifest>

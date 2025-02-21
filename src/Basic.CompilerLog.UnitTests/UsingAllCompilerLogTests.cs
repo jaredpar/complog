@@ -6,6 +6,7 @@ using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Classification;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
@@ -73,7 +74,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                     Assert.NotEmpty(emitResult.AssemblyFilePath);
 
                     var emitFlags = data.EmitFlags;
-                    if ((emitFlags & EmitFlags.IncludePdbStream) != 0)
+                    if ((emitFlags & EmitFlags.IncludePdbStream) != 0 && data.EmitOptions.DebugInformationFormat != DebugInformationFormat.Embedded)
                     {
                         Assert.NotNull(emitResult.PdbFilePath);
                     }

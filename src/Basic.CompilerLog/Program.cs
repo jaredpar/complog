@@ -40,6 +40,7 @@ catch (Exception e)
 {
     WriteLine("Unexpected error");
     WriteLine(e.Message);
+    WriteLine(e.StackTrace!);
     RunHelp(null);
     return ExitFailure;
 }

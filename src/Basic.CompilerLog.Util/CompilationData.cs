@@ -274,7 +274,7 @@ public abstract class CompilationData
         { 
             peStream = OpenFile(assemblyFilePath);
 
-            if ((emitFlags & EmitFlags.IncludePdbStream) != 0)
+            if ((emitFlags & EmitFlags.IncludePdbStream) != 0 && emitOptions.DebugInformationFormat != DebugInformationFormat.Embedded)
             {
                 pdbFilePath = Path.Combine(directory, Path.ChangeExtension(assemblyName, ".pdb"));
                 pdbStream = OpenFile(pdbFilePath);
