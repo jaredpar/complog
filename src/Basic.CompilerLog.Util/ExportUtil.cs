@@ -13,18 +13,21 @@ public sealed partial class ExportUtil
         internal string DestinationDirectory { get; }
         internal string SourceDirectory { get; }
         internal string EmbeddedResourceDirectory { get; }
-        internal string OriginalProjectFilePath { get; }
-        internal string OriginalProjectDirectory { get; }
-        internal ResilientDirectory MiscDirectory { get; }
+
+        /// <summary>
+        /// <see cref="ExportUtil.GetSourceDirectory(CompilerLogReader, CompilerCall)"/> 
+        /// </summary>
+        internal string OriginalSourceDirectory { get; }
+
+        internal MiscDirectory MiscDirectory { get; }
         internal ResilientDirectory AnalyzerDirectory { get; }
         internal ResilientDirectory GeneratedCodeDirectory { get; }
         internal ResilientDirectory BuildOutput { get; }
 
-        internal ContentBuilder(string destinationDirectory, string originalProjectFilePath)
+        internal ContentBuilder(string destinationDirectory, string originalSourceDirectory)
         {
             DestinationDirectory = destinationDirectory;
-            OriginalProjectFilePath = originalProjectFilePath;
-            OriginalProjectDirectory = Path.GetDirectoryName(OriginalProjectFilePath)!;
+            OriginalSourceDirectory = originalSourceDirectory;
             SourceDirectory = Path.Combine(destinationDirectory, "src");
             EmbeddedResourceDirectory = Path.Combine(destinationDirectory, "resources");
             MiscDirectory = new(Path.Combine(destinationDirectory, "misc"));
@@ -41,9 +44,9 @@ public sealed partial class ExportUtil
             originalFilePath = Path.GetFullPath(originalFilePath);
 
             string filePath;
-            if (originalFilePath.StartsWith(OriginalProjectDirectory, PathUtil.Comparison))
+            if (originalFilePath.StartsWith(OriginalSourceDirectory, PathUtil.Comparison))
             {
-                filePath = PathUtil.ReplacePathStart(originalFilePath, OriginalProjectDirectory, SourceDirectory);
+                filePath = PathUtil.ReplacePathStart(originalFilePath, OriginalSourceDirectory, SourceDirectory);
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             }
             else
@@ -108,7 +111,8 @@ public sealed partial class ExportUtil
             throw new ArgumentException("Need a full path", nameof(destinationDir));
         }
 
-        var builder = new ContentBuilder(destinationDir, compilerCall.ProjectFilePath);
+        var originalSourceDirectory = GetSourceDirectory(Reader, compilerCall);
+        var builder = new ContentBuilder(destinationDir, originalSourceDirectory);
 
         var commandLineList = new List<string>();
         bool hasNoConfigOption = false;
@@ -471,4 +475,38 @@ public sealed partial class ExportUtil
 #else
     private static Regex GetOptionRegex() => new Regex(OptionRegexContent, RegexOptions.IgnoreCase);
 #endif
+
+    /// <summary>
+    /// This will return the logical source root for the given compilation. This is the prefix 
+    /// for files that does _not_ need to be replicated during export. Replicating the rest of the 
+    /// path is imporant as it impacts items like .editorconfig layout
+    /// </summary>
+    internal static string GetSourceDirectory(CompilerLogReader reader, CompilerCall compilerCall)
+    {
+        var sourceRootDir = Path.GetDirectoryName(compilerCall.ProjectFilePath);
+
+        foreach (var content in reader.ReadAllRawContent(compilerCall, RawContentKind.AnalyzerConfig))
+        {
+            var contentDir = Path.GetDirectoryName(content.OriginalFilePath);
+            if (!sourceRootDir.StartsWith(contentDir, PathUtil.Comparison))
+            {
+                continue;
+            }
+
+            if (content.ContentHash is null)
+            {
+                continue;
+            }
+
+            var sourceText = reader.GetSourceText(content.ContentHash, reader.GetChecksumAlgorithm(compilerCall));
+            if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
+            {
+                continue;
+            }
+
+            sourceRootDir = contentDir;
+        }
+
+        return sourceRootDir;
+    }
 }

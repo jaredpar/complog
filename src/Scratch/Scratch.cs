@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Composition;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Reflection;
@@ -27,8 +28,18 @@ using TraceReloggerLib;
 #pragma warning disable 8321
 
 //using var reader = CompilerLogReader.Create(zipFilePath);
-RunComplog(@$"replay C:\Users\jaredpar\Downloads\msbuild.complog");
+var filePath = @"C:\Users\jaredpar\Downloads\msbuild.complog";
+using var reader = CompilerLogReader.Create(filePath);
+var exportUtil = new ExportUtil(reader);
 
+var dir = @"C:\Users\jaredpar\temp\export";
+if (Directory.Exists(dir))
+{
+    Directory.EnumerateDirectories(dir).ToList().ForEach(x => Directory.Delete(x, recursive: true));
+}
+
+Directory.CreateDirectory(dir);
+exportUtil.ExportAll(dir, SdkUtil.GetSdkDirectories());
 
 /*
 using var reader = CompilerCallReaderUtil.Create("/home/jaredpar/code/msbuild/artifacts/log/Debug/Build.binlog", BasicAnalyzerKind.None);
