@@ -122,7 +122,11 @@ int RunCreate(IEnumerable<string> args)
 
 int RunAnalyzers(IEnumerable<string> args)
 {
-    var options = new FilterOptionSet();
+    var includeTypes = false;
+    var options = new FilterOptionSet()
+    {
+        { "t|types", "include type names", o => includeTypes = o is not null },
+    };
 
     try
     {
@@ -142,18 +146,21 @@ int RunAnalyzers(IEnumerable<string> args)
             {
                 WriteLine($"\t{data.FilePath}");
 
-                var (analyzers, generators) = reader.ReadAnalyzerFullTypeNames(data, compilerCall.IsCSharp);
-                WriteLine($"\tAnalyzers:");
-                foreach (var analyzer in analyzers)
+                if (includeTypes)
                 {
-                    WriteLine($"\t\t{analyzer}");
-                } 
+                    var (analyzers, generators) = reader.ReadAnalyzerFullTypeNames(data, compilerCall.IsCSharp);
+                    WriteLine($"\tAnalyzers:");
+                    foreach (var analyzer in analyzers)
+                    {
+                        WriteLine($"\t\t{analyzer}");
+                    } 
 
-                WriteLine($"\tGenerators:");
-                foreach (var generator in generators)
-                {
-                    WriteLine($"\t\t{generator}");
-                } 
+                    WriteLine($"\tGenerators:");
+                    foreach (var generator in generators)
+                    {
+                        WriteLine($"\t\t{generator}");
+                    } 
+                }
             }
         }
 

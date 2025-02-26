@@ -170,6 +170,11 @@ public sealed class ProgramTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.DoesNotContain("Analyzers:", output); 
+        Assert.DoesNotContain("Generators:", output); 
+
+        (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -t");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("Analyzers:", output); 
         Assert.Contains("Generators:", output); 
     }
