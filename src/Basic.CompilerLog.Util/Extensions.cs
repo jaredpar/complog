@@ -6,6 +6,9 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -91,5 +94,30 @@ public static class Extensions
         }
 
         return mdRef;
+    }
+
+    public static (List<string> Analyzers, List<string> Generators) ReadAnalyzerFullTypeNames(this ICompilerCallReader compilerCallReader, AnalyzerData analyzerData, bool? isCSharp = null)
+    {
+        var languageName = isCSharp switch 
+        {
+            true => LanguageNames.CSharp,
+            false => LanguageNames.VisualBasic,
+            null => null,
+        };
+
+        var stream = new MemoryStream();
+        compilerCallReader.CopyAssemblyBytes(analyzerData.AssemblyData, stream);
+        stream.Position = 0;
+        using var peReader = new PEReader(stream);
+        var metadataReader = peReader.GetMetadataReader();
+
+        var analyzers = RoslynUtil.GetAnalyzerTypeDefinitions(metadataReader, languageName)
+            .Select(t => RoslynUtil.GetFullyQualifiedName(metadataReader, t.TypeDefinition))
+            .ToList();
+        var generators = RoslynUtil.GetGeneratorTypeDefinitions(metadataReader, languageName)
+            .Select(t => RoslynUtil.GetFullyQualifiedName(metadataReader, t.TypeDefinition))
+            .ToList();
+
+        return (analyzers, generators);
     }
 }
