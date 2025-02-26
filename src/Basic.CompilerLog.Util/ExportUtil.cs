@@ -483,11 +483,11 @@ public sealed partial class ExportUtil
     /// </summary>
     internal static string GetSourceDirectory(CompilerLogReader reader, CompilerCall compilerCall)
     {
-        var sourceRootDir = Path.GetDirectoryName(compilerCall.ProjectFilePath);
+        var sourceRootDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
 
         foreach (var content in reader.ReadAllRawContent(compilerCall, RawContentKind.AnalyzerConfig))
         {
-            var contentDir = Path.GetDirectoryName(content.OriginalFilePath);
+            var contentDir = Path.GetDirectoryName(content.OriginalFilePath)!;
             if (!sourceRootDir.StartsWith(contentDir, PathUtil.Comparison))
             {
                 continue;

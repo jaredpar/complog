@@ -781,11 +781,11 @@ internal static class RoslynUtil
     /// This will return the full name of any type in the assembly that has at least one attribute
     /// applied to it.
     /// </summary>
-    internal static void ForEachTypeWithAttribute(
+    internal static IEnumerable<(TypeDefinition TypeDefinition, CustomAttribute CustomAttribute)> GetTypeDefinitions(
         MetadataReader metadataReader,
         string attributeNamespace,
         string attributeName,
-        Action<TypeDefinition, CustomAttribute> action)
+        Func<TypeDefinition, CustomAttribute, bool> predicate)
     {
         foreach (var typeDefHandle in metadataReader.TypeDefinitions)
         {
@@ -795,7 +795,7 @@ internal static class RoslynUtil
                 var attribute = metadataReader.GetCustomAttribute(handle);
                 if (IsMatchingAttribute(attribute))
                 {
-                    action(typeDef, attribute);
+                    yield return (typeDef, attribute);
                 }
             }
         }
@@ -830,6 +830,40 @@ internal static class RoslynUtil
 
             return false;
         }
+    }
+
+    internal static IEnumerable<(TypeDefinition TypeDefinition, CustomAttribute CustomAttribute)> GetAnalyzerTypeDefinitions(MetadataReader metadataReader, string? languageName = null)
+    {
+        var attributeType = typeof(DiagnosticAnalyzerAttribute);
+        return GetTypeDefinitions(
+            metadataReader,
+            attributeType.Namespace!,
+            attributeType.Name,
+            (typeDef, attribute) => languageName is null || IsLanguageName(metadataReader, attribute, languageName));
+    }
+
+    internal static IEnumerable<(TypeDefinition TypeDefinition, CustomAttribute CustomAttribute)> GetGeneratorTypeDefinitions(MetadataReader metadataReader, string? languageName = null)
+    {
+        var attributeType = typeof(GeneratorAttribute);
+        return GetTypeDefinitions(
+            metadataReader,
+            attributeType.Namespace!,
+            attributeType.Name,
+            (typeDef, attribute) =>
+            {
+                if (languageName is null)
+                {
+                    return true;
+                }
+
+                if (IsEmptyAttribute(metadataReader, attribute))
+                {
+                    // The empty attribute is an implicit C# 
+                    return languageName == LanguageNames.CSharp;
+                }
+
+                return IsLanguageName(metadataReader, attribute, languageName);
+            });
     }
 
     [ExcludeFromCodeCoverage]
