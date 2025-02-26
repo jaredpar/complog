@@ -793,7 +793,7 @@ internal static class RoslynUtil
             foreach (var handle in typeDef.GetCustomAttributes())
             {
                 var attribute = metadataReader.GetCustomAttribute(handle);
-                if (IsMatchingAttribute(attribute))
+                if (IsMatchingAttribute(attribute) && predicate(typeDef, attribute))
                 {
                     yield return (typeDef, attribute);
                 }
