@@ -1,10 +1,10 @@
 ﻿using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Mono.Options;
 using StructuredLogViewer;
 using System.Diagnostics;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
@@ -122,7 +122,11 @@ int RunCreate(IEnumerable<string> args)
 
 int RunAnalyzers(IEnumerable<string> args)
 {
-    var options = new FilterOptionSet();
+    var includeTypes = false;
+    var options = new FilterOptionSet()
+    {
+        { "t|types", "include type names", o => includeTypes = o is not null },
+    };
 
     try
     {
@@ -141,6 +145,22 @@ int RunAnalyzers(IEnumerable<string> args)
             foreach (var data in reader.ReadAllAnalyzerData(compilerCall))
             {
                 WriteLine($"\t{data.FilePath}");
+
+                if (includeTypes)
+                {
+                    var (analyzers, generators) = reader.ReadAnalyzerFullTypeNames(data, compilerCall.IsCSharp);
+                    WriteLine($"\tAnalyzers:");
+                    foreach (var analyzer in analyzers)
+                    {
+                        WriteLine($"\t\t{analyzer}");
+                    } 
+
+                    WriteLine($"\tGenerators:");
+                    foreach (var generator in generators)
+                    {
+                        WriteLine($"\t\t{generator}");
+                    } 
+                }
             }
         }
 

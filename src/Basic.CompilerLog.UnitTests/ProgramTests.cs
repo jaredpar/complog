@@ -158,11 +158,25 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void AnalyzerBadOption()
+    public void AnalyzersBadOption()
     {
         var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath} --not-an-option");
         Assert.NotEqual(Constants.ExitSuccess, exitCode);
         Assert.StartsWith("Extra arguments", output); 
+    }
+
+    [Fact]
+    public void AnalyzersSimple()
+    {
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.DoesNotContain("Analyzers:", output); 
+        Assert.DoesNotContain("Generators:", output); 
+
+        (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -t");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Analyzers:", output); 
+        Assert.Contains("Generators:", output); 
     }
 
     [Fact]

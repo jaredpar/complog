@@ -90,6 +90,59 @@ internal static class LibraryUtil
         return Compile(compilation, "TestAnalyzers.dll");
     }
 
+    /// <summary>
+    /// Returns an assembly that has a set of well defined analyzers and generators and ones
+    /// with definition errors.
+    /// </summary>
+    internal static (string FileName, MemoryStream Image) GetAnalyzersWithDiffAttribtueCombinations()
+    {
+        var code = """
+            using System.Collections.Immutable;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.Diagnostics;
+
+            [DiagnosticAnalyzer(LanguageNames.CSharp)]
+            public class Analyzer1 : DiagnosticAnalyzer
+            {
+                public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray<DiagnosticDescriptor>.Empty;
+                public override void Initialize(AnalysisContext context) { }
+            }
+
+            [DiagnosticAnalyzer(LanguageNames.VisualBasic)]
+            public class Analyzer2 : DiagnosticAnalyzer
+            {
+                public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray<DiagnosticDescriptor>.Empty;
+                public override void Initialize(AnalysisContext context) { }
+            }
+
+            [Generator(LanguageNames.CSharp)]
+            public class Generator1 : IIncrementalGenerator
+            {
+                public void Initialize(IncrementalGeneratorInitializationContext context) { }
+            }
+
+            [Generator]
+            public class Generator2 : IIncrementalGenerator
+            {
+                public void Initialize(IncrementalGeneratorInitializationContext context) { }
+            }
+
+            [Generator(LanguageNames.VisualBasic)]
+            public class Generator3 : IIncrementalGenerator
+            {
+                public void Initialize(IncrementalGeneratorInitializationContext context) { }
+            }
+            """;
+
+        var roslynReference = MetadataReference.CreateFromFile(typeof(Compilation).Assembly.Location);
+        var compilation = CSharpCompilation.Create(
+            "TestAnalyzers",
+            [CSharpSyntaxTree.ParseText(code)],
+            [.. Net80.References.All, roslynReference],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        return Compile(compilation, "TestAnalyzers.dll");
+    }
+
     private static (string FileName, MemoryStream Image) Compile(Compilation compilation, string fileName)
     {
         var peStream = new MemoryStream();

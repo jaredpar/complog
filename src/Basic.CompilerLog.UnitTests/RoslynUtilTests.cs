@@ -1,6 +1,9 @@
 using System.Drawing.Drawing2D;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
@@ -244,6 +247,28 @@ public sealed class RoslynUtilTests
             additionalReferenceDirectories: null);
         var actualFileName = RoslynUtil.GetAssemblyFileName(args);
         Assert.Equal(expectedFileName, actualFileName);
+    }
+
+    [Fact]
+    public void GetAnalyzerTypeDefinitions()
+    {
+        var (_, image) = LibraryUtil.GetAnalyzersWithDiffAttribtueCombinations();
+        using var peReader = new PEReader(image);
+        var metadataReader = peReader.GetMetadataReader();
+
+        var list = RoslynUtil.GetAnalyzerTypeDefinitions(metadataReader, LanguageNames.CSharp).ToList();
+        Assert.Single(list);
+        list = RoslynUtil.GetAnalyzerTypeDefinitions(metadataReader, LanguageNames.VisualBasic).ToList();
+        Assert.Single(list);
+        list = RoslynUtil.GetAnalyzerTypeDefinitions(metadataReader, languageName: null).ToList();
+        Assert.Equal(2, list.Count);
+
+        list = RoslynUtil.GetGeneratorTypeDefinitions(metadataReader, LanguageNames.CSharp).ToList();
+        Assert.Equal(2, list.Count);
+        list = RoslynUtil.GetGeneratorTypeDefinitions(metadataReader, null).ToList();
+        Assert.Equal(3, list.Count);
+        list = RoslynUtil.GetAnalyzerTypeDefinitions(metadataReader, LanguageNames.VisualBasic).ToList();
+        Assert.Single(list);
     }
 
     [Fact]
