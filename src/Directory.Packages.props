@@ -8,6 +8,7 @@
     <PackageVersion Include="Basic.Reference.Assemblies.Net80" Version="1.8.0" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
     <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.13.5" />
+    <PackageVersion Include="BlazorMonaco" Version="3.3.0" />
     <PackageVersion Include="coverlet.msbuild" Version="6.0.4" />
     <PackageVersion Include="MessagePack" Version="2.5.187" />
     <PackageVersion Include="Microsoft.CodeAnalysis" Version="$(_RoslynVersion)" />
@@ -23,5 +24,7 @@
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
     <PackageVersion Include="xunit.v3" Version="1.1.0" />
+    <PackageVersion Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.11.5" />
+    <PackageVersion Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.11.5" />
   </ItemGroup>
 </Project>

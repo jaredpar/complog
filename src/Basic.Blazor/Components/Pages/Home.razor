@@ -1,0 +1,29 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Home</PageTitle>
+
+<h1>Hello, world!</h1>
+
+<FluentSplitter Orientation="Orientation.Horizontal">
+    <Panel1>
+        <!-- Tree View on Left Side -->
+        <FluentTreeView>
+            @foreach (var (index, compilerCall) in CompilerCalls.Index())
+            {
+                <FluentTreeItem Text="@compilerCall.GetDiagnosticName()" Value="@index">
+                    <FluentTreeItem Text="RSP" @onclick="@(_ => OnRspClicked(JSRuntime, compilerCall))" />
+                </FluentTreeItem>
+            }
+        </FluentTreeView>
+    </Panel1>
+
+    <Panel2>
+        <div>
+            The other side
+        </div>
+
+        <StandaloneCodeEditor @ref="CodeEditor" Id="code-editor" ConstructionOptions="CreateCodeEditorOptions" />
+    </Panel2>
+</FluentSplitter>
