@@ -6,7 +6,7 @@
 
 <h1>Hello, world!</h1>
 
-<FluentSplitter Orientation="Orientation.Horizontal">
+<FluentSplitter Orientation="Orientation.Horizontal" Style="height: 100%">
     <Panel1>
         <!-- Tree View on Left Side -->
         <FluentTreeView>
@@ -22,20 +22,32 @@
 
     <Panel2>
 
-        <div>
-            The other side
-        </div>
-
         @if (Mode == Mode.GeneratedFiles)
         {
-            <FluentSelect
-                TOption="string"
-                Items=@GeneratedFiles
-                OptionText="@(p => Path.GetFileName(p))"
-                @bind-Value="SelectedGeneratedFile"
-                @onchange="@(_ => OnGeneratedFileSelected(JSRuntime))" />
+            if (GeneratedFiles.Count == 0)
+            {
+                <div>
+                    <p>No generated files available in this compilation.</p>
+                </div>
+            }
+            else
+            {
+                <div style="display: flex">
+                    <label>Generated Files</label>
+                    <FluentSelect
+                        @ref="GeneratedFilesSelect"
+                        TOption="string"
+                        Items=@GeneratedFiles
+                        OptionText="@(p => Path.GetFileName(p))"
+                        OptionValue="@(p => p)"
+                        @onchange="@(e => OnGeneratedFileSelected(JSRuntime, e))" />
+                </div>
+            }
         }
 
-        <StandaloneCodeEditor @ref="CodeEditor" Id="code-editor" ConstructionOptions="CreateCodeEditorOptions" />
+        @if (IsEditorVisible)
+        {
+            <StandaloneCodeEditor @ref="CodeEditor" Id="code-editor" ConstructionOptions="CreateCodeEditorOptions" />
+        }
     </Panel2>
 </FluentSplitter>

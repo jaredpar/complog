@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Basic.CompilerLog.Util;
 using BlazorMonaco.Editor;
+using Microsoft.AspNetCore.Components;
+using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 namespace Basic.Blazor.Components.Pages;
@@ -22,11 +24,17 @@ public partial class Home
     public List<string> GeneratedFiles { get; private set; } = new();
     public Mode Mode { get; set; } = Mode.Rsp;
     public CompilerCall? SelectedCompilerCall { get; set; }
-    public string? SelectedGeneratedFile { get; set; }
+    public FluentSelect<string>? GeneratedFilesSelect { get; set; }
+    public bool IsEditorVisible => Mode switch
+    {
+        Mode.Rsp => true,
+        Mode.GeneratedFiles => GeneratedFiles.Count > 0,
+        _ => false,
+    };
 
     public Home()
     {
-        Reader = CompilerLogReader.Create(@"C:\Users\jaredpar\temp\console\build.complog");
+        Reader = CompilerLogReader.Create(@"C:\Users\jaredpar\code\complog\build.complog");
         CompilerCalls = Reader.ReadAllCompilerCalls();
     }
 
@@ -49,17 +57,19 @@ public partial class Home
             .Select(x => x.FilePath)
             .ToList();
         Mode = Mode.GeneratedFiles;
+        SelectedCompilerCall = compilerCall;
     }
 
-    private async Task OnGeneratedFileSelected(IJSRuntime jsRuntime)
+    private async Task OnGeneratedFileSelected(IJSRuntime jsRuntime, ChangeEventArgs e)
     {
         Debug.Assert(SelectedCompilerCall is not null);
-        Debug.Assert(SelectedGeneratedFile is not null);
         Debug.Assert(CodeEditor is not null);
+        Debug.Assert(GeneratedFilesSelect is not null);
 
+        var selectedFile = e.Value?.ToString();
         var tuple = Reader
             .ReadAllGeneratedSourceTexts(SelectedCompilerCall)
-            .FirstOrDefault(x => x.FilePath == SelectedGeneratedFile);
+            .FirstOrDefault(x => x.FilePath == selectedFile);
         string text;
         if (tuple.SourceText is null)
         {
