@@ -8,11 +8,21 @@ using Microsoft.JSInterop;
 
 namespace Basic.Blazor.Components.Pages;
 
+public enum Mode
+{
+    Rsp,
+    GeneratedFiles,
+}
+
 public partial class Home
 {
     public CodeEditor? CodeEditor { get; set; }
     public CompilerLogReader Reader { get; private set; }
     public List<CompilerCall> CompilerCalls { get; private set; }
+    public List<string> GeneratedFiles { get; private set; } = new();
+    public Mode Mode { get; set; } = Mode.Rsp;
+    public CompilerCall? SelectedCompilerCall { get; set; }
+    public string? SelectedGeneratedFile { get; set; }
 
     public Home()
     {
@@ -28,7 +38,41 @@ public partial class Home
         var arguments = compilerCall.GetArguments();
         var text = string.Join(Environment.NewLine, arguments);
         await CodeEditor.SetValue(text);
-        var options = await CodeEditor.GetOptions();
+        Mode = Mode.Rsp;
+    }
+
+    private void OnGeneratedFilesClicked(CompilerCall compilerCall)
+    {
+        var data = Reader.ReadCompilationData(compilerCall);
+        GeneratedFiles = Reader
+            .ReadAllGeneratedSourceTexts(compilerCall)
+            .Select(x => x.FilePath)
+            .ToList();
+        Mode = Mode.GeneratedFiles;
+    }
+
+    private async Task OnGeneratedFileSelected(IJSRuntime jsRuntime)
+    {
+        Debug.Assert(SelectedCompilerCall is not null);
+        Debug.Assert(SelectedGeneratedFile is not null);
+        Debug.Assert(CodeEditor is not null);
+
+        var tuple = Reader
+            .ReadAllGeneratedSourceTexts(SelectedCompilerCall)
+            .FirstOrDefault(x => x.FilePath == SelectedGeneratedFile);
+        string text;
+        if (tuple.SourceText is null)
+        {
+            text = "Error: could not find file";
+        }
+        else
+        {
+            text = tuple.SourceText.ToString();
+        }
+
+        var model = await CodeEditor.GetModel();
+        await Global.SetModelLanguage(jsRuntime, model, "csharp");
+        await CodeEditor.SetValue(text);
     }
 
     private StandaloneEditorConstructionOptions CreateCodeEditorOptions(StandaloneCodeEditor editor) =>

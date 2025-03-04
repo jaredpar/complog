@@ -14,15 +14,27 @@
             {
                 <FluentTreeItem Text="@compilerCall.GetDiagnosticName()" Value="@index">
                     <FluentTreeItem Text="RSP" @onclick="@(_ => OnRspClicked(JSRuntime, compilerCall))" />
+                    <FluentTreeItem Text="Generated Files" @onclick="@(_ => OnGeneratedFilesClicked(compilerCall))" />
                 </FluentTreeItem>
             }
         </FluentTreeView>
     </Panel1>
 
     <Panel2>
+
         <div>
             The other side
         </div>
+
+        @if (Mode == Mode.GeneratedFiles)
+        {
+            <FluentSelect
+                TOption="string"
+                Items=@GeneratedFiles
+                OptionText="@(p => Path.GetFileName(p))"
+                @bind-Value="SelectedGeneratedFile"
+                @onchange="@(_ => OnGeneratedFileSelected(JSRuntime))" />
+        }
 
         <StandaloneCodeEditor @ref="CodeEditor" Id="code-editor" ConstructionOptions="CreateCodeEditorOptions" />
     </Panel2>
