@@ -426,7 +426,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         Debug.Assert(stream.Position == 0);
         var sha = SHA256.Create();
         var hash = sha.ComputeHash(stream);
-        var hashText = GetHashText();
+        var hashText = hash.AsHexString();
 
         if (_contentHashMap.Add(hashText))
         {
@@ -437,17 +437,6 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
 
         return hashText;
-
-        string GetHashText()
-        {
-            var builder = new StringBuilder();
-            foreach (var b in hash)
-            {
-                builder.Append($"{b:X2}");
-            }
-
-            return builder.ToString();
-        }
     }
 
     private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)

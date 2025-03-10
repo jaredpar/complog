@@ -317,6 +317,47 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void IdHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"id -h");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.StartsWith("complog id [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void IdInline()
+    {
+        var dir = Root.NewDirectory();
+        RunDotNet($"new console --name example --output .", dir);
+        var (exitCode, output) = RunCompLogEx($"id -i", dir);
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Generating id files inline", output);
+
+        var idFilePath = Path.Combine(dir, "build-id.txt");
+        Assert.True(File.Exists(idFilePath));
+        var id = File.ReadAllText(idFilePath);
+        var expectedId = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
+            ? ""
+            : "44623228E885285F845DBF3731EEE4155C6972B05E51A2494485A4581FC14960";
+        Assert.Equal(expectedId, id);
+    }
+
+    [Fact]
+    public void IdInlineAndOutput()
+    {
+        var dir = Root.NewDirectory();
+        var (exitCode, output) = RunCompLogEx($"id -i -o blah");
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
+    }
+
+    [Fact]
+    public void IdBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx($"id -blah");
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
+    }
+
+    [Fact]
     public void References()
     {
         RunWithBoth(logPath =>

@@ -120,4 +120,17 @@ public static class Extensions
 
         return (analyzers, generators);
     }
+
+    public static string AsHexString(this byte[] bytes) => AsHexString(bytes.AsSpan());
+
+    public static string AsHexString(this ReadOnlySpan<byte> bytes)
+    {
+        var builder = new StringBuilder();
+        foreach (var b in bytes)
+        {
+            builder.Append($"{b:X2}");
+        }
+
+        return builder.ToString();
+    }
 }

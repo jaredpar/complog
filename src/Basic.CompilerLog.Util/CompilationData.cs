@@ -369,7 +369,7 @@ public abstract class CompilationData
     public string GetCompilationContentText()
     {
         var assembly = typeof(Compilation).Assembly;
-        var type = assembly.GetType( "Microsoft.CodeAnalysis.DeterministicKey", throwOnError: true);
+        var type = assembly.GetType( "Microsoft.CodeAnalysis.DeterministicKey", throwOnError: true)!;
         var method = type
             .GetMethods(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
             .Where(x => IsMethod(x))

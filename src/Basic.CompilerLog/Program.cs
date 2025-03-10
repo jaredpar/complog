@@ -663,7 +663,7 @@ int RunId(IEnumerable<string> args)
         }
         else
         {
-            baseOutputPath = GetBaseOutputPath(baseOutputPath, "rsp");
+            baseOutputPath = GetBaseOutputPath(baseOutputPath, "id");
             WriteLine($"Generating id files in {baseOutputPath}");
             Directory.CreateDirectory(baseOutputPath);
         }
@@ -677,7 +677,7 @@ int RunId(IEnumerable<string> args)
             var compilationData = reader.ReadCompilationData(compilerCall);
             var content = compilationData.GetCompilationContentText();
             var id = sum.ComputeHash(Encoding.UTF8.GetBytes(content));
-            var idText = GetText(id);
+            var idText = id.AsHexString();
 
             var idDirPath = inline
                 ? compilerCall.ProjectDirectory
@@ -700,17 +700,6 @@ int RunId(IEnumerable<string> args)
 
                 return "build-id.txt";
             }
-
-            string GetText(byte[] hash)
-            {
-                var builder = new StringBuilder();
-                foreach (var b in hash)
-                {
-                    builder.Append($"{b:X2}");
-                }
-
-                return builder.ToString();
-            }
         }
 
         return ExitSuccess;
@@ -724,7 +713,7 @@ int RunId(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog rsp [OPTIONS] msbuild.complog");
+        WriteLine("complog id [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
