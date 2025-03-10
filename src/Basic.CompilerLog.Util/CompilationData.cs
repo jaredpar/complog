@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.VisualBasic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace Basic.CompilerLog.Util;
@@ -358,6 +359,56 @@ public abstract class CompilationData
             sourceLinkStream: EmitData.SourceLinkStream,
             embeddedTexts: EmitData.EmbeddedTexts,
             cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// This returns the compilation as a content string. Two compilations that are equal will have the 
+    /// same content text. This can be checksum'd to produce concise compilation ids
+    /// </summary>
+    /// <returns></returns>
+    public string GetCompilationContentText()
+    {
+        var assembly = typeof(Compilation).Assembly;
+        var type = assembly.GetType( "Microsoft.CodeAnalysis.DeterministicKey", throwOnError: true);
+        var method = type
+            .GetMethods(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
+            .Where(x => IsMethod(x))
+            .Single();
+
+        int flags = 0b11;
+        object[] args = 
+        [
+            CompilationOptions,
+            Compilation.SyntaxTrees.ToImmutableArray(),
+            Compilation.References.ToImmutableArray(),
+            ImmutableArray<byte>.Empty,
+            AdditionalTexts,
+            GetAnalyzers(),
+            GetGenerators(),
+            ImmutableArray<KeyValuePair<string, string>>.Empty,
+            EmitOptions,
+            flags,
+            (CancellationToken)default,
+        ];
+
+        var result = method.Invoke(null, args)!;
+        return (string)result;
+
+        static bool IsMethod(MethodInfo method)
+        {
+            if (method.Name != "GetDeterministicKey")
+            {
+                return false;
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length < 2)
+            {
+                return false;
+            }
+
+            return parameters[1].ParameterType == typeof(ImmutableArray<SyntaxTree>);
+        }
     }
 
     private bool IncludeMetadataStream() =>

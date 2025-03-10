@@ -305,6 +305,18 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void Id()
+    {
+        var (exitCode, output) = RunCompLogEx($"id {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        var dir = Path.Combine(RootDirectory, ".complog");
+        var files = Directory.EnumerateFiles(dir, "build-id.txt", SearchOption.AllDirectories);
+        Assert.NotEmpty(files);
+        files = Directory.EnumerateFiles(dir, "build-id.content.txt", SearchOption.AllDirectories);
+        Assert.NotEmpty(files);
+    }
+
+    [Fact]
     public void References()
     {
         RunWithBoth(logPath =>
