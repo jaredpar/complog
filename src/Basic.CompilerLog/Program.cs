@@ -633,10 +633,12 @@ int RunGenerated(IEnumerable<string> args)
 
 int RunId(IEnumerable<string> args)
 {
+    var print = false;
     var inline = false;
     var baseOutputPath = "";
     var options = new FilterOptionSet()
     {
+        { "print", "print the id to console", p => print = p != null },
         { "i|inline", "put response files next to the project file", i => inline = i != null },
         { "o|out=", "path to output rsp files", o => baseOutputPath = o },
     };
@@ -650,9 +652,17 @@ int RunId(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        if (inline && !string.IsNullOrEmpty(baseOutputPath))
+        var isOutputValid = (print, !string.IsNullOrEmpty(baseOutputPath), inline) switch
         {
-            WriteLine("Cannot specify both --inline and --out");
+            (true, false, false) => true,
+            (false, true, false) => true,
+            (false, false, true) => true,
+            _ => false
+        };
+
+        if (!isOutputValid)
+        {
+            WriteLine("Can only specify one of --print, --out or --inline");
             return ExitFailure;
         }
 
@@ -679,26 +689,33 @@ int RunId(IEnumerable<string> args)
             var id = sum.ComputeHash(Encoding.UTF8.GetBytes(content));
             var idText = id.AsHexString();
 
-            var idDirPath = inline
-                ? compilerCall.ProjectDirectory
-                : Path.Combine(baseOutputPath, compilerCallNames[i]);
-            Directory.CreateDirectory(idDirPath);
-            var idFilePath = Path.Combine(idDirPath, GetIdFileName());
-            var contentFilePath = Path.ChangeExtension(idFilePath, ".content.txt");
-
-            File.WriteAllText(idFilePath, idText);
-            File.WriteAllText(contentFilePath, content);
-
-            string GetIdFileName()
+            if (print)
             {
-                if (inline)
-                {
-                    return IsSingleTarget(compilerCall, compilerCalls)
-                        ? "build-id.txt"
-                        : $"build-id-{compilerCall.TargetFramework}.txt";
-                }
+                WriteLine($"{compilerCall.GetDiagnosticName()} {idText}");
+            }
+            else
+            {
+                var idDirPath = inline
+                    ? compilerCall.ProjectDirectory
+                    : Path.Combine(baseOutputPath, compilerCallNames[i]);
+                Directory.CreateDirectory(idDirPath);
+                var idFilePath = Path.Combine(idDirPath, GetIdFileName());
+                var contentFilePath = Path.ChangeExtension(idFilePath, ".content.txt");
 
-                return "build-id.txt";
+                File.WriteAllText(idFilePath, idText);
+                File.WriteAllText(contentFilePath, content);
+
+                string GetIdFileName()
+                {
+                    if (inline)
+                    {
+                        return IsSingleTarget(compilerCall, compilerCalls)
+                            ? "build-id.txt"
+                            : $"build-id-{compilerCall.TargetFramework}.txt";
+                    }
+
+                    return "build-id.txt";
+                }
             }
         }
 

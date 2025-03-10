@@ -353,6 +353,16 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void IdPrint()
+    {
+        var dir = Root.NewDirectory();
+        RunDotNet($"new console --name example --output .", dir);
+        var (exitCode, output) = RunCompLogEx($"id --print", dir);
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("example.csproj", output);
+    }
+
+    [Fact]
     public void IdInlineAndOutput()
     {
         var dir = Root.NewDirectory();
