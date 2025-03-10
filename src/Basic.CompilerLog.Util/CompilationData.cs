@@ -375,10 +375,16 @@ public abstract class CompilationData
             .Where(x => IsMethod(x))
             .Single();
 
+        // This removes our implementation of the syntax tree options provider. Leaving that in means
+        // that the content text will be different every time compiler log is updated and that is not
+        // desirable.
+        var options = CompilationOptions.WithSyntaxTreeOptionsProvider(null);
+
+        // This removes file full paths and tool versions from the content text.
         int flags = 0b11;
         object[] args = 
         [
-            CompilationOptions,
+            options,
             Compilation.SyntaxTrees.ToImmutableArray(),
             Compilation.References.ToImmutableArray(),
             ImmutableArray<byte>.Empty,

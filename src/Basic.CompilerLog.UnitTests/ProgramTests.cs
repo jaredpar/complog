@@ -342,7 +342,7 @@ public sealed class ProgramTests : TestBase
 
             var expectedId = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
                 ? ""
-                : "44623228E885285F845DBF3731EEE4155C6972B05E51A2494485A4581FC14960";
+                : "D339B2B333F7C2344D6AFD47135FF7BF6F7DF64FB9E5E5E76690B093FC302BF9"
             Assert.Equal(expectedId, id);
         }
         catch (Exception)

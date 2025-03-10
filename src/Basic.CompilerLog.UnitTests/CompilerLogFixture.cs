@@ -114,12 +114,9 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         Directory.CreateDirectory(ComplogDirectory);
         Directory.CreateDirectory(ScratchDirectory);
 
-        var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_PATH");
-        if (testArtifactsDir is not null)
-        {
-            testArtifactsDir = Path.Combine(testArtifactsDir, Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(testArtifactsDir);
-        }
+        string? testArtifactsDir = TestUtil.InGitHubActions
+            ? TestUtil.GitHubActionsTestArtifactsDirectory
+            : null;
 
         var builder = ImmutableArray.CreateBuilder<Lazy<LogData>>();
         Console = WithBuild("console.complog", void (string scratchPath) =>

@@ -301,14 +301,10 @@ public abstract class TestBase : IDisposable
 
         string testResultsDir;
         bool overwrite;
-        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") is not null)
+        if (TestUtil.InGitHubActions)
         {
             overwrite = false;
-            testResultsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_PATH")!;
-            if (testResultsDir is null)
-            {
-                throw new InvalidOperationException("TEST_ARTIFACTS_PATH is not set in GitHub Actions");
-            }
+            testResultsDir = TestUtil.GitHubActionsTestArtifactsDirectory;
         }
         else
         {
