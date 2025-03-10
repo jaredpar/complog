@@ -6,7 +6,9 @@ using StructuredLogViewer;
 using System.Diagnostics;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Loader;
+using System.Security.Cryptography;
 using System.Text;
 using static Constants;
 
@@ -27,6 +29,7 @@ try
         "rsp" => RunResponseFile(rest),
         "analyzers" => RunAnalyzers(rest),
         "generated" => RunGenerated(rest),
+        "id" => RunId(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(rest),
 
@@ -628,6 +631,104 @@ int RunGenerated(IEnumerable<string> args)
     }
 }
 
+int RunId(IEnumerable<string> args)
+{
+    var inline = false;
+    var baseOutputPath = "";
+    var options = new FilterOptionSet()
+    {
+        { "i|inline", "put response files next to the project file", i => inline = i != null },
+        { "o|out=", "path to output rsp files", o => baseOutputPath = o },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (options.Help)
+        {
+            PrintUsage();
+            return ExitSuccess;
+        }
+
+        if (inline && !string.IsNullOrEmpty(baseOutputPath))
+        {
+            WriteLine("Cannot specify both --inline and --out");
+            return ExitFailure;
+        }
+
+        using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
+        if (inline)
+        {
+            WriteLine($"Generating id files inline");
+        }
+        else
+        {
+            baseOutputPath = GetBaseOutputPath(baseOutputPath, "rsp");
+            WriteLine($"Generating id files in {baseOutputPath}");
+            Directory.CreateDirectory(baseOutputPath);
+        }
+
+        var sum = SHA256.Create();
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCallNames = GetCompilerCallNames(compilerCalls);
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            var compilerCall = compilerCalls[i];
+            var compilationData = reader.ReadCompilationData(compilerCall);
+            var content = compilationData.GetCompilationContentText();
+            var id = sum.ComputeHash(Encoding.UTF8.GetBytes(content));
+            var idText = GetText(id);
+
+            var idDirPath = inline
+                ? compilerCall.ProjectDirectory
+                : Path.Combine(baseOutputPath, compilerCallNames[i]);
+            Directory.CreateDirectory(idDirPath);
+            var idFilePath = Path.Combine(idDirPath, GetIdFileName());
+            var contentFilePath = Path.ChangeExtension(idFilePath, ".content.txt");
+
+            File.WriteAllText(idFilePath, idText);
+            File.WriteAllText(contentFilePath, content);
+
+            string GetIdFileName()
+            {
+                if (inline)
+                {
+                    return IsSingleTarget(compilerCall, compilerCalls)
+                        ? "build-id.txt"
+                        : $"build-id-{compilerCall.TargetFramework}.txt";
+                }
+
+                return "build-id.txt";
+            }
+
+            string GetText(byte[] hash)
+            {
+                var builder = new StringBuilder();
+                foreach (var b in hash)
+                {
+                    builder.Append($"{b:X2}");
+                }
+
+                return builder.ToString();
+            }
+        }
+
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("complog rsp [OPTIONS] msbuild.complog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
 int RunBadCommand(string command)
 {
     WriteLine(@$"""{command}"" is not a valid command");
@@ -659,6 +760,7 @@ int RunHelp(IEnumerable<string>? args)
           ref           Copy all references and analyzers to a single directory
           analyzers     Print analyzers / generators used by a compilation
           generated     Get generated files for the compilation
+          id            Get the compiler ids
           print         Print summary of entries in the log
           help          Print help
         """);
