@@ -334,16 +334,22 @@ public sealed class ProgramTests : TestBase
         Assert.Contains("Generating id files inline", output);
 
         var contentFilePath = Path.Combine(dir, "build-id.content.txt");
-        TestOutputHelper.WriteLine(File.ReadAllText(contentFilePath));
+        try
+        {
+            var idFilePath = Path.Combine(dir, "build-id.txt");
+            Assert.True(File.Exists(idFilePath));
+            var id = File.ReadAllText(idFilePath);
 
-        var idFilePath = Path.Combine(dir, "build-id.txt");
-        Assert.True(File.Exists(idFilePath));
-        var id = File.ReadAllText(idFilePath);
-
-        var expectedId = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
-            ? ""
-            : "44623228E885285F845DBF3731EEE4155C6972B05E51A2494485A4581FC14960";
-        Assert.Equal(expectedId, id);
+            var expectedId = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
+                ? ""
+                : "44623228E885285F845DBF3731EEE4155C6972B05E51A2494485A4581FC14960";
+            Assert.Equal(expectedId, id);
+        }
+        catch (Exception)
+        {
+            AddFileToTestArtifacts(contentFilePath);
+            throw;
+        }
     }
 
     [Fact]

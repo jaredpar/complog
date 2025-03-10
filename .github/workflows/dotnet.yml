@@ -34,7 +34,7 @@ jobs:
             test-results: test-results-linux
 
     env:
-      TEST_ARTIFACTS_PATH: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}test
+      TEST_ARTIFACTS_PATH: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}test-artifacts
       TEST_RESULTS_PATH: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}test-results
       TEST_COVERAGE_PATH: ${{ github.workspace }}${{ matrix.slash }}artifacts${{ matrix.slash }}coverage
 
