@@ -326,6 +326,14 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
+    public void HashNoCommand()
+    {
+        var (exitCode, output) = RunCompLogEx("hash");
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Need a subcommand", output);
+    }
+
+    [Fact]
     public void HashHelp()
     {
         var (exitCode, output) = RunCompLogEx("hash help");
@@ -354,9 +362,17 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void HashPrintHelp()
     {
-        var (exitCode, output) = RunCompLogEx($"hash print -h");
+        var (exitCode, output) = RunCompLogEx("hash print -h");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.StartsWith("complog hash print [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void HashPrintBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx("hash print --does-not-exist");
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
+        Assert.Contains("complog hash print [OPTIONS]", output);
     }
 
     [Fact]
@@ -404,6 +420,30 @@ public sealed class ProgramTests : TestBase
                     "outputKind": "ConsoleApplication",
                     "moduleName": "example.dll",
               """, File.ReadAllText(contentFilePath));
+    }
+
+    [Fact]
+    public void HashExportBadOption()
+    {
+        var (exitCode, output) = RunCompLogEx("hash export --does-not-exist");
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
+        Assert.Contains("complog hash export [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void HashExportInlineAndOutput()
+    {
+        var (exitCode, output) = RunCompLogEx("hash export --inline --out example");
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
+        Assert.Contains("complog hash export [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void HashExportHelp()
+    {
+        var (exitCode, output) = RunCompLogEx("hash export -h");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("complog hash export [OPTIONS]", output);
     }
 
     [Fact]

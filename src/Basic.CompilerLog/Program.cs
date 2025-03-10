@@ -750,6 +750,7 @@ int RunHashExport(IEnumerable<string> args)
         if (inline && !string.IsNullOrEmpty(baseOutputPath))
         {
             WriteLine("Cannot specify both --inline and --out");
+            PrintUsage();
             return ExitFailure;
         }
 

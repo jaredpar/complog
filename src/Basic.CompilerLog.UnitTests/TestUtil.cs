@@ -11,6 +11,15 @@ namespace Basic.CompilerLog.UnitTests;
 
 internal static class TestUtil
 {
+    internal static bool IsNetFramework => 
+#if NETFRAMEWORK
+        true;
+#else
+        false;
+#endif
+
+    internal static bool IsNetCore => !IsNetFramework;
+
     internal static bool InGitHubActions => Environment.GetEnvironmentVariable("GITHUB_ACTIONS") is not null;
 
     internal static string GitHubActionsTestArtifactsDirectory
@@ -26,7 +35,9 @@ internal static class TestUtil
 
             }
 
-            return testArtifactsDir;
+            var suffix = IsNetCore ? "netcore" : "netfx";
+
+            return Path.Combine(testArtifactsDir, suffix);
         }
     }
 
