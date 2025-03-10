@@ -20,7 +20,7 @@ var appDataDirectory = Path.Combine(LocalAppDataDirectory, Guid.NewGuid().ToStri
 
 try
 {
-    return command.ToLower() switch
+    return command.ToLowerInvariant() switch
     {
         "create" => RunCreate(rest),
         "replay" => RunReplay(rest),
@@ -29,7 +29,7 @@ try
         "rsp" => RunResponseFile(rest),
         "analyzers" => RunAnalyzers(rest),
         "generated" => RunGenerated(rest),
-        "id" => RunId(rest),
+        "hash" => RunHash(rest),
         "print" => RunPrint(rest),
         "help" => RunHelp(rest),
 
@@ -631,14 +631,109 @@ int RunGenerated(IEnumerable<string> args)
     }
 }
 
-int RunId(IEnumerable<string> args)
+int RunHash(IEnumerable<string> args)
 {
-    var print = false;
+    var (command, rest) = ParseCommand(args);
+    if (command is null)
+    {
+        WriteLine("Need a subcommand");
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    return command.ToLowerInvariant() switch
+    {
+        "print" => RunHashPrint(rest),
+        "export" => RunHashExport(rest),
+        "help" => RunHashHelp(),
+        _ => RunBadCommand(command)
+    };  
+
+    int RunBadCommand(string command)
+    {
+        WriteLine($"{command} is not a valid command");
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    static void PrintUsage()
+    {
+        WriteLine($"""
+            complog hash [command] [args]
+
+            Commands
+            print         Print the identity hash for the compilation to the console
+            export        Write the identity and content hash to disk
+            """);
+    }
+
+    static int RunHashHelp()
+    {
+        PrintUsage();
+        return ExitSuccess;
+    }
+
+    static (string? Command, IEnumerable<string> Remaning) ParseCommand(IEnumerable<string> args)
+    {
+        using var e = args.GetEnumerator();
+        if (!e.MoveNext())
+        {
+            return (null, Enumerable.Empty<string>());
+        }
+
+        var command = e.Current;
+        return (command, args.Skip(1));
+    }
+}
+
+int RunHashPrint(IEnumerable<string> args)
+{
+    var options = new FilterOptionSet();
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (options.Help)
+        {
+            PrintUsage();
+            return ExitSuccess;
+        }
+
+        using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
+        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCallNames = GetCompilerCallNames(compilerCalls);
+        for (int i = 0; i < compilerCalls.Count; i++)
+        {
+            var compilerCall = compilerCalls[i];
+            var name = compilerCallNames[i];
+            var compilationData = reader.ReadCompilationData(compilerCall);
+            var identityHash = compilationData.GetIdentityHash();
+
+            WriteLine($"{name} {identityHash}");
+        }
+
+        return ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("complog hash print [OPTIONS] msbuild.complog");
+        options.WriteOptionDescriptions(Out);
+    }
+}
+
+int RunHashExport(IEnumerable<string> args)
+{
     var inline = false;
     var baseOutputPath = "";
     var options = new FilterOptionSet()
     {
-        { "print", "print the id to console", p => print = p != null },
         { "i|inline", "put response files next to the project file", i => inline = i != null },
         { "o|out=", "path to output rsp files", o => baseOutputPath = o },
     };
@@ -652,71 +747,53 @@ int RunId(IEnumerable<string> args)
             return ExitSuccess;
         }
 
-        var isOutputValid = (print, !string.IsNullOrEmpty(baseOutputPath), inline) switch
+        if (inline && !string.IsNullOrEmpty(baseOutputPath))
         {
-            (true, false, false) => true,
-            (false, true, false) => true,
-            (false, false, true) => true,
-            (false, false, false) => true,
-            _ => false
-        };
-
-        if (!isOutputValid)
-        {
-            WriteLine("Can only specify one of --print, --out or --inline");
+            WriteLine("Cannot specify both --inline and --out");
             return ExitFailure;
         }
 
         using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
         if (inline)
         {
-            WriteLine($"Generating id files inline");
+            WriteLine($"Generating hash files inline");
         }
-        else if (!print)
+        else
         {
             baseOutputPath = GetBaseOutputPath(baseOutputPath, "id");
-            WriteLine($"Generating id files in {baseOutputPath}");
+            WriteLine($"Generating hash files in {baseOutputPath}");
             Directory.CreateDirectory(baseOutputPath);
         }
 
-        var sum = SHA256.Create();
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         var compilerCallNames = GetCompilerCallNames(compilerCalls);
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];
             var compilationData = reader.ReadCompilationData(compilerCall);
-            var content = compilationData.GetCompilationContentText();
-            var id = sum.ComputeHash(Encoding.UTF8.GetBytes(content));
-            var idText = id.AsHexString();
+            var (contentHash, identityHash) = compilationData.GetContentAndIdentityHash();
 
-            if (print)
+            var dir = inline
+                ? compilerCall.ProjectDirectory
+                : Path.Combine(baseOutputPath, compilerCallNames[i]);
+            Directory.CreateDirectory(dir);
+            var (contentFileName, identityFileName) = GetFileNames();
+
+            File.WriteAllText(Path.Combine(dir, contentFileName), contentHash);
+            File.WriteAllText(Path.Combine(dir, identityFileName), identityHash);
+
+            (string ContentFileName, string IdentityFileName) GetFileNames()
             {
-                WriteLine($"{compilerCall.GetDiagnosticName()} {idText}");
-            }
-            else
-            {
-                var idDirPath = inline
-                    ? compilerCall.ProjectDirectory
-                    : Path.Combine(baseOutputPath, compilerCallNames[i]);
-                Directory.CreateDirectory(idDirPath);
-                var idFilePath = Path.Combine(idDirPath, GetIdFileName());
-                var contentFilePath = Path.ChangeExtension(idFilePath, ".content.txt");
-
-                File.WriteAllText(idFilePath, idText);
-                File.WriteAllText(contentFilePath, content);
-
-                string GetIdFileName()
+                const string simpleContentFileName = "build-content-hash.txt";
+                const string simpleIdentityFileName = "build-identity-hash.txt";
+                if (inline)
                 {
-                    if (inline)
-                    {
-                        return IsSingleTarget(compilerCall, compilerCalls)
-                            ? "build-id.txt"
-                            : $"build-id-{compilerCall.TargetFramework}.txt";
-                    }
-
-                    return "build-id.txt";
+                    return IsSingleTarget(compilerCall, compilerCalls)
+                        ? (simpleContentFileName, simpleIdentityFileName)
+                        : ($"build-{compilerCall.TargetFramework}-content-hash.txt", $"build-{compilerCall.TargetFramework}-identity-hash.txt");
                 }
+
+                return (simpleContentFileName, simpleIdentityFileName);
             }
         }
 
@@ -731,7 +808,7 @@ int RunId(IEnumerable<string> args)
 
     void PrintUsage()
     {
-        WriteLine("complog id [OPTIONS] msbuild.complog");
+        WriteLine("complog hash export [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
     }
 }
@@ -767,7 +844,7 @@ int RunHelp(IEnumerable<string>? args)
           ref           Copy all references and analyzers to a single directory
           analyzers     Print analyzers / generators used by a compilation
           generated     Get generated files for the compilation
-          id            Get the compiler ids
+          hash          Get the compilation hashes
           print         Print summary of entries in the log
           help          Print help
         """);

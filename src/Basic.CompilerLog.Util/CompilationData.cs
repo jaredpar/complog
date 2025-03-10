@@ -9,6 +9,8 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Basic.CompilerLog.Util;
 
@@ -366,7 +368,7 @@ public abstract class CompilationData
     /// same content text. This can be checksum'd to produce concise compilation ids
     /// </summary>
     /// <returns></returns>
-    public string GetCompilationContentText()
+    public string GetContentHash()
     {
         var assembly = typeof(Compilation).Assembly;
         var type = assembly.GetType( "Microsoft.CodeAnalysis.DeterministicKey", throwOnError: true)!;
@@ -415,6 +417,28 @@ public abstract class CompilationData
 
             return parameters[1].ParameterType == typeof(ImmutableArray<SyntaxTree>);
         }
+    }
+
+    /// <summary>
+    /// This produces the content hash from <see cref="GetContentHash"/> as well as the identity hash 
+    /// which is just a checksum of the content hash.
+    /// </summary>
+    /// <returns></returns>
+    public (string ContentHash, string IdentityHash) GetContentAndIdentityHash()
+    {
+        var contentHash = GetContentHash();
+        var identityHash = GetIdentityHash(contentHash);
+        return (contentHash, identityHash);
+    }
+
+    public string GetIdentityHash() =>
+        GetIdentityHash(GetContentHash());
+
+    private static string GetIdentityHash(string contentHash)
+    {
+        var sum = SHA256.Create();
+        var bytes = sum.ComputeHash(Encoding.UTF8.GetBytes(contentHash));
+        return bytes.AsHexString();
     }
 
     private bool IncludeMetadataStream() =>

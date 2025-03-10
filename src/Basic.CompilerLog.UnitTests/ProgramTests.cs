@@ -116,6 +116,16 @@ public sealed class ProgramTests : TestBase
         }
     }
 
+    private static string GetIdentityHashConsole() =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? "wrong"
+            : "3100BA355001A464D45D7636823F4B7E1729368DAFBA20BC1C482B9F6FA9E5E4";
+
+    private static string GetIdentityHashExample() =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? "wrong"
+            : "D339B2B333F7C2344D6AFD47135FF7BF6F7DF64FB9E5E5E76690B093FC302BF9";
+
     private void RunWithBoth(Action<string> action)
     {
         // Run with the binary log
@@ -308,45 +318,66 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void Id()
+    public void HashBadCommand()
     {
-        var (exitCode, output) = RunCompLogEx($"id {Fixture.SolutionBinaryLogPath}");
-        Assert.Equal(Constants.ExitSuccess, exitCode);
-        var dir = Path.Combine(RootDirectory, ".complog");
-        var files = Directory.EnumerateFiles(dir, "build-id.txt", SearchOption.AllDirectories);
-        Assert.NotEmpty(files);
-        files = Directory.EnumerateFiles(dir, "build-id.content.txt", SearchOption.AllDirectories);
-        Assert.NotEmpty(files);
+        var (exitCode, output) = RunCompLogEx($"hash move {Fixture.SolutionBinaryLogPath}");
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
+        Assert.Contains("move is not a valid command", output);
     }
 
     [Fact]
-    public void IdHelp()
+    public void HashHelp()
     {
-        var (exitCode, output) = RunCompLogEx($"id -h");
+        var (exitCode, output) = RunCompLogEx("hash help");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.StartsWith("complog id [OPTIONS]", output);
+        Assert.Contains("complog hash [command] [args]", output);
     }
 
     [Fact]
-    public void IdInline()
+    public void HashPrintSimple()
+    {
+        var (exitCode, output) = RunCompLogEx($"hash print -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        var expected = GetIdentityHashConsole();
+        Assert.Contains($"console {expected}", output);
+    }
+
+    [Fact]
+    public void HashPrintAll()
+    {
+        var (exitCode, output) = RunCompLogEx($"hash print {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        var expected = GetIdentityHashConsole();
+        Assert.Contains($"console {expected}", output);
+    }
+
+    [Fact]
+    public void HashPrintHelp()
+    {
+        var (exitCode, output) = RunCompLogEx($"hash print -h");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.StartsWith("complog hash print [OPTIONS]", output);
+    }
+
+    [Fact]
+    public void HashExportInline()
     {
         var dir = Root.NewDirectory();
         RunDotNet($"new console --name example --output .", dir);
-        var (exitCode, output) = RunCompLogEx($"id -i", dir);
+        var (exitCode, output) = RunCompLogEx($"hash export -i", dir);
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("Generating id files inline", output);
+        Assert.Contains("Generating hash files inline", output);
 
-        var contentFilePath = Path.Combine(dir, "build-id.content.txt");
+        var identityFilePath = Path.Combine(dir, "build-identity-hash.txt");
+        var contentFilePath = Path.Combine(dir, "build-content-hash.txt");
         try
         {
-            var idFilePath = Path.Combine(dir, "build-id.txt");
-            Assert.True(File.Exists(idFilePath));
-            var id = File.ReadAllText(idFilePath);
-
-            var expectedId = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
-                ? ""
-                : "D339B2B333F7C2344D6AFD47135FF7BF6F7DF64FB9E5E5E76690B093FC302BF9";
-            Assert.Equal(expectedId, id);
+            Assert.True(File.Exists(identityFilePath));
+            Assert.Equal(GetIdentityHashExample(), File.ReadAllText(identityFilePath));
+            Assert.True(File.Exists(contentFilePath));
+            var actualContentHash = File.ReadAllText(contentFilePath);
+            Assert.Contains(@"""outputKind"": ""ConsoleApplication""", actualContentHash);
+            Assert.Contains(@"""moduleName"": ""example.dll""", actualContentHash);
         }
         catch (Exception)
         {
@@ -356,17 +387,27 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void IdPrint()
+    public void HashExportFull()
     {
         var dir = Root.NewDirectory();
         RunDotNet($"new console --name example --output .", dir);
-        var (exitCode, output) = RunCompLogEx($"id --print", dir);
+
+        var outDir = Root.NewDirectory();
+        var (exitCode, output) = RunCompLogEx($"hash export -o {outDir} ", dir);
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("example.csproj", output);
+
+        var identityFilePath = Path.Combine(outDir, "example", "build-identity-hash.txt");
+        Assert.True(File.Exists(identityFilePath));
+        var contentFilePath = Path.Combine(outDir, "example", "build-content-hash.txt");
+        Assert.True(File.Exists(identityFilePath));
+        Assert.Contains("""
+                    "outputKind": "ConsoleApplication",
+                    "moduleName": "example.dll",
+              """, File.ReadAllText(contentFilePath));
     }
 
     [Fact]
-    public void IdInlineAndOutput()
+    public void HashInlineAndOutput()
     {
         var dir = Root.NewDirectory();
         var (exitCode, output) = RunCompLogEx($"id -i -o blah");
@@ -374,7 +415,7 @@ public sealed class ProgramTests : TestBase
     }
 
     [Fact]
-    public void IdBadOption()
+    public void HashBadOption()
     {
         var (exitCode, output) = RunCompLogEx($"id -blah");
         Assert.NotEqual(Constants.ExitSuccess, exitCode);
