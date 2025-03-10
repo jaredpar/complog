@@ -118,12 +118,12 @@ public sealed class ProgramTests : TestBase
 
     private static string GetIdentityHashConsole() =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? "wrong"
+            ? "0E662CF750EE1DD812AB28EEF043007BFE72655681838EB7AA35EC9BD48541FC"
             : "3100BA355001A464D45D7636823F4B7E1729368DAFBA20BC1C482B9F6FA9E5E4";
 
     private static string GetIdentityHashExample() =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? "wrong"
+            ? "7EEAE6122F14D721453ED7DEAE7E1BE1D7AC3E0D69657834FF376D91888A7B11"
             : "D339B2B333F7C2344D6AFD47135FF7BF6F7DF64FB9E5E5E76690B093FC302BF9";
 
     private void RunWithBoth(Action<string> action)
