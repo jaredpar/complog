@@ -102,7 +102,10 @@ public sealed class ProgramTests : TestBase
             {
                 Assert.Empty(Directory.EnumerateFileSystemEntries(Constants.LocalAppDataDirectory));
             }
-            return ((int)ret!, writer.ToString());
+
+            var output = writer.ToString();
+            TestOutputHelper.WriteLine(output);
+            return ((int)ret!, output);
         }
         finally
         {
@@ -308,7 +311,6 @@ public sealed class ProgramTests : TestBase
     public void Id()
     {
         var (exitCode, output) = RunCompLogEx($"id {Fixture.SolutionBinaryLogPath}");
-        TestOutputHelper.WriteLine(output);
         Assert.Equal(Constants.ExitSuccess, exitCode);
         var dir = Path.Combine(RootDirectory, ".complog");
         var files = Directory.EnumerateFiles(dir, "build-id.txt", SearchOption.AllDirectories);

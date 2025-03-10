@@ -657,6 +657,7 @@ int RunId(IEnumerable<string> args)
             (true, false, false) => true,
             (false, true, false) => true,
             (false, false, true) => true,
+            (false, false, false) => true,
             _ => false
         };
 
@@ -671,7 +672,7 @@ int RunId(IEnumerable<string> args)
         {
             WriteLine($"Generating id files inline");
         }
-        else
+        else if (!print)
         {
             baseOutputPath = GetBaseOutputPath(baseOutputPath, "id");
             WriteLine($"Generating id files in {baseOutputPath}");
