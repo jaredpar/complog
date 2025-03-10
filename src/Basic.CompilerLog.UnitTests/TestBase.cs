@@ -120,7 +120,6 @@ public abstract class TestBase : IDisposable
             }
             Assert.Fail("Bad assembly loads");
         }
-        TestOutputHelper.WriteLine("Deleting temp directory");
         Root.Dispose();
     }
 
