@@ -55,7 +55,44 @@ internal static class TestUtil
         }
     }
 
-    internal static string TestTempRoot { get; } =  Path.Combine(Path.GetTempPath(), "Basic.CompilerLog.UnitTests", Guid.NewGuid().ToString("N"));
+    internal static string TestTempRoot { get; } = CreateUniqueSubDirectory(Path.Combine(Path.GetTempPath(), "Basic.CompilerLog.UnitTests"));
+
+    /// <summary>
+    /// This code will generate a unique subdirectory under <paramref name="path"/>. This is done instead of using 
+    /// GUIDs because that leads to long path issues on .NET Framework.
+    /// </summary>
+    /// <remarks>
+    /// This method is not entirely foolproof. But it does serve the purpose of creating unique directory names 
+    /// when tests are run in parallel on the same machine provided that we own <see cref="path"/>.
+    /// </remarks>
+    internal static string CreateUniqueSubDirectory(string path)
+    {
+        _ = Directory.CreateDirectory(path);
+
+        var id = 0;
+        while (true)
+        {
+            try
+            {
+                var filePath = Path.Combine(path, $"{id}.txt");
+                var dirPath = Path.Combine(path, $"{id}");
+                if (!File.Exists(filePath) && !Directory.Exists(dirPath))
+                {
+                    var fileStream = new FileStream(filePath, FileMode.CreateNew);
+                    fileStream.Dispose();
+
+                    _ = Directory.CreateDirectory(dirPath);
+                    return dirPath;
+                }
+            }
+            catch
+            {
+                // Don't care why we couldn't create the file or directory, just that it failed
+            }
+
+            id++;
+        }
+    }
 
     /// <summary>
     /// Internally a <see cref="IIncrementalGenerator" /> is wrapped in a type called IncrementalGeneratorWrapper. 
