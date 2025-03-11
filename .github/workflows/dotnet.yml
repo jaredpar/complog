@@ -58,6 +58,9 @@ jobs:
           8.0.x
           9.0.x
 
+    - name: List .NET Runtimes
+      run: dotnet --list-runtimes
+
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
