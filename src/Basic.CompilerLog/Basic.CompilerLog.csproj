@@ -31,6 +31,7 @@
     <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
     <Content Include="..\..\README.md" PackagePath="\" />
     <Content Include="..\..\LICENSE" PackagePath="\" />
+    <PackageReference Include="DiffPlex" />
     <PackageReference Include="Mono.Options" />
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
@@ -42,16 +43,13 @@
       <_BasicGeneratedConstantsFile>$(IntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
       <_BasicCode>internal static partial class Constants
 {
-    public const string ToolVersion = &quot;$(_BasicToolVersion)&quot;%3B
+    public const string ToolVersion = "$(_BasicToolVersion)"%3B
 }
       </_BasicCode>
     </PropertyGroup>
     <ItemGroup>
       <Compile Include="$(_BasicGeneratedConstantsFile)" />
     </ItemGroup>
-    <WriteLinesToFile
-      File="$(_BasicGeneratedConstantsFile)"
-      Lines="$(_BasicCode)"
-      Overwrite="true" />
+    <WriteLinesToFile File="$(_BasicGeneratedConstantsFile)" Lines="$(_BasicCode)" Overwrite="true" />
   </Target>
 </Project>

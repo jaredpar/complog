@@ -1,5 +1,8 @@
 ﻿using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
+using DiffPlex;
+using DiffPlex.DiffBuilder;
+using DiffPlex.DiffBuilder.Model;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
 using StructuredLogViewer;
@@ -645,6 +648,7 @@ int RunHash(IEnumerable<string> args)
     {
         "print" => RunHashPrint(rest),
         "export" => RunHashExport(rest),
+        "diff" => RunHashDiff(rest),
         "help" => RunHashHelp(),
         _ => RunBadCommand(command)
     };  
@@ -664,6 +668,7 @@ int RunHash(IEnumerable<string> args)
             Commands
             print         Print the identity hash for the compilation to the console
             export        Write the identity and content hash to disk
+            diff          Compare content hashes between two complog files
             """);
     }
 
@@ -725,6 +730,194 @@ int RunHashPrint(IEnumerable<string> args)
     {
         WriteLine("complog hash print [OPTIONS] msbuild.complog");
         options.WriteOptionDescriptions(Out);
+    }
+}
+
+int RunHashDiff(IEnumerable<string> args)
+{
+    string? leftFile = null;
+    string? rightFile = null;
+    var contextLines = 3;
+    var options = new FilterOptionSet()
+    {
+        { "l|left=", "left complog file", l => leftFile = l },
+        { "r|right=", "right complog file", r => rightFile = r },
+        { "c|context=", "number of context lines to show (default: 3)", (int c) => contextLines = c },
+    };
+
+    try
+    {
+        var extra = options.Parse(args);
+        if (options.Help)
+        {
+            PrintUsage();
+            return ExitSuccess;
+        }
+
+        // Handle files from extra if not provided via options
+        if (leftFile is null && extra.Count > 0)
+        {
+            leftFile = extra[0];
+            extra.RemoveAt(0);
+        }
+
+        if (rightFile is null && extra.Count > 0)
+        {
+            rightFile = extra[0];
+            extra.RemoveAt(0);
+        }
+
+        if (leftFile is null || rightFile is null)
+        {
+            WriteLine("Need two complog files to diff");
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        leftFile = GetResolvedPath(CurrentDirectory, leftFile);
+        rightFile = GetResolvedPath(CurrentDirectory, rightFile);
+
+        // Create readers for both files
+        using var leftReader = CompilerCallReaderUtil.Create(leftFile, BasicAnalyzerHost.DefaultKind);
+        using var rightReader = CompilerCallReaderUtil.Create(rightFile, BasicAnalyzerHost.DefaultKind);
+        var leftCalls = leftReader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var rightCalls = rightReader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var leftMap = BuildMap(leftReader);
+        var rightMap = BuildMap(rightReader);
+
+        var differences = 0;
+        var matches = 0;
+        var onlyInLeft = 0;
+        var onlyInRight = 0;
+
+        // Create diff services
+        var diffBuilder = new InlineDiffBuilder(new Differ());
+
+        // Print header
+        WriteLine($"Comparing content hashes between:");
+        WriteLine($"  Left:  {leftFile}");
+        WriteLine($"  Right: {rightFile}");
+        WriteLine("");
+
+        // Find projects in both files and compare hashes
+        foreach (var key in leftMap.Keys.Concat(rightMap.Keys).Distinct().OrderBy(k => k))
+        {
+            var inLeft = leftMap.TryGetValue(key, out var leftData);
+            var inRight = rightMap.TryGetValue(key, out var rightData);
+
+            if (inLeft && inRight)
+            {
+                var leftHash = leftData.ContentHash;
+                var rightHash = rightData.ContentHash;
+
+                if (leftHash != rightHash)
+                {
+                    WriteLine(key);
+
+                    // Generate diff
+                    var diff = diffBuilder.BuildDiffModel(leftHash, rightHash, ignoreWhitespace: false);
+                    
+                    // Display the diff with context
+                    var lineNumber = 1;
+                    var diffLines = diff.Lines.ToList();
+                    
+                    for (int i = 0; i < diffLines.Count; i++)
+                    {
+                        var line = diffLines[i];
+                        
+                        // Only show lines that are different or within contextLines of a difference
+                        bool shouldShow = line.Type != ChangeType.Unchanged;
+                        
+                        if (!shouldShow)
+                        {
+                            // Check if this unchanged line is within contextLines of a changed line
+                            for (int j = Math.Max(0, i - contextLines); j <= Math.Min(diffLines.Count - 1, i + contextLines); j++)
+                            {
+                                if (diffLines[j].Type != ChangeType.Unchanged)
+                                {
+                                    shouldShow = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (shouldShow)
+                        {
+                            string prefix = line.Type switch
+                            {
+                                ChangeType.Inserted => "+ ",
+                                ChangeType.Deleted => "- ",
+                                _ => "  "
+                            };
+                            
+                            WriteLine($"  {prefix}{lineNumber}: {line.Text}");
+                        }
+                        else if (i > 0 && diffLines[i-1].Type != ChangeType.Unchanged)
+                        {
+                            // Add ellipsis after a block of changes
+                            WriteLine("  ...");
+                        }
+                        
+                        if (line.Type != ChangeType.Inserted)
+                        {
+                            lineNumber++;
+                        }
+                    }
+                    
+                    WriteLine("");
+                    differences++;
+                }
+                else
+                {
+                    WriteLine($"{key} same");
+                }
+            }
+            else if (inLeft)
+            {
+                WriteLine($"{key} only in left");
+                onlyInLeft++;
+            }
+            else if (inRight)
+            {
+                WriteLine($"{key} only in right");
+                onlyInRight++;
+            }
+        }
+
+        // Print summary
+        WriteLine($"Summary:");
+        WriteLine($"  Total projects: {leftMap.Count} in left, {rightMap.Count} in right");
+        WriteLine($"  Matching hashes: {matches}");
+        WriteLine($"  Different hashes: {differences}");
+        WriteLine($"  Only in left file: {onlyInLeft}");
+        WriteLine($"  Only in right file: {onlyInRight}");
+
+        return differences > 0 || onlyInLeft > 0 || onlyInRight > 0 ? ExitFailure : ExitSuccess;
+    }
+    catch (OptionException e)
+    {
+        WriteLine(e.Message);
+        PrintUsage();
+        return ExitFailure;
+    }
+
+    void PrintUsage()
+    {
+        WriteLine("complog hash diff [OPTIONS] left.complog right.complog");
+        options.WriteOptionDescriptions(Out);
+    }
+
+    Dictionary<string, (CompilerCall CompilerCall, string ContentHash)> BuildMap(ICompilerCallReader reader)
+    {
+        var map = new Dictionary<string, (CompilerCall, string)>(StringComparer.Ordinal);
+        foreach (var compilerCall in reader.ReadAllCompilerCalls(options.FilterCompilerCalls))
+        {
+            var key = compilerCall.GetDiagnosticName();
+            var compilationData = reader.ReadCompilationData(compilerCall);
+            var contentHash = compilationData.GetContentHash();
+            map[key] = (compilerCall, contentHash);
+        }
+        return map;
     }
 }
 

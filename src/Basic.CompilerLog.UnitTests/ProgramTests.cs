@@ -453,6 +453,117 @@ public sealed class ProgramTests : TestBase
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("complog hash export [OPTIONS]", output);
     }
+    
+    [Fact]
+    public void HashDiffSameConsoleApp()
+    {
+        var dir = Root.NewDirectory();
+        RunDotNet($"new console --name example --output .", dir);
+        RunDotNet("build -bl -nr:false", dir);
+        
+        // Create two identical complog files
+        var complog1 = Path.Combine(dir, "example1.complog");
+        var complog2 = Path.Combine(dir, "example2.complog");
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Path.Combine(dir, "msbuild.binlog"), complog1));
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Path.Combine(dir, "msbuild.binlog"), complog2));
+        
+        // Run the diff command
+        var (exitCode, output) = RunCompLogEx($"hash diff -l {complog1} -r {complog2}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Matching hashes: 1", output);
+        Assert.Contains("Different hashes: 0", output);
+    }
+    
+    [Fact]
+    public void HashDiffDifferentConsoleApps()
+    {
+        var dir1 = Root.NewDirectory("app1");
+        var dir2 = Root.NewDirectory("app2");
+        
+        // Create first console app
+        RunDotNet($"new console --name app1 --output .", dir1);
+        RunDotNet("build -bl -nr:false", dir1);
+        var complog1 = Path.Combine(dir1, "app1.complog");
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Path.Combine(dir1, "msbuild.binlog"), complog1));
+        
+        // Create second console app with different code
+        RunDotNet($"new console --name app2 --output .", dir2);
+        File.WriteAllText(Path.Combine(dir2, "Program.cs"), """
+            // This is a different program
+            Console.WriteLine("This is app2");
+            """);
+        RunDotNet("build -bl -nr:false", dir2);
+        var complog2 = Path.Combine(dir2, "app2.complog");
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Path.Combine(dir2, "msbuild.binlog"), complog2));
+        
+        // Run the diff command
+        var (exitCode, output) = RunCompLogEx($"hash diff -l {complog1} -r {complog2}");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains("Different hashes: 1", output);
+        Assert.Contains("Only in LEFT file: 0", output);
+        Assert.Contains("Only in RIGHT file: 0", output);
+    }
+    
+    [Fact]
+    public void HashDiffPositionalArgs()
+    {
+        var dir1 = Root.NewDirectory("app1");
+        var dir2 = Root.NewDirectory("app2");
+        
+        // Create first console app
+        RunDotNet($"new console --name app1 --output .", dir1);
+        RunDotNet("build -bl -nr:false", dir1);
+        var complog1 = Path.Combine(dir1, "app1.complog");
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Path.Combine(dir1, "msbuild.binlog"), complog1));
+        
+        // Create second console app (identical to first)
+        RunDotNet($"new console --name app2 --output .", dir2);
+        RunDotNet("build -bl -nr:false", dir2);
+        var complog2 = Path.Combine(dir2, "app2.complog");
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Path.Combine(dir2, "msbuild.binlog"), complog2));
+        
+        // Run the diff command using positional args instead of named options
+        var (exitCode, output) = RunCompLogEx($"hash diff {complog1} {complog2}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Matching hashes: 1", output);
+        Assert.Contains("Different hashes: 0", output);
+    }
+    
+    [Fact]
+    public void HashDiffOnlyInLeft()
+    {
+        var dir1 = Root.NewDirectory("app1");
+        var dir2 = Root.NewDirectory("app2");
+        
+        // Create first console app
+        RunDotNet($"new console --name app1 --output .", dir1);
+        RunDotNet("build -bl -nr:false", dir1);
+        var complog1 = Path.Combine(dir1, "app1.complog");
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Path.Combine(dir1, "msbuild.binlog"), complog1));
+        
+        // Create second console app with different project name
+        RunDotNet($"new console --name different --output .", dir2);
+        RunDotNet("build -bl -nr:false", dir2);
+        var complog2 = Path.Combine(dir2, "app2.complog");
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Path.Combine(dir2, "msbuild.binlog"), complog2));
+        
+        // Run the diff command
+        var (exitCode, output) = RunCompLogEx($"hash diff -l {complog1} -r {complog2}");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains("Only in left file: 1", output);
+        Assert.Contains("Only in right file: 1", output);
+    }
+    
+    [Fact]
+    public void HashDiffHelp()
+    {
+        var (exitCode, output) = RunCompLogEx("hash diff -h");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("complog hash diff [OPTIONS]", output);
+        Assert.Contains("-l, --left=", output);
+        Assert.Contains("-r, --right=", output);
+        Assert.Contains("-c, --context=", output);
+    }
 
     [Fact]
     public void HashInlineAndOutput()
