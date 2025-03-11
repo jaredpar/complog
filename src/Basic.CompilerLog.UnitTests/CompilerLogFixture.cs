@@ -108,18 +108,16 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     public CompilerLogFixture(IMessageSink messageSink)
         : base(messageSink)
     {
-        StorageDirectory = Path.Combine(Path.GetTempPath(), nameof(CompilerLogFixture), Guid.NewGuid().ToString("N"));
+        StorageDirectory = Path.Combine(TestUtil.TestTempRoot, "compilerlogfixture");
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
         ScratchDirectory = Path.Combine(StorageDirectory, "scratch dir");
         Directory.CreateDirectory(ComplogDirectory);
         Directory.CreateDirectory(ScratchDirectory);
 
-        string? testArtifactsDir = null;
-        if (TestUtil.InGitHubActions)
-        {
-            testArtifactsDir = Path.Combine(TestUtil.GitHubActionsTestArtifactsDirectory, "compilerlogfixture");
-            Directory.CreateDirectory(testArtifactsDir);
-        }
+        RunDotnetCommand("new globaljson --sdk-version 9.0.100", ScratchDirectory);
+
+        var testArtifactsDir = Path.Combine(TestUtil.TestArtifactsDirectory, "compilerlogfixture");
+        Directory.CreateDirectory(testArtifactsDir);
 
         var builder = ImmutableArray.CreateBuilder<Lazy<LogData>>();
         Console = WithBuild("console.complog", void (string scratchPath) =>
@@ -542,10 +540,10 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 var start = DateTime.UtcNow;
                 try
                 {
-                    var scratchPath = Path.Combine(ScratchDirectory, Guid.NewGuid().ToString("N"));
-                    Directory.CreateDirectory(scratchPath);
+                    var scratchPath = Path.Combine(ScratchDirectory, Path.GetFileNameWithoutExtension(name));
+                    Assert.False(Directory.Exists(scratchPath));
+                    _ = Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
-                    RunDotnetCommand("new globaljson --sdk-version 9.0.100 --roll-forward minor", scratchPath);
                     action(scratchPath);
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
@@ -557,10 +555,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         return true;
                     });
 
-                    if (testArtifactsDir is not null)
-                    {
-                        File.Copy(binlogFilePath, Path.Combine(testArtifactsDir, Path.ChangeExtension(name, ".binlog")));
-                    }
+                    File.Copy(binlogFilePath, Path.Combine(testArtifactsDir, Path.ChangeExtension(name, ".binlog")), overwrite: !TestUtil.InGitHubActions);
 
                     if (!expectDiagnosticMessages)
                     {

@@ -22,6 +22,20 @@ internal static class TestUtil
 
     internal static bool InGitHubActions => Environment.GetEnvironmentVariable("GITHUB_ACTIONS") is not null;
 
+    internal static string TestArtifactsDirectory
+    {
+        get
+        {
+            if (InGitHubActions)
+            {
+                return TestUtil.GitHubActionsTestArtifactsDirectory;
+            }
+
+            var assemblyDir = Path.GetDirectoryName(typeof(TestBase).Assembly.Location)!;
+            return Path.Combine(assemblyDir, "test-artifacts");
+        }
+    }
+
     internal static string GitHubActionsTestArtifactsDirectory
     {
         get
@@ -40,6 +54,8 @@ internal static class TestUtil
             return Path.Combine(testArtifactsDir, suffix);
         }
     }
+
+    internal static string TestTempRoot { get; } =  Path.Combine(Path.GetTempPath(), "Basic.CompilerLog.UnitTests", Guid.NewGuid().ToString("N"));
 
     /// <summary>
     /// Internally a <see cref="IIncrementalGenerator" /> is wrapped in a type called IncrementalGeneratorWrapper. 

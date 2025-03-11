@@ -303,22 +303,10 @@ public abstract class TestBase : IDisposable
 
     private (string MemberDir, bool Overwrite) GetMemberTestArtifactDirectory(string memberName)
     {
-        string testResultsDir;
-        bool overwrite;
-        if (TestUtil.InGitHubActions)
-        {
-            overwrite = false;
-            testResultsDir = TestUtil.GitHubActionsTestArtifactsDirectory;
-        }
-        else
-        {
-            var assemblyDir = Path.GetDirectoryName(typeof(TestBase).Assembly.Location)!;
-            testResultsDir = Path.Combine(assemblyDir, "test-artifacts");
-
-            // Need to overwrite locally or else every time you re-run the test you need to go and 
-            // delete the test-artifacts directory
-            overwrite = true;
-        }
+        // Need to overwrite locally or else every time you re-run the test you need to go and 
+        // delete the test-artifacts directory
+        var overwrite = !TestUtil.InGitHubActions;
+        var testResultsDir = TestUtil.TestArtifactsDirectory;
 
         var typeName = this.GetType().FullName;
         var memberDir = Path.Combine(testResultsDir, $"{typeName}.{memberName}");
