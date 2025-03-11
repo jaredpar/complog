@@ -120,7 +120,6 @@ public abstract class TestBase : IDisposable
             }
             Assert.Fail("Bad assembly loads");
         }
-        TestOutputHelper.WriteLine("Deleting temp directory");
         Root.Dispose();
     }
 
@@ -293,5 +292,34 @@ public abstract class TestBase : IDisposable
         {
             BadAssemblyLoadList.Add(Path.GetFileName(e.LoadedAssembly.Location));
         }
+    }
+
+    protected void AddFileToTestArtifacts(string filePath, [CallerMemberName] string? memberName = null)
+    {
+        Debug.Assert(memberName is not null);
+
+        string testResultsDir;
+        bool overwrite;
+        if (TestUtil.InGitHubActions)
+        {
+            overwrite = false;
+            testResultsDir = TestUtil.GitHubActionsTestArtifactsDirectory;
+        }
+        else
+        {
+            var assemblyDir = Path.GetDirectoryName(typeof(TestBase).Assembly.Location)!;
+            testResultsDir = Path.Combine(assemblyDir, "test-artifacts");
+
+            // Need to overwrite locally or else every time you re-run the test you need to go and 
+            // delete the test-artifacts directory
+            overwrite = true;
+        }
+
+        var typeName = this.GetType().FullName;
+        var memberDir = Path.Combine(testResultsDir, $"{typeName}.{memberName}");
+        Directory.CreateDirectory(memberDir);
+
+        TestOutputHelper.WriteLine($"Saving {filePath} to test artifacts dir {memberDir}");
+        File.Copy(filePath, Path.Combine(memberDir, Path.GetFileName(filePath)), overwrite);
     }
 }

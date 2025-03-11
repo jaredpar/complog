@@ -1,5 +1,6 @@
 {
   "appDomain": "ifAvailable",
   "shadowCopy": false,
-  "parallelizeTestCollections": false
+  "parallelizeTestCollections": false,
+  "printMaxStringLength": 0
 }

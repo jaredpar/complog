@@ -1,4 +1,5 @@
 
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -10,6 +11,36 @@ namespace Basic.CompilerLog.UnitTests;
 
 internal static class TestUtil
 {
+    internal static bool IsNetFramework => 
+#if NETFRAMEWORK
+        true;
+#else
+        false;
+#endif
+
+    internal static bool IsNetCore => !IsNetFramework;
+
+    internal static bool InGitHubActions => Environment.GetEnvironmentVariable("GITHUB_ACTIONS") is not null;
+
+    internal static string GitHubActionsTestArtifactsDirectory
+    {
+        get
+        {
+            Debug.Assert(InGitHubActions);
+
+            var testArtifactsDir = Environment.GetEnvironmentVariable("TEST_ARTIFACTS_PATH");
+            if (testArtifactsDir is null)
+            {
+                throw new Exception("TEST_ARTIFACTS_PATH is not set in GitHub actions");
+
+            }
+
+            var suffix = IsNetCore ? "netcore" : "netfx";
+
+            return Path.Combine(testArtifactsDir, suffix);
+        }
+    }
+
     /// <summary>
     /// Internally a <see cref="IIncrementalGenerator" /> is wrapped in a type called IncrementalGeneratorWrapper. 
     /// This method will dig through that and return the original type.

@@ -7,7 +7,10 @@ using Microsoft.CodeAnalysis.VisualBasic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Basic.CompilerLog.Util;
 
@@ -358,6 +361,84 @@ public abstract class CompilationData
             sourceLinkStream: EmitData.SourceLinkStream,
             embeddedTexts: EmitData.EmbeddedTexts,
             cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// This returns the compilation as a content string. Two compilations that are equal will have the 
+    /// same content text. This can be checksum'd to produce concise compilation ids
+    /// </summary>
+    /// <returns></returns>
+    public string GetContentHash()
+    {
+        var assembly = typeof(Compilation).Assembly;
+        var type = assembly.GetType( "Microsoft.CodeAnalysis.DeterministicKey", throwOnError: true)!;
+        var method = type
+            .GetMethods(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
+            .Where(x => IsMethod(x))
+            .Single();
+
+        // This removes our implementation of the syntax tree options provider. Leaving that in means
+        // that the content text will be different every time compiler log is updated and that is not
+        // desirable.
+        var options = CompilationOptions.WithSyntaxTreeOptionsProvider(null);
+
+        // This removes file full paths and tool versions from the content text.
+        int flags = 0b11;
+        object[] args = 
+        [
+            options,
+            Compilation.SyntaxTrees.ToImmutableArray(),
+            Compilation.References.ToImmutableArray(),
+            ImmutableArray<byte>.Empty,
+            AdditionalTexts,
+            GetAnalyzers(),
+            GetGenerators(),
+            ImmutableArray<KeyValuePair<string, string>>.Empty,
+            EmitOptions,
+            flags,
+            (CancellationToken)default,
+        ];
+
+        var result = method.Invoke(null, args)!;
+        return (string)result;
+
+        static bool IsMethod(MethodInfo method)
+        {
+            if (method.Name != "GetDeterministicKey")
+            {
+                return false;
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length < 2)
+            {
+                return false;
+            }
+
+            return parameters[1].ParameterType == typeof(ImmutableArray<SyntaxTree>);
+        }
+    }
+
+    /// <summary>
+    /// This produces the content hash from <see cref="GetContentHash"/> as well as the identity hash 
+    /// which is just a checksum of the content hash.
+    /// </summary>
+    /// <returns></returns>
+    public (string ContentHash, string IdentityHash) GetContentAndIdentityHash()
+    {
+        var contentHash = GetContentHash();
+        var identityHash = GetIdentityHash(contentHash);
+        return (contentHash, identityHash);
+    }
+
+    public string GetIdentityHash() =>
+        GetIdentityHash(GetContentHash());
+
+    private static string GetIdentityHash(string contentHash)
+    {
+        var sum = SHA256.Create();
+        var bytes = sum.ComputeHash(Encoding.UTF8.GetBytes(contentHash));
+        return bytes.AsHexString();
     }
 
     private bool IncludeMetadataStream() =>
