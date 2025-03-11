@@ -61,7 +61,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
     public SolutionFixture(IMessageSink messageSink)
         : base(messageSink)
     {
-        StorageDirectory = Path.Combine(Path.GetTempPath(), nameof(CompilerLogFixture), Guid.NewGuid().ToString("N"));
+        StorageDirectory = Path.Combine(TestUtil.TestTempRoot, "solutionlogfixture");
         Directory.CreateDirectory(StorageDirectory);
         SolutionPath = Path.Combine(StorageDirectory, "Solution.sln");
         var binlogDir = Path.Combine(StorageDirectory, "binlogs");

@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS0436</NoWarn>
+    <NoWarn Condition="'$(TargetFramework)' == 'net472'">$(NoWarn);Nullable</NoWarn>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 

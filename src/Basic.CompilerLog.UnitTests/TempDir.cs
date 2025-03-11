@@ -12,7 +12,7 @@ internal sealed class TempDir : IDisposable
 
     public TempDir(string? name = null)
     {
-        DirectoryPath = Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString());
+        DirectoryPath = TestUtil.CreateUniqueSubDirectory(Path.Combine(TestUtil.TestTempRoot, "temps"));
         if (name != null)
         {
             DirectoryPath = Path.Combine(DirectoryPath, name);

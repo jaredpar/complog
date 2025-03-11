@@ -1,17 +1,8 @@
 ﻿using Basic.CompilerLog.Util;
-using Basic.CompilerLog.Util.Impl;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xaml;
 using Xunit;
-using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -294,32 +285,32 @@ public abstract class TestBase : IDisposable
         }
     }
 
+    protected void AddContentToTestArtifacts(string fileName, string content, [CallerMemberName] string? memberName = null)
+    {
+        Debug.Assert(memberName is not null);
+        var (memberDir, _) = GetMemberTestArtifactDirectory(memberName);
+        var filePath = Path.Combine(memberDir, fileName);
+        File.WriteAllText(filePath, content);
+    }
+
     protected void AddFileToTestArtifacts(string filePath, [CallerMemberName] string? memberName = null)
     {
         Debug.Assert(memberName is not null);
+        var (memberDir, overwrite) = GetMemberTestArtifactDirectory(memberName);
+        TestOutputHelper.WriteLine($"Saving {filePath} to test artifacts dir {memberDir}");
+        File.Copy(filePath, Path.Combine(memberDir, Path.GetFileName(filePath)), overwrite);
+    }
 
-        string testResultsDir;
-        bool overwrite;
-        if (TestUtil.InGitHubActions)
-        {
-            overwrite = false;
-            testResultsDir = TestUtil.GitHubActionsTestArtifactsDirectory;
-        }
-        else
-        {
-            var assemblyDir = Path.GetDirectoryName(typeof(TestBase).Assembly.Location)!;
-            testResultsDir = Path.Combine(assemblyDir, "test-artifacts");
-
-            // Need to overwrite locally or else every time you re-run the test you need to go and 
-            // delete the test-artifacts directory
-            overwrite = true;
-        }
+    private (string MemberDir, bool Overwrite) GetMemberTestArtifactDirectory(string memberName)
+    {
+        // Need to overwrite locally or else every time you re-run the test you need to go and 
+        // delete the test-artifacts directory
+        var overwrite = !TestUtil.InGitHubActions;
+        var testResultsDir = TestUtil.TestArtifactsDirectory;
 
         var typeName = this.GetType().FullName;
         var memberDir = Path.Combine(testResultsDir, $"{typeName}.{memberName}");
         Directory.CreateDirectory(memberDir);
-
-        TestOutputHelper.WriteLine($"Saving {filePath} to test artifacts dir {memberDir}");
-        File.Copy(filePath, Path.Combine(memberDir, Path.GetFileName(filePath)), overwrite);
+        return (memberDir, overwrite);
     }
 }
