@@ -344,19 +344,46 @@ public sealed class ProgramTests : TestBase
     [Fact]
     public void HashPrintSimple()
     {
+        AddContentHashToTestArtifacts();
+
         var (exitCode, output) = RunCompLogEx($"hash print -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         var expected = GetIdentityHashConsole();
         Assert.Contains($"console {expected}", output);
+
+        // Save the full content to test artifacts so we can compare it to what is
+        // seen locally.
+        void AddContentHashToTestArtifacts()
+        {
+            var reader = CompilerLogReader.Create(Fixture.SolutionBinaryLogPath, BasicAnalyzerKind.None);
+            var compilerCall = reader.ReadAllCompilerCalls(x => x.ProjectFileName == Fixture.ConsoleProjectName).Single();
+            var compilationData = reader.ReadCompilationData(compilerCall);
+            var contentHash = compilationData.GetContentHash();
+            AddContentToTestArtifacts("console-hash.txt", contentHash);
+        }
     }
 
     [Fact]
     public void HashPrintAll()
     {
+        AddContentHashToTestArtifacts();
         var (exitCode, output) = RunCompLogEx($"hash print {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         var expected = GetIdentityHashConsole();
         Assert.Contains($"console {expected}", output);
+
+        // Save the full content to test artifacts so we can compare it to what is
+        // seen locally.
+        void AddContentHashToTestArtifacts()
+        {
+            var reader = CompilerLogReader.Create(Fixture.SolutionBinaryLogPath, BasicAnalyzerKind.None);
+            foreach (var compilerCall in reader.ReadAllCompilerCalls())
+            {
+                var compilationData = reader.ReadCompilationData(compilerCall);
+                var contentHash = compilationData.GetContentHash();
+                AddContentToTestArtifacts($"{compilerCall.GetDiagnosticName()}.txt", contentHash);
+            }
+        }
     }
 
     [Fact]
@@ -386,20 +413,14 @@ public sealed class ProgramTests : TestBase
 
         var identityFilePath = Path.Combine(dir, "build-identity-hash.txt");
         var contentFilePath = Path.Combine(dir, "build-content-hash.txt");
-        try
-        {
-            Assert.True(File.Exists(identityFilePath));
-            Assert.Equal(GetIdentityHashExample(), File.ReadAllText(identityFilePath));
-            Assert.True(File.Exists(contentFilePath));
-            var actualContentHash = File.ReadAllText(contentFilePath);
-            Assert.Contains(@"""outputKind"": ""ConsoleApplication""", actualContentHash);
-            Assert.Contains(@"""moduleName"": ""example.dll""", actualContentHash);
-        }
-        catch (Exception)
-        {
-            AddFileToTestArtifacts(contentFilePath);
-            throw;
-        }
+        AddFileToTestArtifacts(contentFilePath);
+
+        Assert.True(File.Exists(identityFilePath));
+        Assert.Equal(GetIdentityHashExample(), File.ReadAllText(identityFilePath));
+        Assert.True(File.Exists(contentFilePath));
+        var actualContentHash = File.ReadAllText(contentFilePath);
+        Assert.Contains(@"""outputKind"": ""ConsoleApplication""", actualContentHash);
+        Assert.Contains(@"""moduleName"": ""example.dll""", actualContentHash);
     }
 
     [Fact]

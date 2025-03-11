@@ -1,17 +1,8 @@
 ﻿using Basic.CompilerLog.Util;
-using Basic.CompilerLog.Util.Impl;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xaml;
 using Xunit;
-using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -294,10 +285,24 @@ public abstract class TestBase : IDisposable
         }
     }
 
+    protected void AddContentToTestArtifacts(string fileName, string content, [CallerMemberName] string? memberName = null)
+    {
+        Debug.Assert(memberName is not null);
+        var (memberDir, _) = GetMemberTestArtifactDirectory(memberName);
+        var filePath = Path.Combine(memberDir, fileName);
+        File.WriteAllText(filePath, content);
+    }
+
     protected void AddFileToTestArtifacts(string filePath, [CallerMemberName] string? memberName = null)
     {
         Debug.Assert(memberName is not null);
+        var (memberDir, overwrite) = GetMemberTestArtifactDirectory(memberName);
+        TestOutputHelper.WriteLine($"Saving {filePath} to test artifacts dir {memberDir}");
+        File.Copy(filePath, Path.Combine(memberDir, Path.GetFileName(filePath)), overwrite);
+    }
 
+    private (string MemberDir, bool Overwrite) GetMemberTestArtifactDirectory(string memberName)
+    {
         string testResultsDir;
         bool overwrite;
         if (TestUtil.InGitHubActions)
@@ -318,8 +323,6 @@ public abstract class TestBase : IDisposable
         var typeName = this.GetType().FullName;
         var memberDir = Path.Combine(testResultsDir, $"{typeName}.{memberName}");
         Directory.CreateDirectory(memberDir);
-
-        TestOutputHelper.WriteLine($"Saving {filePath} to test artifacts dir {memberDir}");
-        File.Copy(filePath, Path.Combine(memberDir, Path.GetFileName(filePath)), overwrite);
+        return (memberDir, overwrite);
     }
 }
