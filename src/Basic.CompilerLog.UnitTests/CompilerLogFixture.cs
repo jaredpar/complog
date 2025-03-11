@@ -114,7 +114,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         Directory.CreateDirectory(ComplogDirectory);
         Directory.CreateDirectory(ScratchDirectory);
 
-        RunDotnetCommand("new globaljson --sdk-version 9.0.100", ScratchDirectory);
+        RunDotnetCommand("new globaljson --sdk-version 9.0.100 --roll-forward minor", ScratchDirectory);
 
         var testArtifactsDir = Path.Combine(TestUtil.TestArtifactsDirectory, "compilerlogfixture");
         Directory.CreateDirectory(testArtifactsDir);
