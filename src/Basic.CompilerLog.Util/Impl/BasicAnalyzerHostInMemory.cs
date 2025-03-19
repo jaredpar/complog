@@ -16,6 +16,7 @@ namespace Basic.CompilerLog.Util.Impl;
 /// <summary>
 /// Loads analyzers in memory
 /// </summary>
+[RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
 internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
 {
     internal InMemoryLoader Loader { get; }
@@ -36,6 +37,7 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
 
 #if NET
 
+[RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
 internal sealed class InMemoryLoader : AssemblyLoadContext
 {
     private readonly Dictionary<string, byte[]> _map = new();
@@ -67,8 +69,6 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
         AnalyzerReferences = [reference];
     }
 
-#pragma warning disable IL2046
-    [RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         try
@@ -92,7 +92,6 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
 
         return null;
     }
-#pragma warning restore IL2046
 
     public void Dispose()
     {
@@ -212,6 +211,7 @@ internal sealed class InMemoryLoader
 
 #endif
 
+[RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
 file sealed class BasicAnalyzerReference : AnalyzerReference
 {
     internal AssemblyName AssemblyName { get; }
@@ -230,8 +230,6 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         OnDiagnostic = onDiagnostic;
     }
 
-#pragma warning disable IL2046
-    [RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language)
     {
         var builder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
@@ -239,7 +237,6 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         return builder.ToImmutable();
     }
 
-    [RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzersForAllLanguages()
     {
         var builder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
@@ -247,7 +244,6 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         return builder.ToImmutable();
     }
 
-    [RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
     public override ImmutableArray<ISourceGenerator> GetGenerators(string language)
     {
         var builder = ImmutableArray.CreateBuilder<ISourceGenerator>();
@@ -255,14 +251,12 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
         return builder.ToImmutable();
     }
 
-    [RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
     public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages()
     {
         var builder = ImmutableArray.CreateBuilder<ISourceGenerator>();
         GetGenerators(builder, languageName: null);
         return builder.ToImmutable();
     }
-#pragma warning restore IL2046
 
     internal void GetAnalyzersCore(Action<Assembly, MetadataReader> action)
     {

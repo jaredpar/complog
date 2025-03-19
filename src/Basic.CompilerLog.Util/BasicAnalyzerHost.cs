@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Immutable;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 namespace Basic.CompilerLog.Util;
 
@@ -121,6 +122,18 @@ public abstract class BasicAnalyzerHost : IDisposable
         CompilerCall compilerCall,
         List<AnalyzerData> analyzers)
     {
+#if NET
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return kind switch
+            {
+                BasicAnalyzerKind.None => CreateNone(analyzers),
+                _ => throw new InvalidOperationException()
+            };
+        }
+#endif
+
+#pragma warning disable IL2026
         return kind switch
         {
             BasicAnalyzerKind.OnDisk => new BasicAnalyzerHostOnDisk(dataProvider, analyzers),
@@ -128,6 +141,7 @@ public abstract class BasicAnalyzerHost : IDisposable
             BasicAnalyzerKind.None => CreateNone(analyzers),
             _ => throw new InvalidOperationException()
         };
+#pragma warning restore IL2026
 
         BasicAnalyzerHostNone CreateNone(List<AnalyzerData> analyzers)
         {

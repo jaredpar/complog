@@ -23,6 +23,7 @@ namespace Basic.CompilerLog.Util.Impl;
 /// This is a per-compilation analyzer assembly loader that can be used to produce 
 /// <see cref="AnalyzerFileReference"/> instances
 /// </summary>
+[RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
 internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 {
     internal OnDiskLoader Loader { get; }
@@ -72,6 +73,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 
 #if NET
 
+[RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
 internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoader, IDisposable
 {
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
@@ -89,8 +91,6 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
         Unload();
     }
 
-#pragma warning disable IL2046
-    [RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         try
@@ -111,7 +111,6 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
         var assemblyPath = Path.Combine(AnalyzerDirectory, simpleName + ".dll");
         return LoadFromAssemblyPath(assemblyPath);
     }
-#pragma warning restore IL2046
 
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
     {
