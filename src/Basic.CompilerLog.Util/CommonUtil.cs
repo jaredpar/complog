@@ -15,6 +15,9 @@ namespace Basic.CompilerLog.Util;
 
 internal static class CommonUtil
 {
+    internal const string AotAnalyzers = "Loading analyzers dynamically";
+    internal const string AotMisc = "Calling into the compiler via reflection";
+
     internal const string MetadataFileName = "metadata.txt";
     internal const string AssemblyInfoFileName = "assemblyinfo.txt";
     internal const string LogInfoFileName = "loginfo.txt";

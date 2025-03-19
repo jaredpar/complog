@@ -368,6 +368,7 @@ public abstract class CompilationData
     /// same content text. This can be checksum'd to produce concise compilation ids
     /// </summary>
     /// <returns></returns>
+    [RequiresUnreferencedCode(CommonUtil.AotMisc)]
     public string GetContentHash()
     {
         var assembly = typeof(Compilation).Assembly;
@@ -424,6 +425,7 @@ public abstract class CompilationData
     /// which is just a checksum of the content hash.
     /// </summary>
     /// <returns></returns>
+    [RequiresUnreferencedCode(CommonUtil.AotMisc)]
     public (string ContentHash, string IdentityHash) GetContentAndIdentityHash()
     {
         var contentHash = GetContentHash();
@@ -431,6 +433,7 @@ public abstract class CompilationData
         return (contentHash, identityHash);
     }
 
+    [RequiresUnreferencedCode(CommonUtil.AotMisc)]
     public string GetIdentityHash() =>
         GetIdentityHash(GetContentHash());
 

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Configuration.Internal;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,8 +15,16 @@ namespace Basic.CompilerLog.Util;
 
 public static class SdkUtil
 {
+#pragma warning disable IL3000
     public static string GetDotnetDirectory(string? path = null)
     {
+#if NET
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            throw new Exception("Could not find dotnet directory");
+        }
+#endif
+
         // TODO: has to be a better way to find the runtime directory but this works for the moment 
         path ??= Path.GetDirectoryName(typeof(object).Assembly.Location);
         while (path is not null && !IsDotNetDir(path))
@@ -42,6 +51,7 @@ public static class SdkUtil
                 Directory.Exists(Path.Combine(path, "host"));
         }
     }
+#pragma warning restore IL3000
 
     public static List<string> GetSdkDirectories(string? dotnetDirectory = null)
     {

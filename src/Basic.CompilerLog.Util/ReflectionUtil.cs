@@ -9,6 +9,7 @@ namespace Basic.CompilerLog.Util;
 
 internal static class ReflectionUtil
 {
+#pragma warning disable IL2075
     internal static T ReadField<T>(object obj, string fieldName, BindingFlags? bindingFlags = null)
     {
         var type = obj.GetType();
@@ -16,4 +17,5 @@ internal static class ReflectionUtil
         var value = fieldInfo.GetValue(obj);
         return (T)value!;
     }
+#pragma warning restore IL2075
 }

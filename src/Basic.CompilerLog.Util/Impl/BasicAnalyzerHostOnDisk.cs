@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
@@ -88,6 +89,8 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
         Unload();
     }
 
+#pragma warning disable IL2046
+    [RequiresUnreferencedCode(CommonUtil.AotAnalyzers)]
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         try
@@ -108,6 +111,7 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
         var assemblyPath = Path.Combine(AnalyzerDirectory, simpleName + ".dll");
         return LoadFromAssemblyPath(assemblyPath);
     }
+#pragma warning restore IL2046
 
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
     {
