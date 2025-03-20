@@ -47,26 +47,26 @@ internal static class RoslynUtil
     public static readonly DiagnosticDescriptor CannotLoadTypesDiagnosticDescriptor =
         new DiagnosticDescriptor(
             "BCLA0002",
-            "Failed to load types from assembly",
-            "Failed to load types from {0}: {1}",
+            "Failed to load analyzer",
+            "Failed to load analyzer: {0}",
             "BasicCompilerLog",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor CannotFindAssemblyDiagnosticDescriptor =
+    public static readonly DiagnosticDescriptor CannotReadFileDiagnosticDescriptor =
         new DiagnosticDescriptor(
             "BCLA0003",
-            "Cannot find assembly",
-            "Cannot find assembly {0}",
+            "Cannot read file",
+            "Cannot read file {0}",
             "BasicCompilerLog",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor CannotReadFileDiagnosticDescriptor =
+    public static readonly DiagnosticDescriptor ErrorReadingGeneratedFilesDiagnosticDescriptor =
         new DiagnosticDescriptor(
             "BCLA0004",
-            "Cannot read file",
-            "Cannot read file {0}",
+            "Error reading generated files",
+            "Error reading generated files: {0}",
             "BasicCompilerLog",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

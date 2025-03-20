@@ -14,7 +14,6 @@ namespace Basic.CompilerLog.Util.Impl;
 internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
 {
     internal List<(SourceText SourceText, string FilePath)> GeneratedSourceTexts { get; }
-    internal BasicAnalyzerHostNoneAnalyzerReference? Generator { get; }
 
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
@@ -27,14 +26,13 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
         : base(BasicAnalyzerKind.None)
     {
         GeneratedSourceTexts = generatedSourceTexts;
-        Generator = new BasicAnalyzerHostNoneAnalyzerReference(this);
-        AnalyzerReferencesCore = [Generator];
+        AnalyzerReferencesCore = [new BasicGeneratedFilesAnalyzerReference(generatedSourceTexts)];
     }
 
-    internal BasicAnalyzerHostNone(string errorMessage)
+    internal BasicAnalyzerHostNone(Diagnostic diagnostic)
         : this([])
     {
-        AddDiagnostic(Diagnostic.Create(RoslynUtil.CannotReadGeneratedFilesDiagnosticDescriptor, Location.None, errorMessage));
+        AnalyzerReferencesCore = [new BasicErrorAnalyzerReference(diagnostic)];
     }
 
     /// <summary>
@@ -44,7 +42,6 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
         : base(BasicAnalyzerKind.None)
     {
         GeneratedSourceTexts = [];
-        Generator = null;
         AnalyzerReferencesCore = [];
     }
 
@@ -58,15 +55,16 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
 /// This _cannot_ be a file class. The full generated name is used in file paths of generated files. Those
 /// cannot include many characters that are in the full name of a file type.
 /// </summary>
-/// <param name="host"></param>
-internal sealed class BasicAnalyzerHostNoneAnalyzerReference(BasicAnalyzerHostNone host) : AnalyzerReference, IIncrementalGenerator
+internal sealed class BasicGeneratedFilesAnalyzerReference(List<(SourceText SourceText, string FilePath)> generatedSourceTexts) : AnalyzerReference, IIncrementalGenerator, IBasicAnalyzerReference
 {
-    internal BasicAnalyzerHostNone Host { get; } = host;
+    internal List<(SourceText SourceText, string FilePath)> GeneratedSourceTexts { get; } = generatedSourceTexts;
 
     public override string? FullPath => null;
 
     [ExcludeFromCodeCoverage]
     public override object Id => this;
+
+    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language, List<Diagnostic>? diagnostics) => [];
 
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language) => [];
 
@@ -75,14 +73,16 @@ internal sealed class BasicAnalyzerHostNoneAnalyzerReference(BasicAnalyzerHostNo
 
     public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages() => [this.AsSourceGenerator()];
 
-    public override ImmutableArray<ISourceGenerator> GetGenerators(string language) => GetGeneratorsForAllLanguages();
+    public override ImmutableArray<ISourceGenerator> GetGenerators(string language) => GetGenerators(language, null);
+ 
+    public ImmutableArray<ISourceGenerator> GetGenerators(string language, List<Diagnostic>? diagnostics) => [this.AsSourceGenerator()];
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         context.RegisterPostInitializationOutput(context =>
         {
             var set = new HashSet<string>(PathUtil.Comparer);
-            foreach (var tuple in Host.GeneratedSourceTexts)
+            foreach (var tuple in GeneratedSourceTexts)
             {
                 var fileName = Path.GetFileName(tuple.FilePath);
                 int count = 0;
@@ -96,4 +96,31 @@ internal sealed class BasicAnalyzerHostNoneAnalyzerReference(BasicAnalyzerHostNo
             }
         });
     }
+}
+
+internal sealed class BasicErrorAnalyzerReference(Diagnostic diagnostic) : AnalyzerReference, IBasicAnalyzerReference
+{
+    [ExcludeFromCodeCoverage]
+    public override string? FullPath => null;
+
+    [ExcludeFromCodeCoverage]
+    public override object Id => this;
+
+    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language, List<Diagnostic>? diagnostics)
+    {
+        diagnostics?.Add(diagnostic);
+        return [];
+    }
+
+    public ImmutableArray<ISourceGenerator> GetGenerators(string language, List<Diagnostic> diagnostics) => [];
+
+    public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language) => GetAnalyzers(language, null);
+
+    [ExcludeFromCodeCoverage]
+    public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzersForAllLanguages() => [];
+
+    [ExcludeFromCodeCoverage]
+    public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages() => [];
+
+    public override ImmutableArray<ISourceGenerator> GetGenerators(string language) => [];
 }

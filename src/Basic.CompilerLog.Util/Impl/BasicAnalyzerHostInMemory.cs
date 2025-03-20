@@ -25,7 +25,7 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
         :base(BasicAnalyzerKind.InMemory)
     {
         var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
-        Loader = new InMemoryLoader(name, provider, analyzers, AddDiagnostic);
+        Loader = new InMemoryLoader(name, provider, analyzers);
     }
 
     protected override void DisposeCore()
@@ -42,7 +42,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
     internal AssemblyLoadContext CompilerLoadContext { get; }
 
-    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
+    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
         :base(name, isCollectible: true)
     {
         CompilerLoadContext = provider.LogReaderState.CompilerLoadContext;
@@ -52,18 +52,18 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
             var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
             var bytes = provider.GetAssemblyBytes(analyzer.AssemblyData);
             _map[simpleName] = bytes;
-            builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), bytes, this, onDiagnostic));
+            builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), bytes, this));
         }
 
         AnalyzerReferences = builder.MoveToImmutable();
     }
 
-    internal InMemoryLoader(string name, AssemblyLoadContext compilerLoadContext, string simpleName, byte[] bytes, Action<Diagnostic> onDiagnostic)
+    internal InMemoryLoader(string name, AssemblyLoadContext compilerLoadContext, string simpleName, byte[] bytes)
         :base(name, isCollectible: true)
     {
         CompilerLoadContext = compilerLoadContext;
         _map[simpleName] = bytes;
-        var reference = new BasicAnalyzerReference(new AssemblyName(simpleName), bytes, this, onDiagnostic);
+        var reference = new BasicAnalyzerReference(new AssemblyName(simpleName), bytes, this);
         AnalyzerReferences = [reference];
     }
 
@@ -103,13 +103,13 @@ internal sealed class InMemoryLoader
 {
     internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
-    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers, Action<Diagnostic> onDiagnostic)
+    internal InMemoryLoader(string name, IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
     {
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
             var bytes = provider.GetAssemblyBytes(analyzer.AssemblyData);
-            builder.Add(new BasicAnalyzerReference(new AssemblyName(analyzer.AssemblyIdentityData.AssemblyName), bytes, this, onDiagnostic));
+            builder.Add(new BasicAnalyzerReference(new AssemblyName(analyzer.AssemblyIdentityData.AssemblyName), bytes, this));
         }
 
         AnalyzerReferences = builder.MoveToImmutable();
@@ -209,83 +209,77 @@ internal sealed class InMemoryLoader
 
 #endif
 
-file sealed class BasicAnalyzerReference : AnalyzerReference
+file sealed class BasicAnalyzerReference : AnalyzerReference, IBasicAnalyzerReference
 {
     internal AssemblyName AssemblyName { get; }
     internal byte[] AssemblyBytes { get; }
     internal InMemoryLoader Loader { get; }
-    internal Action<Diagnostic> OnDiagnostic { get; }
     public override object Id { get; } = Guid.NewGuid();
     public override string? FullPath => null;
     public override string Display => AssemblyName.Name ?? "";
 
-    internal BasicAnalyzerReference(AssemblyName assemblyName, byte[] assemblyBytes, InMemoryLoader loader, Action<Diagnostic> onDiagnostic)
+    internal BasicAnalyzerReference(AssemblyName assemblyName, byte[] assemblyBytes, InMemoryLoader loader)
     {
         AssemblyName = assemblyName;
         AssemblyBytes = assemblyBytes;
         Loader = loader;
-        OnDiagnostic = onDiagnostic;
     }
 
-    public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language)
-    {
-        var builder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
-        GetAnalyzers(builder, language);
-        return builder.ToImmutable();
-    }
+    public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language) =>
+        GetAnalyzers(language, diagnostics: null);
 
-    public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzersForAllLanguages()
-    {
-        var builder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
-        GetAnalyzers(builder, languageName: null);
-        return builder.ToImmutable();
-    }
+    public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzersForAllLanguages() =>
+        GetAnalyzers(language: null, diagnostics: null);
 
-    public override ImmutableArray<ISourceGenerator> GetGenerators(string language)
-    {
-        var builder = ImmutableArray.CreateBuilder<ISourceGenerator>();
-        GetGenerators(builder, language);
-        return builder.ToImmutable();
-    }
+    public override ImmutableArray<ISourceGenerator> GetGenerators(string language) =>
+        GetGenerators(language, diagnostics: null);
 
-    public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages()
-    {
-        var builder = ImmutableArray.CreateBuilder<ISourceGenerator>();
-        GetGenerators(builder, languageName: null);
-        return builder.ToImmutable();
-    }
+    public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages() =>
+        GetGenerators(language: null, diagnostics: null);
 
-    internal void GetAnalyzersCore(Action<Assembly, MetadataReader> action)
+    internal ImmutableArray<T> GetAnalyzersCore<T>(
+        Action<Assembly, MetadataReader, ImmutableArray<T>.Builder, string?, List<Diagnostic>?> action,
+        string? language,
+        List<Diagnostic>? diagnostics)
     {
         try
         {
+            var builder = ImmutableArray.CreateBuilder<T>();
             var assembly = Loader.LoadFromAssemblyName(AssemblyName);
             using var peReader = new PEReader(new MemoryStream(AssemblyBytes));
             var metadataReader = peReader.GetMetadataReader();
-            action(assembly, metadataReader);
+            action(assembly, metadataReader, builder, language, diagnostics);
+            return builder.ToImmutable();
         }
         catch (Exception ex)
         {
-            var diagnostic = Diagnostic.Create(RoslynUtil.CannotLoadTypesDiagnosticDescriptor, Location.None, AssemblyName.FullName, ex.Message);
-            OnDiagnostic(diagnostic);
+            if (diagnostics is not null)
+            {
+                var d = Diagnostic.Create(
+                    RoslynUtil.CannotLoadTypesDiagnosticDescriptor,
+                    Location.None,
+                    $"{AssemblyName.Name}:{ex.Message}");
+                diagnostics.Add(d);
+            }
+
+            return ImmutableArray<T>.Empty;
         }
     }
 
-    internal void GetAnalyzers(ImmutableArray<DiagnosticAnalyzer>.Builder builder, string? languageName)
-    {
-        GetAnalyzersCore((assembly, metadataReader) =>
+    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string? language, List<Diagnostic>? diagnostics) =>
+        GetAnalyzersCore<DiagnosticAnalyzer>(static (assembly, metadataReader, builder, language, diagnostics) =>
         {
-            foreach (var (typeDef, attribute) in RoslynUtil.GetAnalyzerTypeDefinitions(metadataReader, languageName))
+            foreach (var (typeDef, attribute) in RoslynUtil.GetAnalyzerTypeDefinitions(metadataReader, language))
             {
                 var fqn = RoslynUtil.GetFullyQualifiedName(metadataReader, typeDef);
-                var type = assembly.GetType(fqn, throwOnError: true);
+                var type = GetTypeWithDiagnostics(assembly, fqn, diagnostics);
                 if (type is not null)
                 {
                     // When looking for "all languages" roslyn will include duplicates for all 
                     // supported languages. This is undocumented behavior that we need to mimic
                     //
                     // https://github.com/dotnet/roslyn/blob/329bb90e91561c8f26e4f8aeae17be1697db850b/src/Compilers/Core/Portable/DiagnosticAnalyzer/AnalyzerFileReference.cs#L111
-                    var count = languageName is not null
+                    var count = language is not null
                         ? 1
                         : RoslynUtil.CountLanguageNames(metadataReader, attribute);
                     for (int i = 0; i < count; i++)
@@ -297,17 +291,15 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
                     }
                 }
             }
-        });
-    }
+        }, language, diagnostics);
 
-    internal void GetGenerators(ImmutableArray<ISourceGenerator>.Builder builder, string? languageName)
-    {
-        GetAnalyzersCore((assembly, metadataReader) => 
+    public ImmutableArray<ISourceGenerator> GetGenerators(string? language, List<Diagnostic>? diagnostics) =>
+        GetAnalyzersCore<ISourceGenerator>(static (assembly, metadataReader, builder, language, diagnostics) => 
         {
-            foreach (var (typeDef, attribute) in RoslynUtil.GetGeneratorTypeDefinitions(metadataReader, languageName))
+            foreach (var (typeDef, attribute) in RoslynUtil.GetGeneratorTypeDefinitions(metadataReader, language))
             {
                 var fqn = RoslynUtil.GetFullyQualifiedName(metadataReader, typeDef);
-                var type = assembly.GetType(fqn, throwOnError: true);
+                var type = GetTypeWithDiagnostics(assembly, fqn, diagnostics);
                 if (type is not null)
                 {
                     var generator = Activator.CreateInstance(type);
@@ -321,7 +313,32 @@ file sealed class BasicAnalyzerReference : AnalyzerReference
                     }
                 }
             }
-        });
+        }, language, diagnostics);
+
+    private static Type? GetTypeWithDiagnostics(Assembly assembly, string fqn, List<Diagnostic>? diagnostics)
+    {
+        try
+        {
+            return assembly.GetType(fqn, throwOnError: true);
+        }
+        catch (Exception ex)
+        {
+            if (diagnostics is not null)
+            {
+                var args = new AnalyzerLoadFailureEventArgs(
+                    AnalyzerLoadFailureEventArgs.FailureErrorCode.UnableToCreateAnalyzer,
+                    $"Unable to load analyzer {fqn} from ({assembly.FullName})",
+                    exceptionOpt: ex,
+                    typeNameOpt: fqn);
+                var d = Diagnostic.Create(
+                    RoslynUtil.CannotLoadTypesDiagnosticDescriptor,
+                    Location.None,
+                    $"{args.TypeName}:{args.Exception?.Message}");
+                diagnostics.Add(d);
+            }
+        }
+
+        return null;
     }
 
     public override string ToString() => $"In Memory {AssemblyName}";

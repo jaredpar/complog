@@ -66,8 +66,7 @@ public sealed class InMemoryLoaderTests : TestBase
             "test loader",
             alc,
             Path.GetFileNameWithoutExtension(fileName),
-            image.ToArray(),
-            d => { Assert.Fail(d.GetMessage()); });
+            image.ToArray());
         var analyzerReference = loader.AnalyzerReferences.Single();
         var analyzer = analyzerReference.GetAnalyzersForAllLanguages().Single();
         Assert.Equal("GoodAnalyzer", analyzer.GetType().Name);

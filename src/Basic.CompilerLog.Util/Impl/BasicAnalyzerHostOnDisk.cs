@@ -37,7 +37,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
         AnalyzerDirectory = Path.Combine(provider.LogReaderState.AnalyzerDirectory, dirName);
         Directory.CreateDirectory(AnalyzerDirectory);
 
-        Loader = new OnDiskLoader(name, AnalyzerDirectory, provider.LogReaderState, AddDiagnostic);
+        Loader = new OnDiskLoader(name, AnalyzerDirectory, provider.LogReaderState);
 
         // Now create the AnalyzerFileReference. This won't actually pull on any assembly loading
         // until later so it can be done at the same time we're building up the files.
@@ -76,7 +76,7 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
     internal string AnalyzerDirectory { get; }
 
-    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state, Action<Diagnostic> _)
+    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
         : base(name, isCollectible: true)
     {
         CompilerLoadContext = state.CompilerLoadContext;
@@ -132,14 +132,12 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
 {
     internal string Name { get; }
     internal string AnalyzerDirectory { get; }
-    internal Action<Diagnostic> OnDiagnostic { get; }
     internal Dictionary<string, Assembly> AssemblyMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state, Action<Diagnostic> onDiagnostic)
+    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState _)
     {
         Name = name;
         AnalyzerDirectory = analyzerDirectory;
-        OnDiagnostic = onDiagnostic;
 
         AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
 
@@ -180,8 +178,6 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
             return Assembly.LoadFrom(name);
         }
 
-        var diagnostic = Diagnostic.Create(RoslynUtil.CannotFindAssemblyDiagnosticDescriptor, Location.None, assemblyName);
-        OnDiagnostic(diagnostic);
         return null;
     }
 

@@ -280,11 +280,12 @@ public sealed class CompilerLogReaderTests : TestBase
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
             .ToList();
         var host = new BasicAnalyzerHostInMemory(reader, analyzers);
+        var list = new List<Diagnostic>();
         foreach (var analyzer in host.AnalyzerReferences)
         {
-            analyzer.GetAnalyzersForAllLanguages();
+            analyzer.AsBasicAnalyzerReference().GetAnalyzers(LanguageNames.CSharp, list);
         }
-        Assert.NotEmpty(host.GetDiagnostics());
+        Assert.NotEmpty(list);
     }
 
 #endif

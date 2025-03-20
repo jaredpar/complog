@@ -905,7 +905,7 @@ public sealed class ProgramTests : TestBase
 
         var (exitCode, output) = RunCompLogEx($"generated {dir} -a None");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("BCLA0001", output);
+        Assert.Contains(RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor.Id, output);
     }
 
     [Fact]
