@@ -220,4 +220,20 @@ public sealed class CompilationDataTests : TestBase
         Assert.Single(trees);
         Assert.Empty(diagnostics);
     }
+
+#if NET
+    [Fact]
+    public void GetContentHashBadAnalyzer()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var data = LibraryUtil.GetAnalyzersWithBadMetadata();
+        using var host = new BasicAnalyzerHostInMemory(data.FileName, data.Image.ToArray());
+        var compilationData = reader
+            .ReadCompilationData(0)
+            .WithBasicAnalyzerHost(host);
+        var content = compilationData.GetContentHash();
+        Assert.Contains(RoslynUtil.CannotLoadTypesDiagnosticDescriptor.Id, content);
+    }
+
+#endif
 }

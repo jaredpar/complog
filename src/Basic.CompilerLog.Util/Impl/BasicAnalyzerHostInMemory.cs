@@ -28,6 +28,21 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
         Loader = new InMemoryLoader(name, provider, analyzers);
     }
 
+#if NET
+
+    /// <summary>
+    /// This creates a new instance over a single analyzer.
+    /// </summary>
+    internal BasicAnalyzerHostInMemory(string simpleName, byte[] bytes)
+        :base(BasicAnalyzerKind.InMemory)
+    {
+        var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
+        var loadContext = CommonUtil.GetAssemblyLoadContext();
+        Loader = new InMemoryLoader(name, loadContext, simpleName, bytes);
+    }
+
+#endif
+
     protected override void DisposeCore()
     {
         Loader.Dispose();
@@ -341,6 +356,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference, IBasicAnalyzerRefe
         return null;
     }
 
+    [ExcludeFromCodeCoverage]
     public override string ToString() => $"In Memory {AssemblyName}";
 }
 

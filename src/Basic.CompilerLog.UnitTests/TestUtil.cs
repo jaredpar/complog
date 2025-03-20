@@ -4,8 +4,15 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.VisualBasic.Syntax;
 using Xunit;
 using Xunit.Sdk;
+using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Impl;
+
+#if NET
+using System.Runtime.Loader;
+#endif
 
 namespace Basic.CompilerLog.UnitTests;
 

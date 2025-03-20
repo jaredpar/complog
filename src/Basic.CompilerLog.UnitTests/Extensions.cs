@@ -1,7 +1,9 @@
 ﻿using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Diagnostics;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -68,4 +70,32 @@ internal static class Extensions
             new Lazy<IReadOnlyCollection<string>>(() => args),
             ownerState);
     }
+
+    internal static CompilationData WithBasicAnalyzerHost(this CompilationData compilationData, BasicAnalyzerHost basicAnalyzerHost) =>
+        compilationData switch
+        {
+            CSharpCompilationData cs =>
+                new CSharpCompilationData(
+                    cs.CompilerCall,
+                    cs.Compilation,
+                    cs.ParseOptions,
+                    cs.EmitOptions,
+                    cs.EmitData,
+                    cs.AdditionalTexts,
+                    basicAnalyzerHost,
+                    cs.AnalyzerConfigOptionsProvider,
+                    cs.CreationDiagnostics),
+            VisualBasicCompilationData vb =>
+                new VisualBasicCompilationData(
+                    vb.CompilerCall,
+                    vb.Compilation,
+                    vb.ParseOptions,
+                    vb.EmitOptions,
+                    vb.EmitData,
+                    vb.AdditionalTexts,
+                    basicAnalyzerHost,
+                    vb.AnalyzerConfigOptionsProvider,
+                    vb.CreationDiagnostics),
+            _ => throw new NotSupportedException($"Unsupported compilation data type: {compilationData.GetType()}")
+        };
 }

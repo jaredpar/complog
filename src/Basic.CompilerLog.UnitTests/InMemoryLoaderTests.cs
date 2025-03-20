@@ -60,19 +60,14 @@ public sealed class InMemoryLoaderTests : TestBase
     [Fact]
     public void AnalyzersBadDefinition()
     {
-        var (fileName, image) = LibraryUtil.GetAnalyzersWithBadMetadata();
-        var alc = new AssemblyLoadContext("Custom", isCollectible: true);
-        var loader = new InMemoryLoader(
-            "test loader",
-            alc,
-            Path.GetFileNameWithoutExtension(fileName),
-            image.ToArray());
-        var analyzerReference = loader.AnalyzerReferences.Single();
+        var data = LibraryUtil.GetAnalyzersWithBadMetadata();
+        using var host = new BasicAnalyzerHostInMemory(data.FileName, data.Image.ToArray());
+        Assert.Single(host.AnalyzerReferences);
+        var analyzerReference = host.AnalyzerReferences.Single();
         var analyzer = analyzerReference.GetAnalyzersForAllLanguages().Single();
         Assert.Equal("GoodAnalyzer", analyzer.GetType().Name);
         var generator = analyzerReference.GetGeneratorsForAllLanguages().Single();
         Assert.Equal("GoodGenerator", TestUtil.GetGeneratorType(generator).Name);
-        loader.Unload();
     }
 
 #endif
