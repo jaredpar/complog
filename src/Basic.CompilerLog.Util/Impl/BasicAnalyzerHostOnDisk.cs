@@ -29,16 +29,19 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
 
     internal string AnalyzerDirectory { get; }
 
-    internal BasicAnalyzerHostOnDisk(IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
+    private BasicAnalyzerHostOnDisk(LogReaderState state)
         : base(BasicAnalyzerKind.OnDisk)
     {
         var dirName = Guid.NewGuid().ToString("N");
         var name =  $"{nameof(BasicAnalyzerHostOnDisk)} {dirName}";
-        AnalyzerDirectory = Path.Combine(provider.LogReaderState.AnalyzerDirectory, dirName);
-        Directory.CreateDirectory(AnalyzerDirectory);
+        AnalyzerDirectory = Path.Combine(state.AnalyzerDirectory, dirName);
+        _ = Directory.CreateDirectory(AnalyzerDirectory);
+        Loader = new OnDiskLoader(name, AnalyzerDirectory, state);
+    }
 
-        Loader = new OnDiskLoader(name, AnalyzerDirectory, provider.LogReaderState);
-
+    internal BasicAnalyzerHostOnDisk(IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
+        : this(provider.LogReaderState)
+    {
         // Now create the AnalyzerFileReference. This won't actually pull on any assembly loading
         // until later so it can be done at the same time we're building up the files.
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
@@ -53,6 +56,14 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
         }
 
         AnalyzerReferencesCore = builder.MoveToImmutable();
+    }
+
+    internal BasicAnalyzerHostOnDisk(LogReaderState state, AssemblyFileData assemblyFileData)
+        : this(state)
+    {
+        var filePath = Path.Combine(AnalyzerDirectory, assemblyFileData.FileName);
+        File.WriteAllBytes(filePath, assemblyFileData.Image.ToArray());
+        AnalyzerReferencesCore = [new AnalyzerFileReference(filePath, Loader)];
     }
 
     protected override void DisposeCore()

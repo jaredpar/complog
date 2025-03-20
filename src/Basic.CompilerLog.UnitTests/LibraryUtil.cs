@@ -1,6 +1,7 @@
 
 using System.Drawing.Text;
 using System.Text;
+using Basic.CompilerLog.Util;
 using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -12,7 +13,7 @@ namespace Basic.CompilerLog.UnitTests;
 /// </summary>
 internal static class LibraryUtil
 {
-    internal static (string FileName, MemoryStream Image) GetSimplePia()
+    internal static AssemblyFileData GetSimplePia()
     {
         var content1 = """
             using System.Runtime.InteropServices;
@@ -52,7 +53,7 @@ internal static class LibraryUtil
     /// Returns an assembly that has a set of well defined analyzers and generators and ones
     /// with definition errors.
     /// </summary>
-    internal static (string FileName, MemoryStream Image) GetAnalyzersWithBadMetadata()
+    internal static AssemblyFileData GetAnalyzersWithBadMetadata()
     {
         var code = """
             using System.Collections.Immutable;
@@ -94,7 +95,7 @@ internal static class LibraryUtil
     /// Returns an assembly that has a set of well defined analyzers and generators and ones
     /// with definition errors.
     /// </summary>
-    internal static (string FileName, MemoryStream Image) GetAnalyzersWithDiffAttribtueCombinations()
+    internal static AssemblyFileData GetAnalyzersWithDiffAttribtueCombinations()
     {
         var code = """
             using System.Collections.Immutable;
@@ -143,7 +144,36 @@ internal static class LibraryUtil
         return Compile(compilation, "TestAnalyzers.dll");
     }
 
-    private static (string FileName, MemoryStream Image) Compile(Compilation compilation, string fileName)
+    /// <summary>
+    /// Returns an assembly that has an analyzer that cannot be loaded
+    /// </summary>
+    internal static AssemblyFileData GetUnloadableAnalyzers()
+    {
+        var code = """
+            using System.Collections.Immutable;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.Diagnostics;
+
+            [DiagnosticAnalyzer(LanguageNames.CSharp)]
+            public class BadAnalyzer
+            {
+                static BadAnalyzer()
+                {
+                    throw new System.Exception("BadAnalyzer");
+                }
+            }
+            """;
+
+        var roslynReference = MetadataReference.CreateFromFile(typeof(Compilation).Assembly.Location);
+        var compilation = CSharpCompilation.Create(
+            "TestAnalyzers",
+            [CSharpSyntaxTree.ParseText(code)],
+            [.. Net80.References.All, roslynReference],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        return Compile(compilation, "TestAnalyzers.dll");
+    }
+
+    private static AssemblyFileData Compile(Compilation compilation, string fileName)
     {
         var peStream = new MemoryStream();
         var emitResult = compilation.Emit(peStream);
@@ -153,7 +183,7 @@ internal static class LibraryUtil
         }
 
         peStream.Position = 0;
-        return (fileName, peStream);
+        return new(fileName, peStream);
 
         string GetMessage(IEnumerable<Diagnostic> diagnostics)
         {

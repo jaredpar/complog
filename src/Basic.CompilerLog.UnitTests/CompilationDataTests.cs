@@ -222,12 +222,16 @@ public sealed class CompilationDataTests : TestBase
     }
 
 #if NET
-    [Fact]
-    public void GetContentHashBadAnalyzer()
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GetContentHashBadAnalyzer(bool inMemory)
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
-        var data = LibraryUtil.GetAnalyzersWithBadMetadata();
-        using var host = new BasicAnalyzerHostInMemory(data.FileName, data.Image.ToArray());
+        using BasicAnalyzerHost host = inMemory
+            ? new BasicAnalyzerHostInMemory(LibraryUtil.GetUnloadableAnalyzers())
+            : new BasicAnalyzerHostOnDisk(State, LibraryUtil.GetUnloadableAnalyzers());
         var compilationData = reader
             .ReadCompilationData(0)
             .WithBasicAnalyzerHost(host);

@@ -60,8 +60,7 @@ public sealed class InMemoryLoaderTests : TestBase
     [Fact]
     public void AnalyzersBadDefinition()
     {
-        var data = LibraryUtil.GetAnalyzersWithBadMetadata();
-        using var host = new BasicAnalyzerHostInMemory(data.FileName, data.Image.ToArray());
+        using var host = new BasicAnalyzerHostInMemory(LibraryUtil.GetAnalyzersWithBadMetadata());
         Assert.Single(host.AnalyzerReferences);
         var analyzerReference = host.AnalyzerReferences.Single();
         var analyzer = analyzerReference.GetAnalyzersForAllLanguages().Single();

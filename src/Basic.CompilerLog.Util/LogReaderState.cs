@@ -28,6 +28,10 @@ public sealed class LogReaderState : IDisposable
     /// </summary>
     internal bool CacheAnalyzers => _analyzersMap is not null;
 
+    /// <summary>
+    /// This is the base directory that is used for any on disk assets that need to be created
+    /// by compiler logs. This is typically used for crypto key files and analyzers.
+    /// </summary>
     internal string BaseDirectory { get; }
 
     /// <summary>

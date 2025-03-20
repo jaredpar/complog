@@ -33,12 +33,13 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
     /// <summary>
     /// This creates a new instance over a single analyzer.
     /// </summary>
-    internal BasicAnalyzerHostInMemory(string simpleName, byte[] bytes)
+    internal BasicAnalyzerHostInMemory(AssemblyFileData assemblyFileData)
         :base(BasicAnalyzerKind.InMemory)
     {
         var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
         var loadContext = CommonUtil.GetAssemblyLoadContext();
-        Loader = new InMemoryLoader(name, loadContext, simpleName, bytes);
+        var simpleName = Path.GetFileNameWithoutExtension(assemblyFileData.FileName);
+        Loader = new InMemoryLoader(name, loadContext, simpleName, assemblyFileData.Image.ToArray());
     }
 
 #endif

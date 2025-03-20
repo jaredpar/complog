@@ -252,7 +252,7 @@ public sealed class RoslynUtilTests
     [Fact]
     public void GetAnalyzerTypeDefinitions()
     {
-        var (_, image) = LibraryUtil.GetAnalyzersWithDiffAttribtueCombinations();
+        var image = LibraryUtil.GetAnalyzersWithDiffAttribtueCombinations().Image;
         using var peReader = new PEReader(image);
         var metadataReader = peReader.GetMetadataReader();
 
