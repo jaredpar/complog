@@ -393,7 +393,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var data = reader.ReadCompilationData(0);
         var compilation = data.GetCompilationAfterGenerators(out var diagnostics, CancellationToken);
         Assert.Single(diagnostics);
-        Assert.Equal(RoslynUtil.CannotReadGeneratedFilesDiagnosticDescriptor.Id, diagnostics[0].Id);
+        Assert.Equal(RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor.Id, diagnostics[0].Id);
     }
 
     [Theory]

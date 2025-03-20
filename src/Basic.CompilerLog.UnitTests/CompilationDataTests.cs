@@ -83,7 +83,7 @@ public sealed class CompilationDataTests : TestBase
         var result = data.EmitToMemory();
         Assert.False(result.Success);
         Assert.NotEmpty(result.Diagnostics);
-        Assert.True(result.Diagnostics.Any(x => x.Id == "BCLA0001"));
+        Assert.True(result.Diagnostics.Any(x => x.Id == RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor.Id));
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public sealed class CompilationDataTests : TestBase
         var result = data.EmitToDisk(Root.DirectoryPath);
         Assert.False(result.Success);
         Assert.NotEmpty(result.Diagnostics);
-        Assert.True(result.Diagnostics.Any(x => x.Id == "BCLA0001"));
+        Assert.True(result.Diagnostics.Any(x => x.Id == RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor.Id));
     }
 
     [Fact]
