@@ -18,7 +18,7 @@ namespace Basic.CompilerLog.Util.Impl;
 /// </summary>
 internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
 {
-    internal InMemoryLoader Loader { get; }
+    internal InMemoryLoader Loader { get; private set; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore => Loader.AnalyzerReferences;
 
     internal BasicAnalyzerHostInMemory(IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
@@ -47,6 +47,7 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
     protected override void DisposeCore()
     {
         Loader.Dispose();
+        Loader = null!;
     }
 }
 

@@ -25,7 +25,7 @@ public class LogReaderStateTests : TestBase
         var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
         Directory.CreateDirectory(state.AnalyzerDirectory);
         state.Dispose();
-        Assert.False(Directory.Exists(state.BaseDirectory));
+        Assert.True(Directory.Exists(state.BaseDirectory));
     }
 
     /// <summary>

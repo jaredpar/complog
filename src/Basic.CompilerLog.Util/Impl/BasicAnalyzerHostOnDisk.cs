@@ -9,6 +9,8 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
+using System.Runtime.CompilerServices;
+
 
 #if NET
 using System.Runtime.Loader;
@@ -22,21 +24,19 @@ namespace Basic.CompilerLog.Util.Impl;
 /// This is a per-compilation analyzer assembly loader that can be used to produce 
 /// <see cref="AnalyzerFileReference"/> instances
 /// </summary>
-internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
+internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost, IAnalyzerAssemblyLoader
 {
-    internal OnDiskLoader Loader { get; }
+    private OnDiskLoader Loader { get; set; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
-    internal string AnalyzerDirectory { get; }
+    internal string AnalyzerDirectory => Loader.AnalyzerDirectory;
 
     private BasicAnalyzerHostOnDisk(LogReaderState state)
         : base(BasicAnalyzerKind.OnDisk)
     {
         var dirName = Guid.NewGuid().ToString("N");
-        var name =  $"{nameof(BasicAnalyzerHostOnDisk)} {dirName}";
-        AnalyzerDirectory = Path.Combine(state.AnalyzerDirectory, dirName);
-        _ = Directory.CreateDirectory(AnalyzerDirectory);
-        Loader = new OnDiskLoader(name, AnalyzerDirectory, state);
+        var name = $"{nameof(BasicAnalyzerHostOnDisk)} {dirName}";
+        Loader = new OnDiskLoader(name, Path.Combine(state.AnalyzerDirectory, dirName), state);
     }
 
     internal BasicAnalyzerHostOnDisk(IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
@@ -52,7 +52,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
             provider.CopyAssemblyBytes(data.AssemblyData, fileStream);
             fileStream.Dispose();
 
-            builder.Add(new AnalyzerFileReference(path, Loader));
+            builder.Add(new AnalyzerFileReference(path, this));
         }
 
         AnalyzerReferencesCore = builder.MoveToImmutable();
@@ -63,27 +63,57 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost
     {
         var filePath = Path.Combine(AnalyzerDirectory, assemblyFileData.FileName);
         File.WriteAllBytes(filePath, assemblyFileData.Image.ToArray());
-        AnalyzerReferencesCore = [new AnalyzerFileReference(filePath, Loader)];
+        AnalyzerReferencesCore = [new AnalyzerFileReference(filePath, this)];
     }
 
     protected override void DisposeCore()
     {
         Loader.Dispose();
-        try
-        {
-            Directory.Delete(AnalyzerDirectory, recursive: true);
-        }
-        catch
-        {
-            // Nothing to do if we can't delete
-        }
+        Loader = null!;
+    }
+
+    Assembly IAnalyzerAssemblyLoader.LoadFromPath(string fullPath) =>
+        Loader.LoadFromPath(fullPath);
+
+    void IAnalyzerAssemblyLoader.AddDependencyLocation(string fullPath)
+    {
     }
 }
 
 #if NET
 
-internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoader, IDisposable
+internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
 {
+    private static int _activeAssemblyLoadContextCount = 0;
+
+    private static ConditionalWeakTable<AssemblyLoadContext, AnalyzerDirectoryCleanup> AnalyzerDirectoryCleanupMap { get; } = new();
+
+    private sealed class AnalyzerDirectoryCleanup(string analyzerDirectory) : IDisposable
+    {
+        public string AnalyzerDirectory { get; } = analyzerDirectory;
+
+        ~AnalyzerDirectoryCleanup()
+        {
+            Dispose();
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                Directory.Delete(AnalyzerDirectory, recursive: true);
+            }
+            catch
+            {
+                // Nothing to do if we can't delete
+            }
+
+            Interlocked.Decrement(ref _activeAssemblyLoadContextCount);
+        }
+    }
+
+    internal static bool AnyActiveAssemblyLoadContext => _activeAssemblyLoadContextCount > 0;
+
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
     internal string AnalyzerDirectory { get; }
 
@@ -92,6 +122,9 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
     {
         CompilerLoadContext = state.CompilerLoadContext;
         AnalyzerDirectory = analyzerDirectory;
+        _ = Directory.CreateDirectory(analyzerDirectory);
+        Interlocked.Increment(ref _activeAssemblyLoadContextCount);
+        AnalyzerDirectoryCleanupMap.Add(this, new(analyzerDirectory));
     }
 
     public void Dispose()
@@ -130,25 +163,22 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IAnalyzerAssemblyLoade
         var name = AssemblyName.GetAssemblyName(fullPath);
         return LoadFromAssemblyName(name);
     }
-
-    public void AddDependencyLocation(string fullPath)
-    {
-        // Implicitly handled already
-    }
 }
 
 #else
 
-internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
+internal sealed class OnDiskLoader : IDisposable
 {
     internal string Name { get; }
     internal string AnalyzerDirectory { get; }
     internal Dictionary<string, Assembly> AssemblyMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState _)
+    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
     {
         Name = name;
         AnalyzerDirectory = analyzerDirectory;
+
+        _ = Directory.CreateDirectory(analyzerDirectory);
 
         AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
 
@@ -195,11 +225,6 @@ internal sealed class OnDiskLoader : IAnalyzerAssemblyLoader, IDisposable
     public Assembly LoadFromPath(string fullPath)
     {
         return Assembly.LoadFrom(fullPath);
-    }
-
-    public void AddDependencyLocation(string fullPath)
-    {
-        // Implicitly handled already
     }
 }
 

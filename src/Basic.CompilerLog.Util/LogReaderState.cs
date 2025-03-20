@@ -106,14 +106,20 @@ public sealed class LogReaderState : IDisposable
 
         try
         {
-            if (Directory.Exists(BaseDirectory))
+            if (Directory.Exists(CryptoKeyFileDirectory))
+            {
+                Directory.Delete(CryptoKeyFileDirectory, recursive: true);
+            }
+
+            if (Directory.Exists(BaseDirectory) && !Directory.Exists(AnalyzerDirectory))
             {
                 Directory.Delete(BaseDirectory, recursive: true);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // Nothing to do if we can't delete the directories
+            Debug.Fail(ex.Message);
         }
     }
 
