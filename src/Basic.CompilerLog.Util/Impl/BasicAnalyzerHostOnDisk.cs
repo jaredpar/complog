@@ -30,14 +30,10 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost, IAnalyzerAsse
     private OnDiskLoader Loader { get; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
-    internal string AnalyzerDirectory => Loader.AnalyzerDirectory;
-
     private BasicAnalyzerHostOnDisk(LogReaderState state)
         : base(BasicAnalyzerKind.OnDisk)
     {
-        var dirName = Guid.NewGuid().ToString("N");
-        var name = $"{nameof(BasicAnalyzerHostOnDisk)} {dirName}";
-        Loader = new OnDiskLoader(name, Path.Combine(state.AnalyzerDirectory, dirName), state);
+        Loader = new OnDiskLoader(state);
     }
 
     internal BasicAnalyzerHostOnDisk(IBasicAnalyzerHostDataProvider provider, List<AnalyzerData> analyzers)
@@ -48,7 +44,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost, IAnalyzerAsse
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var data in analyzers)
         {
-            var path = Path.Combine(Loader.AnalyzerDirectory, data.FileName);
+            var path = Path.Combine(Loader.LoaderDirectory, data.FileName);
             using var fileStream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
             provider.CopyAssemblyBytes(data.AssemblyData, fileStream);
             fileStream.Dispose();
@@ -62,7 +58,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost, IAnalyzerAsse
     internal BasicAnalyzerHostOnDisk(LogReaderState state, AssemblyFileData assemblyFileData)
         : this(state)
     {
-        var filePath = Path.Combine(AnalyzerDirectory, assemblyFileData.FileName);
+        var filePath = Path.Combine(Loader.LoaderDirectory, assemblyFileData.FileName);
         File.WriteAllBytes(filePath, assemblyFileData.Image.ToArray());
         AnalyzerReferencesCore = [new AnalyzerFileReference(filePath, this)];
     }
@@ -93,10 +89,11 @@ internal sealed class OnDiskLoader : IDisposable
     /// </summary>
     private static ConditionalWeakTable<OnDiskLoadContext, AnalyzerDirectoryCleanup> AnalyzerDirectoryCleanupMap { get; } = new();
 
-    private sealed class AnalyzerDirectoryCleanup(WeakReference<LogReaderState> state, string analyzerDirectory) : IDisposable
+    private sealed class AnalyzerDirectoryCleanup(LogReaderState state, string loaderDirectory) : IDisposable
     {
-        private WeakReference<LogReaderState> State { get; } = state;
-        private string AnalyzerDirectory { get; } = analyzerDirectory;
+        private WeakReference<LogReaderState> State { get; } = new(state);
+        private (string BaseDirectory, string AnalyzerDirectory) Tuple { get; } = (state.BaseDirectory, state.AnalyzerDirectory);
+        private string LoaderDirectory { get; } = loaderDirectory;
 
         ~AnalyzerDirectoryCleanup()
         {
@@ -107,12 +104,12 @@ internal sealed class OnDiskLoader : IDisposable
         {
             try
             {
-                Directory.Delete(AnalyzerDirectory, recursive: true);
+                Directory.Delete(LoaderDirectory, recursive: true);
 
-                if (State.TryGetTarget(out var state) && !state.IsDisposed)
+                if (!State.TryGetTarget(out var state) || state.IsDisposed)
                 {
-                    CommonUtil.DeleteDirectoryIfEmpty(state.AnalyzerDirectory);
-                    CommonUtil.DeleteDirectoryIfEmpty(state.BaseDirectory);
+                    CommonUtil.DeleteDirectoryIfEmpty(Tuple.AnalyzerDirectory);
+                    CommonUtil.DeleteDirectoryIfEmpty(Tuple.BaseDirectory);
                 }
             }
             catch
@@ -181,16 +178,17 @@ internal sealed class OnDiskLoader : IDisposable
 
     private OnDiskLoadContext LoadContext { get; set; }
     internal AssemblyLoadContext CompilerLoadContext { get; }
-    internal string AnalyzerDirectory { get; }
+    internal string LoaderDirectory { get; }
 
-    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
+    internal OnDiskLoader(LogReaderState state)
     {
+        var dirName = Guid.NewGuid().ToString("N");
         CompilerLoadContext = state.CompilerLoadContext;
-        LoadContext = new(name, CompilerLoadContext, analyzerDirectory);
-        AnalyzerDirectory = analyzerDirectory;
-        _ = Directory.CreateDirectory(analyzerDirectory);
+        LoaderDirectory = Path.Combine(state.AnalyzerDirectory, dirName);
+        _ = Directory.CreateDirectory(LoaderDirectory);
+        LoadContext = new($"{nameof(OnDiskLoadContext)} {dirName}", CompilerLoadContext, LoaderDirectory);
         Interlocked.Increment(ref _activeAssemblyLoadContextCount);
-        AnalyzerDirectoryCleanupMap.Add(LoadContext, new(new(state), analyzerDirectory));
+        AnalyzerDirectoryCleanupMap.Add(LoadContext, new(state, LoaderDirectory));
     }
 
     public void Dispose()
@@ -215,15 +213,14 @@ internal sealed class OnDiskLoader : IDisposable
 internal sealed class OnDiskLoader : IDisposable
 {
     internal string Name { get; }
-    internal string AnalyzerDirectory { get; }
+    internal string LoaderDirectory { get; }
     internal Dictionary<string, Assembly> AssemblyMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
+    internal OnDiskLoader(LogReaderState state)
     {
-        Name = name;
-        AnalyzerDirectory = analyzerDirectory;
-
-        _ = Directory.CreateDirectory(analyzerDirectory);
+        Name = Guid.NewGuid().ToString("N");
+        LoaderDirectory = Path.Combine(state.AnalyzerDirectory, Name);
+        _ = Directory.CreateDirectory(LoaderDirectory);
 
         AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
 
@@ -258,7 +255,7 @@ internal sealed class OnDiskLoader : IDisposable
             return assembly;
         }
 
-        var name = Path.Combine(AnalyzerDirectory, $"{e.Name}.dll");
+        var name = Path.Combine(LoaderDirectory, $"{e.Name}.dll");
         if (File.Exists(name))
         {
             return Assembly.LoadFrom(name);
