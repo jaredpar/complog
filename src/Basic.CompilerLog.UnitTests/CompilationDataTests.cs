@@ -83,7 +83,7 @@ public sealed class CompilationDataTests : TestBase
         var result = data.EmitToMemory();
         Assert.False(result.Success);
         Assert.NotEmpty(result.Diagnostics);
-        Assert.True(result.Diagnostics.Any(x => x.Id == "BCLA0001"));
+        Assert.True(result.Diagnostics.Any(x => x.Id == RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor.Id));
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public sealed class CompilationDataTests : TestBase
         var result = data.EmitToDisk(Root.DirectoryPath);
         Assert.False(result.Success);
         Assert.NotEmpty(result.Diagnostics);
-        Assert.True(result.Diagnostics.Any(x => x.Id == "BCLA0001"));
+        Assert.True(result.Diagnostics.Any(x => x.Id == RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor.Id));
     }
 
     [Fact]
@@ -220,4 +220,24 @@ public sealed class CompilationDataTests : TestBase
         Assert.Single(trees);
         Assert.Empty(diagnostics);
     }
+
+#if NET
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GetContentHashBadAnalyzer(bool inMemory)
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        using BasicAnalyzerHost host = inMemory
+            ? new BasicAnalyzerHostInMemory(LibraryUtil.GetUnloadableAnalyzers())
+            : new BasicAnalyzerHostOnDisk(State, LibraryUtil.GetUnloadableAnalyzers());
+        var compilationData = reader
+            .ReadCompilationData(0)
+            .WithBasicAnalyzerHost(host);
+        var content = compilationData.GetContentHash();
+        Assert.Contains(RoslynUtil.CannotLoadTypesDiagnosticDescriptor.Id, content);
+    }
+
+#endif
 }

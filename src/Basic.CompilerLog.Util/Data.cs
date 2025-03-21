@@ -74,4 +74,13 @@ public sealed class ResourceData(
     public override string ToString() => Name;
 }
 
+public readonly struct AssemblyFileData(string fileName, MemoryStream Image)
+{
+    public string FileName { get; } = fileName;
+    public MemoryStream Image { get; } = Image;
+
+    [ExcludeFromCodeCoverage]
+    public override string ToString() => FileName;
+}
+
 

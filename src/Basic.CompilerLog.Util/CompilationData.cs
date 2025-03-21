@@ -26,8 +26,7 @@ public enum EmitFlags
 
 public abstract class CompilationData
 {
-    private ImmutableArray<DiagnosticAnalyzer> _analyzers;
-    private ImmutableArray<ISourceGenerator> _generators;
+    private Lazy<(ImmutableArray<DiagnosticAnalyzer> Analyzers, ImmutableArray<ISourceGenerator> Generators, ImmutableArray<Diagnostic> Diagnostics)> _lazyAnalyzers;
     private (Compilation, ImmutableArray<Diagnostic>)? _afterGenerators;
 
     public CompilerCall CompilerCall { get; } 
@@ -113,19 +112,14 @@ public abstract class CompilationData
         AnalyzerReferences = basicAnalyzerHost.AnalyzerReferences;
         AnalyzerConfigOptionsProvider = analyzerConfigOptionsProvider;
         CreationDiagnostics = creationDiagnostics;
+        _lazyAnalyzers = new(LoadAnalyzers, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers()
-    {
-        EnsureAnalyzersLoaded();
-        return _analyzers;
-    }
+    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers() =>
+        _lazyAnalyzers.Value.Analyzers;
 
-    public ImmutableArray<ISourceGenerator> GetGenerators()
-    {
-        EnsureAnalyzersLoaded();
-        return _generators;
-    }
+    public ImmutableArray<ISourceGenerator> GetGenerators() =>
+        _lazyAnalyzers.Value.Generators;
 
     public Compilation GetCompilationAfterGenerators(CancellationToken cancellationToken = default) =>
         GetCompilationAfterGenerators(out _, cancellationToken);
@@ -153,9 +147,10 @@ public abstract class CompilationData
         }
 
         // Now that analyzers have completed running add any diagnostics the host has captured
-        if (BasicAnalyzerHost.GetDiagnostics() is { Count: > 0 } list)
+        var (_, _, analyzerDiagnostics) = _lazyAnalyzers.Value;
+        if (analyzerDiagnostics.Length > 0)
         {
-            diagnostics = diagnostics.AddRange(list);
+            diagnostics = diagnostics.AddRange(analyzerDiagnostics);
         }
 
         if (CreationDiagnostics.Length > 0)
@@ -183,25 +178,20 @@ public abstract class CompilationData
         return afterCompilation.SyntaxTrees.Skip(originalCount).ToList();
     }
 
-    private void EnsureAnalyzersLoaded()
+    private (ImmutableArray<DiagnosticAnalyzer>, ImmutableArray<ISourceGenerator>, ImmutableArray<Diagnostic>) LoadAnalyzers()
     {
-        if (!_analyzers.IsDefault)
-        {
-            Debug.Assert(!_generators.IsDefault);
-            return;
-        }
-
-        var languageName = IsCSharp ? LanguageNames.CSharp : LanguageNames.VisualBasic;
+        var language = IsCSharp ? LanguageNames.CSharp : LanguageNames.VisualBasic;
         var analyzerBuilder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
         var generatorBuilder = ImmutableArray.CreateBuilder<ISourceGenerator>();
+        var diagnostics = new List<Diagnostic>();
         foreach (var analyzerReference in AnalyzerReferences)
         {
-            analyzerBuilder.AddRange(analyzerReference.GetAnalyzers(languageName));
-            generatorBuilder.AddRange(analyzerReference.GetGenerators(languageName));
+            var bar = analyzerReference.AsBasicAnalyzerReference();
+            analyzerBuilder.AddRange(bar.GetAnalyzers(language, diagnostics));
+            generatorBuilder.AddRange(bar.GetGenerators(language, diagnostics));
         }
 
-        _analyzers = analyzerBuilder.ToImmutableArray();
-        _generators = generatorBuilder.ToImmutableArray();
+        return (analyzerBuilder.ToImmutableArray(), generatorBuilder.ToImmutableArray(), diagnostics.ToImmutableArray());
     }
 
     protected abstract GeneratorDriver CreateGeneratorDriver();
@@ -382,6 +372,8 @@ public abstract class CompilationData
         // desirable.
         var options = CompilationOptions.WithSyntaxTreeOptionsProvider(null);
 
+        var (analyzers, generators, diagnostics) = _lazyAnalyzers.Value;
+
         // This removes file full paths and tool versions from the content text.
         int flags = 0b11;
         object[] args = 
@@ -391,8 +383,8 @@ public abstract class CompilationData
             Compilation.References.ToImmutableArray(),
             ImmutableArray<byte>.Empty,
             AdditionalTexts,
-            GetAnalyzers(),
-            GetGenerators(),
+            analyzers,
+            generators,
             ImmutableArray<KeyValuePair<string, string>>.Empty,
             EmitOptions,
             flags,
@@ -400,7 +392,13 @@ public abstract class CompilationData
         ];
 
         var result = method.Invoke(null, args)!;
-        return (string)result;
+        var contentHash = (string)result;
+        if (diagnostics.Length > 0)
+        {
+            contentHash += string.Join("", diagnostics.Select(x => x.ToString()));
+        }
+
+        return contentHash;
 
         static bool IsMethod(MethodInfo method)
         {

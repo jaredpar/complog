@@ -39,4 +39,32 @@ internal static class CommonUtil
     }
 
 #endif
+
+    /// <summary>
+    /// This is a _best effort_ attempt to delete a directory if it is empty. It returns true
+    /// in the case that at some point in the execution if this method the directory did 
+    /// not exist, false otherwise.
+    /// </summary>
+    internal static bool DeleteDirectoryIfEmpty(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return true;
+        }
+
+        try
+        {
+            if (Directory.EnumerateFileSystemEntries(directory).Any())
+            {
+                return false;
+            }
+
+            Directory.Delete(directory, recursive: false);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

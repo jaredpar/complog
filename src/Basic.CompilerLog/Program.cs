@@ -497,7 +497,7 @@ int RunReplay(IEnumerable<string> args)
             WriteLine($"Outputting to {baseOutputPath}");
         }
 
-        using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
+        using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
         var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
         if (compilerCalls.Count == 0)
         {
@@ -879,10 +879,10 @@ Stream GetOrCreateCompilerLogStream(List<string> extra)
     return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
 }
 
-ICompilerCallReader GetCompilerCallReader(List<string> extra, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
+ICompilerCallReader GetCompilerCallReader(List<string> extra, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false, LogReaderState? state = null)
 {
     var logFilePath = GetLogFilePath(extra);
-    var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind);
+    var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind, state);
     OnCompilerCallReader(reader);
     if (reader is CompilerLogReader compilerLogReader)
     {

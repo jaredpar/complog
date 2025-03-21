@@ -280,11 +280,12 @@ public sealed class CompilerLogReaderTests : TestBase
             .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
             .ToList();
         var host = new BasicAnalyzerHostInMemory(reader, analyzers);
+        var list = new List<Diagnostic>();
         foreach (var analyzer in host.AnalyzerReferences)
         {
-            analyzer.GetAnalyzersForAllLanguages();
+            analyzer.AsBasicAnalyzerReference().GetAnalyzers(LanguageNames.CSharp, list);
         }
-        Assert.NotEmpty(host.GetDiagnostics());
+        Assert.NotEmpty(list);
     }
 
 #endif
@@ -392,7 +393,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var data = reader.ReadCompilationData(0);
         var compilation = data.GetCompilationAfterGenerators(out var diagnostics, CancellationToken);
         Assert.Single(diagnostics);
-        Assert.Equal(RoslynUtil.CannotReadGeneratedFilesDiagnosticDescriptor.Id, diagnostics[0].Id);
+        Assert.Equal(RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor.Id, diagnostics[0].Id);
     }
 
     [Theory]

@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Immutable;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace Basic.CompilerLog.Util;
 
@@ -33,6 +34,12 @@ public enum BasicAnalyzerKind
     OnDisk = 2,
 }
 
+public interface IBasicAnalyzerReference
+{
+    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language, List<Diagnostic> diagnostics);
+    public ImmutableArray<ISourceGenerator> GetGenerators(string language, List<Diagnostic> diagnostics);
+}
+
 /// <summary>
 /// The set of analyzers loaded for a given <see cref="Compilation"/>
 /// </summary>
@@ -49,8 +56,6 @@ public abstract class BasicAnalyzerHost : IDisposable
 #endif
         }
     }
-
-    private readonly ConcurrentQueue<Diagnostic> _diagnostics = new();
 
     public BasicAnalyzerKind Kind { get; }
     public ImmutableArray<AnalyzerReference> AnalyzerReferences
@@ -98,14 +103,6 @@ public abstract class BasicAnalyzerHost : IDisposable
         }
     }
 
-    protected void AddDiagnostic(Diagnostic diagnostic) => _diagnostics.Enqueue(diagnostic);
-
-    /// <summary>
-    /// Get the current set of diagnostics. This can change as analyzers can add them during 
-    /// execution which can happen in parallel to analysis.
-    /// </summary>
-    public List<Diagnostic> GetDiagnostics() => _diagnostics.ToList();
-
     public static bool IsSupported(BasicAnalyzerKind kind)
     {
 #if NET
@@ -138,7 +135,7 @@ public abstract class BasicAnalyzerHost : IDisposable
 
             if (!dataProvider.HasAllGeneratedFileContent(compilerCall))
             {
-                return new("Generated files not available in the PDB");
+                return new(CreateDiagnostic("Generated files not available in the PDB"));
             }
 
             try
@@ -148,9 +145,15 @@ public abstract class BasicAnalyzerHost : IDisposable
             }
             catch (Exception ex)
             {
-                return new BasicAnalyzerHostNone(ex.Message);
+                return new(CreateDiagnostic(ex.Message));
             }
         }
+
+        static Diagnostic CreateDiagnostic(string message) =>
+            Diagnostic.Create(
+                RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor,
+                Location.None,
+                message);
     }
 }
 

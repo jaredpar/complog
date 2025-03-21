@@ -28,6 +28,10 @@ public sealed class LogReaderState : IDisposable
     /// </summary>
     internal bool CacheAnalyzers => _analyzersMap is not null;
 
+    /// <summary>
+    /// This is the base directory that is used for any on disk assets that need to be created
+    /// by compiler logs. This is typically used for crypto key files and analyzers.
+    /// </summary>
     internal string BaseDirectory { get; }
 
     /// <summary>
@@ -102,14 +106,19 @@ public sealed class LogReaderState : IDisposable
 
         try
         {
-            if (Directory.Exists(BaseDirectory))
+            if (Directory.Exists(CryptoKeyFileDirectory))
             {
-                Directory.Delete(BaseDirectory, recursive: true);
+                Directory.Delete(CryptoKeyFileDirectory, recursive: true);
             }
+
+            // It's expected that some hosts will clean up their directories asynchronously. Both
+            // this type and the hosts need to attempt to clean up the base directory.
+            CommonUtil.DeleteDirectoryIfEmpty(BaseDirectory);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // Nothing to do if we can't delete the directories
+            Debug.Fail(ex.Message);
         }
     }
 

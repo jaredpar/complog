@@ -1,4 +1,5 @@
 ﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Impl;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -17,7 +18,7 @@ public abstract class TestBase : IDisposable
     public ITestContextAccessor TestContextAccessor { get; }
     
     internal TempDir Root { get; }
-    internal Util.LogReaderState State { get; }
+    internal LogReaderState State { get; }
 
     public ITestContext TestContext => TestContextAccessor.Current;
     public CancellationToken CancellationToken => TestContext.CancellationToken;
@@ -111,6 +112,31 @@ public abstract class TestBase : IDisposable
             }
             Assert.Fail("Bad assembly loads");
         }
+
+        State.Dispose();
+
+#if NET
+
+        if (OnDiskLoader.AnyActiveAssemblyLoadContext)
+        {
+            var maxCount = 10;
+            for (int i = 0; i < maxCount && OnDiskLoader.AnyActiveAssemblyLoadContext; i++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+            }
+
+            if (OnDiskLoader.AnyActiveAssemblyLoadContext)
+            {
+                Debugger.Break();
+                OnDiskLoader.ClearActiveAssemblyLoadContext();
+                Assert.Fail("There are still active AssemblyLoadContext");
+            }
+        }
+
+#endif
+
         Root.Dispose();
     }
 
@@ -236,6 +262,12 @@ public abstract class TestBase : IDisposable
     /// </summary>
     private void OnAssemblyLoad(object? sender, AssemblyLoadEventArgs e)
     {
+        if (e.LoadedAssembly.GetName().Name == "Microsoft.VisualStudio.Debugger.Runtime.NetCoreApp")
+        {
+            // This assembly is loaded by the debugger and is not a problem
+            return;
+        }
+
         var testBaseAssembly = typeof(TestBase).Assembly;
         var assembly = e.LoadedAssembly;
         if (assembly.IsDynamic)

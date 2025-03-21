@@ -1,0 +1,4 @@
+M:Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference.GetAnalyzers(System.String); Use GetAnalyzers(string, List<Diagnostic>) instead
+M:Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference.GetAnalyzersForAllLanguages();
+M:Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference.GetGenerators(System.String); Use GetGenerators(string, List<Diagnostic>) instead
+M:Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference.GetGeneratorsForAllLanguages();

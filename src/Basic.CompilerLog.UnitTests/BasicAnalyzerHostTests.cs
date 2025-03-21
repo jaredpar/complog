@@ -11,6 +11,10 @@ using System.Threading.Tasks;
 using Xunit;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp;
+using Xunit.Runner.Common;
+using Microsoft.CodeAnalysis;
+
+
 
 #if NET
 using System.Runtime.Loader;
@@ -77,12 +81,12 @@ public sealed class BasicAnalyzerHostTests : TestBase
             (sourceText1, Path.Combine(root, "file.cs")),
             (sourceText2, Path.Combine(root, "file.cs")),
         ];
-        var host = new BasicAnalyzerHostNone(generatedTexts);
+        var generator = new BasicGeneratedFilesAnalyzerReference(generatedTexts);
         var compilation = CSharpCompilation.Create(
             "example",
             [],
             Basic.Reference.Assemblies.Net80.References.All);
-        var driver = CSharpGeneratorDriver.Create([host.Generator!]);
+        var driver = CSharpGeneratorDriver.Create([generator!]);
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var compilation2, out var diagnostics, CancellationToken);
         Assert.Empty(diagnostics);
         var syntaxTrees = compilation2.SyntaxTrees.ToList();
@@ -97,10 +101,16 @@ public sealed class BasicAnalyzerHostTests : TestBase
     [Fact]
     public void Error()
     {
-        var message = "my error message";
-        var host = new BasicAnalyzerHostNone(message);
-        var diagnostic = host.GetDiagnostics().Single();
-        Assert.Contains(message, diagnostic.GetMessage());
+        var diagnostic = Diagnostic.Create(RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor, Location.None, "message");
+        var host = new BasicAnalyzerHostNone(diagnostic);
+        var analyzerReferences = host.AnalyzerReferences.Single();
+        var list = new List<Diagnostic>();
+        var bar = analyzerReferences.AsBasicAnalyzerReference();
+        _ = bar.GetAnalyzers(LanguageNames.CSharp, list);
+        Assert.Equal([diagnostic], list);
+        list.Clear();
+        _ = bar.GetGenerators(LanguageNames.CSharp, list);
+        Assert.Empty(list);
     }
 
 #if NETFRAMEWORK

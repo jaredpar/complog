@@ -1,9 +1,12 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
@@ -132,5 +135,64 @@ public static class Extensions
         }
 
         return builder.ToString();
+    }
+
+    public static IBasicAnalyzerReference AsBasicAnalyzerReference(this AnalyzerReference analyzerReference)
+    {
+        if (analyzerReference is IBasicAnalyzerReference basicAnalyzerReference)
+        {
+            return basicAnalyzerReference;
+        }
+
+        return new BasicAnalyzerReferenceWrapper(analyzerReference);
+    }
+}
+
+file sealed class BasicAnalyzerReferenceWrapper(AnalyzerReference analyzerReference) : IBasicAnalyzerReference
+{
+    internal AnalyzerReference AnalyzerReference { get; } = analyzerReference;
+
+    // This is the place where we are generating safe wrappers for the APIs we don't want called directly
+#pragma warning disable RS0030
+
+    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language, List<Diagnostic> diagnostics) =>
+        WithDiagnostics(AnalyzerReference, language, diagnostics, static (ar, l) => ar.GetAnalyzers(l));
+
+    public ImmutableArray<ISourceGenerator> GetGenerators(string language, List<Diagnostic> diagnostics) =>
+        WithDiagnostics(AnalyzerReference, language, diagnostics, static (ar, l) => ar.GetGenerators(l));
+
+#pragma warning restore RS0030
+
+    private static T WithDiagnostics<T>(
+        AnalyzerReference analyzerReference,
+        string language,
+        List<Diagnostic> diagnostics,
+        Func<AnalyzerReference, string, T> func)
+    {
+        EventHandler<AnalyzerLoadFailureEventArgs> handler = (sender, args) =>
+        {
+            var d = Diagnostic.Create(
+                RoslynUtil.CannotLoadTypesDiagnosticDescriptor,
+                Location.None,
+                $"{args.TypeName}:{args.Exception?.Message}");
+            diagnostics.Add(d); 
+        };
+
+        if (analyzerReference is AnalyzerFileReference afr)
+        {
+            afr.AnalyzerLoadFailed += handler;
+            try
+            {
+                return func(analyzerReference, language);
+            }
+            finally
+            {
+                afr.AnalyzerLoadFailed -= handler;
+            }
+        }
+        else
+        {
+            return func(analyzerReference, language);
+        }
     }
 }

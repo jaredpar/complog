@@ -28,8 +28,9 @@ using TraceReloggerLib;
 #pragma warning disable 8321
 
 //using var reader = CompilerLogReader.Create(zipFilePath);
-var filePath = @"C:\Users\jaredpar\temp\console\msbuild.binlog";
-RunComplog($"id --inline {filePath}");
+var filePath = @"/home/jaredpar/code/dotnet/artifacts/log/Release/roslyn/msca.complog";
+RunComplog($"hash export {filePath}");
+Console.WriteLine("done");
 /*
 using var reader = CompilerLogReader.Create(filePath);
 var exportUtil = new ExportUtil(reader);
