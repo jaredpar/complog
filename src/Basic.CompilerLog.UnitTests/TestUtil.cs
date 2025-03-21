@@ -158,17 +158,4 @@ internal static class TestUtil
         var projectFile = GetProjectFile(directory);
         File.WriteAllText(projectFile, content);
     }
-
-    /// <summary>
-    /// Work around Roslyn issue that creates a strong reference to <see cref="AssemblyLoadContext"/> instances
-    /// </summary>
-    internal static void ClearLocalizableStringMap()
-    {
-        var assembly = typeof(Compilation).Assembly;
-        var type = assembly.GetType("Microsoft.CodeAnalysis.Diagnostics.AnalyzerManager+AnalyzerExecutionContext")!;
-        var field = type.GetField("s_localizableStringToException", BindingFlags.Static | BindingFlags.NonPublic)!;
-        var obj = field.GetValue(null)!;
-        var dictionary = (ImmutableDictionary<LocalizableString, Exception>)obj;
-        field.SetValue(null, ImmutableDictionary<LocalizableString, Exception>.Empty.WithComparers(dictionary.KeyComparer, dictionary.ValueComparer));
-    }
 }

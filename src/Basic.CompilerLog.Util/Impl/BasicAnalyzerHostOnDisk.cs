@@ -86,11 +86,17 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
 {
     private static int _activeAssemblyLoadContextCount = 0;
 
+    /// <summary>
+    /// When an <see cref="AssemblyLoadContext"/> is unloaded it cleans up asynchronously. Use a CWT
+    /// here so that when the context is collected we can come back around and clean up the directory
+    /// where the files were written.
+    /// </summary>
     private static ConditionalWeakTable<AssemblyLoadContext, AnalyzerDirectoryCleanup> AnalyzerDirectoryCleanupMap { get; } = new();
 
-    private sealed class AnalyzerDirectoryCleanup(string analyzerDirectory) : IDisposable
+    private sealed class AnalyzerDirectoryCleanup(LogReaderState state, string analyzerDirectory) : IDisposable
     {
-        public string AnalyzerDirectory { get; } = analyzerDirectory;
+        private LogReaderState State { get; } = state;
+        private string AnalyzerDirectory { get; } = analyzerDirectory;
 
         ~AnalyzerDirectoryCleanup()
         {
@@ -102,6 +108,12 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
             try
             {
                 Directory.Delete(AnalyzerDirectory, recursive: true);
+
+                if (State.IsDisposed)
+                {
+                    CommonUtil.DeleteDirectoryIfEmpty(State.AnalyzerDirectory);
+                    CommonUtil.DeleteDirectoryIfEmpty(State.BaseDirectory);
+                }
             }
             catch
             {
@@ -112,6 +124,11 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
         }
     }
 
+    /// <summary>
+    /// This is a test only helper to determine if there are any active <see cref="AssemblyLoadContext"/> 
+    /// instances. This way the test can setup a GC loop if needed to verify cleanup is happening
+    /// as expected.
+    /// </summary>
     internal static bool AnyActiveAssemblyLoadContext => _activeAssemblyLoadContextCount > 0;
 
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
@@ -124,12 +141,16 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
         AnalyzerDirectory = analyzerDirectory;
         _ = Directory.CreateDirectory(analyzerDirectory);
         Interlocked.Increment(ref _activeAssemblyLoadContextCount);
-        AnalyzerDirectoryCleanupMap.Add(this, new(analyzerDirectory));
+        AnalyzerDirectoryCleanupMap.Add(this, new(state, analyzerDirectory));
     }
 
     public void Dispose()
     {
         Unload();
+
+        // Clear out this map which roots this instance and prevents it from being collected and 
+        // allowing us to clean up the directory.
+        RoslynUtil.ClearLocalizableStringMap();
     }
 
     protected override Assembly? Load(AssemblyName assemblyName)

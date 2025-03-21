@@ -111,10 +111,9 @@ public sealed class LogReaderState : IDisposable
                 Directory.Delete(CryptoKeyFileDirectory, recursive: true);
             }
 
-            if (Directory.Exists(BaseDirectory) && !Directory.Exists(AnalyzerDirectory))
-            {
-                Directory.Delete(BaseDirectory, recursive: true);
-            }
+            // It's expected that some hosts will clean up their directories asynchronously. Both
+            // this type and the hosts need to attempt to clean up the base directory.
+            CommonUtil.DeleteDirectoryIfEmpty(BaseDirectory);
         }
         catch (Exception ex)
         {

@@ -113,8 +113,6 @@ public abstract class TestBase : IDisposable
             Assert.Fail("Bad assembly loads");
         }
 
-        TestUtil.ClearLocalizableStringMap();
-
 #if NET
 
         if (OnDiskLoader.AnyActiveAssemblyLoadContext)
