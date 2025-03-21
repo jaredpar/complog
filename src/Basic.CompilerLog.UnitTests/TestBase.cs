@@ -124,11 +124,12 @@ public abstract class TestBase : IDisposable
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
-                Thread.Yield();
+                Thread.Sleep(TimeSpan.FromSeconds(1));
             }
 
             if (OnDiskLoader.AnyActiveAssemblyLoadContext)
             {
+                Debugger.Break();
                 OnDiskLoader.ClearActiveAssemblyLoadContext();
                 Assert.Fail("There are still active AssemblyLoadContext");
             }

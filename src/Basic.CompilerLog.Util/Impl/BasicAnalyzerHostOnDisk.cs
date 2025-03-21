@@ -27,7 +27,7 @@ namespace Basic.CompilerLog.Util.Impl;
 /// </summary>
 internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost, IAnalyzerAssemblyLoader
 {
-    private OnDiskLoader Loader { get; set; }
+    private OnDiskLoader Loader { get; }
     protected override ImmutableArray<AnalyzerReference> AnalyzerReferencesCore { get; }
 
     internal string AnalyzerDirectory => Loader.AnalyzerDirectory;
@@ -70,7 +70,6 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost, IAnalyzerAsse
     protected override void DisposeCore()
     {
         Loader.Dispose();
-        Loader = null!;
     }
 
     Assembly IAnalyzerAssemblyLoader.LoadFromPath(string fullPath) =>
@@ -83,7 +82,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost, IAnalyzerAsse
 
 #if NET
 
-internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
+internal sealed class OnDiskLoader : IDisposable
 {
     private static int _activeAssemblyLoadContextCount = 0;
 
@@ -92,7 +91,7 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
     /// here so that when the context is collected we can come back around and clean up the directory
     /// where the files were written.
     /// </summary>
-    private static ConditionalWeakTable<AssemblyLoadContext, AnalyzerDirectoryCleanup> AnalyzerDirectoryCleanupMap { get; } = new();
+    private static ConditionalWeakTable<OnDiskLoadContext, AnalyzerDirectoryCleanup> AnalyzerDirectoryCleanupMap { get; } = new();
 
     private sealed class AnalyzerDirectoryCleanup(WeakReference<LogReaderState> state, string analyzerDirectory) : IDisposable
     {
@@ -125,12 +124,45 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
         }
     }
 
+    private sealed class OnDiskLoadContext(string name, AssemblyLoadContext compilerLoadContext, string analyzerDirectory) 
+        : AssemblyLoadContext(name, isCollectible: true)
+    {
+        internal AssemblyLoadContext CompilerLoadContext { get; } = compilerLoadContext;
+        internal string AnalyzerDirectory { get; } = analyzerDirectory;
+
+        protected override Assembly? Load(AssemblyName assemblyName)
+        {
+            try
+            {
+                if (CompilerLoadContext.LoadFromAssemblyName(assemblyName) is { } compilerAssembly)
+                {
+                    return compilerAssembly;
+                }
+            }
+            catch
+            {
+                // Expected to happen when the assembly cannot be resolved in the compiler / host
+                // AssemblyLoadContext.
+            }
+
+            // Prefer registered dependencies in the same directory first.
+            var simpleName = assemblyName.Name!;
+            var assemblyPath = Path.Combine(AnalyzerDirectory, simpleName + ".dll");
+            return LoadFromAssemblyPath(assemblyPath);
+        }
+
+        protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+        {
+            return IntPtr.Zero;
+        }
+    }
+
     /// <summary>
     /// This is a test only helper to determine if there are any active <see cref="AssemblyLoadContext"/> 
     /// instances. This way the test can setup a GC loop if needed to verify cleanup is happening
     /// as expected.
     /// </summary>
-    internal static bool AnyActiveAssemblyLoadContext => _activeAssemblyLoadContextCount > 0;
+    internal static bool AnyActiveAssemblyLoadContext => Volatile.Read(ref _activeAssemblyLoadContextCount) > 0;
 
     /// <summary>
     /// This is a test only helper that allows the test harness to reset the world to a known state. That
@@ -147,58 +179,34 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
         }
     }
 
-    internal AssemblyLoadContext CompilerLoadContext { get; set;  }
+    private OnDiskLoadContext LoadContext { get; set; }
+    internal AssemblyLoadContext CompilerLoadContext { get; }
     internal string AnalyzerDirectory { get; }
 
     internal OnDiskLoader(string name, string analyzerDirectory, LogReaderState state)
-        : base(name, isCollectible: true)
     {
         CompilerLoadContext = state.CompilerLoadContext;
+        LoadContext = new(name, CompilerLoadContext, analyzerDirectory);
         AnalyzerDirectory = analyzerDirectory;
         _ = Directory.CreateDirectory(analyzerDirectory);
         Interlocked.Increment(ref _activeAssemblyLoadContextCount);
-        AnalyzerDirectoryCleanupMap.Add(this, new(new(state), analyzerDirectory));
+        AnalyzerDirectoryCleanupMap.Add(LoadContext, new(new(state), analyzerDirectory));
     }
 
     public void Dispose()
     {
-        Unload();
+        LoadContext.Unload();
+        LoadContext = null!;
 
         // Clear out this map which roots this instance and prevents it from being collected and 
         // allowing us to clean up the directory.
         RoslynUtil.ClearLocalizableStringMap();
     }
 
-    protected override Assembly? Load(AssemblyName assemblyName)
-    {
-        try
-        {
-            if (CompilerLoadContext.LoadFromAssemblyName(assemblyName) is { } compilerAssembly)
-            {
-                return compilerAssembly;
-            }
-        }
-        catch
-        {
-            // Expected to happen when the assembly cannot be resolved in the compiler / host
-            // AssemblyLoadContext.
-        }
-
-        // Prefer registered dependencies in the same directory first.
-        var simpleName = assemblyName.Name!;
-        var assemblyPath = Path.Combine(AnalyzerDirectory, simpleName + ".dll");
-        return LoadFromAssemblyPath(assemblyPath);
-    }
-
-    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
-    {
-        return IntPtr.Zero;
-    }
-
     public Assembly LoadFromPath(string fullPath)
     {
         var name = AssemblyName.GetAssemblyName(fullPath);
-        return LoadFromAssemblyName(name);
+        return LoadContext.LoadFromAssemblyName(name);
     }
 }
 

@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Immutable;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace Basic.CompilerLog.Util;
 

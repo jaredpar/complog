@@ -1,4 +1,5 @@
 ﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
@@ -25,11 +26,19 @@ public sealed class SolutionReaderTests : TestBase
 
     public override void Dispose()
     {
-        base.Dispose();
         foreach (var reader in ReaderList)
         {
             reader.Dispose();
         }
+        ReaderList.Clear();
+
+#if NET
+        // The underlying solution structure holds lots of references that root our contexts 
+        // so there is no way to fully free here.
+        OnDiskLoader.ClearActiveAssemblyLoadContext();
+#endif
+
+        base.Dispose();
     }
 
     private Solution GetSolution(string compilerLogFilePath, BasicAnalyzerKind basicAnalyzerKind)
