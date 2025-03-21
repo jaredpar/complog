@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata.Ecma335;
@@ -93,9 +94,9 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
     /// </summary>
     private static ConditionalWeakTable<AssemblyLoadContext, AnalyzerDirectoryCleanup> AnalyzerDirectoryCleanupMap { get; } = new();
 
-    private sealed class AnalyzerDirectoryCleanup(LogReaderState state, string analyzerDirectory) : IDisposable
+    private sealed class AnalyzerDirectoryCleanup(WeakReference<LogReaderState> state, string analyzerDirectory) : IDisposable
     {
-        private LogReaderState State { get; } = state;
+        private WeakReference<LogReaderState> State { get; } = state;
         private string AnalyzerDirectory { get; } = analyzerDirectory;
 
         ~AnalyzerDirectoryCleanup()
@@ -109,10 +110,10 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
             {
                 Directory.Delete(AnalyzerDirectory, recursive: true);
 
-                if (State.IsDisposed)
+                if (State.TryGetTarget(out var state) && !state.IsDisposed)
                 {
-                    CommonUtil.DeleteDirectoryIfEmpty(State.AnalyzerDirectory);
-                    CommonUtil.DeleteDirectoryIfEmpty(State.BaseDirectory);
+                    CommonUtil.DeleteDirectoryIfEmpty(state.AnalyzerDirectory);
+                    CommonUtil.DeleteDirectoryIfEmpty(state.BaseDirectory);
                 }
             }
             catch
@@ -131,6 +132,21 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
     /// </summary>
     internal static bool AnyActiveAssemblyLoadContext => _activeAssemblyLoadContextCount > 0;
 
+    /// <summary>
+    /// This is a test only helper that allows the test harness to reset the world to a known state. That
+    /// way the test which actually caused a failure can be identified as it will be the sole failing
+    /// test in the output.
+    /// </summary>
+    [ExcludeFromCodeCoverage]
+    internal static void ClearActiveAssemblyLoadContext()
+    {
+        foreach (var pair in AnalyzerDirectoryCleanupMap.ToList())
+        {
+            pair.Value.Dispose();
+            AnalyzerDirectoryCleanupMap.Remove(pair.Key);
+        }
+    }
+
     internal AssemblyLoadContext CompilerLoadContext { get; set;  }
     internal string AnalyzerDirectory { get; }
 
@@ -141,7 +157,7 @@ internal sealed class OnDiskLoader : AssemblyLoadContext, IDisposable
         AnalyzerDirectory = analyzerDirectory;
         _ = Directory.CreateDirectory(analyzerDirectory);
         Interlocked.Increment(ref _activeAssemblyLoadContextCount);
-        AnalyzerDirectoryCleanupMap.Add(this, new(state, analyzerDirectory));
+        AnalyzerDirectoryCleanupMap.Add(this, new(new(state), analyzerDirectory));
     }
 
     public void Dispose()

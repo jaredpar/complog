@@ -957,7 +957,7 @@ internal static class RoslynUtil
     }
 
     /// <summary>
-    /// Work around Roslyn issue that creates a strong reference to <see cref="AssemblyLoadContext"/> instances
+    /// Work around Roslyn issue that creates a strong reference to AssemblyLoadContext instances
     /// 
     /// https://github.com/dotnet/roslyn/issues/77719
     /// </summary>

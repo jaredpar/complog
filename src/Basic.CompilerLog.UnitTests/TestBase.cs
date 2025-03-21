@@ -113,6 +113,8 @@ public abstract class TestBase : IDisposable
             Assert.Fail("Bad assembly loads");
         }
 
+        State.Dispose();
+
 #if NET
 
         if (OnDiskLoader.AnyActiveAssemblyLoadContext)
@@ -122,13 +124,17 @@ public abstract class TestBase : IDisposable
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
-                Thread.Sleep(TimeSpan.FromSeconds(1));
+                Thread.Yield();
+            }
+
+            if (OnDiskLoader.AnyActiveAssemblyLoadContext)
+            {
+                OnDiskLoader.ClearActiveAssemblyLoadContext();
+                Assert.Fail("There are still active AssemblyLoadContext");
             }
         }
 
 #endif
-
-        State.Dispose();
 
         Root.Dispose();
     }
