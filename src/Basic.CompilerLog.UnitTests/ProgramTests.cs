@@ -182,6 +182,25 @@ public sealed class ProgramTests : TestBase
         Assert.Contains("Generators:", output); 
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AnalyzersPath(bool includePath)
+    {
+        var arg = includePath ? "--path" : "";
+        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.ConsoleProjectPath} {arg}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+        if (includePath)
+        {
+            Assert.Contains($"{Path.DirectorySeparatorChar}Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+        }
+        else
+        {
+            Assert.DoesNotContain($"{Path.DirectorySeparatorChar}Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+        }
+    }
+
     [Fact]
     public void BadCommand()
     {
