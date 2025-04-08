@@ -126,9 +126,11 @@ int RunCreate(IEnumerable<string> args)
 int RunAnalyzers(IEnumerable<string> args)
 {
     var includeTypes = false;
+    var includePath = false;
     var options = new FilterOptionSet()
     {
         { "t|types", "include type names", o => includeTypes = o is not null },
+        { "path", "include analyzer file path", o => includePath = o is not null },
     };
 
     try
@@ -147,7 +149,8 @@ int RunAnalyzers(IEnumerable<string> args)
             WriteLine(compilerCall.GetDiagnosticName());
             foreach (var data in reader.ReadAllAnalyzerData(compilerCall))
             {
-                WriteLine($"\t{data.FilePath}");
+                var name = includePath ? data.FilePath : data.FileName;
+                WriteLine($"\t{name}");
 
                 if (includeTypes)
                 {
