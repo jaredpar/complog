@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "Console": {
+      "commandName": "Project",
+      "commandLineArgs": "",
+      "workingDirectory": "{workspaceFolder}",
+    }
+  }
+}
