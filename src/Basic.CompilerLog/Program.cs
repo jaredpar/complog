@@ -143,7 +143,7 @@ int RunAnalyzers(IEnumerable<string> args)
         }
 
         using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
-        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
         foreach (var compilerCall in compilerCalls)
         {
             WriteLine(compilerCall.GetDiagnosticName());
@@ -206,7 +206,7 @@ int RunPrint(IEnumerable<string> args)
         }
 
         using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
-        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
 
         WriteLine("Projects");
         foreach (var compilerCall in compilerCalls)
@@ -271,7 +271,7 @@ int RunReferences(IEnumerable<string> args)
         }
 
         using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
-        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
         var compilerCallNames = GetCompilerCallNames(compilerCalls);
 
         baseOutputPath = GetBaseOutputPath(baseOutputPath, "refs");
@@ -362,7 +362,7 @@ int RunExport(IEnumerable<string> args)
 
         using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
         using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.BasicAnalyzerKind);
-        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
         var compilerCallNames = GetCompilerCallNames(compilerCalls);
         var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
 
@@ -433,7 +433,7 @@ int RunResponseFile(IEnumerable<string> args)
             Directory.CreateDirectory(baseOutputPath);
         }
 
-        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
+        var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
         var compilerCallNames = GetCompilerCallNames(compilerCalls);
         for (int i = 0; i < compilerCalls.Count; i++)
         {
@@ -501,13 +501,7 @@ int RunReplay(IEnumerable<string> args)
         }
 
         using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
-        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        if (compilerCalls.Count == 0)
-        {
-            WriteLine("No compilations found");
-            return ExitFailure;
-        }
-
+        var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
         var compilerCallNames = GetCompilerCallNames(compilerCalls);
         var sdkDirs = SdkUtil.GetSdkDirectories();
         var success = true;
@@ -580,13 +574,7 @@ int RunGenerated(IEnumerable<string> args)
         WriteLine($"Outputting to {baseOutputPath}");
 
         using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
-        var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-        if (compilerCalls.Count == 0)
-        {
-            WriteLine("No compilations found");
-            return ExitFailure;
-        }
-
+        var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
         var compilerCallNames = GetCompilerCallNames(compilerCalls);
         for (int i = 0; i < compilerCalls.Count; i++)
         {
@@ -866,6 +854,25 @@ int RunHelp(IEnumerable<string>? args)
     }
 
     return ExitSuccess;
+}
+
+List<CompilerCall> ReadAllCompilerCalls(ICompilerCallReader reader, Func<CompilerCall, bool>? predicate)
+{
+    var compilerCalls = reader.ReadAllCompilerCalls(predicate);
+    if (compilerCalls.Count == 0)
+    {
+        var allCompilerCalls = reader.ReadAllCompilerCalls();
+        if (allCompilerCalls.Count > 0)
+        {
+            WriteLine("No compilations found matching filter");
+        }
+        else
+        {
+            WriteLine("No compilations found in the log");
+        }
+    }
+
+    return compilerCalls;
 }
 
 CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)

@@ -730,6 +730,32 @@ public sealed class ProgramTests : TestBase
         Assert.Contains("complog export [OPTIONS]", output);
     }
 
+    [Fact]
+    public void ExportBadProjectFilter()
+    {
+        var (exitCode, output) = RunCompLogEx($"export --project console-with-diagnostics.csproj {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("No compilations found", output);
+    }
+    
+    [Fact]
+    public void ExportEmptyLog()
+    {
+        var logFilePath = CreateEmptyLog(RootDirectory);
+        var (exitCode, output) = RunCompLogEx($"export {logFilePath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("No compilations found in the log", output);
+
+        static string CreateEmptyLog(string dir)
+        {
+            var logFilePath = Path.Combine(dir, "empty.complog");
+            using var fileStream = new FileStream(logFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+            var builder = new CompilerLogBuilder(fileStream, []);
+            builder.Close();
+            return logFilePath;
+        }
+    }
+
     [Theory]
     [InlineData("help")]
     [InlineData("")]
@@ -807,7 +833,7 @@ public sealed class ProgramTests : TestBase
     {
         using var emitDir = new TempDir();
         var (extiCode, output) = RunCompLogEx($"replay --severity Info --project console-with-diagnostics.csproj {Fixture.SolutionBinaryLogPath}");
-        Assert.Equal(Constants.ExitFailure, extiCode);
+        Assert.Equal(Constants.ExitSuccess, extiCode);
         Assert.Contains("No compilations found", output);
     }
 
@@ -907,8 +933,9 @@ public sealed class ProgramTests : TestBase
         RunWithBoth(logPath =>
         {
             AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logPath));
-            var (exitCode, _) = RunCompLogEx($"generated {logPath} -p console-does-not-exist.csproj");
-            Assert.Equal(Constants.ExitFailure, exitCode);
+            var (exitCode, output) = RunCompLogEx($"generated {logPath} -p console-does-not-exist.csproj");
+            Assert.Equal(Constants.ExitSuccess, exitCode);
+            Assert.Contains("No compilations found", output);
         });
     }
 
