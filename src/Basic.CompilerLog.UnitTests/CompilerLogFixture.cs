@@ -4,7 +4,9 @@ using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -95,6 +97,10 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     internal Lazy<LogData>? WpfApp { get; }
 
     internal Lazy<LogData>? ConsoleWithNativePdb { get; }
+
+    internal Lazy<LogData> LinuxConsoleFromLog { get; }
+
+    internal Lazy<LogData> WindowsConsoleFromLog  { get; }
 
     /// <summary>
     /// Named complog value that makes intent of getting signed one clear
@@ -262,7 +268,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 """, TestBase.DefaultEncoding);
             RunDotnetCommand("build -bl -nr:false", scratchPath);
         });
-        
+
         ConsoleComplex = WithBuild("console-complex.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console-complex --output .", scratchPath);
@@ -482,7 +488,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     }
                     else
                     {
-                        newlines.Add(line); 
+                        newlines.Add(line);
                     }
                 }
                 File.WriteAllLines(projectFilePath, newlines);
@@ -529,10 +535,18 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             }, supportsNoneHost: false);
         }
 
-        WithResource("linux-console.complog");
-        WithResource("windows-console.complog");
+        LinuxConsoleFromLog = WithResource("linux-console.complog");
+        WindowsConsoleFromLog = WithResource("windows-console.complog");
 
         AllLogs = builder.ToImmutable();
+
+        // Make sure that the actual instance and static calculation of logs are in sync
+        if (GetAllLogDataNames().Count() != AllLogs.Length)
+        {
+            throw new Exception($"The number of logs in the fixture ({AllLogs.Length}) does not match the number of logs in the test data ({GetAllLogDataNames().Count()})");
+        }
+
+
         Lazy<LogData> WithBuild(string name, Action<string> action, bool expectDiagnosticMessages = false, bool supportsNoneHost = true)
         {
             var lazy = new Lazy<LogData>(() =>
@@ -549,7 +563,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     Assert.True(File.Exists(binlogFilePath));
                     var complogFilePath = Path.Combine(ComplogDirectory, name);
                     var compilerCalls = new List<CompilerCall>();
-                    var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath, cc => 
+                    var diagnostics = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, complogFilePath, cc =>
                     {
                         compilerCalls.Add(cc);
                         return true;
@@ -578,12 +592,45 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             return lazy;
         }
 
-        void WithResource(string name)
+        Lazy<LogData> WithResource(string name)
         {
             var filePath = Path.Combine(ComplogDirectory, name);
             File.WriteAllBytes(filePath, ResourceLoader.GetResourceBlob(name));
-            builder.Add(new Lazy<LogData>(() => new LogData(filePath, null)));
+            var lazy = new Lazy<LogData>(() => new LogData(filePath, null));
+            builder.Add(lazy);
+            return lazy;
         }
+    }
+
+    private async ValueTask<LogData> GetLogDataValue(Lazy<LogData> lazyLogData, ITestOutputHelper testOutputHelper)
+    {
+        LogData logData;
+        if (lazyLogData.IsValueCreated)
+        {
+            testOutputHelper.WriteLine($"Using cached value");
+            logData = lazyLogData.Value;
+        }
+        else
+        {
+            TaskCompletionSource<LogData> tcs = new();
+            await Task.Factory.StartNew(() =>
+            {
+                try
+                {
+                    var start = DateTime.UtcNow;
+                    testOutputHelper.WriteLine($"Starting {nameof(GetAllCompilerLogs)}");
+                    tcs.SetResult(lazyLogData.Value);
+                    testOutputHelper.WriteLine($"Finished {nameof(GetAllCompilerLogs)} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }, TaskCreationOptions.LongRunning);
+            logData = await tcs.Task;
+        }
+
+        return logData;
     }
 
     public async IAsyncEnumerable<LogData> GetAllLogData(ITestOutputHelper testOutputHelper)
@@ -591,32 +638,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         var start = DateTime.UtcNow;
         foreach (var lazyLogData in AllLogs)
         {
-            LogData logData;
-            if (lazyLogData.IsValueCreated)
-            {
-                testOutputHelper.WriteLine($"Using cached value");
-                logData = lazyLogData.Value;
-            }
-            else
-            {
-                TaskCompletionSource<LogData> tcs = new();
-                await Task.Factory.StartNew(() =>
-                {
-                    try
-                    {
-                        testOutputHelper.WriteLine($"Starting {nameof(GetAllCompilerLogs)}");
-                        tcs.SetResult(lazyLogData.Value);
-                        testOutputHelper.WriteLine($"Finished {nameof(GetAllCompilerLogs)} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
-                    }
-                    catch (Exception ex)
-                    {
-                        tcs.SetException(ex);
-                    }
-                }, TaskCreationOptions.LongRunning);
-
-                logData = await tcs.Task;
-            }
-
+            var logData = await GetLogDataValue(lazyLogData, testOutputHelper);
             yield return logData;
         }
     }
@@ -630,7 +652,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 yield return logData;
             }
         }
-    } 
+    }
 
     /// <summary>
     /// This locks all the files on disk that are a part of this build. That allows us
@@ -688,6 +710,44 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     public void Dispose()
     {
         Directory.Delete(StorageDirectory, recursive: true);
+    }
+
+    /// <summary>
+    /// This returns the names of all the log data files. This is used in theories to help break up 
+    /// the test cases into smaller pieces.
+    /// </summary>
+    public static IEnumerable<string> GetAllLogDataNames()
+    {
+        yield return nameof(Console);
+        yield return nameof(ConsoleNoGenerator);
+        yield return nameof(ConsoleWithReference);
+        yield return nameof(ConsoleWithAliasReference);
+        yield return nameof(ConsoleComplex);
+        yield return nameof(ClassLib);
+        yield return nameof(ClassLibRefOnly);
+        yield return nameof(ClassLibMulti);
+        yield return nameof(ClassLibWithResourceLibs);
+        yield return nameof(ConsoleVisualBasic);
+        yield return nameof(LinuxConsoleFromLog);
+        yield return nameof(WindowsConsoleFromLog);
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            yield return nameof(WpfApp);
+            yield return nameof(ConsoleWithNativePdb);
+        }
+    }
+
+    public async Task<LogData> GetLogDataByName(string name, ITestOutputHelper testOutputHelper)
+    {
+        var propertyInfo = GetType().GetProperty(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        if (propertyInfo is null ||
+            propertyInfo.GetValue(this) is not Lazy<LogData> logData)
+        {
+            throw new ArgumentException($"Cannot find valid {nameof(LogData)} for {name}");
+        }
+
+        return await GetLogDataValue(logData, testOutputHelper);
     }
 }
 

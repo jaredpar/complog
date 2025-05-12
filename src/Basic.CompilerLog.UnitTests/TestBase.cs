@@ -77,6 +77,32 @@ public abstract class TestBase : IDisposable
     }
 
     /// <summary>
+    /// Return the <see cref="BasicAnalyzerKind"/> paired with the name of <see cref="LogData"/> instances
+    /// from <see cref="CompilerLogFixture"/> 
+    /// </summary>
+    public static IEnumerable<object[]> GetSimpleBasicAnalyzerKindsAndLogDataNames()
+    {
+        foreach (var kind in GetSimpleBasicAnalyzerKinds())
+        {
+            foreach (var logData in CompilerLogFixture.GetAllLogDataNames())
+            {
+                yield return [kind[0], logData];
+            }
+        }
+    }
+
+    /// <summary>
+    /// Get all of the log data names from <see cref="CompilerLogFixture"/>.
+    /// </summary>
+    public static IEnumerable<object[]> GetAllLogDataNames()
+    {
+        foreach (var logData in CompilerLogFixture.GetAllLogDataNames())
+        {
+            yield return [logData];
+        }
+    }
+
+    /// <summary>
     /// This captures the set of "missing" files that we need to be tolerant of in our 
     /// reading and creation of compiler logs.
     /// </summary>
@@ -85,7 +111,7 @@ public abstract class TestBase : IDisposable
         yield return ["keyfile", "does-not-exist.snk", false]; // key file isn't noticed until emit
         yield return ["embed", "data.txt", true];
         yield return ["win32manifest", "data.manifest", false]; // manifest isn't noticed until emit
-        yield return ["win32res", "data.res", true]; 
+        yield return ["win32res", "data.res", true];
         yield return ["sourcelink", "data.link", true];
         yield return ["analyzerconfig", "data.config", true];
         yield return [null, "data.cs", true];
