@@ -65,7 +65,7 @@ When trying to get a compiler log from a build that occurs in a GitHub action yo
     run: dotnet build -bl
 
   - name: Create and upload the compiler log
-    uses: jaredpar/compilerlog-action@v1
+    uses: jaredpar/basic-compilerlog-action@v1
     with:
       binlog: msbuild.binlog
 ```
