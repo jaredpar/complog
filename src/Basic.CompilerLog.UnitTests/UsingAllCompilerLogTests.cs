@@ -53,7 +53,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [MemberData(nameof(GetAllLogDataNames))]
     public async Task EmitToDisk(string logDataName)
     {
-        var logData = await Fixture.GetLogDataByName(logDataName, TestOutputHelper);
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
         var complogPath = logData.CompilerLogPath;
         using var reader = CompilerLogReader.Create(complogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
         foreach (var data in reader.ReadAllCompilationData())
@@ -97,7 +97,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     public async Task GeneratedFilePathsNoneHost(string logDataName)
     {
         char[] illegalChars = ['<', '>'];
-        var logData = await Fixture.GetLogDataByName(logDataName, TestOutputHelper);
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
         using var reader = CompilerCallReaderUtil.Create(logData.CompilerLogPath, BasicAnalyzerKind.None);
         foreach (var data in reader.ReadAllCompilationData(reader.HasAllGeneratedFileContent))
         {
@@ -115,10 +115,10 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
     [Theory]
     [MemberData(nameof(GetSimpleBasicAnalyzerKindsAndLogDataNames))]
-    public async Task EmitToMemory(BasicAnalyzerKind basicAnalyzerKind, string logDataName)
+    public void EmitToMemory(BasicAnalyzerKind basicAnalyzerKind, string logDataName)
     {
         TestOutputHelper.WriteLine($"BasicAnalyzerKind: {basicAnalyzerKind}, LogDataName: {logDataName}");
-        var logData = await Fixture.GetLogDataByName(logDataName, TestOutputHelper);
+        var logData = Fixture.GetLogDataByName(logDataName).Value;
         using var reader = CompilerCallReaderUtil.Create(logData.CompilerLogPath, basicAnalyzerKind);
         foreach (var data in reader.ReadAllCompilationData(cc => basicAnalyzerKind != BasicAnalyzerKind.None || reader.HasAllGeneratedFileContent(cc)))
         {
@@ -136,7 +136,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [MemberData(nameof(GetAllLogDataNames))]
     public async Task EmitToMemoryCompilerLogWithSeparateState(string logDataName)
     {
-        var logData = await Fixture.GetLogDataByName(logDataName, TestOutputHelper);
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
         if (!logData.SupportsNoneHost)
         {
             return;
@@ -169,7 +169,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [MemberData(nameof(GetAllLogDataNames))]
     public async Task CommandLineArguments(string logDataName)
     {
-        var logData = await Fixture.GetLogDataByName(logDataName, TestOutputHelper);
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
         using var reader = CompilerLogReader.Create(logData.CompilerLogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
         foreach (var data in reader.ReadAllCompilerCalls())
         {
@@ -258,7 +258,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [MemberData(nameof(GetAllLogDataNames))]
     public async Task VerifyAnalyzerConsistency(string logDataName)
     {
-        var logData = await Fixture.GetLogDataByName(logDataName, TestOutputHelper);
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
         using var diskReader = CompilerLogReader.Create(logData.CompilerLogPath, BasicAnalyzerKind.OnDisk);
         var diskDataList = diskReader.ReadAllCompilationData();
         using var memoryReader = CompilerLogReader.Create(logData.CompilerLogPath, BasicAnalyzerKind.InMemory);
@@ -310,7 +310,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
     [MemberData(nameof(GetAllLogDataNames))]
     public async Task VerifyConsistentOptions(string logDataName)
     {
-        var logData = await Fixture.GetLogDataByName(logDataName, TestOutputHelper);
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
         if (logData.BinaryLogPath is null)
         {
             return;

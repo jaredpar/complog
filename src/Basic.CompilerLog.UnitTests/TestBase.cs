@@ -145,17 +145,17 @@ public abstract class TestBase : IDisposable
 
         if (OnDiskLoader.AnyActiveAssemblyLoadContext)
         {
-            var maxCount = 10;
+            var maxCount = 15;
             for (int i = 0; i < maxCount && OnDiskLoader.AnyActiveAssemblyLoadContext; i++)
             {
-                GC.Collect();
+                GC.Collect(2, GCCollectionMode.Forced);
                 GC.WaitForPendingFinalizers();
                 Thread.Sleep(TimeSpan.FromSeconds(1));
             }
 
             if (OnDiskLoader.AnyActiveAssemblyLoadContext)
             {
-                Debugger.Break();
+                Environment.FailFast("there are still active AssemblyLoadContext");
                 OnDiskLoader.ClearActiveAssemblyLoadContext();
                 Assert.Fail("There are still active AssemblyLoadContext");
             }
