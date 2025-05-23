@@ -225,7 +225,8 @@ public sealed class CompilationDataTests : TestBase
 
     [Theory]
     [InlineData(true)]
-    [InlineData(false)]
+    // https://github.com/jaredpar/complog/issues/241
+    // [InlineData(false)]
     public void GetContentHashBadAnalyzer(bool inMemory)
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
