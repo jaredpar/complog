@@ -104,6 +104,15 @@ public sealed class LogReaderState : IDisposable
             host.Dispose();
         }
 
+        // It's important to clear out this map as the BasicAnalyzerHost can maintain 
+        // a reference to the AssemblyLoadContext which could prevent it from fully
+        // unloading.
+        BasicAnalyzerHosts.Clear();
+
+        // Similarly need to drop references to Analyzers which could be holding onto
+        // an AssemblyLoadContext
+        _analyzersMap?.Clear();
+
         try
         {
             if (Directory.Exists(CryptoKeyFileDirectory))
@@ -127,6 +136,11 @@ public sealed class LogReaderState : IDisposable
         BasicAnalyzerKind kind,
         CompilerCall compilerCall)
     {
+        if (IsDisposed)
+        {
+            throw new ObjectDisposedException(nameof(LogReaderState));
+        }
+
         BasicAnalyzerHost? basicAnalyzerHost;
         string? key = null;
         var analyzers = dataProvider.ReadAllAnalyzerData(compilerCall);
