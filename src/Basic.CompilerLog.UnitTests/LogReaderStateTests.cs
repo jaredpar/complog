@@ -52,6 +52,15 @@ public class LogReaderStateTests : TestBase
             []));
     }
 
+    [Fact]
+    public void DisposeGuards()
+    {
+        var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
+        state.Dispose();
+        Assert.True(state.IsDisposed);
+        Assert.Throws<ObjectDisposedException>(() => state.GetOrCreateBasicAnalyzerHost(null!, BasicAnalyzerKind.InMemory, null!));
+    }
+
 #if NET
     [Fact]
     public void CustomAssemblyLoadContext()

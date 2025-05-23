@@ -602,7 +602,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         }
     }
 
-    private async ValueTask<LogData> GetLogDataValue(Lazy<LogData> lazyLogData, ITestOutputHelper testOutputHelper)
+    private async ValueTask<LogData> GetLogDataAsync(Lazy<LogData> lazyLogData, ITestOutputHelper testOutputHelper)
     {
         LogData logData;
         if (lazyLogData.IsValueCreated)
@@ -638,7 +638,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         var start = DateTime.UtcNow;
         foreach (var lazyLogData in AllLogs)
         {
-            var logData = await GetLogDataValue(lazyLogData, testOutputHelper);
+            var logData = await GetLogDataAsync(lazyLogData, testOutputHelper);
             yield return logData;
         }
     }
@@ -738,7 +738,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         }
     }
 
-    public async Task<LogData> GetLogDataByName(string name, ITestOutputHelper testOutputHelper)
+    public Lazy<LogData> GetLogDataByName(string name)
     {
         var propertyInfo = GetType().GetProperty(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
         if (propertyInfo is null ||
@@ -747,7 +747,13 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             throw new ArgumentException($"Cannot find valid {nameof(LogData)} for {name}");
         }
 
-        return await GetLogDataValue(logData, testOutputHelper);
+        return logData;
+    }
+
+    public async ValueTask<LogData> GetLogDataByNameAsync(string name, ITestOutputHelper testOutputHelper)
+    {
+        var logData = GetLogDataByName(name);
+        return await GetLogDataAsync(logData, testOutputHelper);
     }
 }
 
