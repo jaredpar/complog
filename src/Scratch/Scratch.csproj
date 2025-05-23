@@ -18,7 +18,7 @@
     <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" />
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" />
-    <PackageReference Include="Basic.Reference.Assemblies.Net80" />
+    <PackageReference Include="Basic.Reference.Assemblies.Net90" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" />
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Features" />
   </ItemGroup>

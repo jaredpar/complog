@@ -43,7 +43,7 @@ internal static class LibraryUtil
         var compilation = CSharpCompilation.Create(
             "SimplePia",
             [CSharpSyntaxTree.ParseText(content1), CSharpSyntaxTree.ParseText(content2)],
-            Net80.References.All,
+            Net90.References.All,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         return Compile(compilation, "SimplePia.dll");
@@ -86,7 +86,7 @@ internal static class LibraryUtil
         var compilation = CSharpCompilation.Create(
             "TestAnalyzers",
             [CSharpSyntaxTree.ParseText(code)],
-            [.. Net80.References.All, roslynReference],
+            [.. Net90.References.All, roslynReference],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         return Compile(compilation, "TestAnalyzers.dll");
     }
@@ -139,7 +139,7 @@ internal static class LibraryUtil
         var compilation = CSharpCompilation.Create(
             "TestAnalyzers",
             [CSharpSyntaxTree.ParseText(code)],
-            [.. Net80.References.All, roslynReference],
+            [.. Net90.References.All, roslynReference],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         return Compile(compilation, "TestAnalyzers.dll");
     }
@@ -168,7 +168,7 @@ internal static class LibraryUtil
         var compilation = CSharpCompilation.Create(
             "TestAnalyzers",
             [CSharpSyntaxTree.ParseText(code)],
-            [.. Net80.References.All, roslynReference],
+            [.. Net90.References.All, roslynReference],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         return Compile(compilation, "TestAnalyzers.dll");
     }
