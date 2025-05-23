@@ -211,40 +211,49 @@ public sealed class UsingAllCompilerLogTests : TestBase
         }
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ExportAndBuild(bool includeAnalyzers)
+    public static IEnumerable<object[]> GetExportAndBuildData()
     {
-        using var fileLock = Fixture.LockScratchDirectory();
-        var list = new List<Task>();
-        await foreach (var logData in Fixture.GetAllLogData(TestOutputHelper))
+        foreach (var logData in CompilerLogFixture.GetAllLogDataNames())
         {
-            if (!includeAnalyzers && !logData.SupportsNoneHost)
-            {
-                continue;
-            }
-
-            var task = Task.Run(() => ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true), CancellationToken);
-            list.Add(task);
+            yield return [true, logData];
+            yield return [false, logData];
         }
-
-        await Task.WhenAll(list);
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task LoadAllCore(bool none)
+    [MemberData(nameof(GetExportAndBuildData))]
+    public async Task ExportAndBuild(bool includeAnalyzers, string logDataName)
+    {
+        var list = new List<Task>();
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        if (!includeAnalyzers && !logData.SupportsNoneHost)
+        {
+            return;
+        }
+
+        ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true);
+    }
+
+    public static IEnumerable<object[]> GetLoadAllCoreData()
+    {
+        foreach (var logData in CompilerLogFixture.GetAllLogDataNames())
+        {
+            yield return [true, logData];
+            yield return [false, logData];
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(GetLoadAllCoreData))]
+    public async Task LoadAllCore(bool none, string logDataName)
     {
         var kind = none ? BasicAnalyzerKind.None : BasicAnalyzerHost.DefaultKind;
-        await foreach (var complogPath in Fixture.GetAllCompilerLogs(TestOutputHelper, kind))
-        {
-            using var reader = SolutionReader.Create(complogPath, kind);
-            var workspace = new AdhocWorkspace();
-            var solution = workspace.AddSolution(reader.ReadSolutionInfo());
-            Assert.NotEmpty(solution.Projects);
-        }
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        var complogPath = logData.CompilerLogPath;
+        using var reader = SolutionReader.Create(complogPath, kind);
+        var workspace = new AdhocWorkspace();
+        var solution = workspace.AddSolution(reader.ReadSolutionInfo());
+        Assert.NotEmpty(solution.Projects);
     }
 
 #if NET

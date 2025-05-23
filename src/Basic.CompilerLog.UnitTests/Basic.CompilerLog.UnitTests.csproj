@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net472</TargetFrameworks>
+    <TargetFrameworks>net9.0;net472</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS0436</NoWarn>
@@ -20,8 +20,8 @@
     </PackageReference>
     <PackageReference Include="xunit.v3" />
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
-    <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" Condition="'$(TargetFramework)' == 'net8.0'" />
-    <PackageReference Include="Basic.Reference.Assemblies.Net80" />
+    <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" Condition="'$(TargetFramework)' == 'net9.0'" />
+    <PackageReference Include="Basic.Reference.Assemblies.Net90" />
     <PackageReference Include="coverlet.msbuild">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
