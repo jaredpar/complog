@@ -583,8 +583,8 @@ public sealed class ProgramTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.ClassLibMultiProjectPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net6.0", "build.rsp")));
-        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net8.0", "build.rsp")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, ".complog", "rsp", "classlibmulti-net6.0", "build.rsp")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, ".complog", "rsp", $"classlibmulti-{TestUtil.TestProjectTargetFramework}", "build.rsp")));
     }
 
     [Fact]

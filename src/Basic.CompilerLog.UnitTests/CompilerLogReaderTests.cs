@@ -296,7 +296,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath);
         var list = reader.ReadAllCompilationData();
         Assert.Single(list);
-        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net8.0"));
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == TestUtil.TestProjectTargetFramework));
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var list = reader.ReadAllCompilationData();
         Assert.Equal(2, list.Count);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
-        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net8.0"));
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == TestUtil.TestProjectTargetFramework));
     }
 
     [Fact]
@@ -373,12 +373,12 @@ public sealed class CompilerLogReaderTests : TestBase
         }
 
         RunDotNet($"new console --name example --output .");
-        var projectFileContent = """
+        var projectFileContent = $"""
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
                 <OutputType>Exe</OutputType>
                 <DebugType>Full</DebugType>
-                <TargetFramework>net8.0</TargetFramework>
+                <TargetFramework>{TestUtil.TestProjectTargetFramework}</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings>
                 <Nullable>enable</Nullable>
               </PropertyGroup>
@@ -428,10 +428,10 @@ public sealed class CompilerLogReaderTests : TestBase
     {
         var dir = Root.NewDirectory("missing-additional-files");
         RunDotNet("new classlib --name example -o .", dir);
-        SetProjectFileContent("""
+        SetProjectFileContent($"""
             <Project Sdk="Microsoft.NET.Sdk">
                 <PropertyGroup>
-                    <TargetFramework>net8.0</TargetFramework>
+                    <TargetFramework>{TestUtil.TestProjectTargetFramework}</TargetFramework>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     <NoWarn>$(NoWarn);CS8933</NoWarn>

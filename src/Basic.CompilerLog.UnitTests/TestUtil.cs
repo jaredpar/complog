@@ -31,6 +31,8 @@ internal static class TestUtil
 
     internal static bool InGitHubActions => Environment.GetEnvironmentVariable("GITHUB_ACTIONS") is not null;
 
+    internal static string TestProjectTargetFramework = "net8.0";
+
     internal static string TestArtifactsDirectory
     {
         get

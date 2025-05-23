@@ -129,11 +129,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         Console = WithBuild("console.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console --output .", scratchPath);
-            var projectFileContent = """
+            var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
                     <OutputType>Exe</OutputType>
-                    <TargetFramework>net8.0</TargetFramework>
+                    <TargetFramework>{TestUtil.TestProjectTargetFramework}</TargetFramework>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>
@@ -159,10 +159,10 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         ClassLibMulti = WithBuild("classlibmulti.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlibmulti --output .", scratchPath);
-            var projectFileContent = """
+            var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;{TestUtil.TestProjectTargetFramework}</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>
@@ -184,10 +184,10 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         ClassLibRefOnly = WithBuild("classlibrefonly.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlibrefonly --output .", scratchPath);
-            var projectFileContent = """
+            var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;{TestUtil.TestProjectTargetFramework}</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     <ProduceOnlyReferenceAssembly>true</ProduceOnlyReferenceAssembly>
@@ -256,12 +256,12 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 End Module
                 """, TestBase.DefaultEncoding);
             File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
-            File.WriteAllText(Path.Combine(scratchPath, "console-vb.vbproj"), """
+            File.WriteAllText(Path.Combine(scratchPath, "console-vb.vbproj"), $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                     <PropertyGroup>
                         <OutputType>Exe</OutputType>
                         <RootNamespace>vbconsole</RootNamespace>
-                        <TargetFramework>net8.0</TargetFramework>
+                        <TargetFramework>{TestUtil.TestProjectTargetFramework}</TargetFramework>
                         <EmbedAllSources>true</EmbedAllSources>
                     </PropertyGroup>
                 </Project>
@@ -277,7 +277,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
                     <OutputType>Exe</OutputType>
-                    <TargetFramework>net8.0</TargetFramework>
+                    <TargetFramework>{TestUtil.TestProjectTargetFramework}</TargetFramework>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     <DebugType>embedded</DebugType>
@@ -377,7 +377,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
         ClassLib = WithBuild("classlib.complog", void (string scratchPath) =>
         {
-            RunDotnetCommand($"new classlib --name classlib --output . --framework net8.0", scratchPath);
+            RunDotnetCommand($"new classlib --name classlib --output . --framework {TestUtil.TestProjectTargetFramework}", scratchPath);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -506,12 +506,12 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             ConsoleWithNativePdb = WithBuild("console-with-nativepdb.complog", void (string scratchPath) =>
             {
                 RunDotnetCommand($"new console --name console --output .", scratchPath);
-                var projectFileContent = """
+                var projectFileContent = $"""
                     <Project Sdk="Microsoft.NET.Sdk">
                       <PropertyGroup>
                         <OutputType>Exe</OutputType>
                         <DebugType>full</DebugType>
-                        <TargetFramework>net8.0</TargetFramework>
+                        <TargetFramework>{TestUtil.TestProjectTargetFramework}</TargetFramework>
                         <ImplicitUsings>enable</ImplicitUsings>
                         <Nullable>enable</Nullable>
                       </PropertyGroup>

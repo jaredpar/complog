@@ -70,7 +70,7 @@ jobs:
       uses: ./.github/actions/dotnet-test
       with:
           name: 'Test-Linux'
-          framework: 'net8.0'
+          framework: 'net9.0'
           test-results-dir: ${{ env.TEST_RESULTS_PATH }}
           test-coverage-dir: ${{ env.TEST_COVERAGE_PATH }}
       if: matrix.os == 'ubuntu-latest'
@@ -79,7 +79,7 @@ jobs:
       uses: ./.github/actions/dotnet-test
       with:
           name: 'Test-Windows-Core'
-          framework: 'net8.0'
+          framework: 'net9.0'
           test-results-dir: ${{ env.TEST_RESULTS_PATH }}
           test-coverage-dir: ${{ env.TEST_COVERAGE_PATH }}
       if: matrix.os == 'windows-latest'
@@ -94,7 +94,7 @@ jobs:
       if: matrix.os == 'windows-latest'
 
     - name: Create Compiler Log
-      run: dotnet run --framework net8.0 --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
+      run: dotnet run --framework net9.0 --project src/Basic.CompilerLog/Basic.CompilerLog.csproj create msbuild.binlog
 
     - name: Publish Compiler Log
       uses: actions/upload-artifact@v4

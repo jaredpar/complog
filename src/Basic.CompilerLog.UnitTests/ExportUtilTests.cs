@@ -337,12 +337,12 @@ public sealed class ExportUtilTests : TestBase
     {
         RunDotNet("new console --name example --output .");
 
-        var projectFileContent = """
+        var projectFileContent = $"""
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
                 <OutputType>Exe</OutputType>
                 <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-                <TargetFramework>net8.0</TargetFramework>
+                <TargetFramework>{TestUtil.TestProjectTargetFramework}</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings>
                 <Nullable>enable</Nullable>
               </PropertyGroup>
