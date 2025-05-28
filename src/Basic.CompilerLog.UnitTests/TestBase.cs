@@ -157,7 +157,7 @@ public abstract class TestBase : IDisposable
             {
                 // https://github.com/jaredpar/complog/issues/241
                 // Environment.FailFast("there are still active AssemblyLoadContext");
-                // Assert.Fail("There are still active AssemblyLoadContext");
+                Assert.Fail("There are still active AssemblyLoadContext");
                 OnDiskLoader.ClearActiveAssemblyLoadContext();
             }
         }

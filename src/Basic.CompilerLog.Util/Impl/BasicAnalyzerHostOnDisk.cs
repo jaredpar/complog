@@ -91,7 +91,6 @@ internal sealed class OnDiskLoader : IDisposable
 
     private sealed class AnalyzerDirectoryCleanup(LogReaderState state, string loaderDirectory) : IDisposable
     {
-        private WeakReference<LogReaderState> State { get; } = new(state);
         private (string BaseDirectory, string AnalyzerDirectory) Tuple { get; } = (state.BaseDirectory, state.AnalyzerDirectory);
         private string LoaderDirectory { get; } = loaderDirectory;
 
@@ -106,11 +105,10 @@ internal sealed class OnDiskLoader : IDisposable
             {
                 Directory.Delete(LoaderDirectory, recursive: true);
 
-                if (!State.TryGetTarget(out var state) || state.IsDisposed)
-                {
-                    CommonUtil.DeleteDirectoryIfEmpty(Tuple.AnalyzerDirectory);
-                    CommonUtil.DeleteDirectoryIfEmpty(Tuple.BaseDirectory);
-                }
+                // It's not deterministic if the LogReaderState will be disposed before or after this. To ensure
+                // a clean directory state both components should attempt to clean up the directories.
+                CommonUtil.DeleteDirectoryIfEmpty(Tuple.AnalyzerDirectory);
+                CommonUtil.DeleteDirectoryIfEmpty(Tuple.BaseDirectory);
             }
             catch
             {
