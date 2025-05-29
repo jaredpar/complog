@@ -114,6 +114,20 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Theory]
+    [MemberData(nameof(GetAllLogDataNames))]
+    public void EmitToMemoryDiskHost(string logDataName)
+    {
+        var logData = Fixture.GetLogDataByName(logDataName).Value;
+        using var reader = CompilerCallReaderUtil.Create(logData.CompilerLogPath, BasicAnalyzerKind.OnDisk);
+        foreach (var data in reader.ReadAllCompilationData())
+        {
+            TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
+            var emitResult = data.EmitToMemory(cancellationToken: CancellationToken);
+            AssertEx.Success(TestOutputHelper, emitResult);
+        }
+    }
+
+    [Theory]
     [MemberData(nameof(GetSimpleBasicAnalyzerKindsAndLogDataNames))]
     public void EmitToMemory(BasicAnalyzerKind basicAnalyzerKind, string logDataName)
     {
