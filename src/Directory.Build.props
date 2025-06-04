@@ -6,6 +6,8 @@
     <ArtifactsPath>$(MSBuildThisFileDirectory)..\artifacts</ArtifactsPath>
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)key.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>

@@ -3,7 +3,6 @@
   <PropertyGroup>
     <TargetFrameworks>net9.0;net472</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS0436</NoWarn>
     <NoWarn Condition="'$(TargetFramework)' == 'net472'">$(NoWarn);Nullable</NoWarn>
     <OutputType>Exe</OutputType>
