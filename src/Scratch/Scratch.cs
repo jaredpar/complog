@@ -9,6 +9,7 @@ using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 using Basic.CompilerLog;
+using Basic.CompilerLog.GitHub;
 using Basic.CompilerLog.Util;
 using BenchmarkDotNet.Environments;
 using Microsoft.Build.Framework;
@@ -27,10 +28,22 @@ using TraceReloggerLib;
 
 #pragma warning disable 8321
 
+var ghUtil = GitHubUtil.CreateFromGitHubCli();
+var compilerLog = await ghUtil.GetLatestCompilerLogStream("jaredpar", "complog");
+var reader = SolutionReader.Create(compilerLog);
+var info = reader.ReadSolutionInfo();
+var workspace = new AdhocWorkspace();
+workspace.AddSolution(info);
+
+foreach (var project in workspace.CurrentSolution.Projects)
+{
+    Console.WriteLine(project.FilePath);
+}
+
 //using var reader = CompilerLogReader.Create(zipFilePath);
-var filePath = @"/home/jaredpar/code/dotnet/artifacts/log/Release/roslyn/msca.complog";
-RunComplog($"hash export {filePath}");
-Console.WriteLine("done");
+// var filePath = @"/home/jaredpar/code/dotnet/artifacts/log/Release/roslyn/msca.complog";
+// RunComplog($"hash export {filePath}");
+// Console.WriteLine("done");
 /*
 using var reader = CompilerLogReader.Create(filePath);
 var exportUtil = new ExportUtil(reader);

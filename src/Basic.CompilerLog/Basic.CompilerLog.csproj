@@ -4,8 +4,6 @@
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>preview</LangVersion>
-    <Nullable>enable</Nullable>
     <RollForward>LatestMajor</RollForward>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>complog</ToolCommandName>
@@ -33,6 +31,7 @@
     <Content Include="..\..\LICENSE" PackagePath="\" />
     <PackageReference Include="Mono.Options" />
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
+    <ProjectReference Include="..\Basic.CompilerLog.GitHub\Basic.CompilerLog.GitHub.csproj" />
   </ItemGroup>
 
   <Target Name="GenerateConstants" BeforeTargets="BeforeBuild">

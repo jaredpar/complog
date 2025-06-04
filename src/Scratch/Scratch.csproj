@@ -4,7 +4,6 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
 
     <!-- 
       Mono.Options is not signed. This is an application though, not a lib so this doesn't
@@ -15,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
+    <ProjectReference Include="..\Basic.CompilerLog.GitHub\Basic.CompilerLog.GitHub.csproj" />
     <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" />
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" />
