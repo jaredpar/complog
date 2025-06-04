@@ -48,13 +48,13 @@ public sealed class SolutionReader : IDisposable
     }
 
     public static SolutionReader Create(Stream stream, BasicAnalyzerKind? basicAnalyzerKind = null, LogReaderState? state = null, bool leaveOpen = false, Func<CompilerCall, bool>? predicate = null) => 
-        new (CompilerLogReader.Create(stream, basicAnalyzerKind, state, leaveOpen), predicate);
+        Create(CompilerLogReader.Create(stream, basicAnalyzerKind, state, leaveOpen), predicate);
 
-    public static SolutionReader Create(string filePath, BasicAnalyzerKind? basicAnalyzerKind = null, LogReaderState? state = null, Func<CompilerCall, bool>? predicate = null)
-    {
-        var reader = CompilerCallReaderUtil.Create(filePath, basicAnalyzerKind, state);
-        return new(reader, predicate);
-    }
+    public static SolutionReader Create(string filePath, BasicAnalyzerKind? basicAnalyzerKind = null, LogReaderState? state = null, Func<CompilerCall, bool>? predicate = null) =>
+        Create(CompilerCallReaderUtil.Create(filePath, basicAnalyzerKind, state), predicate);
+
+    public static SolutionReader Create(ICompilerCallReader compilerCallReader, Func<CompilerCall, bool>? predicate = null) => 
+        new(compilerCallReader, predicate);
 
     public SolutionInfo ReadSolutionInfo()
     {
