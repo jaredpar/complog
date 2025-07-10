@@ -133,11 +133,17 @@ public static class BinaryLogUtil
 
     public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
     {
+        var list = new List<CompilerCall>();
+        ReadAllCompilerCalls(list, stream, predicate, ownerState);
+        return list;
+    }
+
+    public static void ReadAllCompilerCalls(List<CompilerCall> list, Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
+    {
         // https://github.com/KirillOsenkov/MSBuildStructuredLog/issues/752
         Microsoft.Build.Logging.StructuredLogger.Strings.Initialize();
 
         predicate ??= static _ => true;
-        var list = new List<CompilerCall>();
         var records = BinaryLog.ReadRecords(stream);
 
         var contextMap = new Dictionary<int, MSBuildProjectContextData>();
@@ -231,8 +237,6 @@ public static class BinaryLogUtil
                 }
             }
         }
-
-        return list;
 
         MSBuildProjectContextData GetOrCreateContextData(BuildEventContext context, string projecFile)
         {
