@@ -125,9 +125,19 @@ public static class CompilerLogUtil
         var diagnostics = new List<string>();
         var included = new List<CompilerCall>();
 
-        var list = BinaryLogUtil.ReadAllCompilerCalls(binaryLogStream, predicate);
-        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
         var success = true;
+        var list = new List<CompilerCall>();
+        try
+        {
+             BinaryLogUtil.ReadAllCompilerCalls(list, binaryLogStream, predicate);
+        }
+        catch (EndOfStreamException ex)
+        {
+            diagnostics.Add($"Error reading binary log: {ex.GetType().FullName}: {ex.Message}");
+            success = false;
+        }
+
+        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
         foreach (var compilerCall in list)
         {
             try

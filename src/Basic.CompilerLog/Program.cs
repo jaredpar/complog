@@ -41,9 +41,7 @@ try
 }
 catch (Exception e)
 {
-    WriteLine("Unexpected error");
-    WriteLine(e.Message);
-    WriteLine(e.StackTrace!);
+    WriteLine($"Unexpected error: {e}");
     RunHelp(null);
     return ExitFailure;
 }
