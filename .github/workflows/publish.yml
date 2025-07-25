@@ -23,8 +23,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build 
-        run: dotnet build -c Release 
+      - name: Build
+        # Need to pass PackageVersion because it's embedded into the DLL.
+        run: dotnet build -c Release -p:PackageVersion="${{ github.event.inputs.version }}"
 
       - name: Pack Basic.CompilerLog.Util
         run: dotnet pack --no-build -p:IncludeSymbols=false -p:RepositoryCommit=${GITHUB_SHA} -p:PackageVersion="${{ github.event.inputs.version }}" -c Release src/Basic.CompilerLog.Util/Basic.CompilerLog.Util.csproj -o .
