@@ -25,13 +25,15 @@ From there the following commands are available:
 - `print`: print the summary of a complog on the command line
 
 ## Info
-:warning: A compiler log **will** include potentially sensitive artifacts :warning:
+> [!WARNING]  
+A compiler log **will** include potentially sensitive artifacts
 
 A compiler log file contains all of the information necessary to recreate a `Compilation`. That includes all source, resources, references, strong name keys, etc .... That will be visible to anyone you provide a compiler log to.
 
 ## Creating Compiler Logs
 
-:warning: A compiler log **will** include artifacts like source code, references, etc ... :warning:
+> [!WARNING]
+A compiler log **will** include artifacts like source code, references, etc ...
 
 There are a number of ways to create a compiler log. The first step is to install the `complog` global tool as that will be used to create the compiler log.
 
