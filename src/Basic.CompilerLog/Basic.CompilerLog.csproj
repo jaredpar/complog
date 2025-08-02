@@ -26,7 +26,7 @@
   <ItemGroup>
     <Content Include="..\..\README.md" PackagePath="\" />
     <Content Include="..\..\LICENSE" PackagePath="\" />
-    <ProjectReference Include="..\Basic.CompilerLog.Core\Basic.CompilerLog.Core.csproj" />
+    <ProjectReference Include="..\Basic.CompilerLog.App\Basic.CompilerLog.App.csproj" />
   </ItemGroup>
 
 </Project>

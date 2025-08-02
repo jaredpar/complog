@@ -468,10 +468,8 @@ void Profile()
 
 int RunComplog(string args)
 {
-    var assembly = typeof(FilterOptionSet).Assembly;
-    var program = assembly.GetType("Program", throwOnError: true);
-    var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
-    return (int)main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) })!;
+    var app = new CompLogApp();
+    return app.Run(args.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 }
 
 void VerifyAll(string logPath)

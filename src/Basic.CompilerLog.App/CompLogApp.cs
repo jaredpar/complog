@@ -14,11 +14,14 @@ using static Basic.CompilerLog.App.Constants;
 
 namespace Basic.CompilerLog.App;
 
-public sealed class CompLogApp(string workingDirectory, string appDataDirectory, TextWriter outputWriter, Action<ICompilerCallReader>? onCompilerCallReader = null)
+public sealed class CompLogApp(string? workingDirectory = null, string? appDataDirectory = null, TextWriter? outputWriter = null, Action<ICompilerCallReader>? onCompilerCallReader = null)
 {
-    public string WorkingDirectory { get; } = workingDirectory;
-    public string AppDataDirectory { get; } = appDataDirectory;
-    public TextWriter OutputWriter { get; } = outputWriter;
+    public string WorkingDirectory { get; } = workingDirectory ?? Environment.CurrentDirectory;
+    public string AppDataDirectory { get; } = appDataDirectory ?? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Basic.CompilerLog",
+        Guid.NewGuid().ToString());
+    public TextWriter OutputWriter { get; } = outputWriter ?? Console.Out;
     private Action<ICompilerCallReader> OnCompilerCallReader { get; } = onCompilerCallReader ?? (_ => { });
 
     public int Run(string[] args)
