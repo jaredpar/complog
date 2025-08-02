@@ -1,14 +1,12 @@
 
-var appDataDirectory = Path.Combine(Constants.LocalAppDataDirectory, Guid.NewGuid().ToString());
-try
-{
-    var app = new CompLogApp(appDataDirectory);
-    return app.Run(args);
-}
-finally
-{
-    if (Directory.Exists(appDataDirectory))
-    {
-        Directory.Delete(appDataDirectory, recursive: true);
-    }
-}
+using Basic.CompilerLog.App;
+
+var appDataDirectory = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "Basic.CompilerLog",
+    Guid.NewGuid().ToString());
+var app = new CompLogApp(
+    Environment.CurrentDirectory,
+    appDataDirectory,
+    Console.Out);
+return app.Run(args);

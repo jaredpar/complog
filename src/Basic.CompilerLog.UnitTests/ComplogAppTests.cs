@@ -1,4 +1,5 @@
 ﻿#if NET
+using Basic.CompilerLog.App;
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
@@ -23,14 +24,14 @@ using Xunit;
 namespace Basic.CompilerLog.UnitTests;
 
 [Collection(SolutionFixtureCollection.Name)]
-public sealed class ProgramTests : TestBase
+public sealed class ComplogAppTests : TestBase
 {
     private Action<ICompilerCallReader>? _assertCompilerCallReader;
 
     public SolutionFixture Fixture { get; }
 
-    public ProgramTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture) 
-        : base(testOutputHelper, testContextAccessor, nameof(ProgramTests))
+    public ComplogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture) 
+        : base(testOutputHelper, testContextAccessor, nameof(ComplogAppTests))
     {
         Fixture = fixture;
     }
@@ -82,38 +83,23 @@ public sealed class ProgramTests : TestBase
 
     public (int ExitCode, string Output) RunCompLogEx(string args, string? currentDirectory = null)
     {
-        var savedCurrentDirectory = Constants.CurrentDirectory;
-        var savedLocalAppDataDirectory = Constants.LocalAppDataDirectory;
-
-        try
+        currentDirectory ??= RootDirectory;
+        var appDataDirectory = Path.Combine(currentDirectory, "localappdata");
+        var writer = new System.IO.StringWriter();
+        var app = new CompLogApp(
+            currentDirectory,
+            appDataDirectory,
+            writer,
+            OnCompilerCallReader);
+        var ret = app.Run(args.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        if (Directory.Exists(appDataDirectory))
         {
-            var writer = new System.IO.StringWriter();
-            currentDirectory ??= RootDirectory;
-            Constants.CurrentDirectory = currentDirectory;
-            Constants.LocalAppDataDirectory = Path.Combine(currentDirectory, "localappdata");
-            Constants.Out = writer;
-            Constants.OnCompilerCallReader = OnCompilerCallReader;
-            var assembly = typeof(FilterOptionSet).Assembly;
-            var program = assembly.GetType("Program", throwOnError: true);
-            var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
-            Assert.NotNull(main);
-            var ret = main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
-            if (Directory.Exists(Constants.LocalAppDataDirectory))
-            {
-                Assert.Empty(Directory.EnumerateFileSystemEntries(Constants.LocalAppDataDirectory));
-            }
+            Assert.Empty(Directory.EnumerateFileSystemEntries(appDataDirectory));
+        }
 
-            var output = writer.ToString();
-            TestOutputHelper.WriteLine(output);
-            return ((int)ret!, output);
-        }
-        finally
-        {
-            Constants.CurrentDirectory = savedCurrentDirectory;
-            Constants.LocalAppDataDirectory = savedLocalAppDataDirectory;
-            Constants.Out = Console.Out;
-            Constants.OnCompilerCallReader = _ => { };
-        }
+        var output = writer.ToString();
+        TestOutputHelper.WriteLine(output);
+        return (ret, output);
     }
 
     private void RunWithBoth(Action<string> action)

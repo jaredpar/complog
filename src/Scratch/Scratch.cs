@@ -24,6 +24,7 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.Diagnostics.Tracing.Parsers.JScript;
 using Scratch;
 using TraceReloggerLib;
+using Basic.CompilerLog.App;
 
 #pragma warning disable 8321
 

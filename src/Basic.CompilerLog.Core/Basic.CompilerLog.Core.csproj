@@ -26,7 +26,9 @@
       <_BasicToolVersion>$(PackageVersion)</_BasicToolVersion>
       <_BasicToolVersion Condition="'$(_BasicToolVersion)' == ''">42.42.42.42</_BasicToolVersion>
       <_BasicGeneratedConstantsFile>$(IntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
-      <_BasicCode>public static partial class Constants
+      <_BasicCode>namespace Basic.CompilerLog.App%3B
+
+internal static partial class Constants
 {
     public const string ToolVersion = &quot;$(_BasicToolVersion)&quot;%3B
 }

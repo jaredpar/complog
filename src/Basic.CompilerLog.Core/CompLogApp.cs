@@ -10,11 +10,16 @@ using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
 using System.Text;
-using static Constants;
+using static Basic.CompilerLog.App.Constants;
 
-public sealed class CompLogApp(string appDataDirectory)
+namespace Basic.CompilerLog.App;
+
+public sealed class CompLogApp(string workingDirectory, string appDataDirectory, TextWriter outputWriter, Action<ICompilerCallReader>? onCompilerCallReader = null)
 {
+    public string WorkingDirectory { get; } = workingDirectory;
     public string AppDataDirectory { get; } = appDataDirectory;
+    public TextWriter OutputWriter { get; } = outputWriter;
+    private Action<ICompilerCallReader> OnCompilerCallReader { get; } = onCompilerCallReader ?? (_ => { });
 
     public int Run(string[] args)
     {
@@ -49,6 +54,13 @@ public sealed class CompLogApp(string appDataDirectory)
             RunHelp(null);
             return ExitFailure;
         }
+        finally
+        {
+            if (Directory.Exists(AppDataDirectory))
+            {
+                Directory.Delete(AppDataDirectory, recursive: true);
+            }
+        }
     }
 
     internal int RunCreate(IEnumerable<string> args)
@@ -80,7 +92,7 @@ public sealed class CompLogApp(string appDataDirectory)
                 complogFilePath = Path.ChangeExtension(Path.GetFileName(binlogFilePath), ".complog");
             }
 
-            complogFilePath = GetResolvedPath(CurrentDirectory, complogFilePath);
+            complogFilePath = GetResolvedPath(WorkingDirectory, complogFilePath);
             var convertResult = CompilerLogUtil.TryConvertBinaryLog(binlogFilePath, complogFilePath, options.FilterCompilerCalls);
             foreach (var diagnostic in convertResult.Diagnostics)
             {
@@ -115,7 +127,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog create [OPTIONS] msbuild.binlog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -155,13 +167,13 @@ public sealed class CompLogApp(string appDataDirectory)
                         foreach (var analyzer in analyzers)
                         {
                             WriteLine($"\t\t{analyzer}");
-                        } 
+                        }
 
                         WriteLine($"\tGenerators:");
                         foreach (var generator in generators)
                         {
                             WriteLine($"\t\t{generator}");
-                        } 
+                        }
                     }
                 }
             }
@@ -178,7 +190,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog analyzers [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -245,7 +257,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog print [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -335,7 +347,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog ref [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -386,7 +398,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog export [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -467,7 +479,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog rsp [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -545,7 +557,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog replay [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -614,7 +626,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog generated [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -634,7 +646,7 @@ public sealed class CompLogApp(string appDataDirectory)
             "export" => RunHashExport(rest),
             "help" => RunHashHelp(),
             _ => RunBadCommand(command)
-        };  
+        };
 
         int RunBadCommand(string command)
         {
@@ -643,7 +655,7 @@ public sealed class CompLogApp(string appDataDirectory)
             return ExitFailure;
         }
 
-        static void PrintUsage()
+        void PrintUsage()
         {
             WriteLine($"""
                 complog hash [command] [args]
@@ -654,7 +666,7 @@ public sealed class CompLogApp(string appDataDirectory)
                 """);
         }
 
-        static int RunHashHelp()
+        int RunHashHelp()
         {
             PrintUsage();
             return ExitSuccess;
@@ -711,7 +723,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog hash print [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -797,7 +809,7 @@ public sealed class CompLogApp(string appDataDirectory)
         void PrintUsage()
         {
             WriteLine("complog hash export [OPTIONS] msbuild.complog");
-            options.WriteOptionDescriptions(Out);
+            options.WriteOptionDescriptions(OutputWriter);
         }
     }
 
@@ -808,7 +820,7 @@ public sealed class CompLogApp(string appDataDirectory)
         return ExitFailure;
     }
 
-    internal static int RunHelp(IEnumerable<string>? args)
+    internal int RunHelp(IEnumerable<string>? args)
     {
         var verbose = false;
         if (args is not null)
@@ -852,7 +864,7 @@ public sealed class CompLogApp(string appDataDirectory)
         return ExitSuccess;
     }
 
-    internal static List<CompilerCall> ReadAllCompilerCalls(ICompilerCallReader reader, Func<CompilerCall, bool>? predicate)
+    internal List<CompilerCall> ReadAllCompilerCalls(ICompilerCallReader reader, Func<CompilerCall, bool>? predicate)
     {
         var compilerCalls = reader.ReadAllCompilerCalls(predicate);
         if (compilerCalls.Count == 0)
@@ -871,7 +883,7 @@ public sealed class CompLogApp(string appDataDirectory)
         return compilerCalls;
     }
 
-    internal static CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
+    internal CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
     {
         var reader = CompilerLogReader.Create(compilerLogStream, basicAnalyzerKind, state: null, leaveOpen);
         OnCompilerCallReader(reader);
@@ -898,7 +910,7 @@ public sealed class CompLogApp(string appDataDirectory)
         return reader;
     }
 
-    internal static void CheckCompilerLogReader(CompilerLogReader reader, bool checkVersion)
+    internal void CheckCompilerLogReader(CompilerLogReader reader, bool checkVersion)
     {
         if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -926,7 +938,7 @@ public sealed class CompLogApp(string appDataDirectory)
         string? logFilePath;
         bool foundMultiple = false;
         IEnumerable<string> args = Array.Empty<string>();
-        string baseDirectory = CurrentDirectory;
+        string baseDirectory = WorkingDirectory;
         var printFile = false;
         if (extra.Count == 0)
         {
@@ -971,7 +983,7 @@ public sealed class CompLogApp(string appDataDirectory)
                     throw new OptionException($"Extra arguments: {string.Join(' ', args.Skip(1))}", "log");
                 }
 
-                return GetResolvedPath(CurrentDirectory, logFilePath);
+                return GetResolvedPath(WorkingDirectory, logFilePath);
             case ".sln":
             case ".csproj":
             case ".vbproj":
@@ -985,7 +997,7 @@ public sealed class CompLogApp(string appDataDirectory)
                 ? FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj")
                 : FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj");
 
-        static string GetLogFilePathAfterBuild(string appDataDirectory, string baseDirectory, string buildFileName, IEnumerable<string> buildArgs)
+        string GetLogFilePathAfterBuild(string appDataDirectory, string baseDirectory, string buildFileName, IEnumerable<string> buildArgs)
         {
             Directory.CreateDirectory(appDataDirectory);
             var binlogFilePath = Path.Combine(appDataDirectory, "build.binlog");
@@ -1025,7 +1037,7 @@ public sealed class CompLogApp(string appDataDirectory)
         return (null, false);
     }
 
-    internal static string GetBaseOutputPath(string? baseOutputPath, string? directoryName = null)
+    internal string GetBaseOutputPath(string? baseOutputPath, string? directoryName = null)
     {
         if (string.IsNullOrEmpty(baseOutputPath))
         {
@@ -1038,7 +1050,7 @@ public sealed class CompLogApp(string appDataDirectory)
 
         if (!Path.IsPathRooted(baseOutputPath))
         {
-            baseOutputPath = Path.Combine(CurrentDirectory, baseOutputPath);
+            baseOutputPath = Path.Combine(WorkingDirectory, baseOutputPath);
         }
 
         return baseOutputPath;
@@ -1048,7 +1060,7 @@ public sealed class CompLogApp(string appDataDirectory)
     // non-satellite assembly? 
     internal static bool IsSingleTarget(CompilerCall compilerCall, List<CompilerCall> compilerCalls)
     {
-        return compilerCalls.Count(x => 
+        return compilerCalls.Count(x =>
             x.ProjectFilePath == compilerCall.ProjectFilePath &&
             x.Kind == CompilerCallKind.Regular) == 1;
     }
@@ -1103,6 +1115,6 @@ public sealed class CompLogApp(string appDataDirectory)
         return Path.Combine(baseDirectory, path);
     }
 
-    internal static void Write(string str) => Constants.Out.Write(str);
-    internal static void WriteLine(string line) => Constants.Out.WriteLine(line);
+    internal void Write(string str) => OutputWriter.Write(str);
+    internal void WriteLine(string line) => OutputWriter.WriteLine(line);
 }
