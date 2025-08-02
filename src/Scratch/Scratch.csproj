@@ -10,6 +10,7 @@
       present any real problems.
     -->
     <NoWarn>$(NoWarn);CS8002</NoWarn>
+    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
 
   <ItemGroup>

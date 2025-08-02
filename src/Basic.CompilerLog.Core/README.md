@@ -1,0 +1,3 @@
+# Basic.CompilerLog.Core
+
+This is functionally the `complog` application. It exists as a separate project so that we can guarantee that the Roslyn API surface used is the lowest possible. Then the actual application defaults to using the latest compiler. This allows us to substitute in local compilers, safely, using the `--compiler` switch to `complog` because the actual functioning app only uses older APIs.
