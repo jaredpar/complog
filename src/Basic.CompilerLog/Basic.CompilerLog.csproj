@@ -27,6 +27,9 @@
     <Content Include="..\..\README.md" PackagePath="\" />
     <Content Include="..\..\LICENSE" PackagePath="\" />
     <ProjectReference Include="..\Basic.CompilerLog.App\Basic.CompilerLog.App.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
   </ItemGroup>
 
 </Project>

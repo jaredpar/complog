@@ -18,6 +18,9 @@
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
     <PackageReference Include="Mono.Options" />
+    <PackageReference Include="Microsoft.CodeAnalysis" VersionOverride="$(RoslynReferenceVersion)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(RoslynReferenceVersion)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" VersionOverride="$(RoslynReferenceVersion)" />
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 
