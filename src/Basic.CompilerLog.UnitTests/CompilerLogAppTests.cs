@@ -902,10 +902,18 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ReplayWithCustomCompiler()
     {
+        string[] versions = 
+        [
+            "8.0.3",
+            "8.0.4",
+            "9.0",
+            "10.0"
+        ];
+
         var compilerDirs = SdkUtil
             .GetSdkDirectoriesAndVersion()
             .OrderByDescending(x => x.SdkVersion, StringComparer.Ordinal)
-            .Where(x => x.SdkVersion.StartsWith("8.0") || x.SdkVersion.StartsWith("9.0") || x.SdkVersion.StartsWith("10.0"))
+            .Where(x => versions.Any(v => x.SdkVersion.StartsWith(v)))
             .Select(x => Path.Combine(x.SdkDirectory, "Roslyn", "bincore"))
             .ToList();
         Assert.NotEmpty(compilerDirs);
@@ -915,6 +923,13 @@ public sealed class CompilerLogAppTests : TestBase
             var exitCode = RunCompLog($"replay --compiler \"{compilerDir}\" -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
             Assert.Equal(Constants.ExitSuccess, exitCode);
         }
+    }
+
+    [Fact]
+    public void ReplayWithCustomCompilerInvalid()
+    {
+        var exitCode = RunCompLog($"replay --compiler \"{Root.DirectoryPath}\" -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
     }
 
     [Theory]
