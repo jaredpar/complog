@@ -7,7 +7,6 @@
     <EmbedAllSources>true</EmbedAllSources>
     <NoWarn>$(NoWarn);RS2008;CS1591</NoWarn>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <SignAssembly>true</SignAssembly>
 
     <!-- Mono.Options is not signed -->
     <NoWarn>$(NoWarn);CS8002</NoWarn>

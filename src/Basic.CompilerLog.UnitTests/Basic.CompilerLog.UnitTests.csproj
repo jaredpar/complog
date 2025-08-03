@@ -6,7 +6,6 @@
     <NoWarn>$(NoWarn);CS0436</NoWarn>
     <NoWarn Condition="'$(TargetFramework)' == 'net472'">$(NoWarn);Nullable</NoWarn>
     <OutputType>Exe</OutputType>
-    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
 
   <ItemGroup>

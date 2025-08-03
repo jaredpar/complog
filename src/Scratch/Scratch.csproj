@@ -10,7 +10,6 @@
       present any real problems.
     -->
     <NoWarn>$(NoWarn);CS8002</NoWarn>
-    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,8 +18,6 @@
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" />
     <PackageReference Include="Basic.Reference.Assemblies.Net90" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" />
-    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Features" />
   </ItemGroup>
 
 </Project>
