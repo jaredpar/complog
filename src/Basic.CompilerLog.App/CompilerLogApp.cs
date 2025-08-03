@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Mono.Options;
 using StructuredLogViewer;
 using System.Diagnostics;
+using System.Reflection;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.Arm;
@@ -14,7 +15,11 @@ using static Basic.CompilerLog.App.Constants;
 
 namespace Basic.CompilerLog.App;
 
-public sealed class CompLogApp(string? workingDirectory = null, string? appDataDirectory = null, TextWriter? outputWriter = null, Action<ICompilerCallReader>? onCompilerCallReader = null)
+public sealed class CompilerLogApp(
+    string? workingDirectory = null,
+    string? appDataDirectory = null,
+    TextWriter? outputWriter = null,
+    Action<ICompilerCallReader>? onCompilerCallReader = null)
 {
     public string WorkingDirectory { get; } = workingDirectory ?? Environment.CurrentDirectory;
     public string AppDataDirectory { get; } = appDataDirectory ?? Path.Combine(
@@ -23,6 +28,7 @@ public sealed class CompLogApp(string? workingDirectory = null, string? appDataD
         Guid.NewGuid().ToString());
     public TextWriter OutputWriter { get; } = outputWriter ?? Console.Out;
     private Action<ICompilerCallReader> OnCompilerCallReader { get; } = onCompilerCallReader ?? (_ => { });
+    private bool IsCustomCompiler { get; init; }
 
     public int Run(string[] args)
     {
@@ -490,10 +496,12 @@ public sealed class CompLogApp(string? workingDirectory = null, string? appDataD
     {
         string? baseOutputPath = null;
         var severity = DiagnosticSeverity.Warning;
+        string? compilerPath = null;
         var options = new FilterOptionSet(analyzers: true)
         {
             { "severity=", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
             { "o|out=", "path to emit to ", void (string b) => baseOutputPath = b },
+            { "c|compiler=", "path to compiler to use for replay", void (string c) => compilerPath = c },
         };
 
         try
@@ -509,6 +517,11 @@ public sealed class CompLogApp(string? workingDirectory = null, string? appDataD
             {
                 baseOutputPath = GetBaseOutputPath(baseOutputPath);
                 WriteLine($"Outputting to {baseOutputPath}");
+            }
+
+            if (compilerPath is not null && !IsCustomCompiler)
+            {
+                return RunInContext(["replay", .. args], compilerPath);
             }
 
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
@@ -1116,6 +1129,98 @@ public sealed class CompLogApp(string? workingDirectory = null, string? appDataD
         }
 
         return Path.Combine(baseDirectory, path);
+    }
+
+    /// <summary>
+    /// This is the helper method that is used to transition from the primary <see cref="AssemblyLoadContext"/>
+    /// to the custom one.
+    /// </summary>
+    private static int RunInContextHelper(
+        string workingDirectory,
+        string appDataDirectory,
+        Action<string?> onOutput,
+        string[] args)
+    {
+        var complogApp = new CompilerLogApp(
+            workingDirectory,
+            appDataDirectory,
+            new ForwardingTextWriter(onOutput))
+        {
+            IsCustomCompiler = true
+        };
+
+        return complogApp.Run(args);
+    }
+
+    private int RunInContext(string[] args, string userCompilerPath)
+    {
+        var compilerDirectory = GetCompilerDirectory(userCompilerPath);
+        if (!Directory.Exists(compilerDirectory) ||
+            !Path.Exists(Path.Combine(compilerDirectory, "Microsoft.CodeAnalysis.dll")))
+        {
+            throw new Exception($"Invalid compiler directory {compilerDirectory}");
+        }
+
+        var alc = CreateContext(compilerDirectory, Path.GetDirectoryName(typeof(CompilerLogApp).Assembly.Location)!);  
+        var type = typeof(CompilerLogApp);
+        var assembly = alc.LoadFromAssemblyName(type.Assembly.GetName());
+        var contextType = assembly.GetType(type.FullName!, throwOnError: true);
+        var method = contextType!.GetMethod(nameof(RunInContextHelper), BindingFlags.Static | BindingFlags.NonPublic);
+        try
+        {
+            object[] contextArgs =
+            [
+                WorkingDirectory,
+                AppDataDirectory,
+                (Action<string?>)OnOutput,
+                args
+            ];
+            var ret = method!.Invoke(null, contextArgs)!;
+            return (int)ret;
+        }
+        catch (TargetInvocationException e)
+        {
+            throw e.InnerException!;
+        }
+        finally
+        {
+            alc.Unload();
+        }
+
+        void OnOutput(string? output) => OutputWriter.WriteLine(output);
+
+        static string GetCompilerDirectory(string userCompilerPath)
+        {
+            if (Path.GetExtension(userCompilerPath) == ".dll")
+            {
+                // If the user specified a dll, we assume it is the compiler
+                // and return the directory of that dll.
+                return Path.GetDirectoryName(userCompilerPath)!;
+            }
+
+            return userCompilerPath;
+        }
+
+        static AssemblyLoadContext CreateContext(string compilerDirectory, string compilerLogDirectory)
+        {
+            var alc = new AssemblyLoadContext("Custom Compiler Load Context", isCollectible: true);
+            var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var dir in (string[])[compilerDirectory, compilerLogDirectory])
+            {
+                foreach (var dllFilePath in Directory.EnumerateFiles(dir, "*.dll"))
+                {
+                    if (RoslynUtil.TryReadMvid(dllFilePath) is { })
+                    {
+                        if (RoslynUtil.ReadAssemblyName(dllFilePath) is { } n && hashSet.Add(n))
+                        {
+                            alc.LoadFromAssemblyPath(dllFilePath);
+                        }
+                    }
+                }
+            }
+
+            return alc;
+        }
     }
 
     internal void Write(string str) => OutputWriter.Write(str);

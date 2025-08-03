@@ -468,7 +468,7 @@ void Profile()
 
 int RunComplog(string args)
 {
-    var app = new CompLogApp();
+    var app = new CompilerLogApp();
     return app.Run(args.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 }
 

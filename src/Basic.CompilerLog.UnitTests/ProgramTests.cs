@@ -13,7 +13,7 @@ public class ProgramTests
     public void TestConsistentVersions()
     {
         AssertConsistentVersions(typeof(ProgramHolder).Assembly);
-        AssertConsistentVersions(typeof(CompLogApp).Assembly);
+        AssertConsistentVersions(typeof(CompilerLogApp).Assembly);
         AssertConsistentVersions(typeof(CompilerLogReader).Assembly);
         static void AssertConsistentVersions(Assembly assembly)
         {
@@ -33,7 +33,7 @@ public class ProgramTests
     public void TestApplicationHasHigherVersion()
     {
         var appVersion = GetRoslynVersion(typeof(ProgramHolder).Assembly);
-        var libVersion = GetRoslynVersion(typeof(CompLogApp).Assembly);
+        var libVersion = GetRoslynVersion(typeof(CompilerLogApp).Assembly);
         Assert.True(appVersion > libVersion);
 
         Version GetRoslynVersion(Assembly assembly) => assembly

@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.VisualBasic;
 
-new CompLogApp().Run(args);
+new CompilerLogApp().Run(args);
 
 // This exists purely so that the test hooks can get a reference to this assembly 
 // and validate that references are setup correctly

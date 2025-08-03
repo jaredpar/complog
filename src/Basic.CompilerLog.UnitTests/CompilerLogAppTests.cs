@@ -24,14 +24,14 @@ using Xunit;
 namespace Basic.CompilerLog.UnitTests;
 
 [Collection(SolutionFixtureCollection.Name)]
-public sealed class ComplogAppTests : TestBase
+public sealed class CompilerLogAppTests : TestBase
 {
     private Action<ICompilerCallReader>? _assertCompilerCallReader;
 
     public SolutionFixture Fixture { get; }
 
-    public ComplogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture) 
-        : base(testOutputHelper, testContextAccessor, nameof(ComplogAppTests))
+    public CompilerLogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture) 
+        : base(testOutputHelper, testContextAccessor, nameof(CompilerLogAppTests))
     {
         Fixture = fixture;
     }
@@ -86,12 +86,12 @@ public sealed class ComplogAppTests : TestBase
         currentDirectory ??= RootDirectory;
         var appDataDirectory = Path.Combine(currentDirectory, "localappdata");
         var writer = new System.IO.StringWriter();
-        var app = new CompLogApp(
+        var app = new CompilerLogApp(
             currentDirectory,
             appDataDirectory,
             writer,
             OnCompilerCallReader);
-        var ret = app.Run(args.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        var ret = app.Run(TestUtil.ParseCommandLine(args).ToArray());
         if (Directory.Exists(appDataDirectory))
         {
             Assert.Empty(Directory.EnumerateFileSystemEntries(appDataDirectory));
@@ -899,6 +899,24 @@ public sealed class ComplogAppTests : TestBase
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {Fixture.ConsoleProjectPath}"));
     }
 
+    [Fact]
+    public void ReplayWithCustomCompiler()
+    {
+        var compilerDirs = SdkUtil
+            .GetSdkDirectoriesAndVersion()
+            .OrderByDescending(x => x.SdkVersion, StringComparer.Ordinal)
+            .Where(x => x.SdkVersion.StartsWith("8.0") || x.SdkVersion.StartsWith("9.0") || x.SdkVersion.StartsWith("10.0"))
+            .Select(x => Path.Combine(x.SdkDirectory, "Roslyn", "bincore"))
+            .ToList();
+        Assert.NotEmpty(compilerDirs);
+        foreach (var compilerDir in compilerDirs)
+        {
+            TestOutputHelper.WriteLine($"Testing compiler directory: {compilerDir}");
+            var exitCode = RunCompLog($"replay --compiler \"{compilerDir}\" -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
+            Assert.Equal(Constants.ExitSuccess, exitCode);
+        }
+    }
+
     [Theory]
     [MemberData(nameof(GetBasicAnalyzerKinds))]
     public void GeneratedBoth(BasicAnalyzerKind basicAnalyzerKind)
@@ -1121,7 +1139,6 @@ public sealed class ComplogAppTests : TestBase
             zipArchive.CreateEntryFromFile(Fixture.SolutionBinaryLogPath, "build.binlog");
         }
     }
-
-
 }
+
 #endif

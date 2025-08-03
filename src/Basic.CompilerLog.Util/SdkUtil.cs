@@ -43,17 +43,23 @@ public static class SdkUtil
         }
     }
 
-    public static List<string> GetSdkDirectories(string? dotnetDirectory = null)
+    public static List<string> GetSdkDirectories(string? dotnetDirectory = null) =>
+        GetSdkDirectoriesAndVersion(dotnetDirectory)
+            .Select(x => x.SdkDirectory)
+            .ToList();
+
+    public static List<(string SdkDirectory, string SdkVersion)> GetSdkDirectoriesAndVersion(string? dotnetDirectory = null)
     {
         dotnetDirectory ??= GetDotnetDirectory();
         var sdk = Path.Combine(dotnetDirectory, "sdk");
-        var sdks = new List<string>();
+        var sdks = new List<(string, string)>();
         foreach (var dir in Directory.EnumerateDirectories(sdk))
         {
+            var version = Path.GetFileName(dir)!;
             var sdkDir = Path.Combine(dir, "Roslyn", "bincore");
             if (Directory.Exists(sdkDir))
             {
-                sdks.Add(dir);
+                sdks.Add((dir, version));
             }
         }
 
