@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Mono.Options;
 
+namespace Basic.CompilerLog.App;
 internal sealed class FilterOptionSet : OptionSet
 {
     private bool _hasAnalyzerOptions;

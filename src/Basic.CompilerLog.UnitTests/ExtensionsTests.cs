@@ -1,7 +1,6 @@
 using System;
 using System.Reflection;
 using Basic.CompilerLog.Util;
-using Basic.CompilerLog.Util.Impl;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -39,7 +38,7 @@ public sealed class ExtensionsTests : TestBase
     public void GetFailureString()
     {
         var ex = new Exception("Hello, world!", new Exception("Inner exception"));
-        Assert.NotEmpty(ex.GetFailureString());
+        Assert.NotEmpty(Basic.CompilerLog.App.Extensions.GetFailureString(ex));
     }
 
 #endif

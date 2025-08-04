@@ -24,32 +24,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
-    <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
-    <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
     <Content Include="..\..\README.md" PackagePath="\" />
     <Content Include="..\..\LICENSE" PackagePath="\" />
-    <PackageReference Include="Mono.Options" />
-    <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
+    <ProjectReference Include="..\Basic.CompilerLog.App\Basic.CompilerLog.App.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
   </ItemGroup>
 
-  <Target Name="GenerateConstants" BeforeTargets="BeforeBuild">
-    <PropertyGroup>
-      <_BasicToolVersion>$(PackageVersion)</_BasicToolVersion>
-      <_BasicToolVersion Condition="'$(_BasicToolVersion)' == ''">42.42.42.42</_BasicToolVersion>
-      <_BasicGeneratedConstantsFile>$(IntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
-      <_BasicCode>internal static partial class Constants
-{
-    public const string ToolVersion = &quot;$(_BasicToolVersion)&quot;%3B
-}
-      </_BasicCode>
-    </PropertyGroup>
-    <ItemGroup>
-      <Compile Include="$(_BasicGeneratedConstantsFile)" />
-    </ItemGroup>
-    <WriteLinesToFile
-      File="$(_BasicGeneratedConstantsFile)"
-      Lines="$(_BasicCode)"
-      Overwrite="true" />
-  </Target>
 </Project>

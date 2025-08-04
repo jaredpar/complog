@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+namespace Basic.CompilerLog.App;
 internal static class Extensions
 {
     internal static string GetFailureString(this Exception ex)

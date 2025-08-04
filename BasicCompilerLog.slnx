@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj" />
+  <Project Path="src/Basic.CompilerLog.Util/Basic.CompilerLog.Util.csproj" />
+  <Project Path="src/Basic.CompilerLog.App/Basic.CompilerLog.App.csproj" />
+  <Project Path="src/Basic.CompilerLog/Basic.CompilerLog.csproj" />
+  <Project Path="src/Scratch/Scratch.csproj" />
+</Solution>

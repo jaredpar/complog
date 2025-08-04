@@ -14,12 +14,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
-    <ProjectReference Include="..\Basic.CompilerLog\Basic.CompilerLog.csproj" />
+    <ProjectReference Include="..\Basic.CompilerLog.App\Basic.CompilerLog.App.csproj" />
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" />
     <PackageReference Include="Basic.Reference.Assemblies.Net90" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" />
-    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Features" />
   </ItemGroup>
 
 </Project>

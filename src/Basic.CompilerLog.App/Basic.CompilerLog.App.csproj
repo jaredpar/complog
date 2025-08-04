@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EmbedAllSources>true</EmbedAllSources>
+    <NoWarn>$(NoWarn);RS2008;CS1591</NoWarn>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- Mono.Options is not signed -->
+    <NoWarn>$(NoWarn);CS8002</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
+    <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
+    <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
+    <PackageReference Include="Mono.Options" />
+    <PackageReference Include="Microsoft.CodeAnalysis" VersionOverride="$(RoslynReferenceVersion)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(RoslynReferenceVersion)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" VersionOverride="$(RoslynReferenceVersion)" />
+    <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
+  </ItemGroup>
+
+  <Target Name="GenerateConstants" BeforeTargets="BeforeBuild">
+    <PropertyGroup>
+      <_BasicToolVersion>$(PackageVersion)</_BasicToolVersion>
+      <_BasicToolVersion Condition="'$(_BasicToolVersion)' == ''">42.42.42.42</_BasicToolVersion>
+      <_BasicGeneratedConstantsFile>$(IntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
+      <_BasicCode>namespace Basic.CompilerLog.App%3B
+
+internal static partial class Constants
+{
+    public const string ToolVersion = &quot;$(_BasicToolVersion)&quot;%3B
+}
+      </_BasicCode>
+    </PropertyGroup>
+    <ItemGroup>
+      <Compile Include="$(_BasicGeneratedConstantsFile)" />
+    </ItemGroup>
+    <WriteLinesToFile
+      File="$(_BasicGeneratedConstantsFile)"
+      Lines="$(_BasicCode)"
+      Overwrite="true" />
+  </Target>
+
+</Project>

@@ -1,5 +1,6 @@
 #if NET
 using Xunit;
+using Basic.CompilerLog.App;
 
 namespace Basic.CompilerLog.UnitTests;
 

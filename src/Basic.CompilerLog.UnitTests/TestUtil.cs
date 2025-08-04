@@ -158,4 +158,40 @@ internal static class TestUtil
         var projectFile = GetProjectFile(directory);
         File.WriteAllText(projectFile, content);
     }
+
+    internal static List<string> ParseCommandLine(string commandLine)
+    {
+        var args = new List<string>();
+        var currentArg = new StringBuilder();
+        var inQuotes = false;
+
+        foreach (var c in commandLine)
+        {
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(c) && !inQuotes)
+            {
+                if (currentArg.Length > 0)
+                {
+                    args.Add(currentArg.ToString());
+                    currentArg.Clear();
+                }
+
+                continue;
+            }
+
+            currentArg.Append(c);
+        }
+
+        if (currentArg.Length > 0)
+        {
+            args.Add(currentArg.ToString());
+        }
+
+        return args;
+    }
 }

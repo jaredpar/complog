@@ -24,6 +24,7 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.Diagnostics.Tracing.Parsers.JScript;
 using Scratch;
 using TraceReloggerLib;
+using Basic.CompilerLog.App;
 
 #pragma warning disable 8321
 
@@ -467,10 +468,8 @@ void Profile()
 
 int RunComplog(string args)
 {
-    var assembly = typeof(FilterOptionSet).Assembly;
-    var program = assembly.GetType("Program", throwOnError: true);
-    var main = program!.GetMethod("<Main>$", BindingFlags.Static | BindingFlags.NonPublic);
-    return (int)main!.Invoke(null, new[] { args.Split(' ', StringSplitOptions.RemoveEmptyEntries) })!;
+    var app = new CompilerLogApp();
+    return app.Run(args.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 }
 
 void VerifyAll(string logPath)

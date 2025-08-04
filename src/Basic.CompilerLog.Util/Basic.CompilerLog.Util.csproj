@@ -9,19 +9,21 @@
     <NoWarn>$(NoWarn);RS2008;CS1591</NoWarn>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)..\key.snk</AssemblyOriginatorKeyFile>
+
   </PropertyGroup>
 
   <ItemGroup>
     <Content Include="..\..\README.md" PackagePath="\" />
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <PackageReference Include="MessagePack" />
-    <PackageReference Include="Microsoft.CodeAnalysis" />
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers">
       <IncludeAssets>contentfiles; analyzers</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
+    <PackageReference Include="Microsoft.CodeAnalysis" VersionOverride="$(RoslynReferenceVersion)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(RoslynReferenceVersion)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" VersionOverride="$(RoslynReferenceVersion)" />
     <PackageReference Include="Microsoft.Extensions.ObjectPool" />
     <PackageReference Include="MSBuild.StructuredLogger" />
     <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472'" />
