@@ -61,10 +61,11 @@ jobs:
     - name: List .NET Runtimes
       run: dotnet --list-runtimes
 
-    - name: Restore dependencies
-      run: dotnet restore
+    - name: Restore
+      run: dotnet restore -warnaserror
+
     - name: Build
-      run: dotnet build --no-restore -bl 
+      run: dotnet build --no-restore -bl -warnaserror
 
     - name: Test Linux
       uses: ./.github/actions/dotnet-test
