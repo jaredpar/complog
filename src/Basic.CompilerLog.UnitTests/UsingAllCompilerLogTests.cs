@@ -222,16 +222,16 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
     [Theory]
     [MemberData(nameof(GetExportAndBuildData))]
-    public async Task ExportAndBuild(bool includeAnalyzers, string logDataName)
+    public async Task ExportAndBuild(bool excludeAnalyzers, string logDataName)
     {
         var list = new List<Task>();
         var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
-        if (!includeAnalyzers && !logData.SupportsNoneHost)
+        if (excludeAnalyzers && !logData.SupportsNoneHost)
         {
             return;
         }
 
-        ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, includeAnalyzers, runBuild: true);
+        ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
     }
 
     public static IEnumerable<object[]> GetLoadAllCoreData()
