@@ -651,17 +651,16 @@ public sealed class CompilerLogAppTests : TestBase
     }
 
     [Theory]
-    [InlineData("", null)]
-    [InlineData("-a none", BasicAnalyzerKind.None)]
-    [InlineData("-a ondisk", BasicAnalyzerKind.OnDisk)]
-    public void ExportCompilerLog(string arg, BasicAnalyzerKind? expectedKind)
+    [InlineData("", false)]
+    [InlineData("-n", true)]
+    [InlineData("--no-analyzers", true)]
+    public void ExportCompilerLog(string arg, bool excludeAnalyzers)
     {
-        expectedKind ??= BasicAnalyzerHost.DefaultKind;
         RunWithBoth(logPath =>
         {
             using var exportDir = new TempDir();
 
-            AssertCompilerCallReader(reader => Assert.Equal(expectedKind.Value, reader.BasicAnalyzerKind));
+            AssertCompilerCallReader(reader => Assert.Equal(BasicAnalyzerKind.None, reader.BasicAnalyzerKind));
             Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} {arg} {logPath} ", RootDirectory));
 
             // Now run the generated build.cmd and see if it succeeds;
@@ -673,8 +672,7 @@ public sealed class CompilerLogAppTests : TestBase
             var rspPath = Path.Combine(exportPath, "build.rsp");
             var anyAnalyzers = File.ReadAllLines(rspPath)
                 .Any(x => x.StartsWith("/analyzer:", StringComparison.Ordinal));
-            var expectAnalyzers = expectedKind.Value != BasicAnalyzerKind.None;
-            Assert.Equal(expectAnalyzers, anyAnalyzers);
+            Assert.Equal(!excludeAnalyzers, anyAnalyzers);
         });
     }
 
@@ -899,30 +897,12 @@ public sealed class CompilerLogAppTests : TestBase
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {Fixture.ConsoleProjectPath}"));
     }
 
-    [Fact]
-    public void ReplayWithCustomCompiler()
+    [Theory]
+    [MemberData(nameof(GetCustomCompilerArgument))]
+    public void ReplayConsole(string customCompilerArgument)
     {
-        string[] versions = 
-        [
-            "8.0.3",
-            "8.0.4",
-            "9.0",
-            "10.0"
-        ];
-
-        var compilerDirs = SdkUtil
-            .GetSdkDirectoriesAndVersion()
-            .OrderByDescending(x => x.SdkVersion, StringComparer.Ordinal)
-            .Where(x => versions.Any(v => x.SdkVersion.StartsWith(v)))
-            .Select(x => Path.Combine(x.SdkDirectory, "Roslyn", "bincore"))
-            .ToList();
-        Assert.NotEmpty(compilerDirs);
-        foreach (var compilerDir in compilerDirs)
-        {
-            TestOutputHelper.WriteLine($"Testing compiler directory: {compilerDir}");
-            var exitCode = RunCompLog($"replay --compiler \"{compilerDir}\" -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
-            Assert.Equal(Constants.ExitSuccess, exitCode);
-        }
+        var exitCode = RunCompLog($"replay {customCompilerArgument} -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
     }
 
     [Fact]
@@ -941,6 +921,19 @@ public sealed class CompilerLogAppTests : TestBase
             AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logPath));
             var dir = Root.NewDirectory("generated");
             var (exitCode, output) = RunCompLogEx($"generated {logPath} -p console.csproj -a {basicAnalyzerKind} -o {dir}");
+            Assert.Equal(Constants.ExitSuccess, exitCode);
+            Assert.Single(Directory.EnumerateFiles(dir, "RegexGenerator.g.cs", SearchOption.AllDirectories));
+        });
+    }
+
+    [Theory]
+    [MemberData(nameof(GetCustomCompilerArgument))]
+    public void GeneratedCompilers(string customCompilerArgument)
+    {
+        RunWithBoth(logPath =>
+        {
+            var dir = Root.NewDirectory("generated");
+            var (exitCode, output) = RunCompLogEx($"generated {logPath} -p console.csproj -o {dir} {customCompilerArgument}");
             Assert.Equal(Constants.ExitSuccess, exitCode);
             Assert.Single(Directory.EnumerateFiles(dir, "RegexGenerator.g.cs", SearchOption.AllDirectories));
         });

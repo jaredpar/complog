@@ -80,13 +80,13 @@ public sealed partial class ExportUtil
     internal static Regex OptionsRegex { get; } = GetOptionRegex();
 
     public CompilerLogReader Reader { get; }
-    public bool IncludeAnalyzers { get; }
+    public bool ExcludeAnalyzers { get; }
     internal PathNormalizationUtil PathNormalizationUtil => Reader.PathNormalizationUtil;
 
-    public ExportUtil(CompilerLogReader reader, bool includeAnalyzers = true)
+    public ExportUtil(CompilerLogReader reader, bool excludeAnalyzers = true)
     {
         Reader = reader;
-        IncludeAnalyzers = includeAnalyzers;
+        ExcludeAnalyzers = excludeAnalyzers;
     }
 
     public void ExportAll(string destinationDir, IEnumerable<string> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
@@ -282,7 +282,7 @@ public sealed partial class ExportUtil
 
         void WriteAnalyzers()
         {
-            if (!IncludeAnalyzers)
+            if (ExcludeAnalyzers)
             {
                 return;
             }
@@ -365,7 +365,7 @@ public sealed partial class ExportUtil
                     filePath = builder.GetNewSourcePath(rawContent.OriginalFilePath);
                 }
 
-                if (!IncludeAnalyzers)
+                if (ExcludeAnalyzers)
                 {
                     commandLineList.Add(FormatPathArgument(filePath));
                 }

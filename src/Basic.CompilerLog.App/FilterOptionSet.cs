@@ -5,6 +5,7 @@ using Mono.Options;
 namespace Basic.CompilerLog.App;
 internal sealed class FilterOptionSet : OptionSet
 {
+    private string? _customCompilerFilePath;
     private bool _hasAnalyzerOptions;
     private BasicAnalyzerKind _basicAnalyzerKind;
 
@@ -12,6 +13,18 @@ internal sealed class FilterOptionSet : OptionSet
     internal bool IncludeAllKinds { get; set; }
     internal List<string> ProjectNames { get; } = new();
     internal bool Help { get; set; }
+
+    /// <summary>
+    /// This is the path to a custom compiler to use for replaying compilations.
+    /// </summary>
+    internal string? CustomCompilerFilePath
+    {
+        get
+        {
+            CheckHasAnalyzerOptions();
+            return _customCompilerFilePath;
+        }
+    }
 
     internal BasicAnalyzerKind BasicAnalyzerKind
     {
@@ -44,6 +57,7 @@ internal sealed class FilterOptionSet : OptionSet
             _basicAnalyzerKind = BasicAnalyzerHost.DefaultKind;
             Add("a|analyzers=", "analyzer load strategy: none, ondisk, inmemory", void (BasicAnalyzerKind k) => _basicAnalyzerKind = k);
             Add("n|none", "Do not run analyzers", i => { if (i is not null) _basicAnalyzerKind = BasicAnalyzerKind.None; }, hidden: true);
+            Add("c|compiler=", "path to compiler to use for replay", void (string c) => _customCompilerFilePath = c);
         }
     }
 

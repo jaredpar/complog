@@ -363,9 +363,11 @@ public sealed class CompilerLogApp(
     internal int RunExport(IEnumerable<string> args)
     {
         var baseOutputPath = "";
-        var options = new FilterOptionSet(analyzers: true)
+        var excludeAnalyzers = false;
+        var options = new FilterOptionSet()
         {
             { "o|out=", "path to export build content", o => baseOutputPath = o },
+            { "n|no-analyzers", "do not include analyzers in rsp", i => excludeAnalyzers = i is not null },
         };
 
         try
@@ -378,10 +380,10 @@ public sealed class CompilerLogApp(
             }
 
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-            using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, options.BasicAnalyzerKind);
+            using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None);
             var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
             var compilerCallNames = GetCompilerCallNames(compilerCalls);
-            var exportUtil = new ExportUtil(reader, includeAnalyzers: options.IncludeAnalyzers);
+            var exportUtil = new ExportUtil(reader, excludeAnalyzers);
 
             baseOutputPath = GetBaseOutputPath(baseOutputPath, "export");
             WriteLine($"Exporting to {baseOutputPath}");
@@ -496,12 +498,10 @@ public sealed class CompilerLogApp(
     {
         string? baseOutputPath = null;
         var severity = DiagnosticSeverity.Warning;
-        string? compilerPath = null;
         var options = new FilterOptionSet(analyzers: true)
         {
             { "severity=", "minimum severity to display (default Warning)", (DiagnosticSeverity s) => severity = s },
             { "o|out=", "path to emit to ", void (string b) => baseOutputPath = b },
-            { "c|compiler=", "path to compiler to use for replay", void (string c) => compilerPath = c },
         };
 
         try
@@ -513,15 +513,15 @@ public sealed class CompilerLogApp(
                 return ExitSuccess;
             }
 
+            if (options.CustomCompilerFilePath is not null && !IsCustomCompiler)
+            {
+                return RunInContext(["replay", .. args], options.CustomCompilerFilePath);
+            }
+
             if (baseOutputPath is not null)
             {
                 baseOutputPath = GetBaseOutputPath(baseOutputPath);
                 WriteLine($"Outputting to {baseOutputPath}");
-            }
-
-            if (compilerPath is not null && !IsCustomCompiler)
-            {
-                return RunInContext(["replay", .. args], compilerPath);
             }
 
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
@@ -592,6 +592,11 @@ public sealed class CompilerLogApp(
             {
                 PrintUsage();
                 return ExitSuccess;
+            }
+
+            if (options.CustomCompilerFilePath is not null && !IsCustomCompiler)
+            {
+                return RunInContext(["generated", .. args], options.CustomCompilerFilePath);
             }
 
             baseOutputPath = GetBaseOutputPath(baseOutputPath, "generated");
