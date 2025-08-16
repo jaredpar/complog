@@ -117,6 +117,35 @@ public abstract class TestBase : IDisposable
         yield return [null, "data.cs", true];
     }
 
+    public static IEnumerable<object[]> GetCustomCompilerArgument()
+    {
+        string[] versions =
+        [
+            "8.0.3",
+            "8.0.4",
+            "9.0",
+            "10.0"
+        ];
+
+        var compilerDirs = SdkUtil
+            .GetSdkDirectoriesAndVersion()
+            .OrderByDescending(x => x.SdkVersion, StringComparer.Ordinal)
+            .Where(x => versions.Any(v => x.SdkVersion.StartsWith(v)))
+            .Select(x => Path.Combine(x.SdkDirectory, "Roslyn", "bincore"))
+            .ToList();
+        if (compilerDirs.Count == 0)
+        {
+            throw new InvalidOperationException("No custom compiler paths found");
+        }
+
+        foreach (var compilerDir in compilerDirs)
+        {
+            yield return [$@"--compiler ""{compilerDir}"""];
+        }
+
+        yield return [""];
+    }
+
     protected TestBase(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, string name)
     {
         TestOutputHelper = testOutputHelper;
