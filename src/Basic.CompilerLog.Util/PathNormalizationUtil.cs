@@ -12,7 +12,7 @@ internal abstract class PathNormalizationUtil
     internal const string UnixRoot = @"/code/";
 
     internal const int MaxPathLength = 520;
-    internal static PathNormalizationUtil Empty { get; } = new EmtpyNormalizationUtil();
+    internal static PathNormalizationUtil Empty { get; } = new EmptyNormalizationUtil();
     internal static PathNormalizationUtil WindowsToUnix { get; } = new WindowsToUnixNormalizationUtil(UnixRoot);
     internal static PathNormalizationUtil UnixToWindows { get; } = new UnixToWindowsNormalizationUtil(WindowsRoot);
 
@@ -154,7 +154,7 @@ file sealed class UnixToWindowsNormalizationUtil(string root) : PathNormalizatio
 /// This is used when the current platform is the same as the platform that generated the log
 /// hence no normalization is needed.
 /// </summary>
-file sealed class EmtpyNormalizationUtil : PathNormalizationUtil
+file sealed class EmptyNormalizationUtil : PathNormalizationUtil
 {
     internal string Root { get; } = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? WindowsRoot : UnixRoot;
 
