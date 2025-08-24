@@ -10,6 +10,7 @@ public sealed partial class ExportUtil
 {
     private sealed class ContentBuilder
     {
+        private readonly PathNormalizationUtil pathNormalizationUtil;
         internal string DestinationDirectory { get; }
         internal string SourceDirectory { get; }
         internal string EmbeddedResourceDirectory { get; }
@@ -24,7 +25,7 @@ public sealed partial class ExportUtil
         internal ResilientDirectory GeneratedCodeDirectory { get; }
         internal ResilientDirectory BuildOutput { get; }
 
-        internal ContentBuilder(string destinationDirectory, string originalSourceDirectory)
+        internal ContentBuilder(string destinationDirectory, string originalSourceDirectory, PathNormalizationUtil pathNormalizationUtil)
         {
             DestinationDirectory = destinationDirectory;
             OriginalSourceDirectory = originalSourceDirectory;
@@ -36,12 +37,13 @@ public sealed partial class ExportUtil
             BuildOutput = new(Path.Combine(destinationDirectory, "output"), flatten: true);
             Directory.CreateDirectory(SourceDirectory);
             Directory.CreateDirectory(EmbeddedResourceDirectory);
+            this.pathNormalizationUtil = pathNormalizationUtil;
         }
 
         internal string GetNewSourcePath(string originalFilePath)
         {
             // Normalize out all of the ..\ and .\ in the path
-            originalFilePath = Path.GetFullPath(originalFilePath);
+            originalFilePath = Path.GetFullPath(pathNormalizationUtil.NormalizePath(originalFilePath));
 
             string filePath;
             if (originalFilePath.StartsWith(OriginalSourceDirectory, PathUtil.Comparison))
@@ -112,7 +114,7 @@ public sealed partial class ExportUtil
         }
 
         var originalSourceDirectory = GetSourceDirectory(Reader, compilerCall);
-        var builder = new ContentBuilder(destinationDir, originalSourceDirectory);
+        var builder = new ContentBuilder(destinationDir, originalSourceDirectory, PathNormalizationUtil);
 
         var commandLineList = new List<string>();
         bool hasNoConfigOption = false;
@@ -481,13 +483,13 @@ public sealed partial class ExportUtil
     /// for files that does _not_ need to be replicated during export. Replicating the rest of the 
     /// path is imporant as it impacts items like .editorconfig layout
     /// </summary>
-    internal static string GetSourceDirectory(CompilerLogReader reader, CompilerCall compilerCall)
+    internal string GetSourceDirectory(CompilerLogReader reader, CompilerCall compilerCall)
     {
         var sourceRootDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
 
         foreach (var content in reader.ReadAllRawContent(compilerCall, RawContentKind.AnalyzerConfig))
         {
-            var contentDir = Path.GetDirectoryName(content.OriginalFilePath)!;
+            var contentDir = Path.GetDirectoryName(PathNormalizationUtil.NormalizePath(content.OriginalFilePath))!;
             if (!sourceRootDir.StartsWith(contentDir, PathUtil.Comparison))
             {
                 continue;
