@@ -108,8 +108,8 @@ public static class BinaryLogUtil
             }
 
             var (compilerFilePath, args) = IsCSharp
-                ? ParseTaskForCompilerAndArguments(CommandLineArguments, "csc.exe", "csc.dll")
-                : ParseTaskForCompilerAndArguments(CommandLineArguments, "vbc.exe", "vbc.dll");
+                ? ParseTaskForCompilerAndArguments(CommandLineArguments, "csc")
+                : ParseTaskForCompilerAndArguments(CommandLineArguments, "vbc");
 
             return new CompilerCall(
                 projectFile,
@@ -284,12 +284,15 @@ public static class BinaryLogUtil
     /// The argument list is going to include either `dotnet exec csc.dll` or `csc.exe`. Need 
     /// to skip past that to get to the real command line.
     /// </summary>
-    internal static (string? CompilerFilePath, string[] Arguments) ParseTaskForCompilerAndArguments(string? args, string exeName, string dllName)
+    internal static (string? CompilerFilePath, string[] Arguments) ParseTaskForCompilerAndArguments(string? args, string name)
     {
         if (args is null)
         {
             return (null, []);
         }
+
+        string exeName = $"{name}.exe";
+        string dllName = $"{name}.dll";
 
         var argsStart = 0;
         var appFilePath = FindApplication(args.AsSpan(), ref argsStart, out bool isDotNet);
@@ -382,7 +385,8 @@ public static class BinaryLogUtil
                     if (char.IsWhiteSpace(args[index]))
                     {
                         var span = args.Slice(0, index);
-                        if (span.EndsWith(exeName.AsSpan()))
+                        if (span.EndsWith(exeName.AsSpan()) ||
+                            span.EndsWith(name.AsSpan()))
                         {
                             isDotNet = false;
                             return span;
