@@ -8,6 +8,9 @@
     <Packable>true</Packable>
     <NoWarn>$(NoWarn);RS2008;CS1591</NoWarn>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/jaredpar/complog</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jaredpar/complog</RepositoryUrl>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)..\key.snk</AssemblyOriginatorKeyFile>
 
