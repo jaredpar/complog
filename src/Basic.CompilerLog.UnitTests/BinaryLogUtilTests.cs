@@ -25,9 +25,11 @@ public sealed class BinaryLogUtilTests
     [InlineData("dotnet.exe exec csc.dll a.cs", "csc.dll", "a.cs")]
     [InlineData("dotnet-can-be-any-host-name exec csc.dll a.cs", "csc.dll", "a.cs")]
     [InlineData("csc.exe a.cs b.cs", "csc.exe", "a.cs b.cs")]
+    [InlineData("csc a.cs b.cs", "csc", "a.cs b.cs")]
+    [InlineData("/path/to/csc a.cs b.cs", "/path/to/csc", "a.cs b.cs")]
     public void ParseCompilerAndArgumentsCsc(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
-        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc.exe", "csc.dll");
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc");
         Assert.Equal(ToArray(expectedArgs), actualArgs);
         Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
         static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
@@ -42,18 +44,18 @@ public sealed class BinaryLogUtilTests
     [InlineData(@"""C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe"" a.cs b.cs", @"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe", "a.cs b.cs")]
     public void ParseCompilerAndArgumentsCscWindows(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
-        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc.exe", "csc.dll");
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc");
         Assert.Equal(ToArray(expectedArgs), actualArgs);
         Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
         static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
     }
 
-    [UnixTheory]
+    [Theory]
     [InlineData(@"/dotnet/dotnet exec /dotnet/sdk/bincore/csc.dll a.cs", "/dotnet/sdk/bincore/csc.dll", "a.cs")] 
     [InlineData(@"/dotnet/dotnet exec ""/dotnet/sdk/bincore/csc.dll"" a.cs", "/dotnet/sdk/bincore/csc.dll", "a.cs")] 
     public void ParseCompilerAndArgumentsCscUnix(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
-        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc.exe", "csc.dll");
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc");
         Assert.Equal(ToArray(expectedArgs), actualArgs);
         Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
         static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
@@ -63,9 +65,11 @@ public sealed class BinaryLogUtilTests
     [InlineData("dotnet.exe exec vbc.dll a.cs", "vbc.dll", "a.cs")]
     [InlineData("dotnet-can-be-any-host-name exec vbc.dll a.vb", "vbc.dll", "a.vb")]
     [InlineData("vbc.exe a.cs b.cs", "vbc.exe", "a.cs b.cs")]
+    [InlineData("vbc a.vb b.vb", "vbc", "a.vb b.vb")]
+    [InlineData("/path/to/vbc a.vb b.vb", "/path/to/vbc", "a.vb b.vb")]
     public void ParseCompilerAndArgumentsVbc(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
-        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "vbc.exe", "vbc.dll");
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "vbc");
         Assert.Equal(ToArray(expectedArgs), actualArgs);
         Assert.Equal(expectedCompilerFilePath, actualCompilerFilePath);
         static string[] ToArray(string arg) => arg.Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries);
@@ -79,13 +83,13 @@ public sealed class BinaryLogUtilTests
     [InlineData("   ")]
     public void ParseCompilerAndArgumentsBad(string inputArgs)
     {
-        Assert.Throws<InvalidOperationException>(() => BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc.exe", "csc.dll"));
+        Assert.Throws<InvalidOperationException>(() => BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc"));
     }
 
     [Fact]
     public void ParseCompilerAndArgumentsNull()
     {
-        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(null, "csc.exe", "csc.dll");
+        var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(null, "csc");
         Assert.Null(actualCompilerFilePath);
         Assert.Empty(actualArgs);
     }
