@@ -464,10 +464,13 @@ public sealed class CompilerLogApp(
                 var rspFilePath = Path.Combine(rspDirPath, GetRspFileName());
                 using var writer = new StreamWriter(rspFilePath, append: false, Encoding.UTF8);
 
-                bool hasNoConfigOption = compilerCall.GetArguments().Contains("/noconfig", StringComparer.OrdinalIgnoreCase);
+                if (!singleLine)
+                {
+                    bool hasNoConfigOption = compilerCall.GetArguments().Contains("/noconfig", StringComparer.OrdinalIgnoreCase);
+                    writer.WriteLine($"# cd {compilerCall.ProjectDirectory}");
+                    writer.WriteLine($"# csc {(hasNoConfigOption ? "/noconfig " : "")}@\"{rspFilePath}\"");
+                }
 
-                writer.WriteLine($"# cd {compilerCall.ProjectDirectory}");
-                writer.WriteLine($"# csc {(hasNoConfigOption ? "/noconfig " : "")}@\"{rspFilePath}\"");
                 ExportUtil.ExportRsp(compilerCall, writer, singleLine);
 
                 string GetRspFileName()
