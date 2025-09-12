@@ -10,13 +10,13 @@ public sealed partial class ExportUtil
 {
     private sealed class ContentBuilder
     {
-        private readonly PathNormalizationUtil pathNormalizationUtil;
+        private readonly PathNormalizationUtil _pathNormalizationUtil;
         internal string DestinationDirectory { get; }
         internal string SourceDirectory { get; }
         internal string EmbeddedResourceDirectory { get; }
 
         /// <summary>
-        /// <see cref="ExportUtil.GetSourceDirectory(CompilerLogReader, CompilerCall)"/> 
+        /// <see cref="ExportUtil.GetSourceDirectory(CompilerLogReader, CompilerCall)"/>
         /// </summary>
         internal string OriginalSourceDirectory { get; }
 
@@ -37,13 +37,13 @@ public sealed partial class ExportUtil
             BuildOutput = new(Path.Combine(destinationDirectory, "output"), flatten: true);
             Directory.CreateDirectory(SourceDirectory);
             Directory.CreateDirectory(EmbeddedResourceDirectory);
-            this.pathNormalizationUtil = pathNormalizationUtil;
+            this._pathNormalizationUtil = pathNormalizationUtil;
         }
 
         internal string GetNewSourcePath(string originalFilePath)
         {
             // Normalize out all of the ..\ and .\ in the path
-            originalFilePath = Path.GetFullPath(pathNormalizationUtil.NormalizePath(originalFilePath));
+            originalFilePath = Path.GetFullPath(_pathNormalizationUtil.NormalizePath(originalFilePath));
 
             string filePath;
             if (originalFilePath.StartsWith(OriginalSourceDirectory, PathUtil.Comparison))
@@ -67,7 +67,7 @@ public sealed partial class ExportUtil
         }
 
         /// <summary>
-        /// Writes the content to the new directory structure and returns the full path of the 
+        /// Writes the content to the new directory structure and returns the full path of the
         /// file that was written.
         /// </summary>
         internal string WriteContent(string originalFilePath, Stream stream)
@@ -190,7 +190,7 @@ public sealed partial class ExportUtil
 
             foreach (var line in arguments)
             {
-                // The only non-options are source files and those are rewritten by other 
+                // The only non-options are source files and those are rewritten by other
                 // methods and added to commandLineList
                 if (!IsOption(line.AsSpan()))
                 {
@@ -390,7 +390,7 @@ public sealed partial class ExportUtil
         {
             foreach (var resourceData in Reader.ReadAllResourceData(compilerCall))
             {
-                // The name of file resources isn't that important. It doesn't contribute to the compilation 
+                // The name of file resources isn't that important. It doesn't contribute to the compilation
                 // output. What is important is all the other parts of the string. Just need to create a
                 // unique name inside the embedded resource folder
                 var d = Reader.ReadResourceDescription(resourceData);
@@ -479,8 +479,8 @@ public sealed partial class ExportUtil
 #endif
 
     /// <summary>
-    /// This will return the logical source root for the given compilation. This is the prefix 
-    /// for files that does _not_ need to be replicated during export. Replicating the rest of the 
+    /// This will return the logical source root for the given compilation. This is the prefix
+    /// for files that does _not_ need to be replicated during export. Replicating the rest of the
     /// path is imporant as it impacts items like .editorconfig layout
     /// </summary>
     internal string GetSourceDirectory(CompilerLogReader reader, CompilerCall compilerCall)
