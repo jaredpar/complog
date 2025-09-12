@@ -443,7 +443,7 @@ public sealed class CompilerLogApp(
             using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
             if (inline)
             {
-                WriteLine($"Generating response files inline");
+                WriteLine("Generating response files inline");
             }
             else
             {
@@ -463,6 +463,14 @@ public sealed class CompilerLogApp(
                 Directory.CreateDirectory(rspDirPath);
                 var rspFilePath = Path.Combine(rspDirPath, GetRspFileName());
                 using var writer = new StreamWriter(rspFilePath, append: false, Encoding.UTF8);
+
+                if (!singleLine)
+                {
+                    bool hasNoConfigOption = compilerCall.GetArguments().Contains("/noconfig", StringComparer.OrdinalIgnoreCase);
+                    writer.WriteLine($"# cd {compilerCall.ProjectDirectory}");
+                    writer.WriteLine($"# csc {(hasNoConfigOption ? "/noconfig " : "")}@\"{rspFilePath}\"");
+                }
+
                 ExportUtil.ExportRsp(compilerCall, writer, singleLine);
 
                 string GetRspFileName()

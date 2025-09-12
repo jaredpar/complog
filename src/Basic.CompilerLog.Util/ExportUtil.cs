@@ -421,6 +421,12 @@ public sealed partial class ExportUtil
         foreach (var line in arguments)
         {
             var str = MaybeQuoteArgument(line);
+
+            if ("/noconfig".Equals(str, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             if (singleLine)
             {
                 if (!isFirst)
