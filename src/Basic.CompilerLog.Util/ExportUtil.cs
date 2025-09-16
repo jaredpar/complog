@@ -227,13 +227,31 @@ public sealed partial class ExportUtil
                 {
                     var index = span.IndexOf(':');
                     var argName = span.Slice(0, index).ToString();
-                    var originalValue = PathNormalizationUtil.NormalizePath(span.Slice(index + 1).ToString());
-                    var newValue = builder.BuildOutput.GetNewFilePath(originalValue);
-                    commandLineList.Add($@"/{argName}:{FormatPathArgument(newValue)}");
+                    var argValue = span.Slice(index + 1);
+
+                    // Handle `/errorlog:"path,version=123"`.
+                    ReadOnlySpan<char> path = argValue;
+                    var suffix = "";
+                    if (span.StartsWith("errorlog", comparison) &&
+                        argValue.IndexOf(',') is var commaIndex and >= 0)
+                    {
+                        // Remove quotes.
+                        if (argValue is ['"', .., '"'])
+                        {
+                            argValue = argValue[1..^1];
+                        }
+
+                        path = argValue[0..commaIndex];
+                        suffix = argValue[commaIndex..].ToString();
+                    }
+
+                    var originalPath = PathNormalizationUtil.NormalizePath(path.ToString());
+                    var newPath = builder.BuildOutput.GetNewFilePath(originalPath);
+                    commandLineList.Add($@"/{argName}:{FormatPathArgument(newPath + suffix)}");
 
                     if (span.StartsWith("generatedfilesout", comparison))
                     {
-                        Directory.CreateDirectory(newValue);
+                        Directory.CreateDirectory(newPath);
                     }
 
                     continue;
@@ -485,7 +503,7 @@ public sealed partial class ExportUtil
     /// <summary>
     /// This will return the logical source root for the given compilation. This is the prefix 
     /// for files that does _not_ need to be replicated during export. Replicating the rest of the 
-    /// path is imporant as it impacts items like .editorconfig layout
+    /// path is important as it impacts items like .editorconfig layout
     /// </summary>
     internal static string GetSourceDirectory(CompilerLogReader reader, CompilerCall compilerCall)
     {
