@@ -211,6 +211,7 @@ public sealed partial class ExportUtil
                     span.StartsWith("embed", comparison) ||
                     span.StartsWith("resource", comparison) ||
                     span.StartsWith("linkresource", comparison) ||
+                    span.StartsWith("sourcelink", comparison) ||
                     span.StartsWith("ruleset", comparison) ||
                     span.StartsWith("keyfile", comparison) ||
                     span.StartsWith("link", comparison))
