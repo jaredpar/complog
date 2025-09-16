@@ -1,5 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
+using NaturalSort.Extension;
 
 namespace Basic.CompilerLog.Util;
 
@@ -135,7 +136,7 @@ public sealed partial class ExportUtil
             WriteBuildCmd(sdkDir, cmdFileName);
         }
 
-        string? bestSdkDir = sdkDirectories.OrderByDescending(x => x, PathUtil.Comparer).FirstOrDefault();
+        string? bestSdkDir = sdkDirectories.OrderByDescending(x => x, PathUtil.Comparer.WithNaturalSort()).FirstOrDefault();
         if (bestSdkDir is not null)
         {
             WriteBuildCmd(bestSdkDir, "build");
