@@ -396,6 +396,15 @@ public sealed class ExportUtilTests : TestBase
             });
     }
 
+    [Fact]
+    public void ExportWithErrorLog()
+    {
+        RunDotNet("new console --name example --output .");
+        AddProjectProperty("<ErrorLog>my.example.sarif,version=1.0</ErrorLog>");
+        RunDotNet("build -bl -nr:false");
+        TestExport(1);
+    }
+
     private void EmbedLineCore(string contentFilePath)
     {
         RunDotNet($"new console --name example --output .");
