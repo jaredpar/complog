@@ -433,12 +433,19 @@ public static class RoslynUtil
             (args.EmitOptions.DebugInformationFormat is DebugInformationFormat.PortablePdb or DebugInformationFormat.Embedded);
     }
 
+    /// <inheritdoc/>
+    public static List<(string FilePath, MemoryStream Stream)> ReadGeneratedFilesFromPdb(
+        CompilerCall compilerCall,
+        CommandLineArguments args)
+        => ReadGeneratedFilesFromPdb(compilerCall.IsCSharp, compilerCall.GetDiagnosticName(), args);
+
     /// <summary>
     /// Attempt to add all the generated files from generators. When successful the generators
     /// don't need to be run when re-hydrating the compilation.
     /// </summary>
-    internal static List<(string FilePath, MemoryStream Stream)> ReadGeneratedFilesFromPdb(
-        CompilerCall compilerCall,
+    public static List<(string FilePath, MemoryStream Stream)> ReadGeneratedFilesFromPdb(
+        bool isCSharp,
+        string diagnosticName,
         CommandLineArguments args)
     {
         if (!HasGeneratedFilesInPdb(args))
@@ -449,7 +456,7 @@ public static class RoslynUtil
         Debug.Assert(args.EmitPdb);
         Debug.Assert(args.EmitOptions.DebugInformationFormat is DebugInformationFormat.Embedded or DebugInformationFormat.PortablePdb);
 
-        var (languageGuid, languageExtension) = compilerCall.IsCSharp
+        var (languageGuid, languageExtension) = isCSharp
             ? (LanguageTypeCSharp, ".cs")
             : (LanguageTypeBasic, ".vb");
 
@@ -463,7 +470,7 @@ public static class RoslynUtil
             using var peReader = new PEReader(reader);
             if (!peReader.TryOpenAssociatedPortablePdb(assemblyFilePath, OpenPortablePdbFile, out pdbReaderProvider, out var pdbPath))
             {
-                throw new InvalidOperationException("Can't find portable pdb file for {compilerCall.GetDiagnosticName()}");
+                throw new InvalidOperationException($"Can't find portable pdb file for {diagnosticName}");
             }
 
             var pdbReader = pdbReaderProvider!.GetMetadataReader();
