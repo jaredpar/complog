@@ -36,7 +36,7 @@ public sealed class ExportUtilTests : TestBase
         var diagnosticList = CompilerLogUtil.ConvertBinaryLog(binlogFilePath, compilerLogFilePath);
         Assert.Empty(diagnosticList);
 
-        // Now that we've converted to a compiler log delete all the original project code. This 
+        // Now that we've converted to a compiler log delete all the original project code. This
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
 
@@ -117,8 +117,8 @@ public sealed class ExportUtilTests : TestBase
                 Assert.True(buildResult.Succeeded, $"Cannot build {compilerCall.ProjectFileName}");
             }
 
-            // Ensure that full paths aren't getting written out to the RSP file. That makes the 
-            // build non-xcopyable. 
+            // Ensure that full paths aren't getting written out to the RSP file. That makes the
+            // build non-xcopyable.
             foreach (var line in File.ReadAllLines(Path.Combine(tempDir.DirectoryPath, "build.rsp")))
             {
                 Assert.False(line.Contains(tempDir.DirectoryPath, StringComparison.OrdinalIgnoreCase), $"Has full path: {line}");
@@ -133,7 +133,7 @@ public sealed class ExportUtilTests : TestBase
         }
         else
         {
-            Assert.True(count> 0);
+            Assert.True(count > 0);
         }
     }
 
@@ -152,7 +152,7 @@ public sealed class ExportUtilTests : TestBase
     }
 
     /// <summary>
-    /// Make sure the rsp file has the expected structure when we exclude analyzers from the 
+    /// Make sure the rsp file has the expected structure when we exclude analyzers from the
     /// export.
     /// </summary>
     [Fact]
@@ -189,7 +189,7 @@ public sealed class ExportUtilTests : TestBase
             var configFilePath = Directory
                 .EnumerateFiles(path, "console-complex.GeneratedMSBuildEditorConfig.editorconfig", SearchOption.AllDirectories)
                 .Single();
-            
+
             var found = false;
             var pattern = $"[{RoslynUtil.EscapeEditorConfigSectionPath(path)}";
             foreach (var line in File.ReadAllLines(configFilePath))
@@ -232,7 +232,7 @@ public sealed class ExportUtilTests : TestBase
     }
 
     /// <summary>
-    /// Make sure that we can round trip a /link argument. That is a reference that we are embedding 
+    /// Make sure that we can round trip a /link argument. That is a reference that we are embedding
     /// interop types for.
     /// </summary>
     [Fact]
@@ -305,7 +305,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void ExportUnixPaths()
     {
-        string[] args = 
+        string[] args =
         [
             "/workspace/runtime/test.cs",
             "/debug:full",
@@ -448,7 +448,7 @@ public sealed class ExportUtilTests : TestBase
 
         writer.GetStringBuilder().Length = 0;
         ExportUtil.ExportRsp(args, writer, singleLine: true);
-        Assert.Equal(@"""blah .cs"" /r:blah .cs ""a b.cs"" ab.cs", writer.ToString()); 
+        Assert.Equal(@"""blah .cs"" /r:blah .cs ""a b.cs"" ab.cs", writer.ToString());
     }
 
     [Fact]
@@ -493,4 +493,29 @@ public sealed class ExportUtilTests : TestBase
         exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkDirectories());
 #endif
     }
+
+#if NET
+    [Fact]
+    public void ExportCrossPlatformLog()
+    {
+        var isWindows = OperatingSystem.IsWindows();
+        var logData = isWindows ? Fixture.LinuxConsoleFromLog.Value : Fixture.WindowsConsoleFromLog.Value;
+        TestExport(logData.CompilerLogPath, expectedCount: 1, runBuild: true, verifyExportCallback: tempPath =>
+        {
+            var allCsPaths = Directory.GetFiles(Path.Join(tempPath, "src"), "*.cs", SearchOption.AllDirectories);
+            Assert.NotEmpty(allCsPaths);
+            foreach (var csPath in allCsPaths)
+            {
+                if (isWindows)
+                {
+                    Assert.DoesNotContain('/', csPath);
+                }
+                else
+                {
+                    Assert.DoesNotContain('\\', csPath);
+                }
+            }
+        });
+    }
+#endif
 }
