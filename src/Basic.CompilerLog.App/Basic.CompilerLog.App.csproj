@@ -10,12 +10,15 @@
 
     <!-- Mono.Options is not signed -->
     <NoWarn>$(NoWarn);CS8002</NoWarn>
+
+    <_BasicGeneratedConstantsFile>$(BaseIntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
+    <Compile Include="$(_BasicGeneratedConstantsFile)" />
     <PackageReference Include="Mono.Options" />
     <PackageReference Include="Microsoft.CodeAnalysis" VersionOverride="$(RoslynReferenceVersion)" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(RoslynReferenceVersion)" />
@@ -23,13 +26,6 @@
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <_BasicGeneratedConstantsFile>$(BaseIntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
-  </PropertyGroup>
-  <ItemGroup>
-    <!-- Needs to be outside a Target to work in design-time builds. -->
-    <Compile Include="$(_BasicGeneratedConstantsFile)" />
-  </ItemGroup>
   <Target Name="GenerateConstants" BeforeTargets="BeforeBuild">
     <PropertyGroup>
       <_BasicToolVersion>$(PackageVersion)</_BasicToolVersion>
