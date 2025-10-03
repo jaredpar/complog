@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
@@ -23,11 +23,17 @@
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <_BasicGeneratedConstantsFile>$(BaseIntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Needs to be outside a Target to work in design-time builds. -->
+    <Compile Include="$(_BasicGeneratedConstantsFile)" />
+  </ItemGroup>
   <Target Name="GenerateConstants" BeforeTargets="BeforeBuild">
     <PropertyGroup>
       <_BasicToolVersion>$(PackageVersion)</_BasicToolVersion>
       <_BasicToolVersion Condition="'$(_BasicToolVersion)' == ''">42.42.42.42</_BasicToolVersion>
-      <_BasicGeneratedConstantsFile>$(IntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
       <_BasicCode>namespace Basic.CompilerLog.App%3B
 
 internal static partial class Constants
@@ -36,9 +42,6 @@ internal static partial class Constants
 }
       </_BasicCode>
     </PropertyGroup>
-    <ItemGroup>
-      <Compile Include="$(_BasicGeneratedConstantsFile)" />
-    </ItemGroup>
     <WriteLinesToFile
       File="$(_BasicGeneratedConstantsFile)"
       Lines="$(_BasicCode)"
