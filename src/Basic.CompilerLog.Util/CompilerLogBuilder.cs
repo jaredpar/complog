@@ -98,7 +98,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddResources(dataPack, commandLineArguments);
             AddEmbeds(dataPack, compilerCall, commandLineArguments);
             AddContentIf(dataPack, RawContentKind.SourceLink, commandLineArguments.SourceLink);
-            AddContentIf(dataPack, RawContentKind.RuleSet, commandLineArguments.RuleSetPath);
+            AddRuleSetWithIncludes(dataPack, commandLineArguments.RuleSetPath);
             AddContentIf(dataPack, RawContentKind.AppConfig, commandLineArguments.AppConfigPath);
             AddContentIf(dataPack, RawContentKind.Win32Resource, commandLineArguments.Win32ResourceFile);
             AddContentIf(dataPack, RawContentKind.Win32Icon, commandLineArguments.Win32Icon);
@@ -113,6 +113,59 @@ internal sealed class CompilerLogBuilder : IDisposable
             if (Resolve(filePath) is { } resolvedFilePath)
             {
                 AddContentFromDisk(dataPack, kind, resolvedFilePath);
+            }
+        }
+
+        void AddRuleSetWithIncludes(CompilationDataPack dataPack, string? ruleSetPath)
+        {
+            if (ruleSetPath is null)
+            {
+                return;
+            }
+
+            var resolvedPath = Resolve(ruleSetPath);
+            if (resolvedPath is null)
+            {
+                return;
+            }
+
+            var visited = new HashSet<string>(PathUtil.Comparer);
+            AddRuleSetRecursive(dataPack, resolvedPath, visited);
+        }
+
+        void AddRuleSetRecursive(CompilationDataPack dataPack, string ruleSetPath, HashSet<string> visited)
+        {
+            // Normalize the path to avoid processing the same file multiple times
+            var normalizedPath = Path.GetFullPath(ruleSetPath);
+            if (!visited.Add(normalizedPath))
+            {
+                return;
+            }
+
+            // Add the ruleset file itself
+            if (!AddContentFromDisk(dataPack, RawContentKind.RuleSet, ruleSetPath))
+            {
+                return;
+            }
+
+            // Parse the ruleset file to find nested includes
+            try
+            {
+                var includes = RoslynUtil.GetRuleSetIncludes(ruleSetPath);
+                var ruleSetDirectory = Path.GetDirectoryName(ruleSetPath)!;
+
+                foreach (var includePath in includes)
+                {
+                    var resolvedIncludePath = Path.IsPathRooted(includePath)
+                        ? includePath
+                        : Path.Combine(ruleSetDirectory, includePath);
+
+                    AddRuleSetRecursive(dataPack, resolvedIncludePath, visited);
+                }
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Add($"Error processing ruleset includes in {ruleSetPath}: {ex.Message}");
             }
         }
 
