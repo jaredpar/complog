@@ -370,11 +370,14 @@ public sealed partial class ExportUtil
                     var content = reader.ReadToEnd();
                     var rewrittenContent = RoslynUtil.RewriteRuleSetIncludes(content, includePath =>
                     {
+                        // Normalize path separators to the current platform
+                        var normalizedIncludePath = includePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+                        
                         // Resolve the include path relative to the current ruleset
                         var ruleSetDirectory = Path.GetDirectoryName(rawContent.OriginalFilePath)!;
-                        var resolvedIncludePath = Path.IsPathRooted(includePath)
-                            ? includePath
-                            : Path.Combine(ruleSetDirectory, includePath);
+                        var resolvedIncludePath = Path.IsPathRooted(normalizedIncludePath)
+                            ? normalizedIncludePath
+                            : Path.Combine(ruleSetDirectory, normalizedIncludePath);
                         
                         // Get the new paths for both the current ruleset and the included one
                         var currentRuleSetNewPath = builder.GetNewSourcePath(rawContent.OriginalFilePath);

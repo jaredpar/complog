@@ -156,9 +156,12 @@ internal sealed class CompilerLogBuilder : IDisposable
 
                 foreach (var includePath in includes)
                 {
-                    var resolvedIncludePath = Path.IsPathRooted(includePath)
-                        ? includePath
-                        : Path.Combine(ruleSetDirectory, includePath);
+                    // Normalize path separators to the current platform
+                    var normalizedIncludePath = includePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+                    
+                    var resolvedIncludePath = Path.IsPathRooted(normalizedIncludePath)
+                        ? normalizedIncludePath
+                        : Path.Combine(ruleSetDirectory, normalizedIncludePath);
 
                     AddRuleSetRecursive(dataPack, resolvedIncludePath, visited);
                 }
