@@ -977,4 +977,78 @@ public static class RoslynUtil
         var dictionary = (ImmutableDictionary<LocalizableString, Exception>)obj;
         field.SetValue(null, ImmutableDictionary<LocalizableString, Exception>.Empty.WithComparers(dictionary.KeyComparer, dictionary.ValueComparer));
     }
+
+    /// <summary>
+    /// Extracts all Include element Path attributes from a ruleset file
+    /// </summary>
+    internal static List<string> GetRuleSetIncludes(string ruleSetPath)
+    {
+        var includes = new List<string>();
+        
+        try
+        {
+            var doc = new XmlDocument();
+            doc.Load(ruleSetPath);
+            
+            var includeNodes = doc.SelectNodes("//Include[@Path]");
+            if (includeNodes is not null)
+            {
+                foreach (XmlNode node in includeNodes)
+                {
+                    var pathAttr = node.Attributes?["Path"];
+                    if (pathAttr?.Value is { } path)
+                    {
+                        includes.Add(path);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // If we can't parse the file, just return empty list
+        }
+
+        return includes;
+    }
+
+    /// <summary>
+    /// Rewrites Include element Path attributes in a ruleset file to point to new locations
+    /// </summary>
+    internal static string RewriteRuleSetIncludes(string ruleSetContent, Func<string, string> pathMapFunc)
+    {
+        try
+        {
+            var doc = new XmlDocument();
+            doc.LoadXml(ruleSetContent);
+            
+            var includeNodes = doc.SelectNodes("//Include[@Path]");
+            if (includeNodes is not null)
+            {
+                foreach (XmlNode node in includeNodes)
+                {
+                    var pathAttr = node.Attributes?["Path"];
+                    if (pathAttr?.Value is { } path)
+                    {
+                        var newPath = pathMapFunc(path);
+                        pathAttr.Value = newPath;
+                    }
+                }
+            }
+
+            using var stringWriter = new StringWriter();
+            using var xmlWriter = XmlWriter.Create(stringWriter, new XmlWriterSettings 
+            { 
+                Indent = true,
+                OmitXmlDeclaration = false,
+                Encoding = Encoding.UTF8
+            });
+            doc.Save(xmlWriter);
+            return stringWriter.ToString();
+        }
+        catch
+        {
+            // If we can't parse or rewrite, return original content
+            return ruleSetContent;
+        }
+    }
 }

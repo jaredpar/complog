@@ -42,6 +42,72 @@ namespace Basic.CompilerLog.Util
             ref (span.Length != 0) 
                 ? ref MemoryMarshal.GetReference(span)
                 : ref Unsafe.AsRef<T>((void*)1);
+
+#if !NET
+        /// <summary>
+        /// Gets a relative path from one directory to another for frameworks that don't have Path.GetRelativePath
+        /// </summary>
+        internal static string GetRelativePath(string relativeTo, string path)
+        {
+            // Normalize paths
+            relativeTo = Path.GetFullPath(relativeTo);
+            path = Path.GetFullPath(path);
+
+            // If they're on different drives (Windows), can't create relative path
+            if (Path.IsPathRooted(relativeTo) && Path.IsPathRooted(path))
+            {
+                var relativeToRoot = Path.GetPathRoot(relativeTo);
+                var pathRoot = Path.GetPathRoot(path);
+                if (!string.Equals(relativeToRoot, pathRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    return path;
+                }
+            }
+
+            var relativeToParts = relativeTo.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var pathParts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            // Find common prefix
+            int commonLength = 0;
+            int minLength = Math.Min(relativeToParts.Length, pathParts.Length);
+            for (int i = 0; i < minLength; i++)
+            {
+                if (!string.Equals(relativeToParts[i], pathParts[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+                commonLength = i + 1;
+            }
+
+            // Build the relative path
+            var result = new StringBuilder();
+            
+            // Add .. for each directory in relativeTo that's not in the common prefix
+            for (int i = commonLength; i < relativeToParts.Length; i++)
+            {
+                if (result.Length > 0)
+                {
+                    result.Append(Path.DirectorySeparatorChar);
+                }
+                result.Append("..");
+            }
+
+            // Add the remaining parts from path
+            for (int i = commonLength; i < pathParts.Length; i++)
+            {
+                if (result.Length > 0)
+                {
+                    result.Append(Path.DirectorySeparatorChar);
+                }
+                result.Append(pathParts[i]);
+            }
+
+            return result.Length == 0 ? "." : result.ToString();
+        }
+#else
+        internal static string GetRelativePath(string relativeTo, string path) =>
+            Path.GetRelativePath(relativeTo, path);
+#endif
     }
 
 #if !NET

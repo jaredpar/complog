@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Text;
+using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using NaturalSort.Extension;
 
@@ -360,6 +361,33 @@ public sealed partial class ExportUtil
                         var content = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, x => builder.GetNewSourcePath(x));
                         filePath = builder.WriteContent(rawContent.OriginalFilePath, content);
                     }
+                }
+                else if (rawContent.Kind == RawContentKind.RuleSet)
+                {
+                    // Rewrite Include paths in rulesets to point to the new locations
+                    using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
+                    using var reader = new StreamReader(contentStream, Encoding.UTF8);
+                    var content = reader.ReadToEnd();
+                    var rewrittenContent = RoslynUtil.RewriteRuleSetIncludes(content, includePath =>
+                    {
+                        // Normalize path separators to the current platform
+                        var normalizedIncludePath = includePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+                        
+                        // Resolve the include path relative to the current ruleset
+                        var ruleSetDirectory = Path.GetDirectoryName(rawContent.OriginalFilePath)!;
+                        var resolvedIncludePath = Path.IsPathRooted(normalizedIncludePath)
+                            ? normalizedIncludePath
+                            : Path.Combine(ruleSetDirectory, normalizedIncludePath);
+                        
+                        // Get the new paths for both the current ruleset and the included one
+                        var currentRuleSetNewPath = builder.GetNewSourcePath(rawContent.OriginalFilePath);
+                        var includedRuleSetNewPath = builder.GetNewSourcePath(resolvedIncludePath);
+                        
+                        // Compute the relative path from the current ruleset to the included one
+                        var currentRuleSetNewDir = Path.GetDirectoryName(currentRuleSetNewPath)!;
+                        return Polyfill.GetRelativePath(currentRuleSetNewDir, includedRuleSetNewPath);
+                    });
+                    filePath = builder.WriteContent(rawContent.OriginalFilePath, rewrittenContent);
                 }
 
                 if (filePath is null)
