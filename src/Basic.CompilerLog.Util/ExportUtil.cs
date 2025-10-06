@@ -375,7 +375,14 @@ public sealed partial class ExportUtil
                         var resolvedIncludePath = Path.IsPathRooted(includePath)
                             ? includePath
                             : Path.Combine(ruleSetDirectory, includePath);
-                        return builder.GetNewSourcePath(resolvedIncludePath);
+                        
+                        // Get the new paths for both the current ruleset and the included one
+                        var currentRuleSetNewPath = builder.GetNewSourcePath(rawContent.OriginalFilePath);
+                        var includedRuleSetNewPath = builder.GetNewSourcePath(resolvedIncludePath);
+                        
+                        // Compute the relative path from the current ruleset to the included one
+                        var currentRuleSetNewDir = Path.GetDirectoryName(currentRuleSetNewPath)!;
+                        return Polyfill.GetRelativePath(currentRuleSetNewDir, includedRuleSetNewPath);
                     });
                     filePath = builder.WriteContent(rawContent.OriginalFilePath, rewrittenContent);
                 }

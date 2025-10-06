@@ -232,6 +232,89 @@ public sealed class ExportUtilTests : TestBase
     }
 
     /// <summary>
+    /// Test nested ruleset support - verify that included rulesets are captured and their paths rewritten
+    /// </summary>
+    [Fact]
+    public void ConsoleWithNestedRuleset()
+    {
+        RunDotNet("new console --name example --output .");
+        
+        // Create a base ruleset that will be included
+        File.WriteAllText(Path.Combine(RootDirectory, "BaseRules.ruleset"), """
+            <?xml version="1.0" encoding="utf-8"?>
+            <RuleSet Name="Base Rules" Description="Base ruleset" ToolsVersion="16.0">
+                <Rules AnalyzerId="Microsoft.CodeQuality.Analyzers" RuleNamespace="Microsoft.CodeQuality.Analyzers">
+                    <Rule Id="CA1802" Action="Error" />
+                </Rules>
+            </RuleSet>
+            """);
+
+        // Create a nested ruleset in a subdirectory
+        var nestedDir = Path.Combine(RootDirectory, "nested");
+        Directory.CreateDirectory(nestedDir);
+        File.WriteAllText(Path.Combine(nestedDir, "NestedRules.ruleset"), """
+            <?xml version="1.0" encoding="utf-8"?>
+            <RuleSet Name="Nested Rules" Description="Nested ruleset" ToolsVersion="16.0">
+                <Rules AnalyzerId="Microsoft.CodeQuality.Analyzers" RuleNamespace="Microsoft.CodeQuality.Analyzers">
+                    <Rule Id="CA1814" Action="Info" />
+                </Rules>
+            </RuleSet>
+            """);
+
+        // Create the main ruleset that includes the others
+        File.WriteAllText(Path.Combine(RootDirectory, "MainRules.ruleset"), """
+            <?xml version="1.0" encoding="utf-8"?>
+            <RuleSet Name="Main Rules" Description="Main ruleset with includes" ToolsVersion="16.0">
+                <Include Path="BaseRules.ruleset" Action="Default" />
+                <Include Path="nested\NestedRules.ruleset" Action="Default" />
+                <Rules AnalyzerId="Microsoft.CodeQuality.Analyzers" RuleNamespace="Microsoft.CodeQuality.Analyzers">
+                    <Rule Id="CA1823" Action="None" />
+                </Rules>
+            </RuleSet>
+            """);
+
+        AddProjectProperty($"<CodeAnalysisRuleset>{Path.Combine(RootDirectory, "MainRules.ruleset")}</CodeAnalysisRuleset>");
+        
+        RunDotNet("build -bl -nr:false");
+
+        var binlog = Path.Combine(RootDirectory, "msbuild.binlog");
+        var complog = Path.Combine(RootDirectory, "msbuild.complog");
+        var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
+        Assert.True(result.Succeeded);
+
+        TestExport(
+            compilerLogFilePath: complog,
+            expectedCount: 1,
+            excludeAnalyzers: true,
+            verifyExportCallback: void (string exportPath) =>
+            {
+                // Verify the main ruleset was exported
+                var mainRulesetPath = Path.Combine(exportPath, "src", "MainRules.ruleset");
+                Assert.True(File.Exists(mainRulesetPath), $"Main ruleset not found at {mainRulesetPath}");
+
+                // Verify the base ruleset was exported
+                var baseRulesetPath = Path.Combine(exportPath, "src", "BaseRules.ruleset");
+                Assert.True(File.Exists(baseRulesetPath), $"Base ruleset not found at {baseRulesetPath}");
+
+                // Verify the nested ruleset was exported
+                var nestedRulesetPath = Path.Combine(exportPath, "src", "nested", "NestedRules.ruleset");
+                Assert.True(File.Exists(nestedRulesetPath), $"Nested ruleset not found at {nestedRulesetPath}");
+
+                // Verify that the Include paths in the main ruleset were rewritten
+                var mainRulesetContent = File.ReadAllText(mainRulesetPath);
+                Assert.Contains("BaseRules.ruleset", mainRulesetContent);
+                Assert.Contains(Path.Combine("nested", "NestedRules.ruleset"), mainRulesetContent);
+                
+                // Verify the build.rsp references the main ruleset
+                var rspLines = File.ReadAllLines(Path.Combine(exportPath, "build.rsp"));
+                var rulesetLine = rspLines.FirstOrDefault(l => l.Contains("/ruleset:"));
+                Assert.NotNull(rulesetLine);
+                Assert.Contains("MainRules.ruleset", rulesetLine);
+            },
+            runBuild: false);
+    }
+
+    /// <summary>
     /// Make sure that we can round trip a /link argument. That is a reference that we are embedding
     /// interop types for.
     /// </summary>
