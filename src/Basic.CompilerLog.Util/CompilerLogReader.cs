@@ -32,7 +32,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     }
 
     /// <summary>
-    /// Stores the underlying archive this reader is using. Do not use directly. Instead 
+    /// Stores the underlying archive this reader is using. Do not use directly. Instead
     /// use <see cref="ZipArchive"/>  which will throw if the reader is disposed
     /// </summary>
     private ZipArchive _zipArchiveCore;
@@ -43,7 +43,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
 
     /// <summary>
-    /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that 
+    /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
     /// produced it. This is useful for building up items like a project reference map.
     /// </summary>
     private readonly Dictionary<Guid, int> _mvidToCompilerCallIndexMap = new();
@@ -235,7 +235,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var currentKind = (RawContentKind)tuple.Item1;
             if (kind is not { } k || currentKind == k)
             {
-                yield return new RawContent(tuple.Item2.FilePath, NormalizePath(tuple.Item2.FilePath), tuple.Item2.ContentHash, currentKind);
+                yield return new RawContent(NormalizePath(tuple.Item2.FilePath), tuple.Item2.ContentHash, currentKind);
             }
         }
     }
@@ -286,7 +286,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         for (int i = 0; i < Count; i++)
         {
             var pack = GetOrReadCompilationInfoPack(i);
-            if (pack.CompilerFilePath is not null && 
+            if (pack.CompilerFilePath is not null &&
                 pack.CompilerAssemblyName is not null &&
                 !map.ContainsKey(pack.CompilerFilePath))
             {
@@ -404,7 +404,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                     break;
                 }
 
-                // not exposed as #line embeds don't matter for most API usages, it's only used in 
+                // not exposed as #line embeds don't matter for most API usages, it's only used in
                 // command line compiles
                 case RawContentKind.EmbedLine:
                     break;
@@ -638,8 +638,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
             if (kind is { } k)
             {
-                object id = rawContent.ContentHash ?? rawContent.NormalizedFilePath;
-                var data = new SourceTextData(id, rawContent.NormalizedFilePath, dataPack.ChecksumAlgorithm, k);
+                object id = rawContent.ContentHash ?? rawContent.FilePath;
+                var data = new SourceTextData(id, rawContent.FilePath, dataPack.ChecksumAlgorithm, k);
                 list.Add(data);
             }
         }
@@ -677,7 +677,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var list = new List<(SourceText SourceText, string FilePath)>();
         foreach (var rawContent in ReadAllRawContent(index, RawContentKind.GeneratedText))
         {
-            list.Add((GetSourceText(rawContent.ContentHash!, dataPack.ChecksumAlgorithm), rawContent.NormalizedFilePath));
+            list.Add((GetSourceText(rawContent.ContentHash!, dataPack.ChecksumAlgorithm), rawContent.FilePath));
         }
         return list;
     }

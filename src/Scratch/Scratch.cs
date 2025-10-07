@@ -347,7 +347,7 @@ static void PrintGeneratedFiles()
         Console.WriteLine(cc.GetDiagnosticName());
         foreach (var file in generatedFiles)
         {
-            Console.WriteLine($"  {file.OriginalFilePath}");
+            Console.WriteLine($"  {file.FilePath}");
         }
     }
 }
@@ -539,7 +539,7 @@ static async System.Threading.Tasks.Task SolutionScratchAsync(string binlogFileP
 
 static void TestDiagnostics(string binlogFilePath)
 {
-    using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath); 
+    using var compilerLogStream = CompilerLogUtil.GetOrCreateCompilerLogStream(binlogFilePath);
     using var reader = CompilerLogReader.Create(compilerLogStream);
     for (int i = 0; i < reader.Count; i++)
     {

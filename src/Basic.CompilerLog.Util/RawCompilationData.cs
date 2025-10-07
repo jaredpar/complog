@@ -36,24 +36,25 @@ internal enum RawContentKind
 
 internal readonly struct RawContent
 {
-    internal string OriginalFilePath { get; }
-    internal string NormalizedFilePath { get; }
+    internal string FilePath { get; }
+    /// <summary>
+    /// A hash of the content if available. This will be null if the content was not available when
+    /// the log was created.
+    /// </summary>
     internal string? ContentHash { get; }
     internal RawContentKind Kind { get; }
 
     internal RawContent(
-        string originalFilePath,
-        string normalizedFilePath,
+        string filePath,
         string? contentHash,
         RawContentKind kind)
     {
-        OriginalFilePath = originalFilePath;
-        NormalizedFilePath = normalizedFilePath;
+        FilePath = filePath;
         ContentHash = contentHash;
         Kind = kind;
     }
 
     [ExcludeFromCodeCoverage]
-    public override string ToString() => $"{Path.GetFileName(OriginalFilePath)} {Kind}";
+    public override string ToString() => $"{Path.GetFileName(FilePath)} {Kind}";
 }
 
