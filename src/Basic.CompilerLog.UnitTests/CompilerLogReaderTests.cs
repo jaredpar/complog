@@ -33,7 +33,7 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     /// <summary>
-    /// Can we process an extra file in the major templates. The file name should not impact 
+    /// Can we process an extra file in the major templates. The file name should not impact
     /// the content of the file.
     /// </summary>
     /// <param name="template"></param>
@@ -50,7 +50,7 @@ public sealed class CompilerLogReaderTests : TestBase
         RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
-        var extraData = reader.ReadAllRawContent(0).Single(x => Path.GetFileName(x.OriginalFilePath) == fileName);
+        var extraData = reader.ReadAllRawContent(0).Single(x => Path.GetFileName(x.FilePath) == fileName);
         Assert.Equal("84C9FAFCF8C92F347B96D26B149295128B08B07A3C4385789FE4758A2B520FDE", extraData.ContentHash);
         var contentBytes = reader.GetContentBytes(extraData.ContentHash!);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
@@ -459,7 +459,7 @@ public sealed class CompilerLogReaderTests : TestBase
             var compilationData = reader.ReadCompilationData(compilerCall);
             var diagnostics = compilationData.GetDiagnostics();
 
-            // This may seem counter intuitive but the compiler does not issue an error on a missing 
+            // This may seem counter intuitive but the compiler does not issue an error on a missing
             // additional file. The error only happens if something tries to read the file
             Assert.Empty(diagnostics);
 

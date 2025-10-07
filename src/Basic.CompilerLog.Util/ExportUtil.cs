@@ -347,7 +347,7 @@ public sealed partial class ExportUtil
 
                 if (rawContent.ContentHash is null)
                 {
-                    commandLineList.Add($@"{prefix}{FormatPathArgument(builder.GetNewSourcePath(rawContent.OriginalFilePath))}");
+                    commandLineList.Add($@"{prefix}{FormatPathArgument(builder.GetNewSourcePath(rawContent.FilePath))}");
                     continue;
                 }
 
@@ -358,14 +358,14 @@ public sealed partial class ExportUtil
                     if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
                     {
                         var content = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, x => builder.GetNewSourcePath(x));
-                        filePath = builder.WriteContent(rawContent.OriginalFilePath, content);
+                        filePath = builder.WriteContent(rawContent.FilePath, content);
                     }
                 }
 
                 if (filePath is null)
                 {
                     using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                    filePath = builder.WriteContent(rawContent.OriginalFilePath, contentStream);
+                    filePath = builder.WriteContent(rawContent.FilePath, contentStream);
                 }
 
                 commandLineList.Add($@"{prefix}{FormatPathArgument(filePath)}");
@@ -380,11 +380,11 @@ public sealed partial class ExportUtil
                 if (rawContent.ContentHash is not null)
                 {
                     using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                    filePath = builder.GeneratedCodeDirectory.WriteContent(rawContent.OriginalFilePath, contentStream);
+                    filePath = builder.GeneratedCodeDirectory.WriteContent(rawContent.FilePath, contentStream);
                 }
                 else
                 {
-                    filePath = builder.GetNewSourcePath(rawContent.OriginalFilePath);
+                    filePath = builder.GetNewSourcePath(rawContent.FilePath);
                 }
 
                 if (ExcludeAnalyzers)
@@ -401,7 +401,7 @@ public sealed partial class ExportUtil
                 if (rawContent.ContentHash is not null)
                 {
                     using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                    _ = builder.WriteContent(rawContent.OriginalFilePath, contentStream);
+                    _ = builder.WriteContent(rawContent.FilePath, contentStream);
                 }
             }
         }
@@ -515,7 +515,7 @@ public sealed partial class ExportUtil
 
         foreach (var content in reader.ReadAllRawContent(compilerCall, RawContentKind.AnalyzerConfig))
         {
-            var contentDir = Path.GetDirectoryName(PathNormalizationUtil.NormalizePath(content.OriginalFilePath))!;
+            var contentDir = Path.GetDirectoryName(PathNormalizationUtil.NormalizePath(content.FilePath))!;
             if (!sourceRootDir.StartsWith(contentDir, PathUtil.Comparison))
             {
                 continue;
