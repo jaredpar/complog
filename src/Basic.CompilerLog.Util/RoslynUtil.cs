@@ -74,10 +74,10 @@ public static class RoslynUtil
     internal delegate bool SourceTextLineFunc(ReadOnlySpan<char> line, ReadOnlySpan<char> newLine);
 
     /// <summary>
-    /// Get a source text 
+    /// Get a source text
     /// </summary>
     /// <remarks>
-    /// TODO: need to expose the real API for how the compiler reads source files. 
+    /// TODO: need to expose the real API for how the compiler reads source files.
     /// move this comment to the rehydration code when we write it.
     /// </remarks>
     internal static SourceText GetSourceText(Stream stream, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded)
@@ -154,37 +154,12 @@ public static class RoslynUtil
 
 
     internal static (SyntaxTreeOptionsProvider, AnalyzerConfigOptionsProvider) CreateOptionsProviders(
-        List<(SourceText SourceText, string Path)> analyzerConfigList,
         IEnumerable<SyntaxTree> syntaxTrees,
         IEnumerable<AdditionalText> additionalTexts,
-        PathNormalizationUtil? pathNormalizationUtil = null)
+        AnalyzerConfigSet? analyzerConfigSet)
     {
-        pathNormalizationUtil ??= PathNormalizationUtil.Empty;
-
-        AnalyzerConfigOptionsResult globalConfigOptions = default;
-        AnalyzerConfigSet? analyzerConfigSet = null;
+        AnalyzerConfigOptionsResult globalConfigOptions = analyzerConfigSet?.GlobalConfigOptions ?? default;
         var resultList = new List<(object, AnalyzerConfigOptionsResult)>();
-
-        if (analyzerConfigList.Count > 0)
-        {
-            var list = new List<AnalyzerConfig>();
-            foreach (var tuple in analyzerConfigList)
-            {
-                var configText = tuple.SourceText;
-                if (IsGlobalEditorConfigWithSection(configText))
-                {
-                    var configTextContent = RewriteGlobalEditorConfigSections(
-                        configText,
-                        path => pathNormalizationUtil.NormalizePath(path));
-                    configText = SourceText.From(configTextContent, configText.Encoding);
-                }
-
-                list.Add(AnalyzerConfig.Parse(configText, tuple.Path));
-            }
-
-            analyzerConfigSet = AnalyzerConfigSet.Create(list);
-            globalConfigOptions = analyzerConfigSet.GlobalConfigOptions;
-        }
 
         foreach (var syntaxTree in syntaxTrees)
         {
@@ -197,11 +172,11 @@ public static class RoslynUtil
         }
 
         var syntaxOptionsProvider = new BasicSyntaxTreeOptionsProvider(
-            isConfigEmpty: analyzerConfigList.Count == 0,
+            isConfigEmpty: analyzerConfigSet is null,
             globalConfigOptions,
             resultList);
         var analyzerConfigOptionsProvider = new BasicAnalyzerConfigOptionsProvider(
-            isConfigEmpty: analyzerConfigList.Count == 0,
+            isConfigEmpty: analyzerConfigSet is null,
             globalConfigOptions,
             resultList);
         return (syntaxOptionsProvider, analyzerConfigOptionsProvider);
@@ -214,16 +189,15 @@ public static class RoslynUtil
         CSharpCompilationOptions compilationOptions,
         List<(SourceText SourceText, string Path)> sourceTexts,
         List<MetadataReference> references,
-        List<(SourceText SourceText, string Path)> analyzerConfigs,
+        AnalyzerConfigSet? analyzerConfigSet,
         ImmutableArray<AdditionalText> additionalTexts,
         EmitOptions emitOptions,
         EmitData emitData,
         BasicAnalyzerHost basicAnalyzerHost,
-        PathNormalizationUtil pathNormalizationUtil,
         ImmutableArray<Diagnostic> creationDiagnostics)
     {
         var syntaxTrees = ParseAllCSharp(sourceTexts, parseOptions);
-        var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, pathNormalizationUtil);
+        var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTexts, analyzerConfigSet);
 
         compilationOptions = compilationOptions
             .WithSyntaxTreeOptionsProvider(syntaxProvider)
@@ -254,16 +228,15 @@ public static class RoslynUtil
         VisualBasicCompilationOptions compilationOptions,
         List<(SourceText SourceText, string Path)> sourceTexts,
         List<MetadataReference> references,
-        List<(SourceText SourceText, string Path)> analyzerConfigs,
+        AnalyzerConfigSet? analyzerConfigSet,
         ImmutableArray<AdditionalText> additionalTexts,
         EmitOptions emitOptions,
         EmitData emitData,
         BasicAnalyzerHost basicAnalyzerHost,
-        PathNormalizationUtil pathNormalizationUtil,
         ImmutableArray<Diagnostic> creationDiagnostics)
     {
         var syntaxTrees = ParseAllVisualBasic(sourceTexts, parseOptions);
-        var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(analyzerConfigs, syntaxTrees, additionalTexts, pathNormalizationUtil);
+        var (syntaxProvider, analyzerProvider) = CreateOptionsProviders(syntaxTrees, additionalTexts, analyzerConfigSet);
 
         compilationOptions = compilationOptions
             .WithSyntaxTreeOptionsProvider(syntaxProvider)
@@ -337,7 +310,7 @@ public static class RoslynUtil
         return path;
     }
 
-    internal static string GetMissingFileDiagnosticMessage(string filePath) => 
+    internal static string GetMissingFileDiagnosticMessage(string filePath) =>
         $"Missing file, either build did not happen on this machine or the environment has changed: {filePath}";
 
     /// <summary>
@@ -428,7 +401,7 @@ public static class RoslynUtil
     /// </summary>
     internal static bool HasGeneratedFilesInPdb(CommandLineArguments args)
     {
-        return 
+        return
             args.EmitPdb &&
             (args.EmitOptions.DebugInformationFormat is DebugInformationFormat.PortablePdb or DebugInformationFormat.Embedded);
     }
@@ -563,7 +536,7 @@ public static class RoslynUtil
             return null;
         }
 
-        // Similar to OpenFileForRead but don't throw here on file missing as it's expected that some files 
+        // Similar to OpenFileForRead but don't throw here on file missing as it's expected that some files
         // will not have PDBs beside them.
         static Stream? OpenPortablePdbFile(string filePath)
         {
@@ -605,12 +578,12 @@ public static class RoslynUtil
 
         return isGlobal && hasSection;
 
-        static bool IsGlobalConfigEntry(ReadOnlySpan<char> span) => 
+        static bool IsGlobalConfigEntry(ReadOnlySpan<char> span) =>
             IsMatch(ref span, "is_global") &&
             IsMatch(ref span, "=") &&
             IsMatch(ref span, "true");
 
-        static bool IsSectionStart(ReadOnlySpan<char> span) => 
+        static bool IsSectionStart(ReadOnlySpan<char> span) =>
             IsMatch(ref span, "[");
 
         static bool IsMatch(ref ReadOnlySpan<char> span, string value)
@@ -677,7 +650,7 @@ public static class RoslynUtil
                 var (newLineIndex, newLineLength) = FindNewLineInBuffer(count);
                 if (newLineIndex < 0)
                 {
-                    // Read the entire source text so there are no more new lines. The newline is the end 
+                    // Read the entire source text so there are no more new lines. The newline is the end
                     // of the buffer with length 0.
                     if (count < buffer.Length)
                     {
@@ -716,7 +689,7 @@ public static class RoslynUtil
         }
 
 
-        static int GetNewlineLength(Span<char> span) => 
+        static int GetNewlineLength(Span<char> span) =>
             span[0] switch
             {
                 '\r' => span.Length > 1 && span[1] == '\n' ? 2 : 1,
@@ -825,7 +798,7 @@ public static class RoslynUtil
                 string @namespace = metadataReader.GetString(attributeTypeRef.Namespace);
                 return attributeName == name && attributeNamespace == @namespace;
             }
-            
+
             if (ctorHandle.Kind == HandleKind.MethodDefinition)
             {
                 var memberDef = metadataReader.GetMethodDefinition((MethodDefinitionHandle)ctorHandle);
@@ -865,7 +838,7 @@ public static class RoslynUtil
 
                 if (IsEmptyAttribute(metadataReader, attribute))
                 {
-                    // The empty attribute is an implicit C# 
+                    // The empty attribute is an implicit C#
                     return languageName == LanguageNames.CSharp;
                 }
 
@@ -884,7 +857,7 @@ public static class RoslynUtil
     }
 
     /// <summary>
-    /// Does the <see cref="DiagnosticAnalyzerAttribute"/> or <see cref="GeneratorAttribute"/> 
+    /// Does the <see cref="DiagnosticAnalyzerAttribute"/> or <see cref="GeneratorAttribute"/>
     /// attribute match the specified language name.
     /// </summary>
     internal static bool IsLanguageName(
@@ -919,7 +892,7 @@ public static class RoslynUtil
     }
 
     /// <summary>
-    /// Count the language names present in a <see cref="DiagnosticAnalyzerAttribute"/> or 
+    /// Count the language names present in a <see cref="DiagnosticAnalyzerAttribute"/> or
     /// <see cref="GeneratorAttribute"/> attribute.
     /// </summary>
     internal static int CountLanguageNames(
@@ -965,7 +938,7 @@ public static class RoslynUtil
 
     /// <summary>
     /// Work around Roslyn issue that creates a strong reference to AssemblyLoadContext instances
-    /// 
+    ///
     /// https://github.com/dotnet/roslyn/issues/77719
     /// </summary>
     internal static void ClearLocalizableStringMap()

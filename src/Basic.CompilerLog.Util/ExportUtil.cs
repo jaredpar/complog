@@ -1,6 +1,7 @@
 ﻿using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using NaturalSort.Extension;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Basic.CompilerLog.Util;
 
@@ -351,23 +352,8 @@ public sealed partial class ExportUtil
                     continue;
                 }
 
-                string? filePath = null;
-                if (rawContent.Kind == RawContentKind.AnalyzerConfig)
-                {
-                    var sourceText = Reader.GetSourceText(rawContent.ContentHash, checksumAlgorithm);
-                    if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
-                    {
-                        var content = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, x => builder.GetNewSourcePath(x));
-                        filePath = builder.WriteContent(rawContent.FilePath, content);
-                    }
-                }
-
-                if (filePath is null)
-                {
-                    using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                    filePath = builder.WriteContent(rawContent.FilePath, contentStream);
-                }
-
+                using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
+                var filePath = builder.WriteContent(rawContent.FilePath, contentStream);
                 commandLineList.Add($@"{prefix}{FormatPathArgument(filePath)}");
             }
         }

@@ -27,7 +27,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
-    public BasicAnalyzerKind BasicAnalyzerKind { get; } 
+    public BasicAnalyzerKind BasicAnalyzerKind { get; }
     public bool IsDisposed => _stream is null;
 
     private BinaryLogReader(Stream stream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind, LogReaderState? state)
@@ -43,7 +43,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             return BinaryLogUtil.ReadAllCompilerCalls(_stream, ownerState: this);
         });
         _lazyMvidToCompilerCallIndexMap = new(() => BuildMvidToCompilerCallIndexMap());
-    } 
+    }
 
     public static BinaryLogReader Create(
         Stream stream,
@@ -135,11 +135,11 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     /// </summary>
     /// <remarks>
     /// !!!WARNING!!!
-    /// 
-    /// This method is only valid when this instance represents a compilation on the disk of the 
-    /// current machine. In any other scenario this will lead to mostly correct but potentially 
+    ///
+    /// This method is only valid when this instance represents a compilation on the disk of the
+    /// current machine. In any other scenario this will lead to mostly correct but potentially
     /// incorrect results.
-    /// 
+    ///
     /// This method is on <see cref="BinaryLogReader"/> as its presence is a stronger indicator
     /// that the necessary data is on disk.
     /// </remarks>
@@ -163,7 +163,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         var references = GetReferences();
         var sourceTexts = GetSourceTexts();
         var additionalTexts = GetAdditionalTexts();
-        var analyzerConfigs = GetAnalyzerConfigs();
+        var analyzerConfigSet = GetAnalyzerConfigSet();
         var emitData = GetEmitData();
         var basicAnalyzerHost = CreateBasicAnalyzerHost(compilerCall);
 
@@ -178,12 +178,11 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 (CSharpCompilationOptions)args.CompilationOptions,
                 sourceTexts,
                 references,
-                analyzerConfigs,
+                analyzerConfigSet,
                 additionalTexts,
                 args.EmitOptions,
                 emitData,
                 basicAnalyzerHost,
-                PathNormalizationUtil.Empty,
                 diagnostics.ToImmutable());
         }
 
@@ -196,17 +195,24 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 (VisualBasicCompilationOptions)args.CompilationOptions,
                 sourceTexts,
                 references,
-                analyzerConfigs,
+                analyzerConfigSet,
                 additionalTexts,
                 args.EmitOptions,
                 emitData,
                 basicAnalyzerHost,
-                PathNormalizationUtil.Empty,
                 diagnostics.ToImmutable());
         }
 
-        List<(SourceText SourceText, string Path)> GetAnalyzerConfigs() => 
-            GetSourceTextsFromPaths(args.AnalyzerConfigPaths, args.AnalyzerConfigPaths.Length, args.ChecksumAlgorithm);
+        AnalyzerConfigSet? GetAnalyzerConfigSet()
+        {
+            var list = GetSourceTextsFromPaths(args.AnalyzerConfigPaths, args.AnalyzerConfigPaths.Length, args.ChecksumAlgorithm);
+            if (list.Count == 0)
+            {
+                return null;
+            }
+
+            return AnalyzerConfigSet.Create(list.Select(x => AnalyzerConfig.Parse(x.SourceText, x.Path)).ToList());
+        }
 
         List<MetadataReference> GetReferences()
         {

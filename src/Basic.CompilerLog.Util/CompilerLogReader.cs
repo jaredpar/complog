@@ -56,7 +56,14 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     public BasicAnalyzerKind BasicAnalyzerKind { get; }
     public LogReaderState LogReaderState { get; }
     internal Metadata Metadata { get; }
-    internal PathNormalizationUtil PathNormalizationUtil { get; }
+
+    /// <summary>
+    /// This is used to normalize paths within the log. This will be used to both map the file paths
+    /// in the Roslyn API as well as to map paths within content that is understood by the compiler. For
+    /// example: this will be used to map section paths within a global editorconfig file.
+    /// </summary>
+    internal PathNormalizationUtil PathNormalizationUtil { get; set; }
+
     internal int Count => Metadata.Count;
     public int MetadataVersion => Metadata.MetadataVersion;
     public bool IsWindowsLog => Metadata.IsWindows;
@@ -345,7 +352,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var xmlFilePath = NormalizePath(dataPack.ValueMap["xmlFilePath"]);
         var hashAlgorithm = dataPack.ChecksumAlgorithm;
         var sourceTexts = new List<(SourceText SourceText, string Path)>();
-        var analyzerConfigs = new List<(SourceText SourceText, string Path)>();
         var additionalTexts = ImmutableArray.CreateBuilder<AdditionalText>();
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
         var emitPdb = dataPack.EmitPdb ?? !emitOptions.EmitMetadataOnly;
@@ -353,6 +359,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         MemoryStream? win32ResourceStream = null;
         MemoryStream? sourceLinkStream = null;
         List<EmbeddedText>? embeddedTexts = null;
+        List<AnalyzerConfig>? analyzerConfigs = null;
 
         foreach (var tuple in dataPack.ContentList)
         {
@@ -360,21 +367,28 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var contentHash = tuple.Item2.ContentHash;
             var filePath = NormalizePath(tuple.Item2.FilePath);
 
+
             switch (kind)
             {
                 case RawContentKind.SourceText:
-                    AppendSourceText(sourceTexts, contentHash, filePath);
+                    if (contentHash is null)
+                    {
+                        AddMissingFileDiagnostic(filePath);
+                        continue;
+                    }
+
+                    sourceTexts.Add((GetSourceText(contentHash, hashAlgorithm), filePath));
                     break;
                 case RawContentKind.GeneratedText:
                     // Nothing to do here as these are handled by the generation process.
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    AppendSourceText(analyzerConfigs, contentHash, filePath);
+                    HandleAnalyzerConfig(contentHash, filePath);
                     break;
                 case RawContentKind.AdditionalText:
                     additionalTexts.Add(new BasicAdditionalSourceText(
                         filePath,
-                        contentHash is not null ? GetSourceText(contentHash, hashAlgorithm) : null));
+                         contentHash is not null ? GetSourceText(contentHash, hashAlgorithm) : null));
                     break;
                 case RawContentKind.CryptoKeyFile:
                     HandleCryptoKeyFile(contentHash, filePath);
@@ -430,6 +444,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             embeddedTexts: embeddedTexts);
 
         var basicAnalyzerHost = CreateBasicAnalyzerHost(compilerCall);
+        var analyzerConfigSet = analyzerConfigs is null
+            ? null
+            : AnalyzerConfigSet.Create(analyzerConfigs);
 
         return compilerCall.IsCSharp
             ? CreateCSharp()
@@ -449,6 +466,29 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
         }
 
+        void HandleAnalyzerConfig(string? contentHash, string filePath)
+        {
+            if (contentHash is null)
+            {
+                AddMissingFileDiagnostic(filePath);
+                return;
+            }
+
+            var sourceText = GetSourceText(contentHash, hashAlgorithm);
+
+            // If paths are being mapped then we need to map the paths inside of global config
+            // files as they can impact diagnostics in the compilation
+            if (!PathNormalizationUtil.IsEmpty && RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
+            {
+                var newText = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, PathNormalizationUtil.NormalizePath);
+                sourceText = SourceText.From(newText, checksumAlgorithm: hashAlgorithm);
+            }
+
+            var analyzerConfig = AnalyzerConfig.Parse(sourceText, filePath);
+            analyzerConfigs ??= new List<AnalyzerConfig>();
+            analyzerConfigs.Add(analyzerConfig);
+        }
+
         CSharpCompilationData CreateCSharp() =>
             RoslynUtil.CreateCSharpCompilationData(
                 compilerCall,
@@ -457,12 +497,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 (CSharpCompilationOptions)compilationOptions,
                 sourceTexts,
                 referenceList,
-                analyzerConfigs,
+                analyzerConfigSet,
                 additionalTexts.ToImmutableArray(),
                 emitOptions,
                 emitData,
                 basicAnalyzerHost,
-                PathNormalizationUtil,
                 diagnostics.ToImmutable());
 
         VisualBasicCompilationData CreateVisualBasic() =>
@@ -473,12 +512,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 (VisualBasicCompilationOptions)compilationOptions,
                 sourceTexts,
                 referenceList,
-                analyzerConfigs,
+                analyzerConfigSet,
                 additionalTexts.ToImmutableArray(),
                 emitOptions,
                 emitData,
                 basicAnalyzerHost,
-                PathNormalizationUtil,
                 diagnostics.ToImmutable());
 
         List<MetadataReference> ReadMetadataReferences(List<ReferencePack> referencePacks)
@@ -507,18 +545,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             }
 
             return list;
-        }
-
-        void AppendSourceText(List<(SourceText, string)> list, string? contentHash, string filePath)
-        {
-            if (contentHash is null)
-            {
-                AddMissingFileDiagnostic(filePath);
-                return;
-            }
-
-            var sourceText = GetSourceText(contentHash, hashAlgorithm);
-            list.Add((sourceText, filePath));
         }
 
         MemoryStream? TryGetContentAsStream(string? contentHash, string filePath)

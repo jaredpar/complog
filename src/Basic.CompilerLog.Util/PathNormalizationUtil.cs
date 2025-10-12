@@ -1,11 +1,19 @@
 
 using System.Buffers;
+using System.Configuration.Internal;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace Basic.CompilerLog.Util;
 
+/// <summary>
+/// This is used to map paths from one format to another. This can be used to map between operating systems or
+/// to change root paths within an operating system.
+/// </summary>
+/// <remarks>
+/// The mapping methods in this type are idempotent.
+/// </remarks>
 internal abstract class PathNormalizationUtil
 {
     internal const string WindowsRoot = @"c:\code\";
@@ -15,6 +23,11 @@ internal abstract class PathNormalizationUtil
     internal static PathNormalizationUtil Empty { get; } = new EmptyNormalizationUtil();
     internal static PathNormalizationUtil WindowsToUnix { get; } = new WindowsToUnixNormalizationUtil(UnixRoot);
     internal static PathNormalizationUtil UnixToWindows { get; } = new UnixToWindowsNormalizationUtil(WindowsRoot);
+
+    /// <summary>
+    /// Is this the empty / no-op normalizer
+    /// </summary>
+    internal bool IsEmpty => this is EmptyNormalizationUtil;
 
     /// <summary>
     /// Is the path rooted in the "from" platform
