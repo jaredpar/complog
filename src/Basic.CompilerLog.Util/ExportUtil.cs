@@ -1,6 +1,10 @@
 ﻿using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using NaturalSort.Extension;
+using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.CodeAnalysis.VisualBasic.Syntax;
+using System.Diagnostics;
 
 namespace Basic.CompilerLog.Util;
 
@@ -9,75 +13,85 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed partial class ExportUtil
 {
-    private sealed class ContentBuilder
+    private sealed class ContentBuilder : PathNormalizationUtil
     {
-        private readonly PathNormalizationUtil _pathNormalizationUtil;
-        internal string DestinationDirectory { get; }
-        internal string SourceDirectory { get; }
-        internal string EmbeddedResourceDirectory { get; }
+        /// <summary>
+        /// This is the <see cref="PathNormalizationUtil"/> that was used by the <see cref="CompilerLogReader"/>.
+        /// </summary>
+        private PathNormalizationUtil PathNormalizationUtil { get; }
 
         /// <summary>
-        /// <see cref="ExportUtil.GetSourceDirectory(CompilerLogReader, CompilerCall)"/>
+        /// This is the original source directory where the compilation occurred. This is after it went through
+        /// <see cref="PathNormalizationUtil.NormalizePath(string?)"/>.
         /// </summary>
-        internal string OriginalSourceDirectory { get; }
+        internal string SourceDirectory { get; }
 
-        internal MiscDirectory MiscDirectory { get; }
+        /// <summary>
+        /// The destination directory where all of the content is being written
+        /// </summary>
+        internal string DestinationDirectory { get; }
+
+        /// <summary>
+        /// The location of source files in the destination directory
+        /// </summary>
+        internal string SourceOutputDirectory { get; }
+        internal string EmbeddedResourceDirectory { get; }
+        private MiscDirectory MiscDirectory { get; }
         internal ResilientDirectory AnalyzerDirectory { get; }
         internal ResilientDirectory GeneratedCodeDirectory { get; }
         internal ResilientDirectory BuildOutput { get; }
 
         internal ContentBuilder(string destinationDirectory, string originalSourceDirectory, PathNormalizationUtil pathNormalizationUtil)
         {
+            PathNormalizationUtil = pathNormalizationUtil;
             DestinationDirectory = destinationDirectory;
-            OriginalSourceDirectory = originalSourceDirectory;
-            SourceDirectory = Path.Combine(destinationDirectory, "src");
+            SourceDirectory = originalSourceDirectory;
+            SourceOutputDirectory = Path.Combine(destinationDirectory, "src");
             EmbeddedResourceDirectory = Path.Combine(destinationDirectory, "resources");
             MiscDirectory = new(Path.Combine(destinationDirectory, "misc"));
             GeneratedCodeDirectory = new(Path.Combine(destinationDirectory, "generated"));
             AnalyzerDirectory = new(Path.Combine(destinationDirectory, "analyzers"));
             BuildOutput = new(Path.Combine(destinationDirectory, "output"), flatten: true);
-            Directory.CreateDirectory(SourceDirectory);
+            Directory.CreateDirectory(SourceOutputDirectory);
             Directory.CreateDirectory(EmbeddedResourceDirectory);
-            this._pathNormalizationUtil = pathNormalizationUtil;
         }
 
-        internal string GetNewSourcePath(string originalFilePath)
+        [return: NotNullIfNotNull("path")]
+        internal override string? NormalizePath(string? path)
         {
+            if (path is null)
+            {
+                return null;
+            }
+
             // Normalize out all of the ..\ and .\ in the path
-            originalFilePath = Path.GetFullPath(_pathNormalizationUtil.NormalizePath(originalFilePath));
+            var normalizedPath = PathNormalizationUtil.NormalizePath(path);
+            var fullNormalizedPath = Path.GetFullPath(normalizedPath!);
 
             string filePath;
-            if (originalFilePath.StartsWith(OriginalSourceDirectory, PathUtil.Comparison))
+            if (fullNormalizedPath.StartsWith(SourceDirectory, PathUtil.Comparison))
             {
-                filePath = PathUtil.ReplacePathStart(originalFilePath, OriginalSourceDirectory, SourceDirectory);
+                filePath = PathUtil.ReplacePathStart(fullNormalizedPath, SourceDirectory, SourceOutputDirectory);
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             }
             else
             {
-                return MiscDirectory.GetNewFilePath(originalFilePath);
+                return MiscDirectory.GetNewFilePath(fullNormalizedPath);
             }
 
             return filePath;
         }
 
-        internal string WriteContent(string originalFilePath, string contents)
+        [return: NotNullIfNotNull("path")]
+        internal override string? NormalizePath(string? path, RawContentKind kind) => kind switch
         {
-            var newFilePath = GetNewSourcePath(originalFilePath);
-            File.WriteAllText(newFilePath, contents);
-            return newFilePath;
-        }
+            RawContentKind.GeneratedText => GeneratedCodeDirectory.GetNewFilePath(path!),
+            _ => NormalizePath(path),
+        };
 
-        /// <summary>
-        /// Writes the content to the new directory structure and returns the full path of the
-        /// file that was written.
-        /// </summary>
-        internal string WriteContent(string originalFilePath, Stream stream)
-        {
-            var newFilePath = GetNewSourcePath(originalFilePath);
-            using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            stream.CopyTo(fileStream);
-            return newFilePath;
-        }
+        internal override bool IsPathRooted([NotNullWhen(true)] string? path) => PathNormalizationUtil.IsPathRooted(path);
+
+        internal override string RootFileName(string fileName) => PathNormalizationUtil.RootFileName(fileName);
     }
 
     internal static Regex OptionsRegex { get; } = GetOptionRegex();
@@ -116,32 +130,41 @@ public sealed partial class ExportUtil
 
         var originalSourceDirectory = GetSourceDirectory(Reader, compilerCall);
         var builder = new ContentBuilder(destinationDir, originalSourceDirectory, PathNormalizationUtil);
-
         var commandLineList = new List<string>();
         bool hasNoConfigOption = false;
         var checksumAlgorithm = Reader.GetChecksumAlgorithm(compilerCall);
-        Directory.CreateDirectory(destinationDir);
-        WriteGeneratedFiles();
-        WriteEmbedLines();
-        WriteContent();
-        WriteAnalyzers();
-        WriteReferences();
-        WriteResources();
 
-        var rspFilePath = Path.Combine(destinationDir, "build.rsp");
-        File.WriteAllLines(rspFilePath, ProcessRsp());
-
-        // Need to create a few directories so that the builds will actually function
-        foreach (var sdkDir in sdkDirectories)
+        try
         {
-            var cmdFileName = $"build-{Path.GetFileName(sdkDir)}";
-            WriteBuildCmd(sdkDir, cmdFileName);
+            Reader.PathNormalizationUtil = builder;
+            Directory.CreateDirectory(destinationDir);
+            WriteGeneratedFiles();
+            WriteEmbedLines();
+            WriteContent();
+            WriteAnalyzers();
+            WriteReferences();
+            WriteResources();
+
+            var rspFilePath = Path.Combine(destinationDir, "build.rsp");
+            File.WriteAllLines(rspFilePath, ProcessRsp());
+
+            // Need to create a few directories so that the builds will actually function
+            foreach (var sdkDir in sdkDirectories)
+            {
+                var cmdFileName = $"build-{Path.GetFileName(sdkDir)}";
+                WriteBuildCmd(sdkDir, cmdFileName);
+            }
+
+            string? bestSdkDir = sdkDirectories.OrderByDescending(x => x, PathUtil.Comparer.WithNaturalSort()).FirstOrDefault();
+            if (bestSdkDir is not null)
+            {
+                WriteBuildCmd(bestSdkDir, "build");
+            }
+
         }
-
-        string? bestSdkDir = sdkDirectories.OrderByDescending(x => x, PathUtil.Comparer.WithNaturalSort()).FirstOrDefault();
-        if (bestSdkDir is not null)
+        finally
         {
-            WriteBuildCmd(bestSdkDir, "build");
+            Reader.PathNormalizationUtil = Reader.DefaultPathNormalizationUtil;
         }
 
         void WriteBuildCmd(string sdkDir, string cmdFileName)
@@ -311,8 +334,9 @@ public sealed partial class ExportUtil
 
             foreach (var analyzer in Reader.ReadAllAnalyzerData(compilerCall))
             {
+                var filePath = builder.AnalyzerDirectory.GetNewFilePath(analyzer.FilePath);
                 using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
-                var filePath = builder.AnalyzerDirectory.WriteContent(analyzer.FilePath, analyzerStream);
+                analyzerStream.WriteTo(filePath);
                 var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""";
                 commandLineList.Add(arg);
             }
@@ -345,30 +369,14 @@ public sealed partial class ExportUtil
                     continue;
                 }
 
-                if (rawContent.ContentHash is null)
-                {
-                    commandLineList.Add($@"{prefix}{FormatPathArgument(builder.GetNewSourcePath(rawContent.OriginalFilePath))}");
-                    continue;
-                }
-
-                string? filePath = null;
-                if (rawContent.Kind == RawContentKind.AnalyzerConfig)
-                {
-                    var sourceText = Reader.GetSourceText(rawContent.ContentHash, checksumAlgorithm);
-                    if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
-                    {
-                        var content = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, x => builder.GetNewSourcePath(x));
-                        filePath = builder.WriteContent(rawContent.OriginalFilePath, content);
-                    }
-                }
-
-                if (filePath is null)
-                {
-                    using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                    filePath = builder.WriteContent(rawContent.OriginalFilePath, contentStream);
-                }
-
+                var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
                 commandLineList.Add($@"{prefix}{FormatPathArgument(filePath)}");
+
+                if (rawContent.ContentHash is not null)
+                {
+                    using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
+                    contentStream.WriteTo(filePath);
+                }
             }
         }
 
@@ -376,15 +384,14 @@ public sealed partial class ExportUtil
         {
             foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.GeneratedText))
             {
-                string filePath;
+                var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+
+                // Write out the generated text, even if it's not a part of the compilation. This makes it easier
+                // for users to see everything that was generated.
                 if (rawContent.ContentHash is not null)
                 {
-                    using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                    filePath = builder.GeneratedCodeDirectory.WriteContent(rawContent.OriginalFilePath, contentStream);
-                }
-                else
-                {
-                    filePath = builder.GetNewSourcePath(rawContent.OriginalFilePath);
+                    using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
+                    contentStream.WriteTo(filePath);
                 }
 
                 if (ExcludeAnalyzers)
@@ -400,8 +407,9 @@ public sealed partial class ExportUtil
             {
                 if (rawContent.ContentHash is not null)
                 {
-                    using var contentStream = Reader.GetContentStream(rawContent.ContentHash);
-                    _ = builder.WriteContent(rawContent.OriginalFilePath, contentStream);
+                    using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
+                    var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                    contentStream.WriteTo(filePath);
                 }
             }
         }
@@ -418,7 +426,7 @@ public sealed partial class ExportUtil
                 var resourceName = d.GetResourceName();
                 var filePath = Path.Combine(builder.EmbeddedResourceDirectory, resourceData.ContentHash, originalFileName ?? resourceName);
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-                File.WriteAllBytes(filePath, Reader.GetContentBytes(resourceData.ContentHash));
+                File.WriteAllBytes(filePath, Reader.GetContentBytes(resourceData));
 
                 var accessibility = d.IsPublic() ? "public" : "private";
                 var kind = originalFileName is null ? "/resource:" : "/linkresource";
@@ -432,7 +440,7 @@ public sealed partial class ExportUtil
             filePath = PathUtil.RemovePathStart(filePath, destinationDir);
             return MaybeQuoteArgument(filePath);
         }
-    }
+        }
 
     public static void ExportRsp(CompilerCall compilerCall, TextWriter writer, bool singleLine = false) =>
         ExportRsp(compilerCall.GetArguments(), writer, singleLine);
@@ -511,11 +519,14 @@ public sealed partial class ExportUtil
     /// </summary>
     internal string GetSourceDirectory(CompilerLogReader reader, CompilerCall compilerCall)
     {
-        var sourceRootDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
+        Debug.Assert(object.ReferenceEquals(reader.DefaultPathNormalizationUtil, reader.PathNormalizationUtil));
 
+        var sourceRootDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
+        var checksumAlgorithm = reader.GetChecksumAlgorithm(compilerCall);
         foreach (var content in reader.ReadAllRawContent(compilerCall, RawContentKind.AnalyzerConfig))
         {
-            var contentDir = Path.GetDirectoryName(PathNormalizationUtil.NormalizePath(content.OriginalFilePath))!;
+            var filePath = reader.PathNormalizationUtil.NormalizePath(content.FilePath);
+            var contentDir = Path.GetDirectoryName(filePath)!;
             if (!sourceRootDir.StartsWith(contentDir, PathUtil.Comparison))
             {
                 continue;
@@ -526,8 +537,8 @@ public sealed partial class ExportUtil
                 continue;
             }
 
-            var sourceText = reader.GetSourceText(content.ContentHash, reader.GetChecksumAlgorithm(compilerCall));
-            if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
+            var sourceText = reader.ReadSourceText(content.Kind, content.ContentHash, checksumAlgorithm);
+            if (sourceText is not null && RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
             {
                 continue;
             }

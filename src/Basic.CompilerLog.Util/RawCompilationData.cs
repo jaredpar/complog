@@ -34,26 +34,30 @@ internal enum RawContentKind
     CryptoKeyFile,
 }
 
-internal readonly struct RawContent
+/// <summary>
+/// This represents the raw content of a file that is embedded in the reader. It does not
+/// go through any path normalization.
+/// </summary>
+internal readonly struct RawContent(string filePath, string? contentHash, RawContentKind kind)
 {
-    internal string OriginalFilePath { get; }
-    internal string NormalizedFilePath { get; }
-    internal string? ContentHash { get; }
-    internal RawContentKind Kind { get; }
+    /// <summary>
+    /// The original file path of the content.
+    /// </summary>
+    /// <remarks>
+    /// This will be the original file path from when the log was created. It will not go through
+    /// <see cref="PathNormalizationUtil"/>
+    /// </remarks>
+    internal string FilePath { get; } = filePath;
 
-    internal RawContent(
-        string originalFilePath,
-        string normalizedFilePath,
-        string? contentHash,
-        RawContentKind kind)
-    {
-        OriginalFilePath = originalFilePath;
-        NormalizedFilePath = normalizedFilePath;
-        ContentHash = contentHash;
-        Kind = kind;
-    }
+    /// <summary>
+    /// A hash of the content if available. This will be null if the content was not available when
+    /// the log was created.
+    /// </summary>
+    internal string? ContentHash { get; } = contentHash;
+
+    internal RawContentKind Kind { get; } = kind;
 
     [ExcludeFromCodeCoverage]
-    public override string ToString() => $"{Path.GetFileName(OriginalFilePath)} {Kind}";
+    public override string ToString() => $"{Path.GetFileName(FilePath)} {Kind}";
 }
 

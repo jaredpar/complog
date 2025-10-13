@@ -24,7 +24,7 @@ public enum CompilerCallKind
     WpfTemporaryCompile,
 
     /// <summary>
-    /// Compilation that occurs in the XAML pipeline to create a temporary assembly used 
+    /// Compilation that occurs in the XAML pipeline to create a temporary assembly used
     /// to reflect on to generate types for the real compilation
     /// </summary>
     XamlPreCompile,
@@ -36,8 +36,8 @@ public enum CompilerCallKind
 }
 
 /// <summary>
-/// Represents a call to the compiler. The file paths and arguments provided here are correct 
-/// for the machine on which the compiler was run. They cannot be relied on to be correct on 
+/// Represents a call to the compiler. The file paths and arguments provided here are correct
+/// for the machine on which the compiler was run. They cannot be relied on to be correct on
 /// machines where a compiler log is rehydrated.
 /// </summary>
 public sealed class CompilerCall
@@ -82,7 +82,7 @@ public sealed class CompilerCall
         string? targetFramework = null,
         bool isCSharp = true,
         string[]? arguments = null,
-        object? ownerState = null) 
+        object? ownerState = null)
         : this(
             projectFilePath,
             compilerFilePath,
@@ -94,7 +94,7 @@ public sealed class CompilerCall
     {
     }
 
-    public string GetDiagnosticName() 
+    public string GetDiagnosticName()
     {
         var baseName = string.IsNullOrEmpty(TargetFramework)
             ? ProjectFileName
@@ -107,6 +107,12 @@ public sealed class CompilerCall
         return baseName;
     }
 
+    /// <summary>
+    /// This returns the raw command line arguments passed to the compiler. None of the
+    /// paths or arguments have been modified to be correct for the current machine.
+    ///
+    /// https://github.com/jaredpar/complog/issues/282
+    /// </summary>
     public IReadOnlyCollection<string> GetArguments() => _lazyArguments.Value;
 
     [ExcludeFromCodeCoverage]

@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
 using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design.Serialization;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Linq;
@@ -33,7 +34,7 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     /// <summary>
-    /// Can we process an extra file in the major templates. The file name should not impact 
+    /// Can we process an extra file in the major templates. The file name should not impact
     /// the content of the file.
     /// </summary>
     /// <param name="template"></param>
@@ -50,9 +51,9 @@ public sealed class CompilerLogReaderTests : TestBase
         RunDotNet("build -bl -nr:false");
 
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
-        var extraData = reader.ReadAllRawContent(0).Single(x => Path.GetFileName(x.OriginalFilePath) == fileName);
+        var extraData = reader.ReadAllRawContent(0).Single(x => Path.GetFileName(x.FilePath) == fileName);
         Assert.Equal("84C9FAFCF8C92F347B96D26B149295128B08B07A3C4385789FE4758A2B520FDE", extraData.ContentHash);
-        var contentBytes = reader.GetContentBytes(extraData.ContentHash!);
+        var contentBytes = reader.GetContentBytes(extraData.Kind, extraData.ContentHash!);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
     }
 
@@ -107,6 +108,22 @@ public sealed class CompilerLogReaderTests : TestBase
             using var zip = new ZipArchive(fileStream, ZipArchiveMode.Create);
         }
         Assert.Throws<Exception>(() => CompilerLogReader.Create(zipFilePath));
+    }
+
+    [Fact]
+    public void GetContentBytes()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
+        reader.PathNormalizationUtil = new IdentityPathNormalizationUtil();
+        var compilerCall = reader.ReadCompilerCall(0);
+        var any = false;
+        foreach (var rawContent in reader.ReadAllRawContent(compilerCall, RawContentKind.AnalyzerConfig))
+        {
+            var bytes = reader.GetContentBytes(rawContent.Kind, rawContent.ContentHash!);
+            Assert.NotEmpty(bytes);
+            any = true;
+        }
+        Assert.True(any);
     }
 
     [Fact]
@@ -459,7 +476,7 @@ public sealed class CompilerLogReaderTests : TestBase
             var compilationData = reader.ReadCompilationData(compilerCall);
             var diagnostics = compilationData.GetDiagnostics();
 
-            // This may seem counter intuitive but the compiler does not issue an error on a missing 
+            // This may seem counter intuitive but the compiler does not issue an error on a missing
             // additional file. The error only happens if something tries to read the file
             Assert.Empty(diagnostics);
 
@@ -687,3 +704,14 @@ public sealed class CompilerLogReaderTests : TestBase
         }
     }
 }
+
+/// <summary>
+/// This is a no-op path normalizer but it being a custom type means the reader avoids a lot of
+/// optimizations it would otherwise hit.
+/// </summary>
+file sealed class IdentityPathNormalizationUtil : PathNormalizationUtil
+{
+    internal override bool IsPathRooted([NotNullWhen(true)] string? path) => Empty.IsPathRooted(path);
+    internal override string RootFileName(string fileName) => Empty.RootFileName(fileName);
+    internal override string? NormalizePath(string? path) => Empty.NormalizePath(path);
+    }

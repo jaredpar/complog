@@ -1,0 +1,30 @@
+* text=auto
+
+# Explicitly mark common text file types
+*.cs      text
+*.vb      text
+*.csproj  text
+*.vbproj  text
+*.sln     text
+*.xaml    text
+*.xml     text
+*.config  text
+*.json    text
+*.yml     text
+*.yaml    text
+*.txt     text
+*.md      text
+*.cmd     text eol=crlf
+*.bat     text eol=crlf
+*.sh      text eol=lf
+
+# Binary files: never modify line endings
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.zip     binary
+*.dll     binary
+*.exe     binary
+*.pdb     binary

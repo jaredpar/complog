@@ -28,7 +28,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         public MemoryStream Create() => new MemoryStream();
         public bool Return(MemoryStream stream)
-        { 
+        {
             stream.Position = 0;
             return true;
         }
@@ -239,7 +239,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             CommandLineArgsHash = WriteContentMessagePack(compilerCall.GetArguments()),
             CompilationDataPackHash = WriteContentMessagePack(dataPack)
         };
-        
+
         AddCore(infoPack);
 
         CommandLineArguments GetEmptyCommandLineArguments() => compilerCall.IsCSharp
@@ -290,7 +290,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 CompilerCallMvidList = _compilerCallMvidList,
                 MvidToReferenceInfoMap = _mvidToRefInfoMap
             };
-            var contentHash = WriteContentMessagePack(pack);;
+            var contentHash = WriteContentMessagePack(pack);
             var entry = ZipArchive.CreateEntry(LogInfoFileName, CompressionLevel.Fastest);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             writer.WriteLine(contentHash);
@@ -418,7 +418,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     }
 
     /// <summary>
-    /// Add a source file to the storage and return the stored name of the content in our 
+    /// Add a source file to the storage and return the stored name of the content in our
     /// storage. This will be a checksum of the content itself
     /// </summary>
     private string WriteContent(Stream stream)
@@ -505,7 +505,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 continue;
             }
 
-            // When the compiler embeds a source file it will also embed the targets of any 
+            // When the compiler embeds a source file it will also embed the targets of any
             // #line directives in the code
             if (sourceFileSet.Contains(e.Path))
             {
@@ -518,7 +518,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
                         // Presently the compiler does not use /pathhmap when attempting to resolve
                         // #line targets for embedded files. That means if the path is a full one here, or
-                        // resolved outside the cone of the project then it can't be exported later so 
+                        // resolved outside the cone of the project then it can't be exported later so
                         // issue a diagnostic.
                         //
                         // The original project directory from a compiler point of view is arbitrary as
@@ -607,7 +607,7 @@ internal sealed class CompilerLogBuilder : IDisposable
         using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
         fileStream.CopyTo(entryStream);
 
-        // There are some assemblies for which MetadataReader will return an AssemblyName which 
+        // There are some assemblies for which MetadataReader will return an AssemblyName which
         // fails ToString calls which is why we use AssemblyName.GetAssemblyName here.
         //
         // Example: .nuget\packages\microsoft.visualstudio.interop\17.2.32505.113\lib\net472\Microsoft.VisualStudio.Interop.dll
