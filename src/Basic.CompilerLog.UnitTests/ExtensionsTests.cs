@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -42,4 +43,13 @@ public sealed class ExtensionsTests : TestBase
     }
 
 #endif
+
+    [Fact]
+    public void ToMemoryStreamPosition()
+    {
+        var sourceText = SourceText.From("Hello, world!");
+        using var stream = sourceText.ToMemoryStream();
+        Assert.Equal(0, stream.Position);
+        Assert.True(stream.Length > 0);
+    }
 }

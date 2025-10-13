@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -51,6 +51,13 @@ public static class Extensions
         return bytes;
     }
 
+    internal static byte[] ReadAllBytes(this MemoryStream stream)
+    {
+        var bytes = new byte[checked((int)stream.Length)];
+        stream.ReadExactly(bytes.AsSpan());
+        return bytes;
+    }
+
     internal static string ReadLineOrThrow(this TextReader reader)
     {
         if (reader.ReadLine() is { } line)
@@ -79,6 +86,22 @@ public static class Extensions
     internal static MemoryStream AsSimpleMemoryStream(this byte[] array, bool writable = true) =>
         new MemoryStream(array, 0, count: array.Length, writable: writable, publiclyVisible: true);
 
+    internal static void WriteTo(this Stream stream, string filePath)
+    {
+        using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        stream.CopyTo(fileStream);
+    }
+
+    internal static MemoryStream ToMemoryStream(this SourceText sourceText)
+    {
+        var stream = new MemoryStream();
+        var streamWriter = Polyfill.NewStreamWriter(stream, encoding: Encoding.UTF8, leaveOpen: true);
+        sourceText.Write(streamWriter);
+        streamWriter.Dispose();
+        stream.Position = 0;
+        return stream;
+    }
+
     internal static string GetResourceName(this ResourceDescription d) => ReflectionUtil.ReadField<string>(d, "ResourceName");
     internal static string? GetFileName(this ResourceDescription d) => ReflectionUtil.ReadField<string?>(d, "FileName");
     internal static bool IsPublic(this ResourceDescription d) => ReflectionUtil.ReadField<bool>(d, "IsPublic");
@@ -101,7 +124,7 @@ public static class Extensions
 
     public static (List<string> Analyzers, List<string> Generators) ReadAnalyzerFullTypeNames(this ICompilerCallReader compilerCallReader, AnalyzerData analyzerData, bool? isCSharp = null)
     {
-        var languageName = isCSharp switch 
+        var languageName = isCSharp switch
         {
             true => LanguageNames.CSharp,
             false => LanguageNames.VisualBasic,
@@ -175,7 +198,7 @@ file sealed class BasicAnalyzerReferenceWrapper(AnalyzerReference analyzerRefere
                 RoslynUtil.CannotLoadTypesDiagnosticDescriptor,
                 Location.None,
                 $"{args.TypeName}:{args.Exception?.Message}");
-            diagnostics.Add(d); 
+            diagnostics.Add(d);
         };
 
         if (analyzerReference is AnalyzerFileReference afr)

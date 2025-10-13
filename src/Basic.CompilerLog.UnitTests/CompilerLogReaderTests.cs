@@ -52,7 +52,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Path.Combine(RootDirectory, "msbuild.binlog"));
         var extraData = reader.ReadAllRawContent(0).Single(x => Path.GetFileName(x.FilePath) == fileName);
         Assert.Equal("84C9FAFCF8C92F347B96D26B149295128B08B07A3C4385789FE4758A2B520FDE", extraData.ContentHash);
-        var contentBytes = reader.GetContentBytes(extraData.ContentHash!);
+        var contentBytes = reader.GetContentBytes(extraData.Kind, extraData.ContentHash!);
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
     }
 

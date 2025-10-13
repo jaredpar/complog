@@ -12,14 +12,14 @@ namespace Basic.CompilerLog.Util;
 internal sealed class ResilientDirectory
 {
     /// <summary>
-    /// Content can exist outside the cone of the original project tree. That content 
+    /// Content can exist outside the cone of the original project tree. That content
     /// is mapped, by original directory name, to a new directory in the output. This
     /// holds the map from the old directory to the new one.
     /// </summary>
     private Dictionary<string, string> _map = new(PathUtil.Comparer);
 
     /// <summary>
-    /// When doing flattening this holds the map of file name that was flattened to the 
+    /// When doing flattening this holds the map of file name that was flattened to the
     /// path that it was flattened from.
     /// </summary>
     private Dictionary<string, string>? _flattenedMap;
@@ -64,14 +64,6 @@ internal sealed class ResilientDirectory
         }
 
         return Path.Combine(dirPath, fileName);
-    }
-
-    internal string WriteContent(string originalFilePath, Stream stream)
-    {
-        var newFilePath = GetNewFilePath(originalFilePath);
-        using var fileStream = new FileStream(newFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-        stream.CopyTo(fileStream);
-        return newFilePath;
     }
 }
 

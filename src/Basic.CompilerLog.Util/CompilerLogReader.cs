@@ -58,6 +58,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     internal Metadata Metadata { get; }
 
     /// <summary>
+    /// This is the default path normalization util that was created based on the log metadata. It cannot
+    /// be changed after creation.
+    /// </summary>
+    internal PathNormalizationUtil DefaultPathNormalizationUtil { get; }
+
+    /// <summary>
     /// This is used to normalize paths within the log. This will be used to both map the file paths
     /// in the Roslyn API as well as to map paths within content that is understood by the compiler. For
     /// example: this will be used to map section paths within a global editorconfig file.
@@ -78,13 +84,15 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         LogReaderState = state ?? new LogReaderState();
         Metadata = metadata;
 
-        PathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
+        DefaultPathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
         {
             (true, true) => PathNormalizationUtil.Empty,
             (true, false) => PathNormalizationUtil.WindowsToUnix,
             (false, true) => PathNormalizationUtil.UnixToWindows,
             (false, false) => PathNormalizationUtil.Empty,
         };
+
+        PathNormalizationUtil = DefaultPathNormalizationUtil;
 
         if (metadata.MetadataVersion == 2)
         {
@@ -242,7 +250,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var currentKind = (RawContentKind)tuple.Item1;
             if (kind is not { } k || currentKind == k)
             {
-                yield return new RawContent(NormalizePath(tuple.Item2.FilePath), tuple.Item2.ContentHash, currentKind);
+                // This is deliberately using the original file path (not a normalized one) because
+                // RawContent is meant to represent the original content of the log.
+                yield return new RawContent(
+                    tuple.Item2.FilePath,
+                    tuple.Item2.ContentHash,
+                    currentKind);
             }
         }
     }
@@ -365,8 +378,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         {
             var kind = (RawContentKind)tuple.Item1;
             var contentHash = tuple.Item2.ContentHash;
-            var filePath = NormalizePath(tuple.Item2.FilePath);
-
+            var filePath = PathNormalizationUtil.NormalizePath(tuple.Item2.FilePath, kind);
 
             switch (kind)
             {
@@ -377,18 +389,29 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                         continue;
                     }
 
-                    sourceTexts.Add((GetSourceText(contentHash, hashAlgorithm), filePath));
+                    sourceTexts.Add((ReadSourceText(kind, contentHash, hashAlgorithm), filePath));
                     break;
                 case RawContentKind.GeneratedText:
                     // Nothing to do here as these are handled by the generation process.
                     break;
                 case RawContentKind.AnalyzerConfig:
-                    HandleAnalyzerConfig(contentHash, filePath);
+                {
+                    if (contentHash is null)
+                    {
+                        AddMissingFileDiagnostic(filePath);
+                        continue;
+                    }
+
+                    var sourceText = ReadSourceText(kind, contentHash, hashAlgorithm);
+                    var analyzerConfig = AnalyzerConfig.Parse(sourceText, filePath);
+                    analyzerConfigs ??= new List<AnalyzerConfig>();
+                    analyzerConfigs.Add(analyzerConfig);
                     break;
+                }
                 case RawContentKind.AdditionalText:
                     additionalTexts.Add(new BasicAdditionalSourceText(
                         filePath,
-                         contentHash is not null ? GetSourceText(contentHash, hashAlgorithm) : null));
+                         contentHash is not null ? ReadSourceText(kind, contentHash, hashAlgorithm) : null));
                     break;
                 case RawContentKind.CryptoKeyFile:
                     HandleCryptoKeyFile(contentHash, filePath);
@@ -412,7 +435,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                         break;
                     }
 
-                    var sourceText = GetSourceText(contentHash, hashAlgorithm, canBeEmbedded: true);
+                    var sourceText = ReadSourceText(kind, contentHash, hashAlgorithm, canBeEmbedded: true);
                     var embeddedText = EmbeddedText.FromSource(filePath, sourceText);
                     embeddedTexts.Add(embeddedText);
                     break;
@@ -460,33 +483,10 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
             if (contentHash is not null)
             {
-                File.WriteAllBytes(filePath, GetContentBytes(contentHash));
+                File.WriteAllBytes(filePath, GetRawContentBytes(contentHash));
             }
 
             compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
-        }
-
-        void HandleAnalyzerConfig(string? contentHash, string filePath)
-        {
-            if (contentHash is null)
-            {
-                AddMissingFileDiagnostic(filePath);
-                return;
-            }
-
-            var sourceText = GetSourceText(contentHash, hashAlgorithm);
-
-            // If paths are being mapped then we need to map the paths inside of global config
-            // files as they can impact diagnostics in the compilation
-            if (!PathNormalizationUtil.IsEmpty && RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
-            {
-                var newText = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, PathNormalizationUtil.NormalizePath);
-                sourceText = SourceText.From(newText, checksumAlgorithm: hashAlgorithm);
-            }
-
-            var analyzerConfig = AnalyzerConfig.Parse(sourceText, filePath);
-            analyzerConfigs ??= new List<AnalyzerConfig>();
-            analyzerConfigs.Add(analyzerConfig);
         }
 
         CSharpCompilationData CreateCSharp() =>
@@ -555,7 +555,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 return null;
             }
 
-            return GetContentBytes(contentHash).AsSimpleMemoryStream(writable: false);
+            return GetRawContentBytes(contentHash).AsSimpleMemoryStream(writable: false);
         }
 
         void AddMissingFileDiagnostic(string name)
@@ -665,18 +665,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             if (kind is { } k)
             {
                 object id = rawContent.ContentHash ?? rawContent.FilePath;
-                var data = new SourceTextData(id, rawContent.FilePath, dataPack.ChecksumAlgorithm, k);
+                var filePath = PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                var data = new SourceTextData(id, filePath, dataPack.ChecksumAlgorithm, k);
                 list.Add(data);
             }
         }
 
         return list;
-    }
-
-    public SourceText ReadSourceText(SourceTextData sourceTextData)
-    {
-        var contentHash = (string)sourceTextData.Id;
-        return GetSourceText(contentHash, sourceTextData.ChecksumAlgorithm, canBeEmbedded: false);
     }
 
     /// <inheritdoc cref="ICompilerCallReader.HasAllGeneratedFileContent(CompilerCall)"/>
@@ -703,7 +698,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var list = new List<(SourceText SourceText, string FilePath)>();
         foreach (var rawContent in ReadAllRawContent(index, RawContentKind.GeneratedText))
         {
-            list.Add((GetSourceText(rawContent.ContentHash!, dataPack.ChecksumAlgorithm), rawContent.FilePath));
+            list.Add((ReadSourceText(rawContent.Kind, rawContent.ContentHash!, dataPack.ChecksumAlgorithm), rawContent.FilePath));
         }
         return list;
     }
@@ -747,29 +742,93 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     internal T GetContentPack<T>(string contentHash)
     {
-        var stream = GetContentStream(contentHash);
+        var stream = GetRawContentStream(contentHash);
         return MessagePackSerializer.Deserialize<T>(stream, SerializerOptions);
     }
 
-    internal byte[] GetContentBytes(string contentHash) =>
+    private byte[] GetRawContentBytes(string contentHash) =>
         ZipArchive.ReadAllBytes(GetContentEntryName(contentHash));
 
-    internal Stream GetContentStream(string contentHash) =>
+    private Stream GetRawContentStream(string contentHash) =>
         ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+
+    /// <summary>
+    /// Get the normalized content stream for the given <paramref name="kind"/> and <paramref name="contentHash"/>.
+    /// </summary>
+    internal Stream GetContentStream(RawContentKind kind, string contentHash)
+    {
+        if (kind == RawContentKind.AnalyzerConfig && GetNormalizedAnalyzerConfing(contentHash) is { } newSourceText)
+        {
+            return newSourceText.ToMemoryStream();
+        }
+
+        return GetRawContentStream(contentHash);
+    }
+
+    /// <summary>
+    /// Get the normalized content bytes for the given <paramref name="kind"/> and <paramref name="contentHash"/>.
+    /// </summary>
+    internal byte[] GetContentBytes(RawContentKind kind, string contentHash)
+    {
+        if (kind == RawContentKind.AnalyzerConfig && GetNormalizedAnalyzerConfing(contentHash) is { } newSourceText)
+        {
+            var stream = newSourceText.ToMemoryStream();
+            return stream.ReadAllBytes();
+        }
+
+        return GetRawContentBytes(contentHash);
+    }
+
+    internal byte[] GetContentBytes(ResourceData resourceData) =>
+        GetRawContentBytes(resourceData.ContentHash);
+
+    /// <summary>
+    /// Attempts to read and normalize the content of the analyzer config if needed. This returns null if no
+    /// normalization is needed.
+    /// </summary>
+    private SourceText? GetNormalizedAnalyzerConfing(string contentHash)
+    {
+        if (PathNormalizationUtil.IsEmpty)
+        {
+            return null;
+        }
+
+        // If paths are being mapped then we need to map the paths inside of global config
+        // files as they can impact diagnostics in the compilation
+        using var stream = GetRawContentStream(contentHash);
+        var sourceText = RoslynUtil.GetSourceText(stream, checksumAlgorithm: SourceHashAlgorithm.Sha1, canBeEmbedded: false);
+        if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
+        {
+            var newText = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, PathNormalizationUtil.NormalizePath);
+            return SourceText.From(newText, checksumAlgorithm: sourceText.ChecksumAlgorithm);
+        }
+
+        return null;
+    }
+
 
     internal ResourceDescription ReadResourceDescription(ResourceData pack) =>
         ReadResourceDescription(pack.ContentHash, pack.FileName, pack.Name, pack.IsPublic);
 
     private ResourceDescription ReadResourceDescription(string contentHash, string? fileName, string name, bool isPublic)
     {
-        var stream = GetContentBytes(contentHash).AsSimpleMemoryStream(writable: false);
+        var stream = GetRawContentBytes(contentHash).AsSimpleMemoryStream(writable: false);
         var dataProvider = () => stream;
         return string.IsNullOrEmpty(fileName)
             ? new ResourceDescription(name, dataProvider, isPublic)
             : new ResourceDescription(name, fileName, dataProvider, isPublic);
     }
 
-    internal SourceText GetSourceText(string contentHash, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded = false)
+    public SourceText ReadSourceText(SourceTextData sourceTextData)
+    {
+        var contentHash = (string)sourceTextData.Id;
+        return ReadSourceText(sourceTextData.RawContentKind, contentHash, sourceTextData.ChecksumAlgorithm, canBeEmbedded: false);
+    }
+
+    /// <summary>
+    /// Read the content represented by <paramref name="contentHash"/> as a <see cref="SourceText"/>.
+    /// </summary>
+    internal SourceText ReadSourceText(RawContentKind kind, string contentHash, SourceHashAlgorithm checksumAlgorithm, bool canBeEmbedded = false)
     {
         Stream? stream = null;
         try
@@ -777,12 +836,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             if (canBeEmbedded)
             {
                 // Zip streams don't have length so we have to go the byte[] route
-                var bytes = GetContentBytes(contentHash);
+                var bytes = GetContentBytes(kind, contentHash);
                 stream = bytes.AsSimpleMemoryStream();
             }
             else
             {
-                stream = ZipArchive.OpenEntryOrThrow(GetContentEntryName(contentHash));
+                stream = GetContentStream(kind, contentHash);
             }
 
             return RoslynUtil.GetSourceText(stream, checksumAlgorithm: checksumAlgorithm, canBeEmbedded: canBeEmbedded);

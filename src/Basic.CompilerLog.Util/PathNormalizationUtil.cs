@@ -32,17 +32,19 @@ internal abstract class PathNormalizationUtil
     /// <summary>
     /// Is the path rooted in the "from" platform
     /// </summary>
-    /// <param name="path"></param>
-    /// <returns></returns>
     internal abstract bool IsPathRooted([NotNullWhen(true)] string? path);
 
     /// <summary>
     /// Normalize the path from the "from" platform to the "to" platform
     /// </summary>
-    /// <param name="path"></param>
-    /// <returns></returns>
     [return: NotNullIfNotNull("path")]
     internal abstract string? NormalizePath(string? path);
+
+    /// <summary>
+    /// Normalize the path from the "from" platform to the "to" platform
+    /// </summary>
+    [return: NotNullIfNotNull("path")]
+    internal virtual string? NormalizePath(string? path, RawContentKind kind) => NormalizePath(path);
 
     /// <summary>
     /// Make the file name an absolute path by putting it under the root
