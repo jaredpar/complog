@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util;
 using Microsoft.Build.Framework;
 using Microsoft.CodeAnalysis;
 using System;
@@ -334,6 +334,12 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         <Rule Id="CA1016" Action="Warning" />
                         <Rule Id="CA1033" Action="Warning" />
                     </Rules>
+                    <Include Path="nested.ruleset" Action="Default" />
+                </RuleSet>
+                """);
+
+            File.WriteAllText(Path.Combine(scratchPath, "nested.ruleset"), """
+                <RuleSet Name="Rules for Hello World project" Description="These rules focus on critical issues for the Hello World app." ToolsVersion="10.0">
                     <Rules AnalyzerId="Microsoft.CodeQuality.Analyzers" RuleNamespace="Microsoft.CodeQuality.Analyzers">
                         <Rule Id="CA1802" Action="Error" />
                         <Rule Id="CA1814" Action="Info" />

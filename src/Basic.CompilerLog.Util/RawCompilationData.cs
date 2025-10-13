@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
@@ -32,6 +32,7 @@ internal enum RawContentKind
     Win32Resource,
     Win32Icon,
     CryptoKeyFile,
+    RuleSetInclude,
 }
 
 /// <summary>

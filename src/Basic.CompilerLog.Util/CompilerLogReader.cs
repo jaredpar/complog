@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Impl;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.CodeAnalysis;
@@ -17,6 +17,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Xml;
 using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
@@ -448,6 +449,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
                 // not exposed yet
                 case RawContentKind.RuleSet:
+                case RawContentKind.RuleSetInclude:
                 case RawContentKind.AppConfig:
                 case RawContentKind.Win32Manifest:
                 case RawContentKind.Win32Icon:
@@ -762,6 +764,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             return newSourceText.ToMemoryStream();
         }
 
+        if ((kind == RawContentKind.RuleSet || kind == RawContentKind.RuleSetInclude) && GetNormalizedRuleset(contentHash) is { } newStream)
+        {
+            return newStream;
+        }
+
         return GetRawContentStream(contentHash);
     }
 
@@ -806,6 +813,34 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return null;
     }
 
+    /// <summary>
+    /// Attempts to read and normalize the Include items in the given ruleset file. This returns null if no
+    /// normalization is needed.
+    /// </summary>
+    private Stream? GetNormalizedRuleset(string contentHash)
+    {
+        if (PathNormalizationUtil.IsEmpty)
+        {
+            return null;
+        }
+
+        // If paths are being mapped then we need to map the paths inside of rulesets as they
+        // can impact diagnostics in the compilation
+        using var stream = GetRawContentStream(contentHash);
+        var xmlDocument = new XmlDocument();
+        xmlDocument.Load(stream);
+        var includes = RoslynUtil.GetRuleSetIncludes(xmlDocument);
+        if (includes.Count == 0)
+        {
+            return null;
+        }
+
+        RoslynUtil.RewriteRuleSetIncludes(xmlDocument, PathNormalizationUtil.NormalizePath);
+        var newStream = new MemoryStream();
+        xmlDocument.Save(newStream);
+        newStream.Position = 0;
+        return newStream;
+    }
 
     internal ResourceDescription ReadResourceDescription(ResourceData pack) =>
         ReadResourceDescription(pack.ContentHash, pack.FileName, pack.Name, pack.IsPublic);

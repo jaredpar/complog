@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -949,5 +949,48 @@ public static class RoslynUtil
         var obj = field.GetValue(null)!;
         var dictionary = (ImmutableDictionary<LocalizableString, Exception>)obj;
         field.SetValue(null, ImmutableDictionary<LocalizableString, Exception>.Empty.WithComparers(dictionary.KeyComparer, dictionary.ValueComparer));
+    }
+
+    /// <summary>
+    /// Extracts all Include element Path attributes from a ruleset file
+    /// </summary>
+    internal static List<string> GetRuleSetIncludes(XmlDocument doc)
+    {
+        var includes = new List<string>();
+
+        var includeNodes = doc.SelectNodes("//Include[@Path]");
+        if (includeNodes is not null)
+        {
+            foreach (XmlNode node in includeNodes)
+            {
+                var pathAttr = node.Attributes?["Path"];
+                if (pathAttr?.Value is { } path)
+                {
+                    includes.Add(path);
+                }
+            }
+        }
+
+        return includes;
+    }
+
+    /// <summary>
+    /// Rewrites Include element Path attributes in a ruleset file to point to new locations
+    /// </summary>
+    internal static void RewriteRuleSetIncludes(XmlDocument doc, Func<string, string> pathMapFunc)
+    {
+        var includeNodes = doc.SelectNodes("//Include[@Path]");
+        if (includeNodes is not null)
+        {
+            foreach (XmlNode node in includeNodes)
+            {
+                var pathAttr = node.Attributes?["Path"];
+                if (pathAttr?.Value is { } path)
+                {
+                    var newPath = pathMapFunc(path);
+                    pathAttr.Value = newPath;
+                }
+            }
+        }
     }
 }
