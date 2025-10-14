@@ -356,7 +356,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             var filePath = queue.Dequeue();
             if (!File.Exists(filePath))
             {
-                Diagnostics.Add(RoslynUtil.GetMissingFileDiagnosticMessage(filePath));
+                Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(filePath));
                 continue;
             }
 
@@ -373,9 +373,9 @@ internal sealed class CompilerLogBuilder : IDisposable
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Diagnostics.Add($"Could not read ruleset {filePath}: {ex.Message}");
+                Diagnostics.Add(RoslynUtil.GetDiagnosticCannotReadRulset(filePath));
             }
         } while (queue.Count > 0);
     }
@@ -450,7 +450,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         if (!File.Exists(filePath))
         {
-            Diagnostics.Add(RoslynUtil.GetMissingFileDiagnosticMessage(filePath));
+            Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(filePath));
             return null;
         }
 

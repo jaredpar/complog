@@ -1,4 +1,4 @@
-using Basic.CompilerLog.Util.Impl;
+﻿using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -310,8 +310,11 @@ public static class RoslynUtil
         return path;
     }
 
-    internal static string GetMissingFileDiagnosticMessage(string filePath) =>
+    internal static string GetDiagnosticMissingFile(string filePath) =>
         $"Missing file, either build did not happen on this machine or the environment has changed: {filePath}";
+
+    internal static string GetDiagnosticCannotReadRulset(string filePath) =>
+        $"Cannot read ruleset file '{filePath}'";
 
     /// <summary>
     /// Open a file from a build on the current machine and add a diagonstic if it's missing.
@@ -320,7 +323,7 @@ public static class RoslynUtil
     {
         if (!File.Exists(filePath))
         {
-            throw new Exception(GetMissingFileDiagnosticMessage(filePath));
+            throw new Exception(GetDiagnosticMissingFile(filePath));
         }
 
         return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);

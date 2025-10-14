@@ -9,14 +9,14 @@ namespace Basic.CompilerLog.UnitTests;
 
 public abstract class TestBase : IDisposable
 {
-    private static readonly object Guard = new();
+    private static readonly object s_guard = new();
 
     internal static readonly Encoding DefaultEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
     private List<string> BadAssemblyLoadList { get; } = new();
     public ITestOutputHelper TestOutputHelper { get; }
     public ITestContextAccessor TestContextAccessor { get; }
-    
+
     internal TempDir Root { get; }
     internal LogReaderState State { get; }
 
@@ -25,7 +25,7 @@ public abstract class TestBase : IDisposable
     internal string RootDirectory => Root.DirectoryPath;
 
     // Have simple helpers in a real tfm (i.e. not netstandard)
-#if NET 
+#if NET
     internal static bool IsNetCore => true;
     internal static bool IsNetFramework => false;
 #else
@@ -61,7 +61,7 @@ public abstract class TestBase : IDisposable
     }
 
     /// <summary>
-    /// Return the <see cref="BasicAnalyzerKind"/> that do not pollute address space and 
+    /// Return the <see cref="BasicAnalyzerKind"/> that do not pollute address space and
     /// can be run simply.
     /// </summary>
     /// <returns></returns>
@@ -78,7 +78,7 @@ public abstract class TestBase : IDisposable
 
     /// <summary>
     /// Return the <see cref="BasicAnalyzerKind"/> paired with the name of <see cref="LogData"/> instances
-    /// from <see cref="CompilerLogFixture"/> 
+    /// from <see cref="CompilerLogFixture"/>
     /// </summary>
     public static IEnumerable<object[]> GetSimpleBasicAnalyzerKindsAndLogDataNames()
     {
@@ -103,7 +103,7 @@ public abstract class TestBase : IDisposable
     }
 
     /// <summary>
-    /// This captures the set of "missing" files that we need to be tolerant of in our 
+    /// This captures the set of "missing" files that we need to be tolerant of in our
     /// reading and creation of compiler logs.
     /// </summary>
     public static IEnumerable<object?[]> GetMissingFileArguments()
@@ -214,10 +214,10 @@ public abstract class TestBase : IDisposable
         ProcessResult result;
 
         // There is a bug in the 7.0 SDK that causes an exception if multiple dotnet new commands
-        // are run in parallel. This can happen with our tests. Temporarily guard against this 
+        // are run in parallel. This can happen with our tests. Temporarily guard against this
         // with a lock
         // https://github.com/dotnet/sdk/pull/28677
-        lock (Guard)
+        lock (s_guard)
         {
             result = DotnetUtil.Command(command, workingDirectory);
         }
@@ -391,7 +391,7 @@ public abstract class TestBase : IDisposable
 
     private (string MemberDir, bool Overwrite) GetMemberTestArtifactDirectory(string memberName)
     {
-        // Need to overwrite locally or else every time you re-run the test you need to go and 
+        // Need to overwrite locally or else every time you re-run the test you need to go and
         // delete the test-artifacts directory
         var overwrite = !TestUtil.InGitHubActions;
         var testResultsDir = TestUtil.TestArtifactsDirectory;

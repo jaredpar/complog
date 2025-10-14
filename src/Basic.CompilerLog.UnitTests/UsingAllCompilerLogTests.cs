@@ -183,13 +183,49 @@ public sealed class UsingAllCompilerLogTests : TestBase
             {
                 Assert.NotNull(data.CompilerFilePath);
             }
-            
+
             Assert.NotEmpty(data.GetArguments());
         }
     }
 
     /// <summary>
-    /// The classification path exercises a lot of items like analyzer options. 
+    /// Make sure that there is a consistent view of content bytes with or without path
+    /// normalization. This helps catch any place where there is an inconsistency in the
+    /// low level code or an incomplete optimization
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(GetAllLogDataNames))]
+    public async Task ContentBytesAndStream(string logDataName)
+    {
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        using var reader = CompilerLogReader.Create(logData.CompilerLogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
+        VerifyCore();
+        reader.PathNormalizationUtil = new IdentityPathNormalizationUtil();
+        VerifyCore();
+
+        void VerifyCore()
+        {
+            foreach (var compilerCall in reader.ReadAllCompilerCalls())
+            {
+                foreach (var rawContent in reader.ReadAllRawContent(compilerCall))
+                {
+                    if (rawContent.ContentHash is null)
+                    {
+                        continue;
+                    }
+
+                    var bytes = reader.GetContentBytes(rawContent.Kind, rawContent.ContentHash);
+                    var stream = reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
+
+                    var streamBytes = stream.ReadAllBytes();
+                    Assert.True(bytes.SequenceEqual(streamBytes));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The classification path exercises a lot of items like analyzer options.
     /// </summary>
     [Fact]
     public async Task ClassifyAll()
@@ -259,7 +295,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
 #if NET
 
     /// <summary>
-    /// Ensure that the in memory loader finds the same set of analyzers that the 
+    /// Ensure that the in memory loader finds the same set of analyzers that the
     /// on disk loader. The in memory loader has a lot of custom logic and need to
     /// verify it stays in sync with the disk versions
     /// </summary>
@@ -296,7 +332,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 expectedAnalyzers.Select(x => x.GetType().FullName).OrderBy(x => x),
                 actualAnalyzers.Select(x => x.GetType().FullName).OrderBy(x => x));
 
-            // Cannot test GetGeneratorsForAllLanguages here as it has a bug. The 
+            // Cannot test GetGeneratorsForAllLanguages here as it has a bug. The
             // de-dupe method not taking into account IncrementalGeneratorWrapper
             //
             // https://github.com/dotnet/roslyn/blob/99d8eeb69f19385838bf4e15dbe9bfcb50edc0eb/src/Compilers/Core/Portable/DiagnosticAnalyzer/AnalyzerFileReference.cs#L420
@@ -311,8 +347,8 @@ public sealed class UsingAllCompilerLogTests : TestBase
 #endif
 
     /// <summary>
-    /// Ensure that our options round tripping code is correct and produces the same result as 
-    /// argument parsing. This will also catch cases where new values are added to the options 
+    /// Ensure that our options round tripping code is correct and produces the same result as
+    /// argument parsing. This will also catch cases where new values are added to the options
     /// that are not being set by our code base.
     /// </summary>
     [Theory]
