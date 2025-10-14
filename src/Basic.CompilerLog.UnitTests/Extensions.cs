@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -98,4 +99,23 @@ internal static class Extensions
                     vb.CreationDiagnostics),
             _ => throw new NotSupportedException($"Unsupported compilation data type: {compilationData.GetType()}")
         };
+
+    internal static List<byte> ReadAllBytes(this Stream stream)
+    {
+        var list = new List<byte>();
+        var buffer = ArrayPool<byte>.Shared.Rent(4096);
+        try
+        {
+            int bytesRead;
+            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                list.AddRange(buffer.AsSpan(0, bytesRead));
+            }
+            return list;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
 }

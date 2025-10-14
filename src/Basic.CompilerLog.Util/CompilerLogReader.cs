@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Impl;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.CodeAnalysis;
@@ -17,6 +17,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Xml;
 using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
@@ -448,6 +449,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
                 // not exposed yet
                 case RawContentKind.RuleSet:
+                case RawContentKind.RuleSetInclude:
                 case RawContentKind.AppConfig:
                 case RawContentKind.Win32Manifest:
                 case RawContentKind.Win32Icon:
@@ -757,9 +759,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     /// </summary>
     internal Stream GetContentStream(RawContentKind kind, string contentHash)
     {
-        if (kind == RawContentKind.AnalyzerConfig && GetNormalizedAnalyzerConfing(contentHash) is { } newSourceText)
+        if (GetNormalizedContentStream(kind, contentHash) is { } normalizedStream)
         {
-            return newSourceText.ToMemoryStream();
+            return normalizedStream;
         }
 
         return GetRawContentStream(contentHash);
@@ -770,9 +772,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     /// </summary>
     internal byte[] GetContentBytes(RawContentKind kind, string contentHash)
     {
-        if (kind == RawContentKind.AnalyzerConfig && GetNormalizedAnalyzerConfing(contentHash) is { } newSourceText)
+        if (GetNormalizedContentStream(kind, contentHash) is { } stream)
         {
-            var stream = newSourceText.ToMemoryStream();
             return stream.ReadAllBytes();
         }
 
@@ -782,30 +783,60 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     internal byte[] GetContentBytes(ResourceData resourceData) =>
         GetRawContentBytes(resourceData.ContentHash);
 
-    /// <summary>
-    /// Attempts to read and normalize the content of the analyzer config if needed. This returns null if no
-    /// normalization is needed.
-    /// </summary>
-    private SourceText? GetNormalizedAnalyzerConfing(string contentHash)
+    private MemoryStream? GetNormalizedContentStream(RawContentKind kind, string contentHash)
     {
         if (PathNormalizationUtil.IsEmpty)
         {
             return null;
         }
 
-        // If paths are being mapped then we need to map the paths inside of global config
-        // files as they can impact diagnostics in the compilation
-        using var stream = GetRawContentStream(contentHash);
-        var sourceText = RoslynUtil.GetSourceText(stream, checksumAlgorithm: SourceHashAlgorithm.Sha1, canBeEmbedded: false);
-        if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
+        if (kind == RawContentKind.AnalyzerConfig && GetNormalizedAnalyzerConfing(contentHash) is { } newSourceText)
         {
-            var newText = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, PathNormalizationUtil.NormalizePath);
-            return SourceText.From(newText, checksumAlgorithm: sourceText.ChecksumAlgorithm);
+            return newSourceText.ToMemoryStream();
+        }
+
+        if ((kind == RawContentKind.RuleSet || kind == RawContentKind.RuleSetInclude) && GetNormalizedRuleset(contentHash) is { } newStream)
+        {
+            return newStream;
         }
 
         return null;
-    }
 
+        // If paths are being mapped then we need to map the paths inside of global config
+        // files as they can impact diagnostics in the compilation
+        SourceText? GetNormalizedAnalyzerConfing(string contentHash)
+        {
+            using var stream = GetRawContentStream(contentHash);
+            var sourceText = RoslynUtil.GetSourceText(stream, checksumAlgorithm: SourceHashAlgorithm.Sha1, canBeEmbedded: false);
+            if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
+            {
+                var newText = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, PathNormalizationUtil.NormalizePath);
+                return SourceText.From(newText, checksumAlgorithm: sourceText.ChecksumAlgorithm);
+            }
+
+            return null;
+        }
+
+        // If paths are being mapped then we need to map the paths inside of rulesets as they
+        // can impact diagnostics in the compilation
+        MemoryStream? GetNormalizedRuleset(string contentHash)
+        {
+            using var stream = GetRawContentStream(contentHash);
+            var xmlDocument = new XmlDocument();
+            xmlDocument.Load(stream);
+            var includes = RoslynUtil.GetRuleSetIncludes(xmlDocument);
+            if (includes.Count == 0)
+            {
+                return null;
+            }
+
+            RoslynUtil.RewriteRuleSetIncludes(xmlDocument, PathNormalizationUtil.NormalizePath);
+            var newStream = new MemoryStream();
+            xmlDocument.Save(newStream);
+            newStream.Position = 0;
+            return newStream;
+        }
+    }
 
     internal ResourceDescription ReadResourceDescription(ResourceData pack) =>
         ReadResourceDescription(pack.ContentHash, pack.FileName, pack.Name, pack.IsPublic);

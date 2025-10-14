@@ -481,7 +481,7 @@ public sealed class ExportUtilTests : TestBase
             x => x.ProjectFileName == "console.csproj",
             x => x.WithAdditionalArguments([$"{prefix}{filePath}"]),
             diagnostics: diagnostics);
-        Assert.Equal([RoslynUtil.GetMissingFileDiagnosticMessage(filePath)], diagnostics);
+        Assert.Equal([RoslynUtil.GetDiagnosticMissingFile(filePath)], diagnostics);
 
         using var writer = new StringWriter();
         ExportUtil.ExportRsp(reader.ReadCompilerCall(0), writer);

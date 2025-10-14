@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util.Serialize;
+using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -18,6 +18,7 @@ using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Xml;
 using static Basic.CompilerLog.Util.CommonUtil;
 
 namespace Basic.CompilerLog.Util;
@@ -97,8 +98,8 @@ internal sealed class CompilerLogBuilder : IDisposable
             AddAdditionalTexts(dataPack, commandLineArguments);
             AddResources(dataPack, commandLineArguments);
             AddEmbeds(dataPack, compilerCall, commandLineArguments);
+            AddRulesets(dataPack, commandLineArguments);
             AddContentIf(dataPack, RawContentKind.SourceLink, commandLineArguments.SourceLink);
-            AddContentIf(dataPack, RawContentKind.RuleSet, commandLineArguments.RuleSetPath);
             AddContentIf(dataPack, RawContentKind.AppConfig, commandLineArguments.AppConfigPath);
             AddContentIf(dataPack, RawContentKind.Win32Resource, commandLineArguments.Win32ResourceFile);
             AddContentIf(dataPack, RawContentKind.Win32Icon, commandLineArguments.Win32Icon);
@@ -339,6 +340,46 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
+    private void AddRulesets(CompilationDataPack dataPack, CommandLineArguments args)
+    {
+        if (args.RuleSetPath is null)
+        {
+            return;
+        }
+
+        AddContentFromDisk(dataPack, RawContentKind.RuleSet, args.RuleSetPath);
+
+        var queue = new Queue<string>();
+        queue.Enqueue(args.RuleSetPath);
+        do
+        {
+            var filePath = queue.Dequeue();
+            if (!File.Exists(filePath))
+            {
+                Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(filePath));
+                continue;
+            }
+
+            try
+            {
+                var doc = new XmlDocument();
+                doc.Load(filePath);
+                foreach (var i in RoslynUtil.GetRuleSetIncludes(doc))
+                {
+                    var includePath = Path.IsPathRooted(i) ? i : Path.Combine(Path.GetDirectoryName(filePath)!, i);
+                    if (AddContentFromDisk(dataPack, RawContentKind.RuleSetInclude, includePath))
+                    {
+                        queue.Enqueue(includePath);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                Diagnostics.Add(RoslynUtil.GetDiagnosticCannotReadRulset(filePath));
+            }
+        } while (queue.Count > 0);
+    }
+
     private void AddCommandLineArgumentValues(CompilationDataPack dataPack, CommandLineArguments args)
     {
         dataPack.ValueMap.Add("assemblyFileName", RoslynUtil.GetAssemblyFileName(args));
@@ -409,7 +450,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         if (!File.Exists(filePath))
         {
-            Diagnostics.Add(RoslynUtil.GetMissingFileDiagnosticMessage(filePath));
+            Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(filePath));
             return null;
         }
 

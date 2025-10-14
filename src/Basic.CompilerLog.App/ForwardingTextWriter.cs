@@ -7,7 +7,7 @@ namespace Basic.CompilerLog.App;
 /// </summary>
 internal sealed class ForwardingTextWriter(Action<string?> writeAction) : TextWriter
 {
-    private readonly Action<string?> WriteAction = writeAction;
+    private Action<string?> WriteAction { get; } = writeAction;
     public override Encoding Encoding => Encoding.UTF8;
 
     public override void Write(char value) => WriteAction(value.ToString());

@@ -20,8 +20,8 @@ using Xunit;
 namespace Basic.CompilerLog.UnitTests;
 
 /// <summary>
-/// Similar to <see cref="CompilerLogReaderTests"/> but using the <see cref="SolutionFixture"/> 
-/// instead. This allows for a lot of modding of the compiler log that lets us test corner 
+/// Similar to <see cref="CompilerLogReaderTests"/> but using the <see cref="SolutionFixture"/>
+/// instead. This allows for a lot of modding of the compiler log that lets us test corner
 /// cases.
 /// </summary>
 [Collection(SolutionFixtureCollection.Name)]
@@ -46,7 +46,7 @@ public sealed class CompilerLogReaderExTests : TestBase
             basicAnalyzerKind,
             diagnostics);
 
-    private CompilerLogReader ConvertConsoleArgs(Func<IReadOnlyCollection<string>, IReadOnlyCollection<string>> func, BasicAnalyzerKind? basicAnalyzerKind = null) => 
+    private CompilerLogReader ConvertConsoleArgs(Func<IReadOnlyCollection<string>, IReadOnlyCollection<string>> func, BasicAnalyzerKind? basicAnalyzerKind = null) =>
         ConvertConsole(x =>
         {
             var args = func(x.GetArguments());
@@ -56,7 +56,7 @@ public sealed class CompilerLogReaderExTests : TestBase
     [Fact]
     public void AnalyzerConfigNone()
     {
-        var reader = ConvertConsoleArgs(args => 
+        var reader = ConvertConsoleArgs(args =>
             args
                 .Where(x => !x.StartsWith("/analyzerconfig:", StringComparison.Ordinal))
                 .ToArray());
@@ -82,7 +82,7 @@ public sealed class CompilerLogReaderExTests : TestBase
             """;
 
         var globalConfigFilePath = Root.NewFile(".editorconfig", text);
-        var reader = ConvertConsoleArgs(args => 
+        var reader = ConvertConsoleArgs(args =>
             args
                 .Where(x => !x.StartsWith("/analyzerconfig:", StringComparison.Ordinal))
                 .Append($"/analyzerconfig:{globalConfigFilePath}")
@@ -104,7 +104,7 @@ public sealed class CompilerLogReaderExTests : TestBase
         var filePath = Path.Combine(RootDirectory, fileName);
         var prefix = option is null ? "" : $"/{option}:";
         using var reader = ConvertConsole(x => x.WithAdditionalArguments([$"{prefix}{filePath}"]), BasicAnalyzerKind.None, diagnostics);
-        Assert.Equal([RoslynUtil.GetMissingFileDiagnosticMessage(filePath)], diagnostics);
+        Assert.Equal([RoslynUtil.GetDiagnosticMissingFile(filePath)], diagnostics);
         var compilationData = reader.ReadAllCompilationData().Single();
         if (hasDiagnostics)
         {

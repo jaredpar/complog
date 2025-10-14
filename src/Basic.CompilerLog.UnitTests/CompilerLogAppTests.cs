@@ -30,7 +30,7 @@ public sealed class CompilerLogAppTests : TestBase
 
     public SolutionFixture Fixture { get; }
 
-    public CompilerLogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture) 
+    public CompilerLogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture)
         : base(testOutputHelper, testContextAccessor, nameof(CompilerLogAppTests))
     {
         Fixture = fixture;
@@ -107,7 +107,7 @@ public sealed class CompilerLogAppTests : TestBase
         // Run with the binary log
         action(Fixture.SolutionBinaryLogPath);
 
-        // Now create a compiler log 
+        // Now create a compiler log
         var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
         var diagnostics = CompilerLogUtil.ConvertBinaryLog(Fixture.SolutionBinaryLogPath, complogPath);
         Assert.Empty(diagnostics);
@@ -135,7 +135,7 @@ public sealed class CompilerLogAppTests : TestBase
     }
 
     /// <summary>
-    /// The analyzers can still be listed if the project file is deleted as long as the 
+    /// The analyzers can still be listed if the project file is deleted as long as the
     /// analyzers are still on disk
     /// </summary>
     [Fact]
@@ -151,7 +151,7 @@ public sealed class CompilerLogAppTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath} --not-an-option");
         Assert.NotEqual(Constants.ExitSuccess, exitCode);
-        Assert.StartsWith("Extra arguments", output); 
+        Assert.StartsWith("Extra arguments", output);
     }
 
     [Fact]
@@ -159,13 +159,13 @@ public sealed class CompilerLogAppTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.DoesNotContain("Analyzers:", output); 
-        Assert.DoesNotContain("Generators:", output); 
+        Assert.DoesNotContain("Analyzers:", output);
+        Assert.DoesNotContain("Generators:", output);
 
         (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -t");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("Analyzers:", output); 
-        Assert.Contains("Generators:", output); 
+        Assert.Contains("Analyzers:", output);
+        Assert.Contains("Generators:", output);
     }
 
     [Theory]
@@ -245,7 +245,7 @@ public sealed class CompilerLogAppTests : TestBase
     }
 
     /// <summary>
-    /// When the resulting compiler log is empty an error should be returned cause clearly 
+    /// When the resulting compiler log is empty an error should be returned cause clearly
     /// there was a mistake somewhere on the command line.
     /// </summary>
     [Fact]
@@ -268,7 +268,7 @@ public sealed class CompilerLogAppTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"create {Fixture.RemovedBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains(RoslynUtil.GetMissingFileDiagnosticMessage(""), output);
+        Assert.Contains(RoslynUtil.GetDiagnosticMissingFile(""), output);
     }
 
     [Theory]
@@ -721,7 +721,7 @@ public sealed class CompilerLogAppTests : TestBase
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("No compilations found", output);
     }
-    
+
     [Fact]
     public void ExportEmptyLog()
     {
@@ -772,7 +772,7 @@ public sealed class CompilerLogAppTests : TestBase
     {
         kind ??= BasicAnalyzerHost.DefaultKind;
         using var emitDir = new TempDir();
-        AssertCompilerCallReader(reader => 
+        AssertCompilerCallReader(reader =>
         {
             Assert.Equal(kind.Value, reader.BasicAnalyzerKind);
         });

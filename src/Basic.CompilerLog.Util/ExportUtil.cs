@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using NaturalSort.Extension;
 using Microsoft.CodeAnalysis.Text;
@@ -144,6 +144,7 @@ public sealed partial class ExportUtil
             WriteAnalyzers();
             WriteReferences();
             WriteResources();
+            WriteIncludedRulesets();
 
             var rspFilePath = Path.Combine(destinationDir, "build.rsp");
             File.WriteAllLines(rspFilePath, ProcessRsp());
@@ -291,6 +292,20 @@ public sealed partial class ExportUtil
             return lines;
         }
 
+        // Write these contents to disk and return the new file path
+        string WriteRawContent(RawContent rawContent)
+        {
+            var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+
+            if (rawContent.ContentHash is not null)
+            {
+                using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
+                contentStream.WriteTo(filePath);
+            }
+
+            return filePath;
+        }
+
         void WriteReferences()
         {
             var refDir = Path.Combine(destinationDir, "ref");
@@ -356,6 +371,7 @@ public sealed partial class ExportUtil
                     RawContentKind.EmbedLine => null,
                     RawContentKind.SourceLink => "/sourcelink:",
                     RawContentKind.RuleSet => "/ruleset:",
+                    RawContentKind.RuleSetInclude => null,
                     RawContentKind.AppConfig => "/appconfig:",
                     RawContentKind.Win32Manifest => "/win32manifest:",
                     RawContentKind.Win32Resource => "/win32res:",
@@ -369,14 +385,8 @@ public sealed partial class ExportUtil
                     continue;
                 }
 
-                var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                var filePath = WriteRawContent(rawContent);
                 commandLineList.Add($@"{prefix}{FormatPathArgument(filePath)}");
-
-                if (rawContent.ContentHash is not null)
-                {
-                    using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
-                    contentStream.WriteTo(filePath);
-                }
             }
         }
 
@@ -384,15 +394,9 @@ public sealed partial class ExportUtil
         {
             foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.GeneratedText))
             {
-                var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
-
                 // Write out the generated text, even if it's not a part of the compilation. This makes it easier
                 // for users to see everything that was generated.
-                if (rawContent.ContentHash is not null)
-                {
-                    using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
-                    contentStream.WriteTo(filePath);
-                }
+                var filePath = WriteRawContent(rawContent);
 
                 if (ExcludeAnalyzers)
                 {
@@ -401,16 +405,19 @@ public sealed partial class ExportUtil
             }
         }
 
+        void WriteIncludedRulesets()
+        {
+            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.RuleSetInclude))
+            {
+                WriteRawContent(rawContent);
+            }
+        }
+
         void WriteEmbedLines()
         {
             foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.EmbedLine))
             {
-                if (rawContent.ContentHash is not null)
-                {
-                    using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
-                    var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
-                    contentStream.WriteTo(filePath);
-                }
+                WriteRawContent(rawContent);
             }
         }
 

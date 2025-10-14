@@ -703,15 +703,18 @@ public sealed class CompilerLogReaderTests : TestBase
             return list;
         }
     }
-}
 
-/// <summary>
-/// This is a no-op path normalizer but it being a custom type means the reader avoids a lot of
-/// optimizations it would otherwise hit.
-/// </summary>
-file sealed class IdentityPathNormalizationUtil : PathNormalizationUtil
-{
-    internal override bool IsPathRooted([NotNullWhen(true)] string? path) => Empty.IsPathRooted(path);
-    internal override string RootFileName(string fileName) => Empty.RootFileName(fileName);
-    internal override string? NormalizePath(string? path) => Empty.NormalizePath(path);
+    /// <summary>
+    /// Make sure the result of the ruleset is correctly encoded into the <see cref="CompilationOptions"/>. This
+    /// is calculated on the machine where the compilation occurs but must be replicated through the log
+    /// </summary>
+    [Fact]
+    public void RulesetPresentInOptions()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
+        var data = reader.ReadCompilationData(0);
+        Assert.NotNull(data.CompilationOptions);
+        Assert.Equal(ReportDiagnostic.Warn, data.CompilationOptions.SpecificDiagnosticOptions["CA1001"]);
+        Assert.Equal(ReportDiagnostic.Error, data.CompilationOptions.SpecificDiagnosticOptions["CA1802"]);
     }
+}
