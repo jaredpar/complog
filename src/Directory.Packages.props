@@ -9,8 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Basic.Reference.Assemblies.Net90" Version="1.8.3" />
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.2" />
-    <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.2" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.4" />
+    <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.4" />
     <PackageVersion Include="coverlet.msbuild" Version="6.0.4" />
     <PackageVersion Include="MessagePack" Version="3.1.4" />
     <PackageVersion Include="Microsoft.Bcl.Memory" Version="$(_RuntimeVersion)" />
@@ -22,13 +22,13 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="$(_RoslynVersion)" />
     <PackageVersion Include="Microsoft.CodeAnalysis.VisualBasic" Version="$(_RoslynVersion)" />
     <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="$(_RuntimeVersion)" />
-    <PackageVersion Include="Microsoft.NET.Test.SDK" Version="17.14.1" />
+    <PackageVersion Include="Microsoft.NET.Test.SDK" Version="18.0.0" />
     <PackageVersion Include="Mono.Options" Version="6.12.0.148" />
-    <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.45" />
-    <PackageVersion Include="NaturalSort.Extension" Version="4.3.0" />
+    <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.71" />
+    <PackageVersion Include="NaturalSort.Extension" Version="4.4.0" />
     <PackageVersion Include="System.Buffers" Version="4.6.0" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
-    <PackageVersion Include="xunit.v3" Version="3.0.1" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="xunit.v3" Version="3.1.0" />
   </ItemGroup>
 </Project>
