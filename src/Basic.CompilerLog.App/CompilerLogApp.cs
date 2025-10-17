@@ -466,12 +466,12 @@ public sealed class CompilerLogApp(
 
                 if (!singleLine)
                 {
-                    bool hasNoConfigOption = reader.ReadCommandLineArgumentStrings(compilerCall).Contains("/noconfig", StringComparer.OrdinalIgnoreCase);
+                    bool hasNoConfigOption = reader.ReadCommandLineArgumentText(compilerCall).Contains("/noconfig", StringComparer.OrdinalIgnoreCase);
                     writer.WriteLine($"# cd {compilerCall.ProjectDirectory}");
                     writer.WriteLine($"# csc {(hasNoConfigOption ? "/noconfig " : "")}@\"{rspFilePath}\"");
                 }
 
-                ExportUtil.ExportRsp(reader.ReadCommandLineArgumentStrings(compilerCall), writer, singleLine);
+                ExportUtil.ExportRsp(reader.ReadCommandLineArgumentText(compilerCall), writer, singleLine);
 
                 string GetRspFileName()
                 {

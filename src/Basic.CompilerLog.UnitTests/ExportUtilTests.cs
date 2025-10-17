@@ -450,7 +450,7 @@ public sealed class ExportUtilTests : TestBase
 
         using var writer = new StringWriter();
         var compilerCall = reader.ReadCompilerCall(0);
-        ExportUtil.ExportRsp(reader.ReadCommandLineArgumentStrings(compilerCall), writer);
+        ExportUtil.ExportRsp(reader.ReadCommandLineArgumentText(compilerCall), writer);
         Assert.Contains(fileName, writer.ToString());
 
 #if NET

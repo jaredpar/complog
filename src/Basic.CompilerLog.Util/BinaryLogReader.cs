@@ -448,7 +448,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         return list;
     }
 
-    public IReadOnlyCollection<string> ReadCommandLineArgumentStrings(CompilerCall compilerCall)
+    public IReadOnlyCollection<string> ReadCommandLineArgumentText(CompilerCall compilerCall)
     {
         CheckOwnership(compilerCall);
         // TODO: temp part of refactoring
