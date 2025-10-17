@@ -201,53 +201,6 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    /// <summary>
-    /// Add the compiler call content into the builder.
-    /// </summary>
-    /// <remarks>
-    /// This is useful for building up compilations on the fly for testing.
-    /// </remarks>
-    internal void AddContent(
-        CompilerCall compilerCall,
-        string[] sources,
-        CommandLineArguments? commandLineArguments = null)
-    {
-        commandLineArguments ??= GetEmptyCommandLineArguments();
-
-        var dataPack = new CompilationDataPack()
-        {
-            ContentList = new(),
-            ValueMap = new(),
-            References = new(),
-            Analyzers = new(),
-            Resources = new(),
-        };
-
-        AddCommandLineArgumentValues(dataPack, commandLineArguments);
-
-        foreach (var (i, source) in sources.Index())
-        {
-            AddContent(dataPack, RawContentKind.SourceText, filePath: $"source{i}.cs", content: source);
-        }
-
-        var infoPack = new CompilationInfoPack()
-        {
-            CompilerFilePath = compilerCall.CompilerFilePath,
-            ProjectFilePath = compilerCall.ProjectFilePath,
-            IsCSharp = compilerCall.IsCSharp,
-            TargetFramework = compilerCall.TargetFramework,
-            CompilerCallKind = compilerCall.Kind,
-            CommandLineArgsHash = WriteContentMessagePack(compilerCall.GetArguments()),
-            CompilationDataPackHash = WriteContentMessagePack(dataPack)
-        };
-
-        AddCore(infoPack);
-
-        CommandLineArguments GetEmptyCommandLineArguments() => compilerCall.IsCSharp
-            ? CSharpCommandLineParser.Default.Parse([], baseDirectory: null, sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse([], baseDirectory: null, sdkDirectory: null, additionalReferenceDirectories: null);
-    }
-
     private void AddCore(CompilationInfoPack infoPack)
     {
         var index = _compilationCount;

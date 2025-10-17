@@ -243,7 +243,7 @@ public abstract class TestBase : IDisposable
     protected CompilerLogReader ChangeCompilerCall(
         string logFilePath,
         Func<CompilerCall, bool> predicate,
-        Func<CompilerCall, CompilerCall> func,
+        Func<ICompilerCallReader, CompilerCall, CompilerCall> func,
         BasicAnalyzerKind? basicAnalyzerKind = null,
         List<string>? diagnostics = null)
     {
@@ -252,7 +252,7 @@ public abstract class TestBase : IDisposable
             .ReadAllCompilerCalls(predicate)
             .Single();
 
-        compilerCall = func(compilerCall);
+        compilerCall = func(reader, compilerCall);
 
         diagnostics ??= new List<string>();
         var stream = new MemoryStream();

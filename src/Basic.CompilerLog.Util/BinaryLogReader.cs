@@ -448,6 +448,13 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         return list;
     }
 
+    public IReadOnlyCollection<string> ReadCommandLineArgumentStrings(CompilerCall compilerCall)
+    {
+        CheckOwnership(compilerCall);
+        // TODO: temp part of refactoring
+        return compilerCall.GetArguments();
+    }
+
     private void CheckOwnership(CompilerCall compilerCall)
     {
         if (compilerCall.OwnerState is BinaryLogReader reader && object.ReferenceEquals(reader, this))

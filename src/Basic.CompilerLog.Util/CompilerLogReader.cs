@@ -322,6 +322,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .ToList();
     }
 
+    public IReadOnlyCollection<string> ReadCommandLineArgumentStrings(CompilerCall compilerCall)
+    {
+        // TODO: temp part of refactoring
+        return compilerCall.GetArguments();
+    }
+
     private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)
     {
         var emitOptions = MessagePackUtil.CreateEmitOptions(GetContentPack<EmitOptionsPack>(pack.EmitOptionsHash));

@@ -466,12 +466,12 @@ public sealed class CompilerLogApp(
 
                 if (!singleLine)
                 {
-                    bool hasNoConfigOption = compilerCall.GetArguments().Contains("/noconfig", StringComparer.OrdinalIgnoreCase);
+                    bool hasNoConfigOption = reader.ReadCommandLineArgumentStrings(compilerCall).Contains("/noconfig", StringComparer.OrdinalIgnoreCase);
                     writer.WriteLine($"# cd {compilerCall.ProjectDirectory}");
                     writer.WriteLine($"# csc {(hasNoConfigOption ? "/noconfig " : "")}@\"{rspFilePath}\"");
                 }
 
-                ExportUtil.ExportRsp(compilerCall, writer, singleLine);
+                ExportUtil.ExportRsp(reader.ReadCommandLineArgumentStrings(compilerCall), writer, singleLine);
 
                 string GetRspFileName()
                 {
@@ -866,7 +866,7 @@ public sealed class CompilerLogApp(
             version: {ToolVersion}
 
             Commands
-            create        Create a compiler log file 
+            create        Create a compiler log file
             replay        Replay compilations from the log
             export        Export compilation contents, rsp and build files to disk
             rsp           Generate compiler response file projects on this machine
@@ -881,10 +881,10 @@ public sealed class CompilerLogApp(
         if (verbose)
         {
             WriteLine("""
-            Commands can be passed a .complog, .binlog, .sln or .csproj file. In the case of build 
-            files a 'dotnet build' will be used to create a binlog file. Extra build args can be 
-            passed after --. 
-            
+            Commands can be passed a .complog, .binlog, .sln or .csproj file. In the case of build
+            files a 'dotnet build' will be used to create a binlog file. Extra build args can be
+            passed after --.
+
             For example: complog create console.csproj -- -p:Configuration=Release
 
             """);
@@ -1086,7 +1086,7 @@ public sealed class CompilerLogApp(
     }
 
     // Is the project for this <see cref="CompilerCall"/> only occur once in the list as a
-    // non-satellite assembly? 
+    // non-satellite assembly?
     internal static bool IsSingleTarget(CompilerCall compilerCall, List<CompilerCall> compilerCalls)
     {
         return compilerCalls.Count(x =>
@@ -1174,7 +1174,7 @@ public sealed class CompilerLogApp(
             throw new Exception($"Invalid compiler directory {compilerDirectory}");
         }
 
-        var alc = CreateContext(compilerDirectory, Path.GetDirectoryName(typeof(CompilerLogApp).Assembly.Location)!);  
+        var alc = CreateContext(compilerDirectory, Path.GetDirectoryName(typeof(CompilerLogApp).Assembly.Location)!);
         var type = typeof(CompilerLogApp);
         var assembly = alc.LoadFromAssemblyName(type.Assembly.GetName());
         var contextType = assembly.GetType(type.FullName!, throwOnError: true);
