@@ -619,7 +619,7 @@ public sealed class CompilerLogReaderTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var compilerCall = reader.ReadCompilerCall(0);
-        var arguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
+        var arguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, reader.ReadArguments(compilerCall));
         var (assemblyFilePath, refAssemblyFilePath) = RoslynUtil.GetAssemblyOutputFilePaths(arguments);
         AssertProjectRef(assemblyFilePath);
         AssertProjectRef(refAssemblyFilePath);
@@ -689,7 +689,9 @@ public sealed class CompilerLogReaderTests : TestBase
             using var binlogReader = BinaryLogReader.Create(binlogFilePath);
             foreach (var compilerCall in binlogReader.ReadAllCompilerCalls())
             {
-                var (assemblyPath, refAssemblyPath) = RoslynUtil.GetAssemblyOutputFilePaths(BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+                var arguments = binlogReader.ReadArguments(compilerCall);
+                var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, arguments);
+                var (assemblyPath, refAssemblyPath) = RoslynUtil.GetAssemblyOutputFilePaths(commandLineArguments);
                 Assert.NotNull(assemblyPath);
                 Assert.NotNull(refAssemblyPath);
                 list.Add(RoslynUtil.ReadMvid(assemblyPath));

@@ -245,15 +245,12 @@ public sealed class ExportUtilTests : TestBase
         {
             using var binlogReader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!);
             var compilerCall = binlogReader.ReadAllCompilerCalls().Single();
-            string[] args =
-            [
-                .. compilerCall.GetArguments(),
-                $"/link:{linkFilePath}"
-            ];
-            compilerCall = compilerCall.WithArguments(args);
-            var commandLineArgs = binlogReader.ReadCommandLineArguments(compilerCall);
+            var arguments = binlogReader.ReadArguments(compilerCall);
+            arguments = [.. arguments, $"/link:{linkFilePath}"];
+            builder.AddFromDisk(compilerCall, arguments);
+
+            var commandLineArgs = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, arguments);
             Assert.True(commandLineArgs.MetadataReferences.Any(x => x.Properties.EmbedInteropTypes));
-            builder.AddFromDisk(compilerCall, commandLineArgs);
         });
 
         TestExport(TestOutputHelper, reader, expectedCount: 1, verifyExportCallback: tempPath =>
@@ -298,39 +295,6 @@ public sealed class ExportUtilTests : TestBase
         Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
     }
 #endif
-
-    /// <summary>
-    /// Make sure that unix paths aren't confused as options when exporting the RSP file
-    /// </summary>
-    [Fact]
-    public void ExportUnixPaths()
-    {
-        string[] args =
-        [
-            "/workspace/runtime/test.cs",
-            "/debug:full",
-        ];
-        var reader = CreateReader(builder =>
-        {
-            var compilerCall = new CompilerCall(
-                projectFilePath: "/src/app.csproj",
-                compilerFilePath: "app",
-                CompilerCallKind.Regular,
-                targetFramework: "net5.0",
-                isCSharp: true,
-                arguments: args);
-
-            builder.AddContent(compilerCall, ["Console.WriteLine()"]);
-        });
-
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        var dir = Root.NewDirectory("export-test");
-        exportUtil.Export(reader.ReadCompilerCall(0), dir, []);
-
-        var lines = File.ReadAllLines(path: Path.Combine(dir, "build.rsp"));
-        Assert.DoesNotContain(args[0], lines);
-        Assert.Contains(args[1], lines);
-    }
 
     [Fact]
     public void ExportWithUnsafeOption()
@@ -479,12 +443,13 @@ public sealed class ExportUtilTests : TestBase
         using var reader = ChangeCompilerCall(
             Fixture.Console.Value.BinaryLogPath!,
             x => x.ProjectFileName == "console.csproj",
-            x => x.WithAdditionalArguments([$"{prefix}{filePath}"]),
+            (c, a) => (c, [..a, $"{prefix}{filePath}"]),
             diagnostics: diagnostics);
         Assert.Equal([RoslynUtil.GetDiagnosticMissingFile(filePath)], diagnostics);
 
         using var writer = new StringWriter();
-        ExportUtil.ExportRsp(reader.ReadCompilerCall(0), writer);
+        var compilerCall = reader.ReadCompilerCall(0);
+        ExportUtil.ExportRsp(reader.ReadArguments(compilerCall), writer);
         Assert.Contains(fileName, writer.ToString());
 
 #if NET

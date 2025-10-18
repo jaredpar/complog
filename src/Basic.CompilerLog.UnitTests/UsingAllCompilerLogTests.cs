@@ -171,20 +171,20 @@ public sealed class UsingAllCompilerLogTests : TestBase
     {
         var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
         using var reader = CompilerLogReader.Create(logData.CompilerLogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
-        foreach (var data in reader.ReadAllCompilerCalls())
+        foreach (var compilerCall in reader.ReadAllCompilerCalls())
         {
             var fileName = Path.GetFileName(logData.CompilerLogPath);
             if (fileName is "windows-console.complog" ||
                 fileName is "linux-console.complog")
             {
-                Assert.Null(data.CompilerFilePath);
+                Assert.Null(compilerCall.CompilerFilePath);
             }
             else
             {
-                Assert.NotNull(data.CompilerFilePath);
+                Assert.NotNull(compilerCall.CompilerFilePath);
             }
 
-            Assert.NotEmpty(data.GetArguments());
+            Assert.NotEmpty(reader.ReadArguments(compilerCall));
         }
     }
 

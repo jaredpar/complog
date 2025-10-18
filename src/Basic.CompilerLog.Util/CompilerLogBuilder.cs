@@ -62,8 +62,9 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// <summary>
     /// Adds a compilation into the builder and returns the index of the entry
     /// </summary>
-    internal void AddFromDisk(CompilerCall compilerCall, CommandLineArguments commandLineArguments)
+    internal void AddFromDisk(CompilerCall compilerCall, IReadOnlyCollection<string> arguments)
     {
+        var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, arguments);
         var infoPack = new CompilationInfoPack()
         {
             CompilerFilePath = compilerCall.CompilerFilePath,
@@ -71,7 +72,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             IsCSharp = compilerCall.IsCSharp,
             TargetFramework = compilerCall.TargetFramework,
             CompilerCallKind = compilerCall.Kind,
-            CommandLineArgsHash = WriteContentMessagePack(compilerCall.GetArguments()),
+            CommandLineArgsHash = WriteContentMessagePack(arguments),
             CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
         };
 
@@ -143,9 +144,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             if (!_compilerInfoMap.TryGetValue(compilerCall.CompilerFilePath, out var compilerInfo))
             {
-                var name = AssemblyName.GetAssemblyName(compilerCall.CompilerFilePath);
-                compilerInfo.AssemblyName = name.ToString();
-                compilerInfo.CommitHash = RoslynUtil.ReadCompilerCommitHash(compilerCall.CompilerFilePath);
+                compilerInfo = GetCompilerInfo(compilerCall.CompilerFilePath);
                 if (compilerInfo.CommitHash is null)
                 {
                     Diagnostics.Add($"Cannot find commit hash for {compilerCall.CompilerFilePath}");
@@ -156,6 +155,30 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             infoPack.CompilerAssemblyName = compilerInfo.AssemblyName;
             infoPack.CompilerCommitHash = compilerInfo.CommitHash;
+
+            static (string, string?) GetCompilerInfo(string compilerFilePath)
+            {
+                try
+                {
+                    if (Path.GetExtension(compilerFilePath) is ".exe")
+                    {
+                        var p = Path.ChangeExtension(compilerFilePath, ".dll");
+                        if (File.Exists(p))
+                        {
+                            compilerFilePath = p;
+                        }
+                    }
+
+                    var name = MetadataReader.GetAssemblyName(compilerFilePath).ToString();
+                    var commitHash = RoslynUtil.ReadCompilerCommitHash(compilerFilePath);
+                    return (name, commitHash);
+                }
+                catch
+                {
+                    var appName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "csc.exe" : "csc";
+                    return (appName, null);
+                }
+            }
         }
 
         void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)
@@ -199,53 +222,6 @@ internal sealed class CompilerLogBuilder : IDisposable
                 }
             }
         }
-    }
-
-    /// <summary>
-    /// Add the compiler call content into the builder.
-    /// </summary>
-    /// <remarks>
-    /// This is useful for building up compilations on the fly for testing.
-    /// </remarks>
-    internal void AddContent(
-        CompilerCall compilerCall,
-        string[] sources,
-        CommandLineArguments? commandLineArguments = null)
-    {
-        commandLineArguments ??= GetEmptyCommandLineArguments();
-
-        var dataPack = new CompilationDataPack()
-        {
-            ContentList = new(),
-            ValueMap = new(),
-            References = new(),
-            Analyzers = new(),
-            Resources = new(),
-        };
-
-        AddCommandLineArgumentValues(dataPack, commandLineArguments);
-
-        foreach (var (i, source) in sources.Index())
-        {
-            AddContent(dataPack, RawContentKind.SourceText, filePath: $"source{i}.cs", content: source);
-        }
-
-        var infoPack = new CompilationInfoPack()
-        {
-            CompilerFilePath = compilerCall.CompilerFilePath,
-            ProjectFilePath = compilerCall.ProjectFilePath,
-            IsCSharp = compilerCall.IsCSharp,
-            TargetFramework = compilerCall.TargetFramework,
-            CompilerCallKind = compilerCall.Kind,
-            CommandLineArgsHash = WriteContentMessagePack(compilerCall.GetArguments()),
-            CompilationDataPackHash = WriteContentMessagePack(dataPack)
-        };
-
-        AddCore(infoPack);
-
-        CommandLineArguments GetEmptyCommandLineArguments() => compilerCall.IsCSharp
-            ? CSharpCommandLineParser.Default.Parse([], baseDirectory: null, sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse([], baseDirectory: null, sdkDirectory: null, additionalReferenceDirectories: null);
     }
 
     private void AddCore(CompilationInfoPack infoPack)

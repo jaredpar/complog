@@ -32,6 +32,21 @@ public sealed class WindowsTheoryAttribute : TheoryAttribute
     }
 }
 
+public sealed class UnixFactAttribute : FactAttribute
+{
+    public static bool IsUnix => !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+    public UnixFactAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1)
+      : base(sourceFilePath, sourceLineNumber)
+    {
+        SkipUnless = nameof(IsUnix);
+        SkipType = typeof(UnixFactAttribute);
+        Skip = "This test is only supported on Unix";
+    }
+}
+
 public sealed class UnixTheoryAttribute : TheoryAttribute
 {
     public static bool IsUnix => !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -41,9 +56,9 @@ public sealed class UnixTheoryAttribute : TheoryAttribute
         [CallerLineNumber] int sourceLineNumber = -1)
       : base(sourceFilePath, sourceLineNumber)
     {
-        Skip = "This test is only supported on Unix";
         SkipUnless = nameof(IsUnix);
-        SkipType = typeof(UnixTheoryAttribute);
+        SkipType = typeof(UnixFactAttribute);
+        Skip = "This test is only supported on Unix";
     }
 }
 

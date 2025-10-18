@@ -63,4 +63,12 @@ public interface ICompilerCallReader : IDisposable
     /// when <see cref="HasAllGeneratedFileContent(CompilerCall)"/> returns true
     /// </summary>
     public List<(SourceText SourceText, string FilePath)> ReadAllGeneratedSourceTexts(CompilerCall compilerCall);
+
+    /// <summary>
+    /// Read the raw command line arguments passed to the compiler.
+    /// </summary>
+    /// <remarks>
+    /// Warning: the paths returned may not be valid on the current machine.
+    /// </remarks>
+    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall);
 }

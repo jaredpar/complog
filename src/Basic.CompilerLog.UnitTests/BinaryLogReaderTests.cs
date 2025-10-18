@@ -42,7 +42,7 @@ public sealed class BinaryLogReaderTests : TestBase
     }
 
     /// <summary>
-    /// Creating a <see cref="CommandLineArguments"/> instance requires a non-trivial amount of 
+    /// Creating a <see cref="CommandLineArguments"/> instance requires a non-trivial amount of
     /// work as it's parsed from a raw string. Several parts of the code base expect to be able
     /// to get them cheaply with an amortized cost of a single parse. Verify that happens here.
     /// </summary>
@@ -96,7 +96,7 @@ public sealed class BinaryLogReaderTests : TestBase
     /// </summary>
     [Fact]
     public void ReadAllCompilerCallsTwice()
-    {   
+    {
         using var state = new LogReaderState();
         using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, BasicAnalyzerKind.OnDisk, state);
         Assert.Single(reader.ReadAllCompilerCalls());
@@ -215,11 +215,13 @@ public sealed class BinaryLogReaderTests : TestBase
     public void MissingFiles(string? option, string fileName, bool hasDiagnostics)
     {
         using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!, BasicAnalyzerKind.None);
-        var originalCompilerCall = reader.ReadAllCompilerCalls().Single();
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
 
         var filePath = Path.Combine(RootDirectory, fileName);
         var prefix = option is null ? "" : $"/{option}:";
-        var compilerCall = originalCompilerCall.WithAdditionalArguments([$"{prefix}{filePath}"]);
+        reader.SetArguments(
+            compilerCall,
+            [.. reader.ReadArguments(compilerCall), $"{prefix}{filePath}"]);
         var compilationData = reader.ReadCompilationData(compilerCall);
         if (hasDiagnostics)
         {
