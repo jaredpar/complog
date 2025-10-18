@@ -322,7 +322,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .ToList();
     }
 
-    public IReadOnlyCollection<string> ReadCommandLineArgumentText(CompilerCall compilerCall)
+    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
     {
         // TODO: temp part of refactoring
         return compilerCall.GetArguments();

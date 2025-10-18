@@ -133,10 +133,10 @@ public static class BinaryLogUtil
         public override string ToString() => $"{Path.GetFileName(ProjectFile)}({TargetFramework})";
     }
 
-    internal readonly struct CompilerTaskData(CompilerCall compilerCall, string[] commandLineArgumentText)
+    internal readonly struct CompilerTaskData(CompilerCall compilerCall, string[] arguments)
     {
         public CompilerCall CompilerCall { get; } = compilerCall;
-        public string[] CommandLineArgumentText { get; } = commandLineArgumentText;
+        public string[] Arguments { get; } = arguments;
         [ExcludeFromCodeCoverage]
         public override string ToString() => CompilerCall.ToString();
     }

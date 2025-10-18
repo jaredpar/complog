@@ -207,7 +207,7 @@ public sealed partial class ExportUtil
 
         List<string> ProcessRsp()
         {
-            var arguments = Reader.ReadCommandLineArgumentText(compilerCall);
+            var arguments = Reader.ReadArguments(compilerCall);
             var lines = new List<string>(capacity: arguments.Count);
 
             // compiler options aren't case sensitive

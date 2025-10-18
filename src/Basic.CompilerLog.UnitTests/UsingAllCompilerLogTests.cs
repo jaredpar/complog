@@ -184,7 +184,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 Assert.NotNull(compilerCall.CompilerFilePath);
             }
 
-            Assert.NotEmpty(reader.ReadCommandLineArgumentText(compilerCall));
+            Assert.NotEmpty(reader.ReadArguments(compilerCall));
         }
     }
 

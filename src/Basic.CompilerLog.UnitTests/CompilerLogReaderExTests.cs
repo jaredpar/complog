@@ -49,7 +49,7 @@ public sealed class CompilerLogReaderExTests : TestBase
     private CompilerLogReader ConvertConsoleArgs(Func<IReadOnlyCollection<string>, IReadOnlyCollection<string>> func, BasicAnalyzerKind? basicAnalyzerKind = null) =>
         ConvertConsole((reader, x) =>
         {
-            var args = func(reader.ReadCommandLineArgumentText(x));
+            var args = func(reader.ReadArguments(x));
             return x.WithArguments(args);
         }, basicAnalyzerKind);
 

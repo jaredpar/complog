@@ -70,5 +70,5 @@ public interface ICompilerCallReader : IDisposable
     /// <remarks>
     /// Warning: the paths returned may not be valid on the current machine.
     /// </remarks>
-    public IReadOnlyCollection<string> ReadCommandLineArgumentText(CompilerCall compilerCall);
+    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall);
 }
