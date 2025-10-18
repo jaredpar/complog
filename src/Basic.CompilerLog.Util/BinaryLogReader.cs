@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Basic.CompilerLog.Util.Impl;
@@ -21,8 +22,9 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     private readonly Dictionary<string, PortableExecutableReference> _metadataReferenceMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, AssemblyIdentityData> _assemblyIdentityDataMap = new(PathUtil.Comparer);
-    private readonly Dictionary<CompilerCall, CommandLineArguments> _argumentsMap = new();
-    private readonly Lazy<List<CompilerCall>> _lazyCompilerCalls;
+    private readonly Dictionary<CompilerCall, CommandLineArguments> _commandLineArgumentsMap = new();
+    private readonly Dictionary<CompilerCall, string[]> _argumentsMap = new();
+    private List<CompilerCall>? _compilerCalls;
     private readonly Lazy<Dictionary<Guid, int>> _lazyMvidToCompilerCallIndexMap;
 
     public bool OwnsLogReaderState { get; }
@@ -37,11 +39,6 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         OwnsLogReaderState = state is null;
         LogReaderState = state ?? new LogReaderState();
         _leaveOpen = leaveOpen;
-        _lazyCompilerCalls = new(() =>
-        {
-            _stream.Position = 0;
-            return BinaryLogUtil.ReadAllCompilerCalls(_stream, ownerState: this);
-        });
         _lazyMvidToCompilerCallIndexMap = new(() => BuildMvidToCompilerCallIndexMap());
     }
 
@@ -93,10 +90,30 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         _stream = null!;
     }
 
+    private List<CompilerCall> GetOrLoadCompilerCalls()
+    {
+        if (_compilerCalls is not null)
+        {
+            return _compilerCalls;
+        }
+
+        _compilerCalls = new();
+        _stream.Position = 0;
+        var list = BinaryLogUtil.ReadAllCompilerTaskData(_stream, ownerState: this);
+
+        foreach (var compilerTaskData in list)
+        {
+            _compilerCalls.Add(compilerTaskData.CompilerCall);
+            _argumentsMap[compilerTaskData.CompilerCall] = compilerTaskData.Arguments;
+        }
+
+        return _compilerCalls;
+    }
+
     public List<CompilerCall> ReadAllCompilerCalls(Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
-        return _lazyCompilerCalls.Value.Where(predicate).ToList();
+        return GetOrLoadCompilerCalls().Where(predicate).ToList();
     }
 
     public List<CompilationData> ReadAllCompilationData(Func<CompilerCall, bool>? predicate = null)
@@ -109,8 +126,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         return list;
     }
 
-    public CompilerCall ReadCompilerCall(int index) =>
-        _lazyCompilerCalls.Value[index];
+    public CompilerCall ReadCompilerCall(int index) => GetOrLoadCompilerCalls()[index];
 
     public CompilerCallData ReadCompilerCallData(CompilerCall compilerCall) =>
             ReadCompilerCallDataCore(compilerCall).CompilerCallData;
@@ -146,12 +162,12 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     public CommandLineArguments ReadCommandLineArguments(CompilerCall compilerCall)
     {
         CheckOwnership(compilerCall);
-        if (!_argumentsMap.TryGetValue(compilerCall, out var args))
+        if (!_commandLineArgumentsMap.TryGetValue(compilerCall, out var commandLineArguments))
         {
-            args = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, compilerCall.GetArguments());
-            _argumentsMap[compilerCall] = args;
+            commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, _argumentsMap[compilerCall]);
+            _commandLineArgumentsMap[compilerCall] = commandLineArguments;
         }
-        return args;
+        return commandLineArguments;
     }
 
     public CompilationData ReadCompilationData(CompilerCall compilerCall)
@@ -451,8 +467,18 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
     {
         CheckOwnership(compilerCall);
-        // TODO: temp part of refactoring
-        return compilerCall.GetArguments();
+        return _argumentsMap[compilerCall];
+    }
+
+    /// <summary>
+    /// Set the arguments for the given <see cref="CompilerCall"/>. This is primarily used
+    /// for testing purposes
+    /// </summary>
+    internal void SetArguments(CompilerCall compilerCall, string[] arguments)
+    {
+        CheckOwnership(compilerCall);
+        Debug.Assert(_compilerCalls is not null);
+        _argumentsMap[compilerCall] = arguments;
     }
 
     private void CheckOwnership(CompilerCall compilerCall)
@@ -500,7 +526,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     private Dictionary<Guid, int> BuildMvidToCompilerCallIndexMap()
     {
         var map =  new Dictionary<Guid, int>();
-        var compilerCalls = _lazyCompilerCalls.Value;
+        var compilerCalls = GetOrLoadCompilerCalls();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var compilerCall = compilerCalls[i];

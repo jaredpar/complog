@@ -43,22 +43,6 @@ internal static class Extensions
         }
     }
 
-    internal static CompilerCall WithArguments(this CompilerCall compilerCall, IReadOnlyCollection<string> arguments) =>
-        new CompilerCall(
-            compilerCall.ProjectFilePath,
-            compilerCall.CompilerFilePath,
-            compilerCall.Kind,
-            compilerCall.TargetFramework,
-            compilerCall.IsCSharp,
-            new Lazy<IReadOnlyCollection<string>>(() => arguments),
-            compilerCall.OwnerState);
-
-    internal static CompilerCall WithAdditionalArguments(this CompilerCall compilerCall, IReadOnlyCollection<string> arguments)
-    {
-        string[] args = [.. compilerCall.GetArguments(), .. arguments];
-        return compilerCall.WithArguments(args);
-    }
-
     internal static CompilerCall WithOwner(this CompilerCall compilerCall, object? ownerState)
     {
         var args = compilerCall.GetArguments();
