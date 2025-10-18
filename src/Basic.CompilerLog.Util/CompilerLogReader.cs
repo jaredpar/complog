@@ -204,7 +204,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             pack.CompilerCallKind,
             pack.TargetFramework,
             pack.IsCSharp,
-            new Lazy<IReadOnlyCollection<string>>(() => GetContentPack<string[]>(pack.CommandLineArgsHash)),
             new CompilerCallState(this, index));
     }
 
@@ -324,8 +323,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
     {
-        // TODO: temp part of refactoring
-        return compilerCall.GetArguments();
+        var index = GetIndex(compilerCall);
+        var infoPack = GetOrReadCompilationInfoPack(index);
+        return GetContentPack<string[]>(infoPack.CommandLineArgsHash);
     }
 
     private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)

@@ -45,14 +45,12 @@ internal static class Extensions
 
     internal static CompilerCall WithOwner(this CompilerCall compilerCall, object? ownerState)
     {
-        var args = compilerCall.GetArguments();
         return new CompilerCall(
             compilerCall.ProjectFilePath,
             compilerCall.CompilerFilePath,
             compilerCall.Kind,
             compilerCall.TargetFramework,
             compilerCall.IsCSharp,
-            new Lazy<IReadOnlyCollection<string>>(() => args),
             ownerState);
     }
 

@@ -118,7 +118,6 @@ public static class BinaryLogUtil
                 kind,
                 targetFramework,
                 isCSharp: IsCSharp,
-                new Lazy<IReadOnlyCollection<string>>(() => args),
                 ownerState: ownerState);
             return new(compilerCall, args);
         }
