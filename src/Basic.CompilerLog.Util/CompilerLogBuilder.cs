@@ -62,8 +62,9 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// <summary>
     /// Adds a compilation into the builder and returns the index of the entry
     /// </summary>
-    internal void AddFromDisk(CompilerCall compilerCall, CommandLineArguments commandLineArguments)
+    internal void AddFromDisk(CompilerCall compilerCall, IReadOnlyCollection<string> arguments)
     {
+        var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, arguments);
         var infoPack = new CompilationInfoPack()
         {
             CompilerFilePath = compilerCall.CompilerFilePath,
@@ -71,7 +72,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             IsCSharp = compilerCall.IsCSharp,
             TargetFramework = compilerCall.TargetFramework,
             CompilerCallKind = compilerCall.Kind,
-            CommandLineArgsHash = WriteContentMessagePack(compilerCall.GetArguments()),
+            CommandLineArgsHash = WriteContentMessagePack(arguments),
             CompilationDataPackHash = AddCompilationDataPack(commandLineArguments),
         };
 

@@ -245,13 +245,12 @@ public sealed class ExportUtilTests : TestBase
         {
             using var binlogReader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!);
             var compilerCall = binlogReader.ReadAllCompilerCalls().Single();
-            compilerCall = compilerCall.WithAdditionalArguments(
-            [
-                $"/link:{linkFilePath}"
-            ]);
-            var commandLineArgs = binlogReader.ReadCommandLineArguments(compilerCall);
+            var arguments = binlogReader.ReadArguments(compilerCall);
+            arguments = [.. arguments, $"/link:{linkFilePath}"];
+            builder.AddFromDisk(compilerCall, arguments);
+
+            var commandLineArgs = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, arguments);
             Assert.True(commandLineArgs.MetadataReferences.Any(x => x.Properties.EmbedInteropTypes));
-            builder.AddFromDisk(compilerCall, commandLineArgs);
         });
 
         TestExport(TestOutputHelper, reader, expectedCount: 1, verifyExportCallback: tempPath =>
@@ -444,7 +443,7 @@ public sealed class ExportUtilTests : TestBase
         using var reader = ChangeCompilerCall(
             Fixture.Console.Value.BinaryLogPath!,
             x => x.ProjectFileName == "console.csproj",
-            (_, x) => x.WithAdditionalArguments([$"{prefix}{filePath}"]),
+            (c, a) => (c, [..a, $"{prefix}{filePath}"]),
             diagnostics: diagnostics);
         Assert.Equal([RoslynUtil.GetDiagnosticMissingFile(filePath)], diagnostics);
 

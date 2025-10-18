@@ -38,20 +38,16 @@ public sealed class CompilerLogReaderExTests : TestBase
     /// <summary>
     /// Convert the console binary log and return a reader over it
     /// </summary>
-    private CompilerLogReader ConvertConsole(Func<ICompilerCallReader, CompilerCall, CompilerCall> func, BasicAnalyzerKind? basicAnalyzerKind = null, List<string>? diagnostics = null) =>
+    private CompilerLogReader ConvertConsole(Func<CompilerCall, string[], (CompilerCall, string[])> func, BasicAnalyzerKind? basicAnalyzerKind = null, List<string>? diagnostics = null) =>
         ChangeCompilerCall(
             Fixture.SolutionBinaryLogPath,
             x => x.ProjectFileName == "console.csproj",
-            func,
+            (reader, compilerCall) => func(compilerCall, reader.ReadArguments(compilerCall).ToArray()),
             basicAnalyzerKind,
             diagnostics);
 
-    private CompilerLogReader ConvertConsoleArgs(Func<IReadOnlyCollection<string>, IReadOnlyCollection<string>> func, BasicAnalyzerKind? basicAnalyzerKind = null) =>
-        ConvertConsole((reader, x) =>
-        {
-            var args = func(reader.ReadArguments(x));
-            return x.WithArguments(args);
-        }, basicAnalyzerKind);
+    private CompilerLogReader ConvertConsoleArgs(Func<string[], string[]> func, BasicAnalyzerKind? basicAnalyzerKind = null) =>
+        ConvertConsole((c, a) => (c, func(a)), basicAnalyzerKind);
 
     [Fact]
     public void AnalyzerConfigNone()
@@ -103,7 +99,7 @@ public sealed class CompilerLogReaderExTests : TestBase
         var diagnostics = new List<string>();
         var filePath = Path.Combine(RootDirectory, fileName);
         var prefix = option is null ? "" : $"/{option}:";
-        using var reader = ConvertConsole((_, x) => x.WithAdditionalArguments([$"{prefix}{filePath}"]), BasicAnalyzerKind.None, diagnostics);
+        using var reader = ConvertConsole((c, a) => (c, [..a, $"{prefix}{filePath}"]), BasicAnalyzerKind.None, diagnostics);
         Assert.Equal([RoslynUtil.GetDiagnosticMissingFile(filePath)], diagnostics);
         var compilationData = reader.ReadAllCompilationData().Single();
         if (hasDiagnostics)

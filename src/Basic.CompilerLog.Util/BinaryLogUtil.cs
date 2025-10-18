@@ -443,11 +443,11 @@ public static class BinaryLogUtil
     /// current machine. In any other scenario this will lead to mostly correct but potentially
     /// incorrect results.
     /// </summary>
-    public static CommandLineArguments ReadCommandLineArgumentsUnsafe(CompilerCall compilerCall)
+    public static CommandLineArguments ReadCommandLineArgumentsUnsafe(CompilerCall compilerCall, IReadOnlyCollection<string> arguments)
     {
         var baseDirectory = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
         return compilerCall.IsCSharp
-            ? CSharpCommandLineParser.Default.Parse(compilerCall.GetArguments(), baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
-            : VisualBasicCommandLineParser.Default.Parse(compilerCall.GetArguments(), baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
+            ? CSharpCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null)
+            : VisualBasicCommandLineParser.Default.Parse(arguments, baseDirectory, sdkDirectory: null, additionalReferenceDirectories: null);
     }
 }

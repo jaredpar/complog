@@ -142,8 +142,7 @@ public static class CompilerLogUtil
         {
             try
             {
-                var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerTaskData.CompilerCall);
-                builder.AddFromDisk(compilerTaskData.CompilerCall, commandLineArguments);
+                builder.AddFromDisk(compilerTaskData.CompilerCall, compilerTaskData.Arguments);
                 included.Add(compilerTaskData.CompilerCall);
             }
             catch (Exception ex)

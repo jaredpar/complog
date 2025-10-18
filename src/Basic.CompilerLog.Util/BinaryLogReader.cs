@@ -148,7 +148,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         CheckOwnership(compilerCall);
         if (!_argumentsMap.TryGetValue(compilerCall, out var args))
         {
-            args = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
+            args = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall, compilerCall.GetArguments());
             _argumentsMap[compilerCall] = args;
         }
         return args;
