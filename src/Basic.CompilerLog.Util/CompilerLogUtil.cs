@@ -126,10 +126,10 @@ public static class CompilerLogUtil
         var included = new List<CompilerCall>();
 
         var success = true;
-        var list = new List<CompilerCall>();
+        var list = new List<BinaryLogUtil.CompilerTaskData>();
         try
         {
-             BinaryLogUtil.ReadAllCompilerCalls(list, binaryLogStream, predicate);
+            list = BinaryLogUtil.ReadAllCompilerTaskData(binaryLogStream, predicate);
         }
         catch (EndOfStreamException ex)
         {
@@ -138,17 +138,17 @@ public static class CompilerLogUtil
         }
 
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
-        foreach (var compilerCall in list)
+        foreach (var compilerTaskData in list)
         {
             try
             {
-                var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall);
-                builder.AddFromDisk(compilerCall, commandLineArguments);
-                included.Add(compilerCall);
+                var commandLineArguments = BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerTaskData.CompilerCall);
+                builder.AddFromDisk(compilerTaskData.CompilerCall, commandLineArguments);
+                included.Add(compilerTaskData.CompilerCall);
             }
             catch (Exception ex)
             {
-                diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
+                diagnostics.Add($"Error adding {compilerTaskData.CompilerCall.ProjectFilePath}: {ex.Message}");
                 success = false;
             }
         }
