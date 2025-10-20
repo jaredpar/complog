@@ -16,19 +16,20 @@ public static class SdkUtil
 {
     public static string GetDotnetDirectory(string? path = null)
     {
-        // TODO: has to be a better way to find the runtime directory but this works for the moment
-        var resolvedPath = path ?? Path.GetDirectoryName(typeof(object).Assembly.Location);
-        while (resolvedPath is not null && !IsDotNetDir(resolvedPath))
+        path ??= GetDefaultSearchPoint();
+        var initialPath = path;
+
+        while (path is not null && !IsDotNetDir(path))
         {
-            resolvedPath = Path.GetDirectoryName(resolvedPath);
+            path = Path.GetDirectoryName(path);
         }
 
-        if (resolvedPath is null)
+        if (path is null)
         {
-            throw new Exception($"Could not find dotnet directory using initial path {path}");
+            throw new Exception($"Could not find dotnet directory using initial path {initialPath}");
         }
 
-        return resolvedPath;
+        return path;
 
         static bool IsDotNetDir(string path)
         {
@@ -40,6 +41,16 @@ public static class SdkUtil
                 File.Exists(Path.Combine(path, appName)) &&
                 Directory.Exists(Path.Combine(path, "sdk")) &&
                 Directory.Exists(Path.Combine(path, "host"));
+        }
+
+        static string GetDefaultSearchPoint()
+        {
+#if NET
+            // TODO: has to be a better way to find the runtime directory but this works for the moment
+            return Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+#else
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet");
+#endif
         }
     }
 

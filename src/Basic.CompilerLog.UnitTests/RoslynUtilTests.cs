@@ -315,6 +315,7 @@ public sealed class RoslynUtilTests
             File.Copy(srcPath, destPath);
         }
         action(temp.DirectoryPath);
+
     }
 
     [Fact]
