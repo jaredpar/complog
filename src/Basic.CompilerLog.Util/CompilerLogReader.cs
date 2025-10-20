@@ -200,11 +200,10 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     {
         return new CompilerCall(
             NormalizePath(pack.ProjectFilePath),
-            NormalizePath(pack.CompilerFilePath),
             pack.CompilerCallKind,
             pack.TargetFramework,
             pack.IsCSharp,
-            new Lazy<IReadOnlyCollection<string>>(() => GetContentPack<string[]>(pack.CommandLineArgsHash)),
+            NormalizePath(pack.CompilerFilePath),
             new CompilerCallState(this, index));
     }
 
@@ -320,6 +319,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .OrderBy(x => x.Key, PathUtil.Comparer)
             .Select(x => new CompilerAssemblyData(x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
+    }
+
+    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
+    {
+        var index = GetIndex(compilerCall);
+        var infoPack = GetOrReadCompilationInfoPack(index);
+        return GetContentPack<string[]>(infoPack.CommandLineArgsHash);
     }
 
     private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)

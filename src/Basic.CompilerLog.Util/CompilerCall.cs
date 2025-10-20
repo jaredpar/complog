@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -42,8 +42,6 @@ public enum CompilerCallKind
 /// </summary>
 public sealed class CompilerCall
 {
-    private readonly Lazy<IReadOnlyCollection<string>> _lazyArguments;
-
     public string ProjectFilePath { get; }
     public string? CompilerFilePath { get; }
     public CompilerCallKind Kind { get; }
@@ -57,11 +55,10 @@ public sealed class CompilerCall
 
     internal CompilerCall(
         string projectFilePath,
-        string? compilerFilePath,
-        CompilerCallKind kind,
-        string? targetFramework,
-        bool isCSharp,
-        Lazy<IReadOnlyCollection<string>> arguments,
+        CompilerCallKind kind = CompilerCallKind.Regular,
+        string? targetFramework = null,
+        bool isCSharp = true,
+        string? compilerFilePath = null,
         object? ownerState = null)
     {
         CompilerFilePath = compilerFilePath;
@@ -70,28 +67,8 @@ public sealed class CompilerCall
         TargetFramework = targetFramework;
         IsCSharp = isCSharp;
         OwnerState = ownerState;
-        _lazyArguments = arguments;
         ProjectFileName = Path.GetFileName(ProjectFilePath);
         ProjectDirectory = Path.GetDirectoryName(ProjectFilePath)!;
-    }
-
-    internal CompilerCall(
-        string projectFilePath,
-        string? compilerFilePath = null,
-        CompilerCallKind kind = CompilerCallKind.Regular,
-        string? targetFramework = null,
-        bool isCSharp = true,
-        string[]? arguments = null,
-        object? ownerState = null)
-        : this(
-            projectFilePath,
-            compilerFilePath,
-            kind,
-            targetFramework,
-            isCSharp,
-            new Lazy<IReadOnlyCollection<string>>(() => arguments ?? []),
-            ownerState)
-    {
     }
 
     public string GetDiagnosticName()
@@ -106,14 +83,6 @@ public sealed class CompilerCall
 
         return baseName;
     }
-
-    /// <summary>
-    /// This returns the raw command line arguments passed to the compiler. None of the
-    /// paths or arguments have been modified to be correct for the current machine.
-    ///
-    /// https://github.com/jaredpar/complog/issues/282
-    /// </summary>
-    public IReadOnlyCollection<string> GetArguments() => _lazyArguments.Value;
 
     [ExcludeFromCodeCoverage]
     public override string ToString() => GetDiagnosticName();

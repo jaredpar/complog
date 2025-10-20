@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -315,6 +315,9 @@ public static class RoslynUtil
 
     internal static string GetDiagnosticCannotReadRulset(string filePath) =>
         $"Cannot read ruleset file '{filePath}'";
+
+    internal static string GetDiagnosticMissingCommitHash(string filePath) =>
+        $"Cannot find commit hash for {filePath}";
 
     /// <summary>
     /// Open a file from a build on the current machine and add a diagonstic if it's missing.
@@ -994,6 +997,41 @@ public static class RoslynUtil
                     pathAttr.Value = newPath;
                 }
             }
+        }
+    }
+
+    internal static string GetCompilerAppFileName(bool isCSharp)
+    {
+        return isCSharp
+            ? (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "csc.exe" : "csc")
+            : (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "vbc.exe" : "vbc");
+    }
+
+    /// <summary>
+    /// Get the compiler assembly name and commit hash from a compiler file path. This will take into
+    /// account items like apphost files.
+    /// </summary>
+    internal static (string AssemblyName, string? CommitHash) GetCompilerInfo(string compilerFilePath, bool isCSharp)
+    {
+        try
+        {
+            if (Path.GetExtension(compilerFilePath) is not ".dll")
+            {
+                var p = Path.ChangeExtension(compilerFilePath, ".dll");
+                if (File.Exists(p))
+                {
+                    compilerFilePath = p;
+                }
+            }
+
+            var name = MetadataReader.GetAssemblyName(compilerFilePath).ToString();
+            var commitHash = RoslynUtil.ReadCompilerCommitHash(compilerFilePath);
+            return (name, commitHash);
+        }
+        catch
+        {
+            var appName = GetCompilerAppFileName(isCSharp);
+            return (appName, null);
         }
     }
 }

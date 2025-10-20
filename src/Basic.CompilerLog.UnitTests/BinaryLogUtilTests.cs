@@ -18,8 +18,17 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
-public sealed class BinaryLogUtilTests
+[Collection(CompilerLogCollection.Name)]
+public sealed class BinaryLogUtilTests : TestBase
 {
+    public CompilerLogFixture Fixture { get; }
+
+    public BinaryLogUtilTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture compilerLogFixture)
+        : base(testOutputHelper, testContextAccessor, nameof(BinaryLogUtilTests))
+    {
+        Fixture = compilerLogFixture;
+    }
+
     [Theory]
     [InlineData("dotnet exec csc.dll a.cs", "csc.dll", "a.cs")]
     [InlineData("dotnet.exe exec csc.dll a.cs", "csc.dll", "a.cs")]
@@ -36,10 +45,10 @@ public sealed class BinaryLogUtilTests
     }
 
     [WindowsTheory]
-    [InlineData(@"  C:\Program Files\dotnet\dotnet.exe exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
-    [InlineData(@"C:\Program Files\dotnet\dotnet.exe exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
-    [InlineData(@"""C:\Program Files\dotnet\dotnet.exe"" exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
-    [InlineData(@"'C:\Program Files\dotnet\dotnet.exe' exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")] 
+    [InlineData(@"  C:\Program Files\dotnet\dotnet.exe exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")]
+    [InlineData(@"C:\Program Files\dotnet\dotnet.exe exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")]
+    [InlineData(@"""C:\Program Files\dotnet\dotnet.exe"" exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")]
+    [InlineData(@"'C:\Program Files\dotnet\dotnet.exe' exec ""C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll"" a.cs", @"C:\Program Files\dotnet\sdk\8.0.301\Roslyn\bincore\csc.dll", "a.cs")]
     [InlineData(@"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe a.cs b.cs", @"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe", "a.cs b.cs")]
     [InlineData(@"""C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe"" a.cs b.cs", @"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe", "a.cs b.cs")]
     public void ParseCompilerAndArgumentsCscWindows(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
@@ -51,8 +60,8 @@ public sealed class BinaryLogUtilTests
     }
 
     [Theory]
-    [InlineData(@"/dotnet/dotnet exec /dotnet/sdk/bincore/csc.dll a.cs", "/dotnet/sdk/bincore/csc.dll", "a.cs")] 
-    [InlineData(@"/dotnet/dotnet exec ""/dotnet/sdk/bincore/csc.dll"" a.cs", "/dotnet/sdk/bincore/csc.dll", "a.cs")] 
+    [InlineData(@"/dotnet/dotnet exec /dotnet/sdk/bincore/csc.dll a.cs", "/dotnet/sdk/bincore/csc.dll", "a.cs")]
+    [InlineData(@"/dotnet/dotnet exec ""/dotnet/sdk/bincore/csc.dll"" a.cs", "/dotnet/sdk/bincore/csc.dll", "a.cs")]
     public void ParseCompilerAndArgumentsCscUnix(string inputArgs, string? expectedCompilerFilePath, string expectedArgs)
     {
         var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(inputArgs, "csc");
@@ -93,6 +102,13 @@ public sealed class BinaryLogUtilTests
         Assert.Null(actualCompilerFilePath);
         Assert.Empty(actualArgs);
     }
+
+    [Fact]
+    public void ReadAllCompilerCallsSingle()
+    {
+        using var stream = File.OpenRead(Fixture.Console.Value.BinaryLogPath!);
+        Assert.Single(BinaryLogUtil.ReadAllCompilerCalls(stream));
+    }
 }
 
 public sealed class MSBuildProjectDataTests
@@ -120,22 +136,22 @@ public sealed class CompilationTaskDataTests
     [Fact]
     public void TryCreateCompilerCallBadArguments()
     {
-        var data = new BinaryLogUtil.CompilationTaskData(1, 1, true)
+        var data = new BinaryLogUtil.MSBuildCompilerTaskData(1, 1, true)
         {
             CommandLineArguments = "dotnet not a compiler call",
         };
 
-        Assert.Throws<InvalidOperationException>(() => data.TryCreateCompilerCall(ContextData.ProjectFile, null, CompilerCallKind.Unknown, ownerState: null));
+        Assert.Throws<InvalidOperationException>(() => data.TryCreateCompilerTaskData(ContextData.ProjectFile, null, CompilerCallKind.Unknown, ownerState: null));
     }
 
     [Fact]
     public void TryCreateCompilerNoArguments()
     {
-        var data = new BinaryLogUtil.CompilationTaskData(1, 1, true)
+        var data = new BinaryLogUtil.MSBuildCompilerTaskData(1, 1, true)
         {
             CommandLineArguments = null,
         };
 
-        Assert.Null(data.TryCreateCompilerCall(ContextData.ProjectFile, null, CompilerCallKind.Unknown, null));
+        Assert.Null(data.TryCreateCompilerTaskData(ContextData.ProjectFile, null, CompilerCallKind.Unknown, null));
     }
 }

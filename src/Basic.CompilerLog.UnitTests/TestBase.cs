@@ -129,8 +129,8 @@ public abstract class TestBase : IDisposable
 
         var compilerDirs = SdkUtil
             .GetSdkDirectoriesAndVersion()
-            .OrderByDescending(x => x.SdkVersion, StringComparer.Ordinal)
-            .Where(x => versions.Any(v => x.SdkVersion.StartsWith(v)))
+            .OrderByDescending(x => x.SdkVersion)
+            .Where(x => versions.Any(v => x.SdkVersion.ToString().StartsWith(v)))
             .Select(x => Path.Combine(x.SdkDirectory, "Roslyn", "bincore"))
             .ToList();
         if (compilerDirs.Count == 0)
@@ -243,7 +243,7 @@ public abstract class TestBase : IDisposable
     protected CompilerLogReader ChangeCompilerCall(
         string logFilePath,
         Func<CompilerCall, bool> predicate,
-        Func<CompilerCall, CompilerCall> func,
+        Func<ICompilerCallReader, CompilerCall, (CompilerCall, string[])> func,
         BasicAnalyzerKind? basicAnalyzerKind = null,
         List<string>? diagnostics = null)
     {
@@ -252,16 +252,29 @@ public abstract class TestBase : IDisposable
             .ReadAllCompilerCalls(predicate)
             .Single();
 
-        compilerCall = func(compilerCall);
+        var (newCompilerCall, newArguments) = func(reader, compilerCall);
 
         diagnostics ??= new List<string>();
         var stream = new MemoryStream();
         var builder = new CompilerLogBuilder(stream, diagnostics);
-        builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+        builder.AddFromDisk(newCompilerCall, newArguments);
         builder.Close();
         stream.Position = 0;
         return CompilerLogReader.Create(stream, basicAnalyzerKind, State, leaveOpen: false);
     }
+
+    protected CompilerLogReader ChangeCompilerCall(
+        string logFilePath,
+        Func<CompilerCall, bool> predicate,
+        Func<CompilerCall, string[], (CompilerCall, string[])> func,
+        BasicAnalyzerKind? basicAnalyzerKind = null,
+        List<string>? diagnostics = null) =>
+        ChangeCompilerCall(
+            logFilePath,
+            predicate,
+            (reader, compilerCall) => func(compilerCall, reader.ReadArguments(compilerCall).ToArray()),
+            basicAnalyzerKind,
+            diagnostics);
 
     protected CompilerLogReader GetReader(bool emptyDirectory = true )
     {

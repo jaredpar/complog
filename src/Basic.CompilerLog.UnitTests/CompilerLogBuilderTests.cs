@@ -14,16 +14,16 @@ public sealed class CompilerLogBuilderTests : TestBase
         Fixture = fixture;
     }
 
-    private void WithCompilerCall(Action<CompilerLogBuilder, CompilerCall> action)
+    private void WithCompilerCall(Action<CompilerLogBuilder, CompilerCall, IReadOnlyCollection<string>> action)
     {
         using var stream = new MemoryStream();
         using var builder = new CompilerLogBuilder(stream, new());
-        using var binlogStream = new FileStream(Fixture.SolutionBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var binlogReader = BinaryLogReader.Create(Fixture.SolutionBinaryLogPath);
 
-        var compilerCall = BinaryLogUtil
-            .ReadAllCompilerCalls(binlogStream, x => x.ProjectFileName == Fixture.ConsoleProjectName)
+        var compilerCall = binlogReader
+            .ReadAllCompilerCalls(x => x.ProjectFileName == Fixture.ConsoleProjectName)
             .Single();
-        action(builder, compilerCall);
+        action(builder, compilerCall, binlogReader.ReadArguments(compilerCall));
     }
 
     /// <summary>
@@ -33,11 +33,10 @@ public sealed class CompilerLogBuilderTests : TestBase
     [Fact]
     public void MissingFileSourceLink()
     {
-        WithCompilerCall((builder, compilerCall) =>
+        WithCompilerCall((builder, compilerCall, _) =>
         {
             // Add a source link that doesn't exist
-            compilerCall = compilerCall.WithArguments(["/sourcelink:does-not-exist.txt"]);
-            builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+            builder.AddFromDisk(compilerCall, ["/sourcelink:does-not-exist.txt"]);
             Assert.NotEmpty(builder.Diagnostics);
         });
     }
@@ -45,11 +44,10 @@ public sealed class CompilerLogBuilderTests : TestBase
     [Fact]
     public void RulesetMissing()
     {
-        WithCompilerCall((builder, compilerCall) =>
+        WithCompilerCall((builder, compilerCall, _) =>
         {
             // Add a ruleset that doesn't exist
-            compilerCall = compilerCall.WithArguments(["/ruleset:does-not-exist.ruleset"]);
-            builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+            builder.AddFromDisk(compilerCall, ["/ruleset:does-not-exist.ruleset"]);
             Assert.NotEmpty(builder.Diagnostics);
         });
     }
@@ -57,13 +55,12 @@ public sealed class CompilerLogBuilderTests : TestBase
     [Fact]
     public void RulesetInvalidXml()
     {
-        WithCompilerCall((builder, compilerCall) =>
+        WithCompilerCall((builder, compilerCall, _) =>
         {
             // Add a ruleset with invalid XML
             var filePath = Path.Combine(RootDirectory, "invalid.ruleset");
             File.WriteAllText(filePath, "not valid xml");
-            compilerCall = compilerCall.WithArguments([$"/ruleset:{filePath}"]);
-            builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+            builder.AddFromDisk(compilerCall, [$"/ruleset:{filePath}"]);
             Assert.Equal([RoslynUtil.GetDiagnosticCannotReadRulset(filePath)], builder.Diagnostics);
         });
     }
@@ -71,7 +68,7 @@ public sealed class CompilerLogBuilderTests : TestBase
     [Fact]
     public void RulesetMissingInclude()
     {
-        WithCompilerCall((builder, compilerCall) =>
+        WithCompilerCall((builder, compilerCall, _) =>
         {
             var filePath = Path.Combine(RootDirectory, "example.ruleset");
             File.WriteAllText(filePath, """
@@ -91,8 +88,7 @@ public sealed class CompilerLogBuilderTests : TestBase
                 """);
 
             // Add a ruleset that doesn't exist
-            compilerCall = compilerCall.WithArguments([$"/ruleset:{filePath}"]);
-            builder.AddFromDisk(compilerCall, BinaryLogUtil.ReadCommandLineArgumentsUnsafe(compilerCall));
+            builder.AddFromDisk(compilerCall, [$"/ruleset:{filePath}"]);
             Assert.Equal([RoslynUtil.GetDiagnosticMissingFile(Path.Combine(RootDirectory, "nested.ruleset"))], builder.Diagnostics);
         });
     }
@@ -119,5 +115,18 @@ public sealed class CompilerLogBuilderTests : TestBase
         var builder = new CompilerLogBuilder(new MemoryStream(), []);
         builder.Close();
         Assert.Throws<InvalidOperationException>(() => builder.Close());
+    }
+
+    [Fact]
+    public void CompilerFilePathMissingCommitHash()
+    {
+        WithCompilerCall((builder, compilerCall, arguments) =>
+        {
+            compilerCall = new CompilerCall(
+                compilerCall.ProjectFilePath,
+                compilerFilePath: typeof(CompilerLogBuilderTests).Assembly.Location);
+            builder.AddFromDisk(compilerCall, arguments);
+            Assert.Equal([RoslynUtil.GetDiagnosticMissingCommitHash(compilerCall.CompilerFilePath!)], builder.Diagnostics);
+        });
     }
 }

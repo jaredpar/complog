@@ -16,8 +16,9 @@ public static class SdkUtil
 {
     public static string GetDotnetDirectory(string? path = null)
     {
-        // TODO: has to be a better way to find the runtime directory but this works for the moment 
-        path ??= Path.GetDirectoryName(typeof(object).Assembly.Location);
+        path ??= GetDefaultSearchPoint();
+        var initialPath = path;
+
         while (path is not null && !IsDotNetDir(path))
         {
             path = Path.GetDirectoryName(path);
@@ -25,7 +26,7 @@ public static class SdkUtil
 
         if (path is null)
         {
-            throw new Exception("Could not find dotnet directory");
+            throw new Exception($"Could not find dotnet directory using initial path {initialPath}");
         }
 
         return path;
@@ -41,6 +42,16 @@ public static class SdkUtil
                 Directory.Exists(Path.Combine(path, "sdk")) &&
                 Directory.Exists(Path.Combine(path, "host"));
         }
+
+        static string GetDefaultSearchPoint()
+        {
+#if NET
+            // TODO: has to be a better way to find the runtime directory but this works for the moment
+            return Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+#else
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet");
+#endif
+        }
     }
 
     public static List<string> GetSdkDirectories(string? dotnetDirectory = null) =>
@@ -48,14 +59,20 @@ public static class SdkUtil
             .Select(x => x.SdkDirectory)
             .ToList();
 
-    public static List<(string SdkDirectory, string SdkVersion)> GetSdkDirectoriesAndVersion(string? dotnetDirectory = null)
+    public static List<(string SdkDirectory, Version SdkVersion)> GetSdkDirectoriesAndVersion(string? dotnetDirectory = null)
     {
         dotnetDirectory ??= GetDotnetDirectory();
         var sdk = Path.Combine(dotnetDirectory, "sdk");
-        var sdks = new List<(string, string)>();
+        var sdks = new List<(string, Version)>();
         foreach (var dir in Directory.EnumerateDirectories(sdk))
         {
-            var version = Path.GetFileName(dir)!;
+            var versionStr = Path.GetFileName(dir)!;
+            if (versionStr.Contains('-'))
+            {
+                continue;
+            }
+
+            var version = new Version(versionStr);
             var sdkDir = Path.Combine(dir, "Roslyn", "bincore");
             if (Directory.Exists(sdkDir))
             {
@@ -65,4 +82,9 @@ public static class SdkUtil
 
         return sdks;
     }
+
+    public static (string SdkDirectory, Version SdkVersion) GetLatestSdkDirectories(string? dotnetDirectory = null) =>
+        GetSdkDirectoriesAndVersion(dotnetDirectory)
+            .OrderByDescending(x => x.SdkVersion)
+            .First();
 }

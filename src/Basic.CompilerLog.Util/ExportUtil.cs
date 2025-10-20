@@ -207,7 +207,7 @@ public sealed partial class ExportUtil
 
         List<string> ProcessRsp()
         {
-            var arguments = compilerCall.GetArguments();
+            var arguments = Reader.ReadArguments(compilerCall);
             var lines = new List<string>(capacity: arguments.Count);
 
             // compiler options aren't case sensitive
@@ -447,12 +447,9 @@ public sealed partial class ExportUtil
             filePath = PathUtil.RemovePathStart(filePath, destinationDir);
             return MaybeQuoteArgument(filePath);
         }
-        }
+    }
 
-    public static void ExportRsp(CompilerCall compilerCall, TextWriter writer, bool singleLine = false) =>
-        ExportRsp(compilerCall.GetArguments(), writer, singleLine);
-
-    public static void ExportRsp(IEnumerable<string> arguments, TextWriter writer, bool singleLine = false)
+    public static void ExportRsp(IReadOnlyCollection<string> arguments, TextWriter writer, bool singleLine = false)
     {
         bool isFirst = true;
         foreach (var line in arguments)
