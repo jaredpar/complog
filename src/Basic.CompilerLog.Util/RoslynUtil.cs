@@ -996,4 +996,32 @@ public static class RoslynUtil
             }
         }
     }
+
+    /// <summary>
+    /// Get the compiler assembly name and commit hash from a compiler file path. This will take into
+    /// account items like apphost files.
+    /// </summary>
+    internal static (string AssemblyName, string? CommitHash) GetCompilerInfo(string compilerFilePath)
+    {
+        try
+        {
+            if (Path.GetExtension(compilerFilePath) is ".exe")
+            {
+                var p = Path.ChangeExtension(compilerFilePath, ".dll");
+                if (File.Exists(p))
+                {
+                    compilerFilePath = p;
+                }
+            }
+
+            var name = MetadataReader.GetAssemblyName(compilerFilePath).ToString();
+            var commitHash = RoslynUtil.ReadCompilerCommitHash(compilerFilePath);
+            return (name, commitHash);
+        }
+        catch
+        {
+            var appName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "csc.exe" : "csc";
+            return (appName, null);
+        }
+    }
 }

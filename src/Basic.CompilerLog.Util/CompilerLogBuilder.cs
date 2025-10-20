@@ -144,7 +144,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             if (!_compilerInfoMap.TryGetValue(compilerCall.CompilerFilePath, out var compilerInfo))
             {
-                compilerInfo = GetCompilerInfo(compilerCall.CompilerFilePath);
+                compilerInfo = RoslynUtil.GetCompilerInfo(compilerCall.CompilerFilePath);
                 if (compilerInfo.CommitHash is null)
                 {
                     Diagnostics.Add($"Cannot find commit hash for {compilerCall.CompilerFilePath}");
@@ -156,29 +156,6 @@ internal sealed class CompilerLogBuilder : IDisposable
             infoPack.CompilerAssemblyName = compilerInfo.AssemblyName;
             infoPack.CompilerCommitHash = compilerInfo.CommitHash;
 
-            static (string, string?) GetCompilerInfo(string compilerFilePath)
-            {
-                try
-                {
-                    if (Path.GetExtension(compilerFilePath) is ".exe")
-                    {
-                        var p = Path.ChangeExtension(compilerFilePath, ".dll");
-                        if (File.Exists(p))
-                        {
-                            compilerFilePath = p;
-                        }
-                    }
-
-                    var name = MetadataReader.GetAssemblyName(compilerFilePath).ToString();
-                    var commitHash = RoslynUtil.ReadCompilerCommitHash(compilerFilePath);
-                    return (name, commitHash);
-                }
-                catch
-                {
-                    var appName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "csc.exe" : "csc";
-                    return (appName, null);
-                }
-            }
         }
 
         void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)

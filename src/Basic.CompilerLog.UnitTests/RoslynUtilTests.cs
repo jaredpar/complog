@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Net;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
@@ -105,7 +106,7 @@ public sealed class RoslynUtilTests
                 index++);
 
             // Every new line combination
-            string[] newLines = 
+            string[] newLines =
             [
                 "\r\n",
                 "\n",
@@ -300,5 +301,54 @@ public sealed class RoslynUtilTests
         using var temp = new TempDir();
         var filePath = temp.NewFile("test.dll", "hello world");
         Assert.Null(RoslynUtil.TryReadMvid(filePath));
+    }
+
+    private void WithCompilerCopy(Action<string> action)
+    {
+        using var temp = new TempDir();
+        var sdkDirectory = SdkUtil.GetLatestSdkDirectories().SdkDirectory;
+        var roslynDir = Path.Combine(sdkDirectory, "Roslyn", "bincore");
+        var cscSrcPath = Path.Combine(roslynDir, "csc.dll");
+        var cscDestPath = Path.Combine(temp.DirectoryPath, "csc.dll");
+        File.Copy(cscSrcPath, cscDestPath);
+        action(temp.DirectoryPath);
+    }
+
+    [Fact]
+    public void GetCompilerInfoNoAppHost()
+    {
+        WithCompilerCopy(dir =>
+        {
+            var (name, commit) = RoslynUtil.GetCompilerInfo(Path.Combine(dir, "csc.dll"));
+            Assert.StartsWith("csc", name);
+            Assert.NotNull(commit);
+        });
+    }
+
+    [Fact]
+    public void GetCompilerInfoAppHost()
+    {
+        WithCompilerCopy(dir =>
+        {
+            var appHostName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "csc.exe" : "csc";
+            var appHostPath = Path.Combine(dir, appHostName);
+            File.WriteAllText(appHostPath, "This is a fake app host file");
+            var (name, commit) = RoslynUtil.GetCompilerInfo(appHostPath);
+            Assert.StartsWith("csc", name);
+            Assert.NotNull(commit);
+        });
+    }
+
+    [Fact]
+    public void GetCompilerInfoBadCsc()
+    {
+        WithCompilerCopy(dir =>
+        {
+            var filePath = Path.Combine(dir, "csc.dll");
+            File.WriteAllText(filePath, "not a pe file");
+            var (name, commit) = RoslynUtil.GetCompilerInfo(filePath);
+            Assert.StartsWith("csc", name);
+            Assert.Null(commit);
+        });
     }
 }

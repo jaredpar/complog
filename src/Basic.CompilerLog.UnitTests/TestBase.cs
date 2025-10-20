@@ -129,8 +129,8 @@ public abstract class TestBase : IDisposable
 
         var compilerDirs = SdkUtil
             .GetSdkDirectoriesAndVersion()
-            .OrderByDescending(x => x.SdkVersion, StringComparer.Ordinal)
-            .Where(x => versions.Any(v => x.SdkVersion.StartsWith(v)))
+            .OrderByDescending(x => x.SdkVersion)
+            .Where(x => versions.Any(v => x.SdkVersion.ToString().StartsWith(v)))
             .Select(x => Path.Combine(x.SdkDirectory, "Roslyn", "bincore"))
             .ToList();
         if (compilerDirs.Count == 0)
