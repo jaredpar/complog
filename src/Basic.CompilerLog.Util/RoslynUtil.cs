@@ -997,15 +997,22 @@ public static class RoslynUtil
         }
     }
 
+    internal static string GetCompilerAppFileName(bool isCSharp)
+    {
+        return isCSharp
+            ? (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "csc.exe" : "csc")
+            : (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "vbc.exe" : "vbc");
+    }
+
     /// <summary>
     /// Get the compiler assembly name and commit hash from a compiler file path. This will take into
     /// account items like apphost files.
     /// </summary>
-    internal static (string AssemblyName, string? CommitHash) GetCompilerInfo(string compilerFilePath)
+    internal static (string AssemblyName, string? CommitHash) GetCompilerInfo(string compilerFilePath, bool isCSharp)
     {
         try
         {
-            if (Path.GetExtension(compilerFilePath) is ".exe")
+            if (Path.GetExtension(compilerFilePath) is not ".dll")
             {
                 var p = Path.ChangeExtension(compilerFilePath, ".dll");
                 if (File.Exists(p))
@@ -1020,7 +1027,7 @@ public static class RoslynUtil
         }
         catch
         {
-            var appName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "csc.exe" : "csc";
+            var appName = GetCompilerAppFileName(isCSharp);
             return (appName, null);
         }
     }

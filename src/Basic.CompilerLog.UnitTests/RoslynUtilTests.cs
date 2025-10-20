@@ -308,9 +308,12 @@ public sealed class RoslynUtilTests
         using var temp = new TempDir();
         var sdkDirectory = SdkUtil.GetLatestSdkDirectories().SdkDirectory;
         var roslynDir = Path.Combine(sdkDirectory, "Roslyn", "bincore");
-        var cscSrcPath = Path.Combine(roslynDir, "csc.dll");
-        var cscDestPath = Path.Combine(temp.DirectoryPath, "csc.dll");
-        File.Copy(cscSrcPath, cscDestPath);
+        foreach (var file  in (string[])["csc.dll", "vbc.dll"])
+        {
+            var srcPath = Path.Combine(roslynDir, file);
+            var destPath = Path.Combine(temp.DirectoryPath, file);
+            File.Copy(srcPath, destPath);
+        }
         action(temp.DirectoryPath);
     }
 
@@ -319,22 +322,24 @@ public sealed class RoslynUtilTests
     {
         WithCompilerCopy(dir =>
         {
-            var (name, commit) = RoslynUtil.GetCompilerInfo(Path.Combine(dir, "csc.dll"));
+            var (name, commit) = RoslynUtil.GetCompilerInfo(Path.Combine(dir, "csc.dll"), true);
             Assert.StartsWith("csc", name);
             Assert.NotNull(commit);
         });
     }
 
-    [Fact]
-    public void GetCompilerInfoAppHost()
+    [Theory]
+    [InlineData(true, "csc")]
+    [InlineData(false, "vbc")]
+    public void GetCompilerInfoAppHost(bool isCSharp, string expectedName)
     {
         WithCompilerCopy(dir =>
         {
-            var appHostName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "csc.exe" : "csc";
+            var appHostName = RoslynUtil.GetCompilerAppFileName(isCSharp);
             var appHostPath = Path.Combine(dir, appHostName);
             File.WriteAllText(appHostPath, "This is a fake app host file");
-            var (name, commit) = RoslynUtil.GetCompilerInfo(appHostPath);
-            Assert.StartsWith("csc", name);
+            var (name, commit) = RoslynUtil.GetCompilerInfo(appHostPath, isCSharp);
+            Assert.StartsWith(expectedName, name);
             Assert.NotNull(commit);
         });
     }
@@ -346,7 +351,7 @@ public sealed class RoslynUtilTests
         {
             var filePath = Path.Combine(dir, "csc.dll");
             File.WriteAllText(filePath, "not a pe file");
-            var (name, commit) = RoslynUtil.GetCompilerInfo(filePath);
+            var (name, commit) = RoslynUtil.GetCompilerInfo(filePath, true);
             Assert.StartsWith("csc", name);
             Assert.Null(commit);
         });
