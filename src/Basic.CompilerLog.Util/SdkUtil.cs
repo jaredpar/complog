@@ -17,18 +17,18 @@ public static class SdkUtil
     public static string GetDotnetDirectory(string? path = null)
     {
         // TODO: has to be a better way to find the runtime directory but this works for the moment
-        path ??= Path.GetDirectoryName(typeof(object).Assembly.Location);
-        while (path is not null && !IsDotNetDir(path))
+        var resolvedPath = path ?? Path.GetDirectoryName(typeof(object).Assembly.Location);
+        while (resolvedPath is not null && !IsDotNetDir(resolvedPath))
         {
-            path = Path.GetDirectoryName(path);
+            resolvedPath = Path.GetDirectoryName(resolvedPath);
         }
 
-        if (path is null)
+        if (resolvedPath is null)
         {
-            throw new Exception("Could not find dotnet directory");
+            throw new Exception($"Could not find dotnet directory using initial path {path}");
         }
 
-        return path;
+        return resolvedPath;
 
         static bool IsDotNetDir(string path)
         {
