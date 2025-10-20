@@ -5,7 +5,7 @@
     <!-- We are not using package source mapping. -->
     <NoWarn>$(NoWarn);NU1507</NoWarn>
     <_RoslynVersion>4.14.0</_RoslynVersion>
-    <_RuntimeVersion>9.0.9</_RuntimeVersion>
+    <_RuntimeVersion>9.0.10</_RuntimeVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Basic.Reference.Assemblies.Net90" Version="1.8.3" />
