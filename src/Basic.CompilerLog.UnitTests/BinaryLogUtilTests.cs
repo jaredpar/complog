@@ -18,8 +18,17 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
-public sealed class BinaryLogUtilTests
+[Collection(CompilerLogCollection.Name)]
+public sealed class BinaryLogUtilTests : TestBase
 {
+    public CompilerLogFixture Fixture { get; }
+
+    public BinaryLogUtilTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture compilerLogFixture)
+        : base(testOutputHelper, testContextAccessor, nameof(BinaryLogUtilTests))
+    {
+        Fixture = compilerLogFixture;
+    }
+
     [Theory]
     [InlineData("dotnet exec csc.dll a.cs", "csc.dll", "a.cs")]
     [InlineData("dotnet.exe exec csc.dll a.cs", "csc.dll", "a.cs")]
@@ -92,6 +101,13 @@ public sealed class BinaryLogUtilTests
         var (actualCompilerFilePath, actualArgs) = BinaryLogUtil.ParseTaskForCompilerAndArguments(null, "csc");
         Assert.Null(actualCompilerFilePath);
         Assert.Empty(actualArgs);
+    }
+
+    [Fact]
+    public void ReadAllCompilerCallsSingle()
+    {
+        using var stream = File.OpenRead(Fixture.Console.Value.BinaryLogPath!);
+        Assert.Single(BinaryLogUtil.ReadAllCompilerCalls(stream));
     }
 }
 

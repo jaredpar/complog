@@ -147,7 +147,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 compilerInfo = RoslynUtil.GetCompilerInfo(compilerCall.CompilerFilePath, compilerCall.IsCSharp);
                 if (compilerInfo.CommitHash is null)
                 {
-                    Diagnostics.Add($"Cannot find commit hash for {compilerCall.CompilerFilePath}");
+                    Diagnostics.Add(RoslynUtil.GetDiagnosticMissingCommitHash(compilerCall.CompilerFilePath));
                 }
 
                 _compilerInfoMap[compilerCall.CompilerFilePath] = compilerInfo;

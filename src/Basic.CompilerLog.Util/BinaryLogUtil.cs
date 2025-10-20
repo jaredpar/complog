@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -114,10 +114,10 @@ public static class BinaryLogUtil
 
             var compilerCall = new CompilerCall(
                 projectFile,
-                compilerFilePath,
                 kind,
                 targetFramework,
                 isCSharp: IsCSharp,
+                compilerFilePath,
                 ownerState: ownerState);
             return new(compilerCall, args);
         }

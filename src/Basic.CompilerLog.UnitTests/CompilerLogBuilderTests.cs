@@ -116,4 +116,17 @@ public sealed class CompilerLogBuilderTests : TestBase
         builder.Close();
         Assert.Throws<InvalidOperationException>(() => builder.Close());
     }
+
+    [Fact]
+    public void CompilerFilePathMissingCommitHash()
+    {
+        WithCompilerCall((builder, compilerCall, arguments) =>
+        {
+            compilerCall = new CompilerCall(
+                compilerCall.ProjectFilePath,
+                compilerFilePath: typeof(CompilerLogBuilderTests).Assembly.Location);
+            builder.AddFromDisk(compilerCall, arguments);
+            Assert.Equal([RoslynUtil.GetDiagnosticMissingCommitHash(compilerCall.CompilerFilePath!)], builder.Diagnostics);
+        });
+    }
 }

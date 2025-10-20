@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -55,10 +55,10 @@ public sealed class CompilerCall
 
     internal CompilerCall(
         string projectFilePath,
-        string? compilerFilePath,
-        CompilerCallKind kind,
-        string? targetFramework,
-        bool isCSharp,
+        CompilerCallKind kind = CompilerCallKind.Regular,
+        string? targetFramework = null,
+        bool isCSharp = true,
+        string? compilerFilePath = null,
         object? ownerState = null)
     {
         CompilerFilePath = compilerFilePath;

@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System;
@@ -47,10 +47,10 @@ internal static class Extensions
     {
         return new CompilerCall(
             compilerCall.ProjectFilePath,
-            compilerCall.CompilerFilePath,
             compilerCall.Kind,
             compilerCall.TargetFramework,
             compilerCall.IsCSharp,
+            compilerCall.CompilerFilePath,
             ownerState);
     }
 

@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -315,6 +315,9 @@ public static class RoslynUtil
 
     internal static string GetDiagnosticCannotReadRulset(string filePath) =>
         $"Cannot read ruleset file '{filePath}'";
+
+    internal static string GetDiagnosticMissingCommitHash(string filePath) =>
+        $"Cannot find commit hash for {filePath}";
 
     /// <summary>
     /// Open a file from a build on the current machine and add a diagonstic if it's missing.
