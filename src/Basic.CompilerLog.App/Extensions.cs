@@ -14,7 +14,7 @@ internal static class Extensions
     internal static string GetFailureString(this Exception ex)
     {
         var builder = new StringBuilder();
-        builder.AppendLine(ex.Message);
+        builder.AppendLine($"{ex.GetType()}: {ex.Message}");
         builder.AppendLine(ex.StackTrace);
 
         while (ex.InnerException is { } inner)

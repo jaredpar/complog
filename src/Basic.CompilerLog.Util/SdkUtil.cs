@@ -72,7 +72,11 @@ public static class SdkUtil
                 continue;
             }
 
-            var version = new Version(versionStr);
+            if (!Version.TryParse(versionStr, out var version))
+            {
+                continue;
+            }
+
             var sdkDir = Path.Combine(dir, "Roslyn", "bincore");
             if (Directory.Exists(sdkDir))
             {
