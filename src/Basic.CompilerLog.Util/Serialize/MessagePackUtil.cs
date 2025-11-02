@@ -13,6 +13,11 @@ namespace Basic.CompilerLog.Util.Serialize;
 
 internal static class MessagePackUtil
 {
+    internal const string ValueKeyAssemblyFileName = "assemblyFileName";
+    internal const string ValueKeyXmlFilePath = "xmlFilePath";
+    internal const string ValueKeyOutputDirectory = "outputDirectory";
+    internal const string ValueKeyCompilationName = "compilationName";
+
     private static readonly Lazy<PropertyInfo?> s_debugPlusPropertyInfo = new(() => GetDebugPlusPropertyInfo());
 
     private static PropertyInfo? GetDebugPlusPropertyInfo()

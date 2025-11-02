@@ -319,6 +319,9 @@ public static class RoslynUtil
     internal static string GetDiagnosticMissingCommitHash(string filePath) =>
         $"Cannot find commit hash for {filePath}";
 
+    internal static string GetDiagnosticMissingReference(string name) =>
+        $"Cannot read the reference {name}";
+
     /// <summary>
     /// Open a file from a build on the current machine and add a diagonstic if it's missing.
     /// </summary>
@@ -860,6 +863,17 @@ public static class RoslynUtil
         {
             throw new InvalidOperationException("Invalid CustomAttribute prolog.");
         }
+    }
+
+    internal static string MaybeQuoteFileNameArgument(string arg)
+    {
+        if (arg.Contains(' ') || arg.Contains('=') || arg.Contains(','))
+        {
+            var str = $@"""{arg}""";
+            return str;
+        }
+
+        return arg;
     }
 
     /// <summary>

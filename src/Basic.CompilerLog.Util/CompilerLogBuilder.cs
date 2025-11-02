@@ -11,6 +11,7 @@ using Microsoft.Extensions.ObjectPool;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
 using System.IO.Compression;
 using System.Reflection;
 using System.Reflection.Metadata;
@@ -77,8 +78,13 @@ internal sealed class CompilerLogBuilder : IDisposable
         };
 
         AddCompilerInfo(infoPack, compilerCall);
-        AddCompilationOptions(infoPack, commandLineArguments, compilerCall);
-        AddCore(infoPack);
+        AddCompilationOptions(
+            infoPack,
+            commandLineArguments.ParseOptions,
+            commandLineArguments.CompilationOptions,
+            commandLineArguments.EmitOptions,
+            compilerCall.IsCSharp);
+        AddInfoPack(infoPack);
 
         string AddCompilationDataPack(CommandLineArguments commandLineArguments)
         {
@@ -91,8 +97,8 @@ internal sealed class CompilerLogBuilder : IDisposable
                 Resources = new(),
             };
             AddCommandLineArgumentValues(dataPack, commandLineArguments);
-            AddReferences(dataPack, commandLineArguments);
-            AddAnalyzers(dataPack, commandLineArguments);
+            AddReferences(dataPack, commandLineArguments.MetadataReferences);
+            AddAnalyzers(dataPack, commandLineArguments.AnalyzerReferences);
             AddAnalyzerConfigs(dataPack, commandLineArguments);
             AddGeneratedFiles(dataPack, commandLineArguments, compilerCall);
             AddSources(dataPack, commandLineArguments);
@@ -155,27 +161,6 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             infoPack.CompilerAssemblyName = compilerInfo.AssemblyName;
             infoPack.CompilerCommitHash = compilerInfo.CommitHash;
-
-        }
-
-        void AddCompilationOptions(CompilationInfoPack infoPack, CommandLineArguments args, CompilerCall compilerCall)
-        {
-            infoPack.EmitOptionsHash = WriteContentMessagePack(MessagePackUtil.CreateEmitOptionsPack(args.EmitOptions));
-
-            if (compilerCall.IsCSharp)
-            {
-                infoPack.ParseOptionsHash = WriteContentMessagePack(
-                    MessagePackUtil.CreateCSharpParseOptionsPack((CSharpParseOptions)args.ParseOptions));
-                infoPack.CompilationOptionsHash = WriteContentMessagePack(
-                    MessagePackUtil.CreateCSharpCompilationOptionsPack((CSharpCompilationOptions)args.CompilationOptions));
-            }
-            else
-            {
-                infoPack.ParseOptionsHash = WriteContentMessagePack(
-                    MessagePackUtil.CreateVisualBasicParseOptionsPack((VisualBasicParseOptions)args.ParseOptions));
-                infoPack.CompilationOptionsHash = WriteContentMessagePack(
-                    MessagePackUtil.CreateVisualBasicCompilationOptionsPack((VisualBasicCompilationOptions)args.CompilationOptions));
-            }
         }
 
         void AddAssemblyMvid(CommandLineArguments args)
@@ -201,7 +186,149 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddCore(CompilationInfoPack infoPack)
+    private void Add(Project project)
+    {
+        var isCSharp = project.Language == LanguageNames.CSharp;
+        var (dataPack, arguments) = CreateCompilationDataPack();
+        var infoPack = new CompilationInfoPack()
+        {
+            CompilerFilePath = null,
+            ProjectFilePath = project.FilePath ?? $"{project.Name}.csproj",
+            IsCSharp = isCSharp,
+            TargetFramework = null,
+            CompilerCallKind = CompilerCallKind.Regular,
+            CompilationDataPackHash = WriteContentMessagePack(dataPack),
+            CommandLineArgsHash = WriteContentMessagePack(arguments),
+        };
+
+        AddCompilationOptions(
+            infoPack,
+            project.ParseOptions,
+            project.CompilationOptions,
+            new EmitOptions(),
+            isCSharp);
+        AddInfoPack(infoPack);
+
+        (CompilationDataPack, List<string>) CreateCompilationDataPack()
+        {
+            var arguments = new List<string>();
+            var dataPack = new CompilationDataPack()
+            {
+                ContentList = new(),
+                ValueMap = new(),
+                References = new(),
+                Analyzers = new(),
+                Resources = new(),
+            };
+
+            // TODO: remaining value map items
+            dataPack.ValueMap[MessagePackUtil.ValueKeyAssemblyFileName] = project.AssemblyName;
+
+            if (project.OutputFilePath is not null)
+            {
+                dataPack.ValueMap[MessagePackUtil.ValueKeyOutputDirectory] = Path.GetDirectoryName(project.OutputFilePath);
+            }
+
+            var r = project.MetadataReferences
+                .OfType<PortableExecutableReference>()
+                .Where(x => x.FilePath is not null)
+                .Select(x => new CommandLineReference(x.FilePath!, x.Properties))
+                .ToList();
+            AddReferences(dataPack, r);
+            r.ForEach(x => arguments.Add($"/reference:{RoslynUtil.MaybeQuoteFileNameArgument(x.Reference)}"));
+
+            var a = project.AnalyzerReferences
+                .Where(x => x.FullPath is not null)
+                .Select(x => new CommandLineAnalyzerReference(x.FullPath!))
+                .ToList();
+            AddAnalyzers(dataPack, a);
+            a.ForEach(x => arguments.Add($"/analyzer:{RoslynUtil.MaybeQuoteFileNameArgument(x.FilePath)}"));
+
+            foreach (var filePath in GetDocumentFilePaths(project.Documents))
+            {
+                AddContentIf(dataPack, RawContentKind.SourceText, filePath);
+                arguments.Add(RoslynUtil.MaybeQuoteFileNameArgument(filePath));
+            }
+
+            foreach (var filePath in GetDocumentFilePaths(project.AnalyzerConfigDocuments))
+            {
+                AddContentIf(dataPack, RawContentKind.AnalyzerConfig, filePath);
+                arguments.Add($"/analyzerConfig:{RoslynUtil.MaybeQuoteFileNameArgument(filePath)}");
+            }
+
+            foreach (var filePath in GetDocumentFilePaths(project.AdditionalDocuments))
+            {
+                AddContentIf(dataPack, RawContentKind.AnalyzerConfig, filePath);
+                arguments.Add($"/additionalFile:{RoslynUtil.MaybeQuoteFileNameArgument(filePath)}");
+            }
+
+            // TODO: generated files
+            return (dataPack, arguments);
+        }
+
+        IEnumerable<string> GetDocumentFilePaths(IEnumerable<TextDocument> documents)
+        {
+            foreach (var document in documents)
+            {
+                if (document.FilePath is null)
+                {
+                    Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(document.Name));
+                    continue;
+                }
+
+                yield return document.FilePath;
+            }
+        }
+
+        void AddContentIf(CompilationDataPack dataPack, RawContentKind kind, string? filePath)
+        {
+            if (filePath is not null)
+            {
+                AddContentFromDisk(dataPack, kind, filePath);
+            }
+        }
+    }
+
+    private void AddCompilationOptions(
+        CompilationInfoPack infoPack,
+        ParseOptions? parseOptions,
+        CompilationOptions? compilationOptions,
+        EmitOptions? emitOptions,
+        bool isCSharp)
+    {
+        infoPack.EmitOptionsHash = WriteContentMessagePack(MessagePackUtil.CreateEmitOptionsPack(emitOptions));
+
+        if (isCSharp)
+        {
+            if (parseOptions is not null)
+            {
+                infoPack.ParseOptionsHash = WriteContentMessagePack(
+                    MessagePackUtil.CreateCSharpParseOptionsPack((CSharpParseOptions)parseOptions));
+            }
+
+            if (compilationOptions is not null)
+            {
+                infoPack.CompilationOptionsHash = WriteContentMessagePack(
+                    MessagePackUtil.CreateCSharpCompilationOptionsPack((CSharpCompilationOptions)compilationOptions));
+            }
+        }
+        else
+        {
+            if (parseOptions is not null)
+            {
+                infoPack.ParseOptionsHash = WriteContentMessagePack(
+                    MessagePackUtil.CreateVisualBasicParseOptionsPack((VisualBasicParseOptions)parseOptions));
+            }
+
+            if (compilationOptions is not null)
+            {
+                infoPack.CompilationOptionsHash = WriteContentMessagePack(
+                    MessagePackUtil.CreateVisualBasicCompilationOptionsPack((VisualBasicCompilationOptions)compilationOptions));
+            }
+        }
+    }
+
+    private void AddInfoPack(CompilationInfoPack infoPack)
     {
         var index = _compilationCount;
         var entry = ZipArchive.CreateEntry(GetCompilerEntryName(index), CompressionLevel.Fastest);
@@ -335,10 +462,10 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddCommandLineArgumentValues(CompilationDataPack dataPack, CommandLineArguments args)
     {
-        dataPack.ValueMap.Add("assemblyFileName", RoslynUtil.GetAssemblyFileName(args));
-        dataPack.ValueMap.Add("xmlFilePath", args.DocumentationPath);
-        dataPack.ValueMap.Add("outputDirectory", args.OutputDirectory);
-        dataPack.ValueMap.Add("compilationName", args.CompilationName);
+        dataPack.ValueMap.Add(MessagePackUtil.ValueKeyAssemblyFileName, RoslynUtil.GetAssemblyFileName(args));
+        dataPack.ValueMap.Add(MessagePackUtil.ValueKeyXmlFilePath, args.DocumentationPath);
+        dataPack.ValueMap.Add(MessagePackUtil.ValueKeyOutputDirectory, args.OutputDirectory);
+        dataPack.ValueMap.Add(MessagePackUtil.ValueKeyCompilationName, args.CompilationName);
         dataPack.ChecksumAlgorithm = args.ChecksumAlgorithm;
         dataPack.EmitPdb = args.EmitPdb;
     }
@@ -433,9 +560,9 @@ internal sealed class CompilerLogBuilder : IDisposable
         return hashText;
     }
 
-    private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)
+    private void AddReferences(CompilationDataPack dataPack, IEnumerable<CommandLineReference> metadataReferences)
     {
-        foreach (var reference in args.MetadataReferences)
+        foreach (var reference in metadataReferences)
         {
             var (mvid, assemblyName, assemblyInformationalVersion) = AddAssembly(reference.Reference);
             var pack = new ReferencePack()
@@ -555,9 +682,9 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
     }
 
-    private void AddAnalyzers(CompilationDataPack dataPack, CommandLineArguments args)
+    private void AddAnalyzers(CompilationDataPack dataPack, IEnumerable<CommandLineAnalyzerReference> analyzerReferences)
     {
-        foreach (var analyzer in args.AnalyzerReferences)
+        foreach (var analyzer in analyzerReferences)
         {
             var (mvid, assemblyName, assemblyInformationalVersion) = AddAssembly(analyzer.FilePath);
             var pack = new AnalyzerPack()

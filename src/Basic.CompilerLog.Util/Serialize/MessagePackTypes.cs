@@ -237,11 +237,11 @@ public class CompilationInfoPack
     [Key(5)]
     public string CompilationDataPackHash { get; set; }
     [Key(6)]
-    public string EmitOptionsHash { get; set; }
+    public string? EmitOptionsHash { get; set; }
     [Key(7)]
-    public string ParseOptionsHash { get; set; }
+    public string? ParseOptionsHash { get; set; }
     [Key(8)]
-    public string CompilationOptionsHash { get; set; }
+    public string? CompilationOptionsHash { get; set; }
     [Key(9)]
     public string? CompilerFilePath { get; set; }
     [Key(10)]

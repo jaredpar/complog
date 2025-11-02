@@ -485,13 +485,7 @@ public sealed partial class ExportUtil
             return arg;
         }
 
-        if (arg.Contains(' ') || arg.Contains('=') || arg.Contains(','))
-        {
-            var str = $@"""{arg}""";
-            return str;
-        }
-
-        return arg;
+        return RoslynUtil.MaybeQuoteFileNameArgument(arg);
     }
 
     private static bool IsOption(ReadOnlySpan<char> str) => OptionsRegex.IsMatch(str);

@@ -1,4 +1,4 @@
-using Basic.CompilerLog.Util.Impl;
+﻿using Basic.CompilerLog.Util.Impl;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.CodeAnalysis;
@@ -215,8 +215,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var tuple = ReadCompilerOptions(infoPack);
         return new CompilerCallData(
             compilerCall,
-            assemblyFileName: dataPack.ValueMap["assemblyFileName"]!,
-            outputDirectory: NormalizePath(dataPack.ValueMap["outputDirectory"]),
+            assemblyFileName: dataPack.ValueMap[MessagePackUtil.ValueKeyAssemblyFileName]!,
+            outputDirectory: NormalizePath(dataPack.ValueMap[MessagePackUtil.ValueKeyOutputDirectory]),
             tuple.ParseOptions,
             tuple.CompilationOptions,
             tuple.EmitOptions);
@@ -367,9 +367,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(infoPack);
         var referenceList = ReadMetadataReferences(dataPack.References);
         var resourceList = ReadResources(dataPack.Resources);
-        var compilationName = dataPack.ValueMap["compilationName"];
-        var assemblyFileName = dataPack.ValueMap["assemblyFileName"]!;
-        var xmlFilePath = NormalizePath(dataPack.ValueMap["xmlFilePath"]);
+        var compilationName = dataPack.ValueMap[MessagePackUtil.ValueKeyCompilationName];
+        var assemblyFileName = dataPack.ValueMap[MessagePackUtil.ValueKeyAssemblyFileName]!;
+        var xmlFilePath = NormalizePath(dataPack.ValueMap[MessagePackUtil.ValueKeyXmlFilePath]);
         var hashAlgorithm = dataPack.ChecksumAlgorithm;
         var sourceTexts = new List<(SourceText SourceText, string Path)>();
         var additionalTexts = ImmutableArray.CreateBuilder<AdditionalText>();
