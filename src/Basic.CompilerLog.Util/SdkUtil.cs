@@ -1,14 +1,5 @@
-using Microsoft.Build.Logging.StructuredLogger;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Configuration.Internal;
-using System.Diagnostics;
-using System.Linq;
+using NuGet.Versioning;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Basic.CompilerLog.Util;
 
@@ -59,20 +50,15 @@ public static class SdkUtil
             .Select(x => x.SdkDirectory)
             .ToList();
 
-    public static List<(string SdkDirectory, Version SdkVersion)> GetSdkDirectoriesAndVersion(string? dotnetDirectory = null)
+    public static List<(string SdkDirectory, NuGetVersion SdkVersion)> GetSdkDirectoriesAndVersion(string? dotnetDirectory = null)
     {
         dotnetDirectory ??= GetDotnetDirectory();
         var sdk = Path.Combine(dotnetDirectory, "sdk");
-        var sdks = new List<(string, Version)>();
+        var sdks = new List<(string, NuGetVersion)>();
         foreach (var dir in Directory.EnumerateDirectories(sdk))
         {
             var versionStr = Path.GetFileName(dir)!;
-            if (versionStr.Contains('-'))
-            {
-                continue;
-            }
-
-            if (!Version.TryParse(versionStr, out var version))
+            if (!NuGetVersion.TryParse(versionStr, out var version))
             {
                 continue;
             }
@@ -87,7 +73,7 @@ public static class SdkUtil
         return sdks;
     }
 
-    public static (string SdkDirectory, Version SdkVersion) GetLatestSdkDirectories(string? dotnetDirectory = null) =>
+    public static (string SdkDirectory, NuGetVersion SdkVersion) GetLatestSdkDirectories(string? dotnetDirectory = null) =>
         GetSdkDirectoriesAndVersion(dotnetDirectory)
             .OrderByDescending(x => x.SdkVersion)
             .First();
