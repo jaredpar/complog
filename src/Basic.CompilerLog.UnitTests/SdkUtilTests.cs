@@ -20,7 +20,7 @@ public sealed class SdkUtilTests
         var a = Path.GetFullPath(Path.Combine(temp.NewDirectory("sdk/9.0.100/Roslyn/bincore"), "../.."));
         var b = Path.GetFullPath(Path.Combine(temp.NewDirectory("sdk/10.0.100-rc.2.25502.107/Roslyn/bincore"), "../.."));
         temp.NewDirectory("sdk/invalid-version");
-        var sdks = SdkUtil.GetSdkDirectoriesAndVersion(temp.DirectoryPath);
+        var sdks = SdkUtil.GetSdkDirectories(temp.DirectoryPath);
         Assert.Equal(
             [
                 (a, new NuGetVersion(9, 0, 100)),

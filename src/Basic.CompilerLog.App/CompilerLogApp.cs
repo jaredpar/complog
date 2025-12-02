@@ -535,7 +535,6 @@ public sealed class CompilerLogApp(
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
             var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
             var compilerCallNames = GetCompilerCallNames(compilerCalls);
-            var sdkDirs = SdkUtil.GetSdkDirectories();
             var success = true;
 
             for (int i = 0; i < compilerCalls.Count; i++)

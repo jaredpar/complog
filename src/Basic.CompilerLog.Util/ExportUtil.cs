@@ -1,10 +1,8 @@
-using System.Text.RegularExpressions;
-using System.Runtime.InteropServices;
-using NaturalSort.Extension;
-using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
-using Microsoft.CodeAnalysis.VisualBasic.Syntax;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
+using NuGet.Versioning;
 
 namespace Basic.CompilerLog.Util;
 
@@ -106,7 +104,7 @@ public sealed partial class ExportUtil
         ExcludeAnalyzers = excludeAnalyzers;
     }
 
-    public void ExportAll(string destinationDir, IEnumerable<string> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
+    public void ExportAll(string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
         for (int  i = 0; i < Reader.Count ; i++)
@@ -121,7 +119,7 @@ public sealed partial class ExportUtil
         }
     }
 
-    public void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<string> sdkDirectories)
+    public void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories)
     {
         if (!Path.IsPathRooted(destinationDir))
         {
@@ -152,11 +150,11 @@ public sealed partial class ExportUtil
             // Need to create a few directories so that the builds will actually function
             foreach (var sdkDir in sdkDirectories)
             {
-                var cmdFileName = $"build-{Path.GetFileName(sdkDir)}";
-                WriteBuildCmd(sdkDir, cmdFileName);
+                var cmdFileName = $"build-{Path.GetFileName(sdkDir.SdkDirectory)}";
+                WriteBuildCmd(sdkDir.SdkDirectory, cmdFileName);
             }
 
-            string? bestSdkDir = sdkDirectories.OrderByDescending(x => x, PathUtil.Comparer.WithNaturalSort()).FirstOrDefault();
+            string? bestSdkDir = sdkDirectories.OrderByDescending(x => x.SdkVersion).Select(x => x.SdkDirectory).FirstOrDefault();
             if (bestSdkDir is not null)
             {
                 WriteBuildCmd(bestSdkDir, "build");
