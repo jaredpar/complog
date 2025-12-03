@@ -93,7 +93,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
         ClassLibProjectPath = WithProject("classlib", string (string dir) =>
         {
-            RunDotnetCommand("new classlib --name classlib -o .", dir);
+            RunDotnetCommand($"new classlib --name classlib --framework {TestUtil.TestTargetFramework} -o .", dir);
             return Path.Combine(dir, "classlib.csproj");
         });
 

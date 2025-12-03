@@ -323,7 +323,7 @@ public sealed class CompilerLogReaderTests : TestBase
         var list = reader.ReadAllCompilationData();
         Assert.Equal(2, list.Count);
         Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net6.0"));
-        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net8.0"));
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == TestUtil.TestTargetFramework));
     }
 
     [Fact]
