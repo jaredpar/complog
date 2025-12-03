@@ -20,7 +20,17 @@ namespace Basic.CompilerLog.UnitTests;
 
 internal static class TestUtil
 {
-    internal static bool IsNetFramework => 
+    /// <summary>
+    /// This is the SDK version that is used by the repository.
+    /// </summary>
+    internal const string SdkVersion = "10.0.100";
+
+    /// <summary>
+    /// This is the standard target framework that test projects are built against.
+    /// </summary>
+    internal const string TestTargetFramework = "net9.0";
+
+    internal static bool IsNetFramework =>
 #if NETFRAMEWORK
         true;
 #else
@@ -67,11 +77,11 @@ internal static class TestUtil
     internal static string TestTempRoot { get; } = CreateUniqueSubDirectory(Path.Combine(Path.GetTempPath(), "Basic.CompilerLog.UnitTests"));
 
     /// <summary>
-    /// This code will generate a unique subdirectory under <paramref name="path"/>. This is done instead of using 
+    /// This code will generate a unique subdirectory under <paramref name="path"/>. This is done instead of using
     /// GUIDs because that leads to long path issues on .NET Framework.
     /// </summary>
     /// <remarks>
-    /// This method is not entirely foolproof. But it does serve the purpose of creating unique directory names 
+    /// This method is not entirely foolproof. But it does serve the purpose of creating unique directory names
     /// when tests are run in parallel on the same machine provided that we own <see cref="path"/>.
     /// </remarks>
     internal static string CreateUniqueSubDirectory(string path)
@@ -104,7 +114,7 @@ internal static class TestUtil
     }
 
     /// <summary>
-    /// Internally a <see cref="IIncrementalGenerator" /> is wrapped in a type called IncrementalGeneratorWrapper. 
+    /// Internally a <see cref="IIncrementalGenerator" /> is wrapped in a type called IncrementalGeneratorWrapper.
     /// This method will dig through that and return the original type.
     /// </summary>
     /// <param name="obj"></param>
