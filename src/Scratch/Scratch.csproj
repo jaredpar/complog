@@ -2,10 +2,10 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- 
+    <!--
       Mono.Options is not signed. This is an application though, not a lib so this doesn't
       present any real problems.
     -->

@@ -2,14 +2,14 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <RollForward>LatestMajor</RollForward>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>complog</ToolCommandName>
     <PackageId>complog</PackageId>
 
-    <!-- 
+    <!--
       Mono.Options is not signed. This is an application though, not a lib so this doesn't
       present any real problems.
     -->
