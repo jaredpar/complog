@@ -930,17 +930,14 @@ public sealed class CompilerLogApp(
         var logFilePath = GetLogFilePath(extra);
         var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind, state);
         OnCompilerCallReader(reader);
-        if (reader is CompilerLogReader compilerLogReader)
-        {
-            CheckCompilerLogReader(compilerLogReader, checkVersion);
-        }
+        CheckCompilerLogReader(reader, checkVersion);
 
         return reader;
     }
 
-    internal void CheckCompilerLogReader(CompilerLogReader reader, bool checkVersion)
+    internal void CheckCompilerLogReader(ICompilerCallReader reader, bool checkVersion)
     {
-        if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (reader is CompilerLogReader logReader && logReader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             WriteLine($"Compiler log generated on different operating system");
         }
