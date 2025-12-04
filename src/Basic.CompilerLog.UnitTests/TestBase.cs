@@ -1,6 +1,8 @@
 ﻿using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis;
 using System.Diagnostics;
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Xunit;
@@ -140,10 +142,13 @@ public abstract class TestBase : IDisposable
 
         foreach (var compilerDir in compilerDirs)
         {
-            yield return [$@"--compiler ""{compilerDir}"""];
+            var filePath = Path.Combine(compilerDir, "Microsoft.CodeAnalysis.dll");
+            var assemblyName = MetadataReader.GetAssemblyName(filePath);
+            var isOlder = assemblyName.Version < typeof(Compilation).Assembly.GetName().Version;
+            yield return [$@"--compiler ""{compilerDir}""", isOlder];
         }
 
-        yield return [""];
+        yield return ["", false];
     }
 
     protected TestBase(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, string name)

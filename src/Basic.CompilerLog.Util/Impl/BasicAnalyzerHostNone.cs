@@ -29,10 +29,10 @@ internal sealed class BasicAnalyzerHostNone : BasicAnalyzerHost
         AnalyzerReferencesCore = [new BasicGeneratedFilesAnalyzerReference(generatedSourceTexts)];
     }
 
-    internal BasicAnalyzerHostNone(Diagnostic diagnostic)
+    internal BasicAnalyzerHostNone(Diagnostic generatorDiagnostic)
         : this([])
     {
-        AnalyzerReferencesCore = [new BasicErrorAnalyzerReference(diagnostic)];
+        AnalyzerReferencesCore = [new BasicErrorAnalyzerReference(generatorDiagnostic)];
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ internal sealed class BasicGeneratedFilesAnalyzerReference(List<(SourceText Sour
     public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages() => [this.AsSourceGenerator()];
 
     public override ImmutableArray<ISourceGenerator> GetGenerators(string language) => GetGenerators(language, null);
- 
+
     public ImmutableArray<ISourceGenerator> GetGenerators(string language, List<Diagnostic>? diagnostics) => [this.AsSourceGenerator()];
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -98,7 +98,7 @@ internal sealed class BasicGeneratedFilesAnalyzerReference(List<(SourceText Sour
     }
 }
 
-internal sealed class BasicErrorAnalyzerReference(Diagnostic diagnostic) : AnalyzerReference, IBasicAnalyzerReference
+internal sealed class BasicErrorAnalyzerReference(Diagnostic generatorDiagnostic) : AnalyzerReference, IBasicAnalyzerReference
 {
     [ExcludeFromCodeCoverage]
     public override string? FullPath => null;
@@ -108,11 +108,14 @@ internal sealed class BasicErrorAnalyzerReference(Diagnostic diagnostic) : Analy
 
     public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language, List<Diagnostic>? diagnostics)
     {
-        diagnostics?.Add(diagnostic);
         return [];
     }
 
-    public ImmutableArray<ISourceGenerator> GetGenerators(string language, List<Diagnostic> diagnostics) => [];
+    public ImmutableArray<ISourceGenerator> GetGenerators(string language, List<Diagnostic>? diagnostics)
+    {
+        diagnostics?.Add(generatorDiagnostic);
+        return [];
+    }
 
     public override ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(string language) => GetAnalyzers(language, null);
 
@@ -122,5 +125,5 @@ internal sealed class BasicErrorAnalyzerReference(Diagnostic diagnostic) : Analy
     [ExcludeFromCodeCoverage]
     public override ImmutableArray<ISourceGenerator> GetGeneratorsForAllLanguages() => [];
 
-    public override ImmutableArray<ISourceGenerator> GetGenerators(string language) => [];
+    public override ImmutableArray<ISourceGenerator> GetGenerators(string language) => GetGenerators(language, null);
 }

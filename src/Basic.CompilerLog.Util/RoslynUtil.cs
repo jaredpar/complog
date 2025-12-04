@@ -50,7 +50,7 @@ public static class RoslynUtil
             "Failed to load analyzer",
             "Failed to load analyzer: {0}",
             "BasicCompilerLog",
-            DiagnosticSeverity.Warning,
+            DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor CannotReadFileDiagnosticDescriptor =

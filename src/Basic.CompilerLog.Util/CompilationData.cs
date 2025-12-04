@@ -26,10 +26,10 @@ public enum EmitFlags
 
 public abstract class CompilationData
 {
-    private Lazy<(ImmutableArray<DiagnosticAnalyzer> Analyzers, ImmutableArray<ISourceGenerator> Generators, ImmutableArray<Diagnostic> Diagnostics)> _lazyAnalyzers;
+    private Lazy<(ImmutableArray<DiagnosticAnalyzer> Analyzers, ImmutableArray<Diagnostic> AnalyzerDiagnostics, ImmutableArray<ISourceGenerator> Generators, ImmutableArray<Diagnostic> GeneratorDiagnostics)> _lazyAnalyzers;
     private (Compilation, ImmutableArray<Diagnostic>)? _afterGenerators;
 
-    public CompilerCall CompilerCall { get; } 
+    public CompilerCall CompilerCall { get; }
     public Compilation Compilation { get; }
 
     /// <summary>
@@ -115,11 +115,19 @@ public abstract class CompilationData
         _lazyAnalyzers = new(LoadAnalyzers, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers() =>
-        _lazyAnalyzers.Value.Analyzers;
+    public ImmutableArray<DiagnosticAnalyzer> GetAnalyzers(out ImmutableArray<Diagnostic> diagnostics)
+    {
+        var value = _lazyAnalyzers.Value;
+        diagnostics = value.AnalyzerDiagnostics;
+        return value.Analyzers;
+    }
 
-    public ImmutableArray<ISourceGenerator> GetGenerators() =>
-        _lazyAnalyzers.Value.Generators;
+    public ImmutableArray<ISourceGenerator> GetGenerators(out ImmutableArray<Diagnostic> diagnostics)
+    {
+        var value = _lazyAnalyzers.Value;
+        diagnostics = value.GeneratorDiagnostics;
+        return value.Generators;
+    }
 
     public Compilation GetCompilationAfterGenerators(CancellationToken cancellationToken = default) =>
         GetCompilationAfterGenerators(out _, cancellationToken);
@@ -141,16 +149,10 @@ public abstract class CompilationData
         }
         else
         {
-            var driver = CreateGeneratorDriver();
-            driver.RunGeneratorsAndUpdateCompilation(Compilation, out compilation, out diagnostics, cancellationToken);
+            var driver = CreateGeneratorDriver(GetGenerators(out var creationDiagnostics));
+            driver.RunGeneratorsAndUpdateCompilation(Compilation, out compilation, out var executionDiagnostics, cancellationToken);
+            diagnostics = creationDiagnostics.AddRange(executionDiagnostics);
             _afterGenerators = (compilation, diagnostics);
-        }
-
-        // Now that analyzers have completed running add any diagnostics the host has captured
-        var (_, _, analyzerDiagnostics) = _lazyAnalyzers.Value;
-        if (analyzerDiagnostics.Length > 0)
-        {
-            diagnostics = diagnostics.AddRange(analyzerDiagnostics);
         }
 
         if (CreationDiagnostics.Length > 0)
@@ -172,29 +174,34 @@ public abstract class CompilationData
 
         // Generated syntax trees are always added to the end of the list. This is an
         // implementation detail of the compiler, but one that is unlikely to ever
-        // change. Doing so would represent a breaking change as file ordering impacts 
+        // change. Doing so would represent a breaking change as file ordering impacts
         // semantics.
         var originalCount = Compilation.SyntaxTrees.Count();
         return afterCompilation.SyntaxTrees.Skip(originalCount).ToList();
     }
 
-    private (ImmutableArray<DiagnosticAnalyzer>, ImmutableArray<ISourceGenerator>, ImmutableArray<Diagnostic>) LoadAnalyzers()
+    private (ImmutableArray<DiagnosticAnalyzer> Analyzers, ImmutableArray<Diagnostic> AnalyzerDiagnostics, ImmutableArray<ISourceGenerator> Generators, ImmutableArray<Diagnostic> GeneratorDiagnostics) LoadAnalyzers()
     {
         var language = IsCSharp ? LanguageNames.CSharp : LanguageNames.VisualBasic;
         var analyzerBuilder = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
         var generatorBuilder = ImmutableArray.CreateBuilder<ISourceGenerator>();
-        var diagnostics = new List<Diagnostic>();
+        var analyzerDiagnostics = new List<Diagnostic>();
+        var generatorDiagnostics = new List<Diagnostic>();
         foreach (var analyzerReference in AnalyzerReferences)
         {
             var bar = analyzerReference.AsBasicAnalyzerReference();
-            analyzerBuilder.AddRange(bar.GetAnalyzers(language, diagnostics));
-            generatorBuilder.AddRange(bar.GetGenerators(language, diagnostics));
+            analyzerBuilder.AddRange(bar.GetAnalyzers(language, analyzerDiagnostics));
+            generatorBuilder.AddRange(bar.GetGenerators(language, generatorDiagnostics));
         }
 
-        return (analyzerBuilder.ToImmutableArray(), generatorBuilder.ToImmutableArray(), diagnostics.ToImmutableArray());
+        return (
+            analyzerBuilder.ToImmutableArray(),
+            analyzerDiagnostics.ToImmutableArray(),
+            generatorBuilder.ToImmutableArray(),
+            generatorDiagnostics.ToImmutableArray());
     }
 
-    protected abstract GeneratorDriver CreateGeneratorDriver();
+    protected abstract GeneratorDriver CreateGeneratorDriver(ImmutableArray<ISourceGenerator> generators);
 
     /// <summary>
     /// This gets diagnostics from the compiler (does not include analyzers)
@@ -211,7 +218,7 @@ public abstract class CompilationData
     public async Task<ImmutableArray<Diagnostic>> GetAllDiagnosticsAsync(CancellationToken cancellationToken = default)
     {
         var compilation = GetCompilationAfterGenerators(out var hostDiagnostics, cancellationToken);
-        var analyzers = GetAnalyzers();
+        var analyzers = GetAnalyzers(out var analyzerDiagnostics);
         ImmutableArray<Diagnostic> diagnostics;
         if (analyzers.IsDefaultOrEmpty)
         {
@@ -219,7 +226,7 @@ public abstract class CompilationData
         }
         else
         {
-            var cwa = new CompilationWithAnalyzers(compilation, GetAnalyzers(), AnalyzerOptions);
+            var cwa = new CompilationWithAnalyzers(compilation, analyzers, AnalyzerOptions);
             diagnostics = await cwa.GetAllDiagnosticsAsync().ConfigureAwait(false);
         }
 
@@ -231,7 +238,7 @@ public abstract class CompilationData
             }
         }
 
-        return diagnostics.AddRange(hostDiagnostics);
+        return diagnostics.AddRange(hostDiagnostics).AddRange(analyzerDiagnostics);
     }
 
     public EmitDiskResult EmitToDisk(string directory, CancellationToken cancellationToken = default) =>
@@ -264,7 +271,7 @@ public abstract class CompilationData
         string? metadataFilePath = null;
 
         try
-        { 
+        {
             peStream = OpenFile(assemblyFilePath);
 
             if ((emitFlags & EmitFlags.IncludePdbStream) != 0 && emitOptions.DebugInformationFormat != DebugInformationFormat.Embedded)
@@ -354,7 +361,7 @@ public abstract class CompilationData
     }
 
     /// <summary>
-    /// This returns the compilation as a content string. Two compilations that are equal will have the 
+    /// This returns the compilation as a content string. Two compilations that are equal will have the
     /// same content text. This can be checksum'd to produce concise compilation ids
     /// </summary>
     /// <returns></returns>
@@ -372,11 +379,11 @@ public abstract class CompilationData
         // desirable.
         var options = CompilationOptions.WithSyntaxTreeOptionsProvider(null);
 
-        var (analyzers, generators, diagnostics) = _lazyAnalyzers.Value;
+        var (analyzers, analyzerDiagnostics, generators, generatorDiagnostics) = _lazyAnalyzers.Value;
 
         // This removes file full paths and tool versions from the content text.
         int flags = 0b11;
-        object[] args = 
+        object[] args =
         [
             options,
             Compilation.SyntaxTrees.ToImmutableArray(),
@@ -393,6 +400,7 @@ public abstract class CompilationData
 
         var result = method.Invoke(null, args)!;
         var contentHash = (string)result;
+        var diagnostics = analyzerDiagnostics.AddRange(generatorDiagnostics);
         if (diagnostics.Length > 0)
         {
             contentHash += string.Join("", diagnostics.Select(x => x.ToString()));
@@ -418,7 +426,7 @@ public abstract class CompilationData
     }
 
     /// <summary>
-    /// This produces the content hash from <see cref="GetContentHash"/> as well as the identity hash 
+    /// This produces the content hash from <see cref="GetContentHash"/> as well as the identity hash
     /// which is just a checksum of the content hash.
     /// </summary>
     /// <returns></returns>
@@ -464,7 +472,7 @@ public abstract class CompilationData<TCompilation, TParseOptions> : Compilation
         ImmutableArray<Diagnostic> creationDiagnostics)
         :base(compilerCall, compilation, parseOptions, emitOptions, emitData, additionalTexts, basicAnalyzerHost, analyzerConfigOptionsProvider, creationDiagnostics)
     {
-        
+
     }
 }
 
@@ -485,8 +493,8 @@ public sealed class CSharpCompilationData : CompilationData<CSharpCompilation, C
 
     }
 
-    protected override GeneratorDriver CreateGeneratorDriver() =>
-        CSharpGeneratorDriver.Create(GetGenerators(), AdditionalTexts, ParseOptions, AnalyzerConfigOptionsProvider);
+    protected override GeneratorDriver CreateGeneratorDriver(ImmutableArray<ISourceGenerator> generators) =>
+        CSharpGeneratorDriver.Create(generators, AdditionalTexts, ParseOptions, AnalyzerConfigOptionsProvider);
 }
 
 public sealed class VisualBasicCompilationData : CompilationData<VisualBasicCompilation, VisualBasicParseOptions>
@@ -505,6 +513,6 @@ public sealed class VisualBasicCompilationData : CompilationData<VisualBasicComp
     {
     }
 
-    protected override GeneratorDriver CreateGeneratorDriver() =>
-        VisualBasicGeneratorDriver.Create(GetGenerators(), AdditionalTexts, ParseOptions, AnalyzerConfigOptionsProvider);
+    protected override GeneratorDriver CreateGeneratorDriver(ImmutableArray<ISourceGenerator> generators) =>
+        VisualBasicGeneratorDriver.Create(generators, AdditionalTexts, ParseOptions, AnalyzerConfigOptionsProvider);
 }

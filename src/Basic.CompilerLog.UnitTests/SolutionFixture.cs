@@ -74,7 +74,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
         ConsoleProjectPath = WithProject("console", string (string dir) =>
         {
-            RunDotnetCommand("new console --name console -o .", dir);
+            RunDotnetCommand($"new console --name console -o . --framework {TestUtil.TestTargetFramework}", dir);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;

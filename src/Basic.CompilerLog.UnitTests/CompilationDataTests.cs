@@ -125,7 +125,8 @@ public sealed class CompilationDataTests : TestBase
         {
             using var reader = CompilerLogReader.Create(filePath);
             var data = reader.ReadCompilationData(0);
-            Assert.NotEmpty(data.GetAnalyzers());
+            Assert.NotEmpty(data.GetAnalyzers(out var diagnostics));
+            Assert.Empty(diagnostics);
         });
     }
 
@@ -134,7 +135,8 @@ public sealed class CompilationDataTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
-        Assert.Empty(data.GetAnalyzers());
+        Assert.Empty(data.GetAnalyzers(out var diagnostics));
+        Assert.Empty(diagnostics);
     }
 
     [Fact]
