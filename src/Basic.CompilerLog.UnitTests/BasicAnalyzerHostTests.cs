@@ -76,7 +76,7 @@ public sealed class BasicAnalyzerHostTests : TestBase
             : "/code";
         var sourceText1 = SourceText.From("// file 1", CommonUtil.ContentEncoding);
         var sourceText2 = SourceText.From("// file 2", CommonUtil.ContentEncoding);
-        List<(SourceText SourceText, string FilePath)> generatedTexts = 
+        List<(SourceText SourceText, string FilePath)> generatedTexts =
         [
             (sourceText1, Path.Combine(root, "file.cs")),
             (sourceText2, Path.Combine(root, "file.cs")),
@@ -106,10 +106,10 @@ public sealed class BasicAnalyzerHostTests : TestBase
         var analyzerReferences = host.AnalyzerReferences.Single();
         var list = new List<Diagnostic>();
         var bar = analyzerReferences.AsBasicAnalyzerReference();
-        _ = bar.GetAnalyzers(LanguageNames.CSharp, list);
+        _ = bar.GetGenerators(LanguageNames.CSharp, list);
         Assert.Equal([diagnostic], list);
         list.Clear();
-        _ = bar.GetGenerators(LanguageNames.CSharp, list);
+        _ = bar.GetAnalyzers(LanguageNames.CSharp, list);
         Assert.Empty(list);
     }
 

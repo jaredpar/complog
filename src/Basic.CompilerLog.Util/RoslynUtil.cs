@@ -50,7 +50,7 @@ public static class RoslynUtil
             "Failed to load analyzer",
             "Failed to load analyzer: {0}",
             "BasicCompilerLog",
-            DiagnosticSeverity.Warning,
+            DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor CannotReadFileDiagnosticDescriptor =
@@ -1011,7 +1011,7 @@ public static class RoslynUtil
     /// Get the compiler assembly name and commit hash from a compiler file path. This will take into
     /// account items like apphost files.
     /// </summary>
-    internal static (string AssemblyName, string? CommitHash) GetCompilerInfo(string compilerFilePath, bool isCSharp)
+    internal static (AssemblyName AssemblyName, string? CommitHash) GetCompilerInfo(string compilerFilePath, bool isCSharp)
     {
         try
         {
@@ -1024,14 +1024,14 @@ public static class RoslynUtil
                 }
             }
 
-            var name = MetadataReader.GetAssemblyName(compilerFilePath).ToString();
+            var name = MetadataReader.GetAssemblyName(compilerFilePath);
             var commitHash = RoslynUtil.ReadCompilerCommitHash(compilerFilePath);
             return (name, commitHash);
         }
         catch
         {
             var appName = GetCompilerAppFileName(isCSharp);
-            return (appName, null);
+            return (new AssemblyName(appName), null);
         }
     }
 }

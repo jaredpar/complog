@@ -8,7 +8,7 @@ using Xunit.Sdk;
 namespace Basic.CompilerLog.UnitTests;
 
 /// <summary>
-/// This fixture houses a solution with a variety of projects that have been built and 
+/// This fixture houses a solution with a variety of projects that have been built and
 /// contain an available binary log.
 /// </summary>
 public sealed class SolutionFixture : FixtureBase, IDisposable
@@ -51,7 +51,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
     internal string RemovedBinaryLogPath { get; }
 
     /// <summary>
-    /// This project is deleted off of disk after the binary log is created. This means subsequent calls 
+    /// This project is deleted off of disk after the binary log is created. This means subsequent calls
     /// to create a compiler log over it will fail. Useful for testing error cases.
     /// </summary>
     internal string RemovedConsoleProjectPath { get; }
@@ -67,14 +67,14 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         var binlogDir = Path.Combine(StorageDirectory, "binlogs");
         Directory.CreateDirectory(binlogDir);
 
-        RunDotnetCommand("new globaljson --sdk-version 9.0.100 --roll-forward minor", StorageDirectory);
+        RunDotnetCommand($"new globaljson --sdk-version {TestUtil.SdkVersion} --roll-forward minor", StorageDirectory);
         RunDotnetCommand("dotnet new sln -n Solution", StorageDirectory);
 
         var builder = ImmutableArray.CreateBuilder<string>();
 
         ConsoleProjectPath = WithProject("console", string (string dir) =>
         {
-            RunDotnetCommand("new console --name console -o .", dir);
+            RunDotnetCommand($"new console --name console -o . --framework {TestUtil.TestTargetFramework}", dir);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;
@@ -93,17 +93,17 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
         ClassLibProjectPath = WithProject("classlib", string (string dir) =>
         {
-            RunDotnetCommand("new classlib --name classlib -o .", dir);
+            RunDotnetCommand($"new classlib --name classlib --framework {TestUtil.TestTargetFramework} -o .", dir);
             return Path.Combine(dir, "classlib.csproj");
         });
 
         ClassLibMultiProjectPath = WithProject("classlibmulti", string (string dir) =>
         {
             RunDotnetCommand("new classlib --name classlibmulti -o .", dir);
-            var projectFileContent = """
+            var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;{TestUtil.TestTargetFramework}</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>

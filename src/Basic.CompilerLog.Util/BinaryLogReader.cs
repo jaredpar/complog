@@ -358,20 +358,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             if (compilerCall.CompilerFilePath is string compilerFilePath &&
                 !map.ContainsKey(compilerFilePath))
             {
-                AssemblyName name;
-                string? commitHash;
-                try
-                {
-                    name = AssemblyName.GetAssemblyName(compilerFilePath);
-                    commitHash = RoslynUtil.ReadCompilerCommitHash(compilerFilePath);
-                }
-                catch
-                {
-                    name = new AssemblyName(Path.GetFileName(compilerFilePath));
-                    commitHash = null;
-                }
-
-                map[compilerCall.CompilerFilePath] = (name, commitHash);
+                map[compilerCall.CompilerFilePath] = RoslynUtil.GetCompilerInfo(compilerFilePath, compilerCall.IsCSharp);
             }
         }
 

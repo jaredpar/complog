@@ -569,8 +569,8 @@ public sealed class CompilerLogAppTests : TestBase
     {
         var exitCode = RunCompLog($"rsp {Fixture.ClassLibMultiProjectPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net6.0", "build.rsp")));
-        Assert.True(File.Exists(Path.Combine(RootDirectory, @".complog", "rsp", "classlibmulti-net8.0", "build.rsp")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, ".complog", "rsp", "classlibmulti-net6.0", "build.rsp")));
+        Assert.True(File.Exists(Path.Combine(RootDirectory, ".complog", "rsp", $"classlibmulti-{TestUtil.TestTargetFramework}", "build.rsp")));
     }
 
     [Fact]
@@ -627,7 +627,7 @@ public sealed class CompilerLogAppTests : TestBase
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("Generating response files inline", output);
         Assert.True(File.Exists(Path.Combine(dir, "build-net6.0.rsp")));
-        Assert.True(File.Exists(Path.Combine(dir, "build-net8.0.rsp")));
+        Assert.True(File.Exists(Path.Combine(dir, $"build-{TestUtil.TestTargetFramework}.rsp")));
     }
 
     [Fact]
@@ -826,7 +826,7 @@ public sealed class CompilerLogAppTests : TestBase
     {
         using var emitDir = new TempDir();
         var (exitCode, output) = RunCompLogEx($"replay --severity Info {Fixture.ConsoleWithDiagnosticsBinaryLogPath}");
-        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Equal(Constants.ExitFailure, exitCode);
         Assert.Contains("CS0219", output);
     }
 
@@ -899,10 +899,13 @@ public sealed class CompilerLogAppTests : TestBase
 
     [Theory]
     [MemberData(nameof(GetCustomCompilerArgument))]
-    public void ReplayConsole(string customCompilerArgument)
+    public void ReplayConsoleCustomCompiler(string customCompilerArgument, bool isOlderCompiler)
     {
         var exitCode = RunCompLog($"replay {customCompilerArgument} -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
-        Assert.Equal(Constants.ExitSuccess, exitCode);
+        if (exitCode != Constants.ExitSuccess)
+        {
+            Assert.True(isOlderCompiler);
+        }
     }
 
     [Fact]
@@ -928,14 +931,20 @@ public sealed class CompilerLogAppTests : TestBase
 
     [Theory]
     [MemberData(nameof(GetCustomCompilerArgument))]
-    public void GeneratedCompilers(string customCompilerArgument)
+    public void GeneratedCustomCompilers(string customCompilerArgument, bool isOlderCompiler)
     {
         RunWithBoth(logPath =>
         {
             var dir = Root.NewDirectory("generated");
             var (exitCode, output) = RunCompLogEx($"generated {logPath} -p console.csproj -o {dir} {customCompilerArgument}");
-            Assert.Equal(Constants.ExitSuccess, exitCode);
-            Assert.Single(Directory.EnumerateFiles(dir, "RegexGenerator.g.cs", SearchOption.AllDirectories));
+            if (exitCode != Constants.ExitSuccess)
+            {
+                Assert.True(isOlderCompiler);
+            }
+            else
+            {
+                Assert.Single(Directory.EnumerateFiles(dir, "RegexGenerator.g.cs", SearchOption.AllDirectories));
+            }
         });
     }
 
@@ -962,7 +971,7 @@ public sealed class CompilerLogAppTests : TestBase
         Directory.EnumerateFiles(dir, "*.pdb", SearchOption.AllDirectories).ForEach(File.Delete);
 
         var (exitCode, output) = RunCompLogEx($"generated {dir} -a None");
-        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.NotEqual(Constants.ExitSuccess, exitCode);
         Assert.Contains(RoslynUtil.ErrorReadingGeneratedFilesDiagnosticDescriptor.Id, output);
     }
 
@@ -986,8 +995,8 @@ public sealed class CompilerLogAppTests : TestBase
     {
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("console.csproj (net9.0)", output);
-        Assert.Contains("classlib.csproj (net9.0)", output);
+        Assert.Contains($"console.csproj ({TestUtil.TestTargetFramework})", output);
+        Assert.Contains($"classlib.csproj ({TestUtil.TestTargetFramework})", output);
     }
 
     [Fact]
@@ -996,7 +1005,7 @@ public sealed class CompilerLogAppTests : TestBase
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -p classlib.csproj");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.DoesNotContain("console.csproj (net9.0)", output);
-        Assert.Contains("classlib.csproj (net9.0)", output);
+        Assert.Contains($"classlib.csproj ({TestUtil.TestTargetFramework})", output);
     }
 
     [Fact]
@@ -1070,9 +1079,9 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void PrintFrameworks()
     {
-        var (exitCode, output) = RunCompLogEx($"print --all {Fixture.ClassLibMultiProjectPath} --framework net8.0");
+        var (exitCode, output) = RunCompLogEx($"print --all {Fixture.ClassLibMultiProjectPath} --framework {TestUtil.TestTargetFramework}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("(net8.0)", output);
+        Assert.Contains($"({TestUtil.TestTargetFramework})", output);
     }
 
     [Fact]

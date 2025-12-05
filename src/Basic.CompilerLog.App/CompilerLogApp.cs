@@ -535,7 +535,7 @@ public sealed class CompilerLogApp(
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
             var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
             var compilerCallNames = GetCompilerCallNames(compilerCalls);
-            var success = true;
+            var allSucceeded = true;
 
             for (int i = 0; i < compilerCalls.Count; i++)
             {
@@ -544,7 +544,8 @@ public sealed class CompilerLogApp(
                 Write($"{compilerCall.GetDiagnosticName()} ...");
 
                 var compilationData = reader.ReadCompilationData(compilerCall);
-                var compilation = compilationData.GetCompilationAfterGenerators();
+                var compilation = compilationData.GetCompilationAfterGenerators(out var analyzerDiagnostics);
+                var succeeded = !analyzerDiagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
 
                 IEmitResult emitResult;
                 if (baseOutputPath is not null)
@@ -558,17 +559,28 @@ public sealed class CompilerLogApp(
                     emitResult = compilationData.EmitToMemory();
                 }
 
-                WriteLine(emitResult.Success ? "Success" : "Error");
-                foreach (var diagnostic in emitResult.Diagnostics)
+                if (!emitResult.Success)
+                {
+                    succeeded = false;
+                }
+
+                WriteLine(succeeded ? "Success" : "Error");
+
+                foreach (var diagnostic in analyzerDiagnostics.Concat(emitResult.Diagnostics))
                 {
                     if (diagnostic.Severity >= severity)
                     {
                         WriteLine($"    {diagnostic.Id}: {diagnostic.GetMessage()}");
                     }
                 }
+
+                if (!succeeded)
+                {
+                    allSucceeded = false;
+                }
             }
 
-            return success ? ExitSuccess : ExitFailure;
+            return allSucceeded ? ExitSuccess : ExitFailure;
         }
         catch (OptionException e)
         {
@@ -612,6 +624,8 @@ public sealed class CompilerLogApp(
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
             var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
             var compilerCallNames = GetCompilerCallNames(compilerCalls);
+            var succeeded = true;
+
             for (int i = 0; i < compilerCalls.Count; i++)
             {
                 var compilerCall = compilerCalls[i];
@@ -626,6 +640,11 @@ public sealed class CompilerLogApp(
                     foreach (var diagnostic in diagnostics)
                     {
                         WriteLine(diagnostic.ToString());
+
+                        if (diagnostic.Severity == DiagnosticSeverity.Error)
+                        {
+                            succeeded = false;
+                        }
                     }
                 }
 
@@ -642,7 +661,7 @@ public sealed class CompilerLogApp(
                 }
             }
 
-            return ExitSuccess;
+            return succeeded ? ExitSuccess : ExitFailure;
         }
         catch (OptionException e)
         {
@@ -930,17 +949,14 @@ public sealed class CompilerLogApp(
         var logFilePath = GetLogFilePath(extra);
         var reader = CompilerCallReaderUtil.Create(logFilePath, basicAnalyzerKind, state);
         OnCompilerCallReader(reader);
-        if (reader is CompilerLogReader compilerLogReader)
-        {
-            CheckCompilerLogReader(compilerLogReader, checkVersion);
-        }
+        CheckCompilerLogReader(reader, checkVersion);
 
         return reader;
     }
 
-    internal void CheckCompilerLogReader(CompilerLogReader reader, bool checkVersion)
+    internal void CheckCompilerLogReader(ICompilerCallReader reader, bool checkVersion)
     {
-        if (reader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (reader is CompilerLogReader logReader && logReader.IsWindowsLog != RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             WriteLine($"Compiler log generated on different operating system");
         }
@@ -1173,7 +1189,7 @@ public sealed class CompilerLogApp(
             throw new Exception($"Invalid compiler directory {compilerDirectory}");
         }
 
-        var alc = CreateContext(compilerDirectory, Path.GetDirectoryName(typeof(CompilerLogApp).Assembly.Location)!);
+        var alc = new CustomCompilerLoadContext(compilerDirectory, Path.GetDirectoryName(typeof(CompilerLogApp).Assembly.Location)!);
         var type = typeof(CompilerLogApp);
         var assembly = alc.LoadFromAssemblyName(type.Assembly.GetName());
         var contextType = assembly.GetType(type.FullName!, throwOnError: true);
@@ -1194,10 +1210,6 @@ public sealed class CompilerLogApp(
         {
             throw e.InnerException!;
         }
-        finally
-        {
-            alc.Unload();
-        }
 
         void OnOutput(string? output) => OutputWriter.WriteLine(output);
 
@@ -1211,27 +1223,6 @@ public sealed class CompilerLogApp(
             }
 
             return userCompilerPath;
-        }
-
-        static AssemblyLoadContext CreateContext(string compilerDirectory, string compilerLogDirectory)
-        {
-            var alc = new AssemblyLoadContext("Custom Compiler Load Context", isCollectible: true);
-            var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var dir in (string[])[compilerDirectory, compilerLogDirectory])
-            {
-                foreach (var dllFilePath in Directory.EnumerateFiles(dir, "*.dll"))
-                {
-                    if (RoslynUtil.TryReadMvid(dllFilePath) is { })
-                    {
-                        if (RoslynUtil.ReadAssemblyName(dllFilePath) is { } n && hashSet.Add(n))
-                        {
-                            alc.LoadFromAssemblyPath(dllFilePath);
-                        }
-                    }
-                }
-            }
-
-            return alc;
         }
     }
 

@@ -72,8 +72,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     /// <summary>
     /// This is a console project that has every nasty feature that can be thought of
-    /// like resources, line directives, embeds, etc ... Rather than running a 
-    /// `dotnet build` for every one of these individually (which is expensive) in 
+    /// like resources, line directives, embeds, etc ... Rather than running a
+    /// `dotnet build` for every one of these individually (which is expensive) in
     /// unit tests try to create a single project that has all of them.
     /// </summary>
     internal Lazy<LogData> ConsoleComplex { get; }
@@ -108,7 +108,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     internal Lazy<LogData> ConsoleSigned => ConsoleComplex;
 
     /// <summary>
-    /// Constructor for the primary fixture. To get actual diagnostic messages into the output 
+    /// Constructor for the primary fixture. To get actual diagnostic messages into the output
     /// Add the following to xunit.runner.json to enable "diagnosticMessages": true
     /// </summary>
     public CompilerLogFixture(IMessageSink messageSink)
@@ -120,7 +120,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         Directory.CreateDirectory(ComplogDirectory);
         Directory.CreateDirectory(ScratchDirectory);
 
-        RunDotnetCommand("new globaljson --sdk-version 9.0.100 --roll-forward minor", ScratchDirectory);
+        RunDotnetCommand($"new globaljson --sdk-version {TestUtil.SdkVersion} --roll-forward minor", ScratchDirectory);
 
         var testArtifactsDir = Path.Combine(TestUtil.TestArtifactsDirectory, "compilerlogfixture");
         Directory.CreateDirectory(testArtifactsDir);
@@ -129,11 +129,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         Console = WithBuild("console.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new console --name console --output .", scratchPath);
-            var projectFileContent = """
+            var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
                     <OutputType>Exe</OutputType>
-                    <TargetFramework>net8.0</TargetFramework>
+                    <TargetFramework>{TestUtil.TestTargetFramework}</TargetFramework>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>
@@ -159,10 +159,10 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         ClassLibMulti = WithBuild("classlibmulti.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlibmulti --output .", scratchPath);
-            var projectFileContent = """
+            var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;{TestUtil.TestTargetFramework}</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                   </PropertyGroup>
@@ -184,10 +184,10 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         ClassLibRefOnly = WithBuild("classlibrefonly.complog", void (string scratchPath) =>
         {
             RunDotnetCommand($"new classlib --name classlibrefonly --output .", scratchPath);
-            var projectFileContent = """
+            var projectFileContent = $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
-                    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+                    <TargetFrameworks>net6.0;{TestUtil.TestTargetFramework}</TargetFrameworks>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     <ProduceOnlyReferenceAssembly>true</ProduceOnlyReferenceAssembly>
@@ -256,12 +256,12 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 End Module
                 """, TestBase.DefaultEncoding);
             File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
-            File.WriteAllText(Path.Combine(scratchPath, "console-vb.vbproj"), """
+            File.WriteAllText(Path.Combine(scratchPath, "console-vb.vbproj"), $"""
                 <Project Sdk="Microsoft.NET.Sdk">
                     <PropertyGroup>
                         <OutputType>Exe</OutputType>
                         <RootNamespace>vbconsole</RootNamespace>
-                        <TargetFramework>net8.0</TargetFramework>
+                        <TargetFramework>{TestUtil.TestTargetFramework}</TargetFramework>
                         <EmbedAllSources>true</EmbedAllSources>
                     </PropertyGroup>
                 </Project>
@@ -277,7 +277,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 <Project Sdk="Microsoft.NET.Sdk">
                   <PropertyGroup>
                     <OutputType>Exe</OutputType>
-                    <TargetFramework>net8.0</TargetFramework>
+                    <TargetFramework>{TestUtil.TestTargetFramework}</TargetFramework>
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     <DebugType>embedded</DebugType>
@@ -309,7 +309,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
 
             File.WriteAllText(Path.Combine(scratchPath, "additional.txt"), """
-                This is an additional file. 
+                This is an additional file.
                 It just has some text in it
                 """, TestBase.DefaultEncoding);
 
@@ -512,12 +512,12 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             ConsoleWithNativePdb = WithBuild("console-with-nativepdb.complog", void (string scratchPath) =>
             {
                 RunDotnetCommand($"new console --name console --output .", scratchPath);
-                var projectFileContent = """
+                var projectFileContent = $"""
                     <Project Sdk="Microsoft.NET.Sdk">
                       <PropertyGroup>
                         <OutputType>Exe</OutputType>
                         <DebugType>full</DebugType>
-                        <TargetFramework>net8.0</TargetFramework>
+                        <TargetFramework>{TestUtil.TestTargetFramework}</TargetFramework>
                         <ImplicitUsings>enable</ImplicitUsings>
                         <Nullable>enable</Nullable>
                       </PropertyGroup>
@@ -719,7 +719,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     }
 
     /// <summary>
-    /// This returns the names of all the log data files. This is used in theories to help break up 
+    /// This returns the names of all the log data files. This is used in theories to help break up
     /// the test cases into smaller pieces.
     /// </summary>
     public static IEnumerable<string> GetAllLogDataNames()

@@ -38,7 +38,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     private readonly Dictionary<Guid, (string FileName, string AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, (Guid Mvid, string? AssemblyName, string? AssemblyInformationVersion)> _assemblyPathToMvidMap = new(PathUtil.Comparer);
     private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
-    private readonly Dictionary<string, (string AssemblyName, string? CommitHash)> _compilerInfoMap = new(PathUtil.Comparer);
+    private readonly Dictionary<string, (AssemblyName AssemblyName, string? CommitHash)> _compilerInfoMap = new(PathUtil.Comparer);
     private readonly List<(int CompilerCallIndex, bool IsRefAssembly, Guid Mvid)> _compilerCallMvidList = new();
     private readonly DefaultObjectPool<MemoryStream> _memoryStreamPool = new(new MemoryStreamPoolPolicy(), maximumRetained: 5);
 
@@ -153,7 +153,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 _compilerInfoMap[compilerCall.CompilerFilePath] = compilerInfo;
             }
 
-            infoPack.CompilerAssemblyName = compilerInfo.AssemblyName;
+            infoPack.CompilerAssemblyName = compilerInfo.AssemblyName.ToString();
             infoPack.CompilerCommitHash = compilerInfo.CommitHash;
 
         }

@@ -93,7 +93,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
                 return compilerAssembly;
             }
         }
-        catch
+        catch (FileNotFoundException)
         {
             // Expected to happen when the assembly cannot be resolved in the compiler / host
             // AssemblyLoadContext.
@@ -112,7 +112,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
     {
         Unload();
     }
-}    
+}
 
 #else
 
@@ -142,14 +142,14 @@ internal sealed class InMemoryLoader
     }
 
     /*
-     * 
+     *
         rough sketch of how this could work
         private readonly Dictionary<string, (byte[], Assembly?)> _map = new();
         internal ImmutableArray<AnalyzerReference> AnalyzerReferences { get; }
 
         internal InMemoryLoader(string name, BasicAnalyzersOptions options, CompilerLogReader reader, List<RawAnalyzerData> analyzers)
         {
-            AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;    
+            AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
             var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
             foreach (var analyzer in analyzers)
             {
@@ -218,7 +218,7 @@ internal sealed class InMemoryLoader
 
         public void Dispose()
         {
-            AppDomain.CurrentDomain.AssemblyResolve -= OnAssemblyResolve;    
+            AppDomain.CurrentDomain.AssemblyResolve -= OnAssemblyResolve;
         }
 
         */
@@ -292,7 +292,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference, IBasicAnalyzerRefe
                 var type = GetTypeWithDiagnostics(assembly, fqn, diagnostics);
                 if (type is not null)
                 {
-                    // When looking for "all languages" roslyn will include duplicates for all 
+                    // When looking for "all languages" roslyn will include duplicates for all
                     // supported languages. This is undocumented behavior that we need to mimic
                     //
                     // https://github.com/dotnet/roslyn/blob/329bb90e91561c8f26e4f8aeae17be1697db850b/src/Compilers/Core/Portable/DiagnosticAnalyzer/AnalyzerFileReference.cs#L111
@@ -311,7 +311,7 @@ file sealed class BasicAnalyzerReference : AnalyzerReference, IBasicAnalyzerRefe
         }, language, diagnostics);
 
     public ImmutableArray<ISourceGenerator> GetGenerators(string? language, List<Diagnostic>? diagnostics) =>
-        GetAnalyzersCore<ISourceGenerator>(static (assembly, metadataReader, builder, language, diagnostics) => 
+        GetAnalyzersCore<ISourceGenerator>(static (assembly, metadataReader, builder, language, diagnostics) =>
         {
             foreach (var (typeDef, attribute) in RoslynUtil.GetGeneratorTypeDefinitions(metadataReader, language))
             {

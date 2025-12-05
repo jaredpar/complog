@@ -324,7 +324,7 @@ public sealed class RoslynUtilTests
         WithCompilerCopy(dir =>
         {
             var (name, commit) = RoslynUtil.GetCompilerInfo(Path.Combine(dir, "csc.dll"), true);
-            Assert.StartsWith("csc", name);
+            Assert.StartsWith("csc", name.ToString());
             Assert.NotNull(commit);
         });
     }
@@ -340,7 +340,7 @@ public sealed class RoslynUtilTests
             var appHostPath = Path.Combine(dir, appHostName);
             File.WriteAllText(appHostPath, "This is a fake app host file");
             var (name, commit) = RoslynUtil.GetCompilerInfo(appHostPath, isCSharp);
-            Assert.StartsWith(expectedName, name);
+            Assert.StartsWith(expectedName, name.ToString());
             Assert.NotNull(commit);
         });
     }
@@ -353,7 +353,7 @@ public sealed class RoslynUtilTests
             var filePath = Path.Combine(dir, "csc.dll");
             File.WriteAllText(filePath, "not a pe file");
             var (name, commit) = RoslynUtil.GetCompilerInfo(filePath, true);
-            Assert.StartsWith("csc", name);
+            Assert.StartsWith("csc", name.ToString());
             Assert.Null(commit);
         });
     }

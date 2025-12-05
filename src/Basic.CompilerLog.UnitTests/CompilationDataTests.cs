@@ -1,6 +1,7 @@
 
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
+using Microsoft.CodeAnalysis;
 using Microsoft.Testing.Platform.Extensions.Messages;
 using Xunit;
 
@@ -125,7 +126,8 @@ public sealed class CompilationDataTests : TestBase
         {
             using var reader = CompilerLogReader.Create(filePath);
             var data = reader.ReadCompilationData(0);
-            Assert.NotEmpty(data.GetAnalyzers());
+            Assert.NotEmpty(data.GetAnalyzers(out var diagnostics));
+            Assert.Empty(diagnostics);
         });
     }
 
@@ -134,7 +136,8 @@ public sealed class CompilationDataTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath, BasicAnalyzerKind.None);
         var data = reader.ReadCompilationData(0);
-        Assert.Empty(data.GetAnalyzers());
+        Assert.Empty(data.GetAnalyzers(out var diagnostics));
+        Assert.Empty(diagnostics);
     }
 
     [Fact]
@@ -185,12 +188,8 @@ public sealed class CompilationDataTests : TestBase
                 logFilePath,
                 BasicAnalyzerHost.DefaultKind);
             var rawData = reader.ReadAllAnalyzerData(0);
-            var analyzers = rawData
-                .Where(x => x.FileName != "Microsoft.CodeAnalysis.NetAnalyzers.dll")
-                .ToList();
-            BasicAnalyzerHost host = IsNetCore
-                ? new BasicAnalyzerHostInMemory(reader, analyzers)
-                : new BasicAnalyzerHostOnDisk(reader, analyzers);
+            var diagnostic = Diagnostic.Create(RoslynUtil.CannotReadGeneratedFilesDiagnosticDescriptor, Location.None, "util.dll");
+            var host = new BasicAnalyzerHostNone(diagnostic);
             var data = (CSharpCompilationData)reader.ReadCompilationData(0);
             data = new CSharpCompilationData(
                 data.CompilerCall,
@@ -203,7 +202,7 @@ public sealed class CompilationDataTests : TestBase
                 data.AnalyzerConfigOptionsProvider,
                 creationDiagnostics: []);
             _ = data.GetCompilationAfterGenerators(out var diagnostics, cancellationToken);
-            Assert.NotEmpty(diagnostics);
+            Assert.Equal([diagnostic], diagnostics);
         });
     }
 
