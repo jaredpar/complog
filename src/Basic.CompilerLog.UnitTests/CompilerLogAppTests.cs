@@ -1,4 +1,4 @@
-﻿#if NET
+#if NET
 using Basic.CompilerLog.App;
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Serialize;
@@ -242,6 +242,30 @@ public sealed class CompilerLogAppTests : TestBase
             using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
             Assert.NotEmpty(reader.ReadAllCompilerCalls());
         }
+    }
+
+    [WindowsFact]
+    public void CreateCapturesWpfTemporaryCompile()
+    {
+        Debug.Assert(Fixture.WpfAppProjectPath is not null);
+        
+        // Create a compiler log from the solution binary log that contains the WPF project
+        var complogPath = Path.Combine(RootDirectory, "wpf-test.complog");
+        var (exitCode, output) = RunCompLogEx($"create {Fixture.SolutionBinaryLogPath} -o {complogPath}");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.True(File.Exists(complogPath));
+        
+        // Verify that the created compiler log contains WPF temporary compile
+        using var reader = CompilerLogReader.Create(complogPath);
+        var compilerCalls = reader.ReadAllCompilerCalls();
+        
+        // Should have WPF-related compiler calls (WpfTemporaryCompile should be captured by default)
+        var wpfTempCompile = compilerCalls.FirstOrDefault(c => c.Kind == CompilerCallKind.WpfTemporaryCompile);
+        Assert.NotNull(wpfTempCompile);
+
+        // Should also have the regular compile for the WPF project
+        var regularCompile = compilerCalls.FirstOrDefault(c => c.Kind == CompilerCallKind.Regular && c.ProjectFilePath == Fixture.WpfAppProjectPath);
+        Assert.NotNull(regularCompile);
     }
 
     /// <summary>
@@ -1074,31 +1098,6 @@ public sealed class CompilerLogAppTests : TestBase
         (exitCode, output) = RunCompLogEx($"print {Fixture.WpfAppProjectPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.DoesNotContain("WpfTemporaryCompile", output);
-    }
-
-    [WindowsFact]
-    public void CreateCapturesWpfTemporaryCompile()
-    {
-        // Verify WpfAppProjectPath exists (only on Windows)
-        Debug.Assert(Fixture.WpfAppProjectPath is not null);
-        
-        // Create a compiler log from the solution binary log that contains the WPF project
-        var complogPath = Path.Combine(RootDirectory, "wpf-test.complog");
-        var (exitCode, output) = RunCompLogEx($"create {Fixture.SolutionBinaryLogPath} -o {complogPath}");
-        Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.True(File.Exists(complogPath));
-        
-        // Verify that the created compiler log contains WPF temporary compile
-        using var reader = CompilerLogReader.Create(complogPath);
-        var compilerCalls = reader.ReadAllCompilerCalls();
-        
-        // Should have WPF-related compiler calls (WpfTemporaryCompile should be captured by default)
-        var wpfTempCompile = compilerCalls.FirstOrDefault(c => c.Kind == CompilerCallKind.WpfTemporaryCompile);
-        Assert.NotNull(wpfTempCompile);
-        
-        // Should also have the regular compile for the WPF project
-        var regularCompile = compilerCalls.FirstOrDefault(c => c.Kind == CompilerCallKind.Regular && c.ProjectFilePath.Contains("wpfapp"));
-        Assert.NotNull(regularCompile);
     }
 
     [Fact]
