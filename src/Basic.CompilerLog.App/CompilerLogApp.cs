@@ -79,6 +79,7 @@ public sealed class CompilerLogApp(
         {
             { "o|out=", "path to output reference files", o => complogFilePath = o },
         };
+        options.IncludeAllKinds = true;
 
         try
         {
@@ -102,7 +103,7 @@ public sealed class CompilerLogApp(
             }
 
             complogFilePath = GetResolvedPath(WorkingDirectory, complogFilePath);
-            var convertResult = CompilerLogUtil.TryConvertBinaryLog(binlogFilePath, complogFilePath, options.FilterForCreate);
+            var convertResult = CompilerLogUtil.TryConvertBinaryLog(binlogFilePath, complogFilePath, options.FilterCompilerCalls);
             foreach (var diagnostic in convertResult.Diagnostics)
             {
                 WriteLine(diagnostic);
@@ -110,7 +111,7 @@ public sealed class CompilerLogApp(
 
             if (options.ProjectNames.Count > 0)
             {
-                foreach (var compilerCall in convertResult.CompilerCalls.Where(options.FilterCompilerCalls))
+                foreach (var compilerCall in convertResult.CompilerCalls)
                 {
                     WriteLine(compilerCall.GetDiagnosticName());
                 }
