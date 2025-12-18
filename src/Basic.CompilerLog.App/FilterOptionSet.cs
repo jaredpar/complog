@@ -91,4 +91,26 @@ internal sealed class FilterOptionSet : OptionSet
 
         return true;
     }
+
+    /// <summary>
+    /// Filter for the create command. Filters by project and framework but NOT by kind,
+    /// so WPF temporary compilations and other kinds are captured by default.
+    /// </summary>
+    internal bool FilterForCreate(CompilerCall compilerCall)
+    {
+        if (TargetFrameworks.Count > 0 && !TargetFrameworks.Contains(compilerCall.TargetFramework, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (ProjectNames.Count > 0)
+        {
+            var name = Path.GetFileName(compilerCall.ProjectFilePath);
+            var nameNoExtension = Path.GetFileNameWithoutExtension(compilerCall.ProjectFilePath);
+            var comparer = PathUtil.Comparer;
+            return ProjectNames.Any(x => comparer.Equals(x, name) || comparer.Equals(x, nameNoExtension));
+        }
+
+        return true;
+    }
 }

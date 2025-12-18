@@ -102,7 +102,7 @@ public sealed class CompilerLogApp(
             }
 
             complogFilePath = GetResolvedPath(WorkingDirectory, complogFilePath);
-            var convertResult = CompilerLogUtil.TryConvertBinaryLog(binlogFilePath, complogFilePath, predicate: null);
+            var convertResult = CompilerLogUtil.TryConvertBinaryLog(binlogFilePath, complogFilePath, options.FilterForCreate);
             foreach (var diagnostic in convertResult.Diagnostics)
             {
                 WriteLine(diagnostic);
