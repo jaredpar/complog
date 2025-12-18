@@ -76,20 +76,7 @@ internal sealed class FilterOptionSet : OptionSet
             return false;
         }
 
-        if (TargetFrameworks.Count > 0 && !TargetFrameworks.Contains(compilerCall.TargetFramework, StringComparer.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (ProjectNames.Count > 0)
-        {
-            var name = Path.GetFileName(compilerCall.ProjectFilePath);
-            var nameNoExtension = Path.GetFileNameWithoutExtension(compilerCall.ProjectFilePath);
-            var comparer = PathUtil.Comparer;
-            return ProjectNames.Any(x => comparer.Equals(x, name) || comparer.Equals(x, nameNoExtension));
-        }
-
-        return true;
+        return FilterByProjectAndFramework(compilerCall);
     }
 
     /// <summary>
@@ -97,6 +84,11 @@ internal sealed class FilterOptionSet : OptionSet
     /// so WPF temporary compilations and other kinds are captured by default.
     /// </summary>
     internal bool FilterForCreate(CompilerCall compilerCall)
+    {
+        return FilterByProjectAndFramework(compilerCall);
+    }
+
+    private bool FilterByProjectAndFramework(CompilerCall compilerCall)
     {
         if (TargetFrameworks.Count > 0 && !TargetFrameworks.Contains(compilerCall.TargetFramework, StringComparer.OrdinalIgnoreCase))
         {
