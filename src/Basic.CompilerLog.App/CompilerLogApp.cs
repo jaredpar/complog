@@ -79,6 +79,7 @@ public sealed class CompilerLogApp(
         {
             { "o|out=", "path to output reference files", o => complogFilePath = o },
         };
+        options.IncludeAllKinds = true;
 
         try
         {
