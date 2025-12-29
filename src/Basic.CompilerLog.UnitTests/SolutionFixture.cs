@@ -45,19 +45,6 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
     internal string ConsoleWithDiagnosticsProjectName => Path.GetFileName(ConsoleWithDiagnosticsProjectPath);
 
-    /// <summary>
-    /// The binary log for a project that has been removed from disk
-    /// </summary>
-    internal string RemovedBinaryLogPath { get; }
-
-    /// <summary>
-    /// This project is deleted off of disk after the binary log is created. This means subsequent calls
-    /// to create a compiler log over it will fail. Useful for testing error cases.
-    /// </summary>
-    internal string RemovedConsoleProjectPath { get; }
-
-    internal string RemovedConsoleProjectName => Path.GetFileName(RemovedConsoleProjectPath);
-
     public SolutionFixture(IMessageSink messageSink)
         : base(messageSink)
     {
@@ -168,21 +155,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         SolutionBinaryLogPath = Path.Combine(binlogDir, "msbuild.binlog");
         RunDotnetCommand($"build -bl:{SolutionBinaryLogPath} -nr:false", StorageDirectory);
 
-        (RemovedConsoleProjectPath, RemovedBinaryLogPath) = CreateRemovedProject();
         (ConsoleWithDiagnosticsProjectPath, ConsoleWithDiagnosticsBinaryLogPath) = CreateConsoleWithDiagnosticsProject();
-
-        (string, string) CreateRemovedProject()
-        {
-            var dir = Path.Combine(StorageDirectory, "removed");
-            Directory.CreateDirectory(dir);
-            RunDotnetCommand("new console --name removed-console -o .", dir);
-            var projectPath = Path.Combine(dir, "removed-console.csproj");
-            var binlogFilePath = Path.Combine(binlogDir, "removed-console.binlog");
-
-            RunDotnetCommand($"build -bl:{binlogFilePath} -nr:false", dir);
-            Directory.Delete(dir, recursive: true);
-            return (projectPath, binlogFilePath);
-        }
 
         (string, string) CreateConsoleWithDiagnosticsProject()
         {

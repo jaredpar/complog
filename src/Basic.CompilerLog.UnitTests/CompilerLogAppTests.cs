@@ -1,4 +1,4 @@
-﻿#if NET
+#if NET
 using Basic.CompilerLog.App;
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Serialize;
@@ -20,19 +20,22 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
 [Collection(SolutionFixtureCollection.Name)]
-public sealed class CompilerLogAppTests : TestBase
+public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogAppTestsFixture>
 {
     private Action<ICompilerCallReader>? _assertCompilerCallReader;
 
+    public CompilerLogAppTestsFixture ClassFixture { get; }
     public SolutionFixture Fixture { get; }
 
-    public CompilerLogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture)
+    public CompilerLogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture, CompilerLogAppTestsFixture classFixture)
         : base(testOutputHelper, testContextAccessor, nameof(CompilerLogAppTests))
     {
+        ClassFixture = classFixture;
         Fixture = fixture;
     }
 
@@ -141,7 +144,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void AnalyzersProjectFilesDeleted()
     {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($"analyzers {ClassFixture.RemovedConsoleProject.Value.BinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("CSharp.NetAnalyzers.dll", output);
     }
@@ -149,7 +152,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void AnalyzersBadOption()
     {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath} --not-an-option");
+        var (exitCode, output) = RunCompLogEx($"analyzers {ClassFixture.RemovedConsoleProject.Value.BinaryLogPath} --not-an-option");
         Assert.NotEqual(Constants.ExitSuccess, exitCode);
         Assert.StartsWith("Extra arguments", output);
     }
@@ -266,7 +269,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void CreateOverRemovedProject()
     {
-        var (exitCode, output) = RunCompLogEx($"create {Fixture.RemovedBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($"create {ClassFixture.RemovedConsoleProject.Value.BinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains(RoslynUtil.GetDiagnosticMissingFile(""), output);
     }
@@ -1030,7 +1033,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void PrintWithoutProject()
     {
-        var (exitCode, output) = RunCompLogEx($"print {Fixture.RemovedBinaryLogPath} -c");
+        var (exitCode, output) = RunCompLogEx($"print {ClassFixture.RemovedConsoleProject.Value.BinaryLogPath} -c");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.StartsWith("Projects", output);
     }
@@ -1155,6 +1158,40 @@ public sealed class CompilerLogAppTests : TestBase
             using var zipArchive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create);
             zipArchive.CreateEntryFromFile(Fixture.SolutionBinaryLogPath, "build.binlog");
         }
+    }
+}
+
+public sealed class CompilerLogAppTestsFixture: FixtureBase, IDisposable
+{
+    private TempDir Storage { get; } = new TempDir();
+
+    public string StorageDirectory => Storage.DirectoryPath;
+    public string BinlogDirectory { get; }
+    public Lazy<(string ProjectFilePath, string BinaryLogPath)> RemovedConsoleProject { get; }
+
+    public CompilerLogAppTestsFixture(IMessageSink messageSink)
+        : base(messageSink)
+    {
+        BinlogDirectory = Storage.NewDirectory("binlogs");
+        RemovedConsoleProject = new Lazy<(string, string)>(() => CreateRemovedProject());
+
+        (string, string) CreateRemovedProject()
+        {
+            var dir = Path.Combine(StorageDirectory, "removed");
+            Directory.CreateDirectory(dir);
+            RunDotnetCommand("new console --name removed-console -o .", dir);
+            var projectPath = Path.Combine(dir, "removed-console.csproj");
+            var binlogFilePath = Path.Combine(BinlogDirectory, "removed-console.binlog");
+
+            RunDotnetCommand($"build -bl:{binlogFilePath} -nr:false", dir);
+            Directory.Delete(dir, recursive: true);
+            return (projectPath, binlogFilePath);
+        }
+    }
+
+    public void Dispose()
+    {
+        Storage.Dispose();
     }
 }
 

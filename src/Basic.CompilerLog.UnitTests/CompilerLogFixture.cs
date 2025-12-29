@@ -552,7 +552,6 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             throw new Exception($"The number of logs in the fixture ({AllLogs.Length}) does not match the number of logs in the test data ({GetAllLogDataNames().Count()})");
         }
 
-
         Lazy<LogData> WithBuild(string name, Action<string> action, bool expectDiagnosticMessages = false, bool supportsNoneHost = true)
         {
             var lazy = new Lazy<LogData>(() =>
