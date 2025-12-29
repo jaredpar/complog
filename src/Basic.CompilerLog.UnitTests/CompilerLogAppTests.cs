@@ -25,8 +25,42 @@ using Xunit.Sdk;
 namespace Basic.CompilerLog.UnitTests;
 
 [Collection(SolutionFixtureCollection.Name)]
-public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogAppTestsFixture>
+public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogAppTests.CompilerLogAppTestsFixture>
 {
+    public sealed class CompilerLogAppTestsFixture: FixtureBase, IDisposable
+    {
+        private TempDir Storage { get; } = new TempDir();
+
+        public string StorageDirectory => Storage.DirectoryPath;
+        public string BinlogDirectory { get; }
+        public Lazy<(string ProjectFilePath, string BinaryLogPath)> RemovedConsoleProject { get; }
+
+        public CompilerLogAppTestsFixture(IMessageSink messageSink)
+            : base(messageSink)
+        {
+            BinlogDirectory = Storage.NewDirectory("binlogs");
+            RemovedConsoleProject = new Lazy<(string, string)>(() => CreateRemovedProject());
+
+            (string, string) CreateRemovedProject()
+            {
+                var dir = Path.Combine(StorageDirectory, "removed");
+                Directory.CreateDirectory(dir);
+                RunDotnetCommand("new console --name removed-console -o .", dir);
+                var projectPath = Path.Combine(dir, "removed-console.csproj");
+                var binlogFilePath = Path.Combine(BinlogDirectory, "removed-console.binlog");
+
+                RunDotnetCommand($"build -bl:{binlogFilePath} -nr:false", dir);
+                Directory.Delete(dir, recursive: true);
+                return (projectPath, binlogFilePath);
+            }
+        }
+
+        public void Dispose()
+        {
+            Storage.Dispose();
+        }
+    }
+
     private Action<ICompilerCallReader>? _assertCompilerCallReader;
 
     public CompilerLogAppTestsFixture ClassFixture { get; }
@@ -1158,40 +1192,6 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
             using var zipArchive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create);
             zipArchive.CreateEntryFromFile(Fixture.SolutionBinaryLogPath, "build.binlog");
         }
-    }
-}
-
-public sealed class CompilerLogAppTestsFixture: FixtureBase, IDisposable
-{
-    private TempDir Storage { get; } = new TempDir();
-
-    public string StorageDirectory => Storage.DirectoryPath;
-    public string BinlogDirectory { get; }
-    public Lazy<(string ProjectFilePath, string BinaryLogPath)> RemovedConsoleProject { get; }
-
-    public CompilerLogAppTestsFixture(IMessageSink messageSink)
-        : base(messageSink)
-    {
-        BinlogDirectory = Storage.NewDirectory("binlogs");
-        RemovedConsoleProject = new Lazy<(string, string)>(() => CreateRemovedProject());
-
-        (string, string) CreateRemovedProject()
-        {
-            var dir = Path.Combine(StorageDirectory, "removed");
-            Directory.CreateDirectory(dir);
-            RunDotnetCommand("new console --name removed-console -o .", dir);
-            var projectPath = Path.Combine(dir, "removed-console.csproj");
-            var binlogFilePath = Path.Combine(BinlogDirectory, "removed-console.binlog");
-
-            RunDotnetCommand($"build -bl:{binlogFilePath} -nr:false", dir);
-            Directory.Delete(dir, recursive: true);
-            return (projectPath, binlogFilePath);
-        }
-    }
-
-    public void Dispose()
-    {
-        Storage.Dispose();
     }
 }
 
