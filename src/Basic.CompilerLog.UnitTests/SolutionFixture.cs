@@ -37,13 +37,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
     /// </summary>
     internal string ClassLibWithResourceLibs { get; }
 
-    internal string ConsoleWithDiagnosticsBinaryLogPath { get; }
-
-    internal string ConsoleWithDiagnosticsProjectPath { get; }
-
     internal string? WpfAppProjectPath { get; }
-
-    internal string ConsoleWithDiagnosticsProjectName => Path.GetFileName(ConsoleWithDiagnosticsProjectPath);
 
     public SolutionFixture(IMessageSink messageSink)
         : base(messageSink)
@@ -154,38 +148,6 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         ProjectPaths = builder.ToImmutableArray();
         SolutionBinaryLogPath = Path.Combine(binlogDir, "msbuild.binlog");
         RunDotnetCommand($"build -bl:{SolutionBinaryLogPath} -nr:false", StorageDirectory);
-
-        (ConsoleWithDiagnosticsProjectPath, ConsoleWithDiagnosticsBinaryLogPath) = CreateConsoleWithDiagnosticsProject();
-
-        (string, string) CreateConsoleWithDiagnosticsProject()
-        {
-            var dir = Path.Combine(StorageDirectory, "diagnostics");
-            Directory.CreateDirectory(dir);
-            RunDotnetCommand("new console --name console-with-diagnostics -o .", dir);
-            File.WriteAllText(Path.Combine(dir, "Diagnostic.cs"), """
-                using System;
-                class C
-                {
-                    void Method1()
-                    {
-                        // Warning CS0219
-                        int i = 42;
-                    }
-
-                    void Method2()
-                    {
-                        // Error CS0029
-                        string s = 13;
-                        Console.WriteLine(s);
-                    }
-                }
-                """, TestBase.DefaultEncoding);
-            var projectPath = Path.Combine(dir, "console-with-diagnostics.csproj");
-            var binlogFilePath = Path.Combine(binlogDir, "console-with-diagnostics.binlog");
-            var result = DotnetUtil.Command($"dotnet build -bl:{binlogFilePath} -nr:false", dir);
-            Assert.False(result.Succeeded);
-            return (projectPath, binlogFilePath);
-        };
     }
 
     public void Dispose()

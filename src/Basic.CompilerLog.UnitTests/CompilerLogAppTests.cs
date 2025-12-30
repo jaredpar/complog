@@ -34,12 +34,14 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         public string StorageDirectory => Storage.DirectoryPath;
         public string BinlogDirectory { get; }
         public Lazy<(string ProjectFilePath, string BinaryLogPath)> RemovedConsoleProject { get; }
+        public Lazy<(string ProjectFilePath, string BinaryLogPath)> ConsoleWithDiagnostics { get; }
 
         public CompilerLogAppTestsFixture(IMessageSink messageSink)
             : base(messageSink)
         {
             BinlogDirectory = Storage.NewDirectory("binlogs");
             RemovedConsoleProject = new Lazy<(string, string)>(() => CreateRemovedProject());
+            ConsoleWithDiagnostics = new Lazy<(string ProjectFilePath, string BinaryLogPath)>(() => CreateConsoleWithDiagnosticsProject());
 
             (string, string) CreateRemovedProject()
             {
@@ -53,6 +55,36 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
                 Directory.Delete(dir, recursive: true);
                 return (projectPath, binlogFilePath);
             }
+
+            (string, string) CreateConsoleWithDiagnosticsProject()
+            {
+                var dir = Path.Combine(StorageDirectory, "diagnostics");
+                Directory.CreateDirectory(dir);
+                RunDotnetCommand("new console --name console-with-diagnostics -o .", dir);
+                File.WriteAllText(Path.Combine(dir, "Diagnostic.cs"), """
+                    using System;
+                    class C
+                    {
+                        void Method1()
+                        {
+                            // Warning CS0219
+                            int i = 42;
+                        }
+
+                        void Method2()
+                        {
+                            // Error CS0029
+                            string s = 13;
+                            Console.WriteLine(s);
+                        }
+                    }
+                    """, TestBase.DefaultEncoding);
+                var projectPath = Path.Combine(dir, "console-with-diagnostics.csproj");
+                var binlogFilePath = Path.Combine(BinlogDirectory, "console-with-diagnostics.binlog");
+                var result = DotnetUtil.Command($"dotnet build -bl:{binlogFilePath} -nr:false", dir);
+                Assert.False(result.Succeeded);
+                return (projectPath, binlogFilePath);
+            };
         }
 
         public void Dispose()
@@ -342,8 +374,8 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     [Fact]
     public void CreateMultipleFiles()
     {
-        File.Copy(Fixture.ConsoleWithDiagnosticsBinaryLogPath, Path.Combine(RootDirectory, "console1.binlog"));
-        File.Copy(Fixture.ConsoleWithDiagnosticsBinaryLogPath, Path.Combine(RootDirectory, "console2.binlog"));
+        File.Copy(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath, Path.Combine(RootDirectory, "console1.binlog"));
+        File.Copy(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath, Path.Combine(RootDirectory, "console2.binlog"));
         var (exitCode, output) = RunCompLogEx($"create");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains($"Found multiple log files in {RootDirectory}", output);
@@ -862,7 +894,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     public void ReplayWithDiagnostics()
     {
         using var emitDir = new TempDir();
-        var (exitCode, output) = RunCompLogEx($"replay --severity Info {Fixture.ConsoleWithDiagnosticsBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($"replay --severity Info {ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath}");
         Assert.Equal(Constants.ExitFailure, exitCode);
         Assert.Contains("CS0219", output);
     }
@@ -1051,7 +1083,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -c");
         Assert.Equal(Constants.ExitSuccess, exitCode);
 
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithDiagnosticsBinaryLogPath);
+        using var reader = CompilerLogReader.Create(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath);
         var tuple = reader.ReadAllCompilerAssemblies().Single();
         Assert.Contains($"""
             Compilers
@@ -1081,7 +1113,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {Path.GetDirectoryName(Fixture.SolutionBinaryLogPath)}"));
 
         // Make sure this works on a build that will fail!
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {Path.GetDirectoryName(Fixture.ConsoleWithDiagnosticsProjectPath)}"));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {Path.GetDirectoryName(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath)}"));
     }
 
     [Fact]
@@ -1145,7 +1177,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
 
         void Create()
         {
-            using var binlogStream = new FileStream(Fixture.ConsoleWithDiagnosticsBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var binlogStream = new FileStream(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             using var complogStream = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
             var result = CompilerLogUtil.TryConvertBinaryLog(binlogStream, complogStream, predicate: null, metadataVersion: metadataVersion);
             Assert.True(result.Succeeded);
