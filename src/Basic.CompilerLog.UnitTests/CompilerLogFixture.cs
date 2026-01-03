@@ -67,7 +67,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     internal Lazy<LogData> ConsoleWithReference { get; }
 
     /// <summary>
-    /// A console project that has a reference to a library with an alias
+    /// This is a solution that has two projects (library and console) where the console
+    /// has a reference to the library using an extern alias.
     /// </summary>
     internal Lazy<LogData> ConsoleWithAliasReference { get; }
 
@@ -565,7 +566,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     _ = Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
                     action(scratchPath);
-                    var projectFilePath = Directory.EnumerateFiles(scratchPath, "*proj", SearchOption.TopDirectoryOnly).Single();
+                    var projectFilePath = Directory.EnumerateFiles(scratchPath, "*proj", SearchOption.TopDirectoryOnly).SingleOrDefault();
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
                     var complogFilePath = Path.Combine(ComplogDirectory, name);
