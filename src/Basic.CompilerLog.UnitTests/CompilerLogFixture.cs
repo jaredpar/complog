@@ -17,8 +17,9 @@ using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
-public readonly struct LogData(string compilerLogPath, string? binaryLogPath, bool supportsNoneHost = true)
+public readonly struct LogData(string? projectFilePath, string compilerLogPath, string? binaryLogPath, bool supportsNoneHost = true)
 {
+    public string? ProjectFilePath { get; } = projectFilePath;
     public string CompilerLogPath { get; } = compilerLogPath;
     public string? BinaryLogPath { get; } = binaryLogPath;
     public bool SupportsNoneHost { get; } = supportsNoneHost;
@@ -564,6 +565,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     _ = Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
                     action(scratchPath);
+                    var projectFilePath = Directory.EnumerateFiles(scratchPath, "*proj", SearchOption.TopDirectoryOnly).Single();
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
                     var complogFilePath = Path.Combine(ComplogDirectory, name);
@@ -581,7 +583,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         Assert.Empty(diagnostics);
                     }
 
-                    return new LogData(complogFilePath, binlogFilePath, supportsNoneHost);
+                    return new LogData(projectFilePath, complogFilePath, binlogFilePath, supportsNoneHost);
                 }
                 catch (Exception ex)
                 {
@@ -601,7 +603,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         {
             var filePath = Path.Combine(ComplogDirectory, name);
             File.WriteAllBytes(filePath, ResourceLoader.GetResourceBlob(name));
-            var lazy = new Lazy<LogData>(() => new LogData(filePath, null));
+            var lazy = new Lazy<LogData>(() => new LogData(null, filePath, null));
             builder.Add(lazy);
             return lazy;
         }

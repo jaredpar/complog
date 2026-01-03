@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog;
+using Basic.CompilerLog;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Mono.Options;
@@ -1047,7 +1047,7 @@ public sealed class CompilerLogApp(
             var binlogFilePath = Path.Combine(appDataDirectory, "build.binlog");
             var buildFilePath = GetResolvedPath(baseDirectory, buildFileName);
             var tag = buildArgs.Any() ? "" : "-t:Rebuild";
-            var args = $"build {buildFilePath} -bl:\"{binlogFilePath}\" -nr:false {tag} {string.Join(' ', buildArgs)}";
+            var args = $@"build ""{buildFilePath}"" -bl:""{binlogFilePath}"" -nr:false {tag} {string.Join(' ', buildArgs)}";
             WriteLine($"Building {buildFilePath}");
             WriteLine($"dotnet {args}");
             var result = DotnetUtil.Command(args, baseDirectory);
