@@ -13,6 +13,8 @@ namespace Basic.CompilerLog.UnitTests;
 /// </summary>
 public sealed class SolutionFixture : FixtureBase, IDisposable
 {
+    private ReadOnlyDirectoryScope ReadOnlyDirectoryScope { get; }
+
     internal ImmutableArray<string> ProjectPaths { get; }
 
     /// <summary>
@@ -148,10 +150,12 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         ProjectPaths = builder.ToImmutableArray();
         SolutionBinaryLogPath = Path.Combine(binlogDir, "msbuild.binlog");
         RunDotnetCommand($"build -bl:{SolutionBinaryLogPath} -nr:false", StorageDirectory);
+        ReadOnlyDirectoryScope = new(StorageDirectory, setReadOnly: true);
     }
 
     public void Dispose()
     {
+        ReadOnlyDirectoryScope.ClearReadOnly();
         Directory.Delete(StorageDirectory, recursive: true);
     }
 }
