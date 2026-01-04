@@ -100,4 +100,16 @@ internal static class Extensions
             ArrayPool<byte>.Shared.Return(buffer);
         }
     }
+
+    internal static FileInfo CopyTo(this FileInfo fileInfo, string destFileName, bool overwrite, bool clearReadOnly)
+    {
+        var destFileInfo = fileInfo.CopyTo(destFileName, overwrite);
+        if (clearReadOnly && fileInfo.IsReadOnly)
+        {
+            destFileInfo.Attributes = destFileInfo.Attributes & ~FileAttributes.ReadOnly;
+        }
+
+        return destFileInfo;
+    }
+
 }

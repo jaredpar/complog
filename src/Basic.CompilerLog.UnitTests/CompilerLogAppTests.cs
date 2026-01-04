@@ -237,8 +237,9 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     [InlineData(false)]
     public void AnalyzersPath(bool includePath)
     {
+        var projectFilePath = Fixture.GetWritableCopy(Fixture.Console.Value, Root);
         var arg = includePath ? "--path" : "";
-        var (exitCode, output) = RunCompLogEx($@"analyzers ""{Fixture.Console.Value.ProjectFilePath}"" {arg}");
+        var (exitCode, output) = RunCompLogEx($@"analyzers ""{projectFilePath}"" {arg}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
         if (includePath)
@@ -295,15 +296,21 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         Assert.Empty(reader.ReadAllCompilerCalls());
     }
 
+    /// <summary>
+    /// Verify that create will work given a project file and do an implicit build to get the
+    /// compiler log information.
+    /// </summary>
     [Fact]
     public void CreateWithBuild()
     {
-        RunCore(Fixture.Console.Value.ProjectFilePath!);
-        RunCore(Fixture.ClassLib.Value.ProjectFilePath!);
-        void RunCore(string filePath)
+        RunCore(Fixture.Console.Value);
+        RunCore(Fixture.ClassLib.Value);
+        void RunCore(LogData logData)
         {
+            var projectFilePath = Fixture.GetWritableCopy(logData, Root);
+            var directory = Path.GetDirectoryName(projectFilePath)!;
             var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"create ""{filePath}"" -o ""{complogPath}"""));
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"create ""{projectFilePath}"" -o ""{complogPath}"""));
             var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
             Assert.NotEmpty(reader.ReadAllCompilerCalls());
             reader.Dispose();
@@ -368,8 +375,9 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     [Fact]
     public void CreateFilePathOutput()
     {
-        var complogFilePath = Path.Combine(RootDirectory, "file.complog");
-        var (exitCode, output) = RunCompLogEx($@"create ""{Fixture.ClassLib.Value.ProjectFilePath}"" -o {complogFilePath}");
+        var projectFilePath = Fixture.GetWritableCopy(Fixture.ClassLib.Value, Root);
+        var complogFilePath = Path.Combine(Root.DirectoryPath, "file.complog");
+        var (exitCode, output) = RunCompLogEx($@"create ""{projectFilePath}"" -o {complogFilePath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains($"Wrote {complogFilePath}", output);
     }
@@ -1010,6 +1018,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
             var (exitCode, output) = RunCompLogEx($@"generated ""{logPath}"" -a {basicAnalyzerKind} -o {dir}");
             Assert.Equal(Constants.ExitSuccess, exitCode);
             Assert.Single(Directory.EnumerateFiles(dir, "RegexGenerator.g.cs", SearchOption.AllDirectories));
+            Directory.Delete(dir, recursive: true);
         });
     }
 
@@ -1029,6 +1038,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
             {
                 Assert.Single(Directory.EnumerateFiles(dir, "RegexGenerator.g.cs", SearchOption.AllDirectories));
             }
+            Directory.Delete(dir, recursive: true);
         });
     }
 
@@ -1130,10 +1140,8 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     [Fact]
     public void PrintDirectory()
     {
-        var logData = Fixture.Console.Value;
-        var dest = Path.Combine(Root.DirectoryPath, "msbuild.binlog");
-        File.Copy(logData.BinaryLogPath!, dest);
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {Root.DirectoryPath}"));
+        var filePath = Root.CopyFile(Fixture.Console.Value.BinaryLogPath!);
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {filePath}"));
     }
 
     /// <summary>

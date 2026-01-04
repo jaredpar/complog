@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.ComponentModel.Design.Serialization;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -43,6 +44,8 @@ public sealed class FileLockHold(List<Stream> streams) : IDisposable
 
 public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
+    private List<ReadOnlyDirectoryScope> ReadOnlyDirectoryScopes { get; } = new();
+
     internal ImmutableArray<Lazy<LogData>> AllLogs { get; }
 
     /// <summary>
@@ -584,6 +587,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         Assert.Empty(diagnostics);
                     }
 
+                    ReadOnlyDirectoryScopes.Add(new(scratchPath, setReadOnly: true));
+
                     return new LogData(projectFilePath, complogFilePath, binlogFilePath, supportsNoneHost);
                 }
                 catch (Exception ex)
@@ -608,6 +613,24 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             builder.Add(lazy);
             return lazy;
         }
+    }
+
+    /// <summary>
+    /// The underlying file system for these entries are read only by default. There are several tests though
+    /// that need to be able to modify the files for tests. This method creates a copy of the log data in a
+    /// read / write location for the test to use. It returns the path to the new project file
+    /// </summary>
+    /// <param name="logData"></param>
+    /// <returns></returns>
+    internal string GetWritableCopy(LogData logData, TempDir tempDir)
+    {
+        if (logData.ProjectFilePath is null)
+        {
+            throw new InvalidOperationException();
+        }
+
+        var directory = tempDir.CopyDirectory(Path.GetDirectoryName(logData.ProjectFilePath)!);
+        return Path.Combine(directory, Path.GetFileName(logData.ProjectFilePath));
     }
 
     private async ValueTask<LogData> GetLogDataAsync(Lazy<LogData> lazyLogData, ITestOutputHelper testOutputHelper)
@@ -717,6 +740,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     public void Dispose()
     {
+        foreach (var scope in ReadOnlyDirectoryScopes)
+        {
+            scope.ClearReadOnly();
+        }
+
         Directory.Delete(StorageDirectory, recursive: true);
     }
 
