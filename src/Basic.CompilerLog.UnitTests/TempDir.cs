@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -48,19 +48,32 @@ internal sealed class TempDir : IDisposable
     {
         name ??= Guid.NewGuid().ToString();
         var path = Path.Combine(DirectoryPath, name);
+        if (Directory.Exists(path))
+        {
+            throw new InvalidOperationException($"Directory already exists: {path}");
+        }
+
         _ = Directory.CreateDirectory(path);
         return path;
     }
 
+    public string CopyFile(string filePath, bool overwrite = false)
+    {
+        var newFilePath = Path.Combine(DirectoryPath, Path.GetFileName(filePath));
+        var fileInfo = new FileInfo(filePath);
+        fileInfo.CopyTo(newFilePath, overwrite, clearReadOnly: true);
+        return newFilePath;
+    }
+
     public string CopyDirectory(string dir)
     {
-        var newDir = NewDirectory();
+        var newDir = NewDirectory(Path.GetFileName(dir));
 
         var info = new DirectoryInfo(dir);
         foreach (var item in info.GetFiles())
         {
             var tempPath = Path.Combine(newDir, item.Name);
-            item.CopyTo(tempPath, overwrite: true);
+            _ = item.CopyTo(tempPath, overwrite: true, clearReadOnly: true);
         }
 
         return newDir;
