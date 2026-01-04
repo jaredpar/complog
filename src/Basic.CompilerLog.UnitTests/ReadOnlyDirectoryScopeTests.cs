@@ -11,7 +11,7 @@ public sealed class ReadOnlyDirectoryScopeTests : IDisposable
         Root.Dispose();
     }
 
-    [WindowsFact]
+    [Fact]
     public void CannotAddFiles()
     {
         var dir = Root.NewDirectory();
@@ -19,7 +19,7 @@ public sealed class ReadOnlyDirectoryScopeTests : IDisposable
         Assert.Throws<UnauthorizedAccessException>(() => File.WriteAllText(Path.Combine(dir, "test.txt"), "hello world"));
     }
 
-    [WindowsFact]
+    [Fact]
     public void CannotModifyFiles()
     {
         var dir = Root.NewDirectory();
@@ -33,7 +33,7 @@ public sealed class ReadOnlyDirectoryScopeTests : IDisposable
         });
     }
 
-    [WindowsFact]
+    [Fact]
     public void CannotDeleteFiles()
     {
         var dir = Root.NewDirectory();
@@ -43,7 +43,7 @@ public sealed class ReadOnlyDirectoryScopeTests : IDisposable
         Assert.Throws<UnauthorizedAccessException>(() => File.Delete(filePath));
     }
 
-    [WindowsFact]
+    [Fact]
     public void CanReadFiles()
     {
         var dir = Root.NewDirectory();

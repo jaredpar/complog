@@ -96,6 +96,30 @@ internal sealed class ReadOnlyDirectoryScope : IDisposable
                 }
             }
         }
+        else
+        {
+#if NET
+            // Directories: 0555 (r-xr-xr-x) so you can list/traverse but not create/delete/rename inside.
+            foreach (var dir in Directory.EnumerateDirectories(DirectoryPath, "*", SearchOption.AllDirectories))
+            {
+                File.SetUnixFileMode(dir, UnixFileMode.UserRead | UnixFileMode.UserExecute |
+                                            UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                                            UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            }
+
+            File.SetUnixFileMode(DirectoryPath, UnixFileMode.UserRead | UnixFileMode.UserExecute |
+                                            UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                                            UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+
+            // Files: 0444 (r--r--r--) so contents cannot be modified.
+            foreach (var filePath in Directory.EnumerateFiles(DirectoryPath, "*", SearchOption.AllDirectories))
+            {
+                File.SetUnixFileMode(filePath, UnixFileMode.UserRead |
+                                        UnixFileMode.GroupRead |
+                                        UnixFileMode.OtherRead);
+            }
+#endif
+        }
 
         IsReadOnly = true;
     }
@@ -124,6 +148,31 @@ internal sealed class ReadOnlyDirectoryScope : IDisposable
 
             // Also clear ReadOnly attributes on files, if any tooling set them.
             ClearReadOnlyAttributesRecursively();
+        }
+        else
+        {
+#if NET
+            foreach (var filePath in Directory.EnumerateFiles(DirectoryPath, "*", SearchOption.AllDirectories))
+            {
+                // 0644 (rw-r--r--)
+                File.SetUnixFileMode(filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite |
+                                        UnixFileMode.GroupRead |
+                                        UnixFileMode.OtherRead);
+            }
+
+            // Make directories writable by owner so we can remove entries
+            foreach (var dir in Directory.EnumerateDirectories(DirectoryPath, "*", SearchOption.AllDirectories))
+            {
+                // 0755 (rwxr-xr-x)
+                File.SetUnixFileMode(dir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                                            UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                                            UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            }
+
+            File.SetUnixFileMode(DirectoryPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                                            UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                                            UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+#endif
         }
 
         IsReadOnly = false;
