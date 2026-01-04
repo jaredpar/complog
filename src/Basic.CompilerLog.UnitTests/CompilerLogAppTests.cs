@@ -20,19 +20,88 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(SolutionFixtureCollection.Name)]
-public sealed class CompilerLogAppTests : TestBase
+[Collection(CompilerLogCollection.Name)]
+public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogAppTests.CompilerLogAppTestsFixture>
 {
+    public sealed class CompilerLogAppTestsFixture: FixtureBase, IDisposable
+    {
+        private TempDir Storage { get; } = new TempDir();
+
+        public string StorageDirectory => Storage.DirectoryPath;
+        public string BinlogDirectory { get; }
+        public Lazy<(string ProjectFilePath, string BinaryLogPath)> RemovedConsoleProject { get; }
+        public Lazy<(string ProjectFilePath, string BinaryLogPath)> ConsoleWithDiagnostics { get; }
+
+        public CompilerLogAppTestsFixture(IMessageSink messageSink)
+            : base(messageSink)
+        {
+            BinlogDirectory = Storage.NewDirectory("binlogs");
+            RemovedConsoleProject = new Lazy<(string, string)>(() => CreateRemovedProject());
+            ConsoleWithDiagnostics = new Lazy<(string ProjectFilePath, string BinaryLogPath)>(() => CreateConsoleWithDiagnosticsProject());
+
+            (string, string) CreateRemovedProject()
+            {
+                var dir = Path.Combine(StorageDirectory, "removed");
+                Directory.CreateDirectory(dir);
+                RunDotnetCommand("new console --name removed-console -o .", dir);
+                var projectPath = Path.Combine(dir, "removed-console.csproj");
+                var binlogFilePath = Path.Combine(BinlogDirectory, "removed-console.binlog");
+
+                RunDotnetCommand($"build -bl:{binlogFilePath} -nr:false", dir);
+                Directory.Delete(dir, recursive: true);
+                return (projectPath, binlogFilePath);
+            }
+
+            (string, string) CreateConsoleWithDiagnosticsProject()
+            {
+                var dir = Path.Combine(StorageDirectory, "diagnostics");
+                Directory.CreateDirectory(dir);
+                RunDotnetCommand("new console --name console-with-diagnostics -o .", dir);
+                File.WriteAllText(Path.Combine(dir, "Diagnostic.cs"), """
+                    using System;
+                    class C
+                    {
+                        void Method1()
+                        {
+                            // Warning CS0219
+                            int i = 42;
+                        }
+
+                        void Method2()
+                        {
+                            // Error CS0029
+                            string s = 13;
+                            Console.WriteLine(s);
+                        }
+                    }
+                    """, TestBase.DefaultEncoding);
+                var projectPath = Path.Combine(dir, "console-with-diagnostics.csproj");
+                var binlogFilePath = Path.Combine(BinlogDirectory, "console-with-diagnostics.binlog");
+                var result = DotnetUtil.Command($"dotnet build -bl:{binlogFilePath} -nr:false", dir);
+                Assert.False(result.Succeeded);
+                return (projectPath, binlogFilePath);
+            };
+        }
+
+        public void Dispose()
+        {
+            Storage.Dispose();
+        }
+    }
+
     private Action<ICompilerCallReader>? _assertCompilerCallReader;
 
-    public SolutionFixture Fixture { get; }
+    public CompilerLogAppTestsFixture ClassFixture { get; }
+    public CompilerLogFixture Fixture { get; }
 
-    public CompilerLogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, SolutionFixture fixture)
+    public CompilerLogAppTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture, CompilerLogAppTestsFixture classFixture)
         : base(testOutputHelper, testContextAccessor, nameof(CompilerLogAppTests))
     {
+        ClassFixture = classFixture;
         Fixture = fixture;
     }
 
@@ -102,25 +171,20 @@ public sealed class CompilerLogAppTests : TestBase
         return (ret, output);
     }
 
-    private void RunWithBoth(Action<string> action)
+    private void RunWithBoth(LogData logData, Action<string> action)
     {
-        // Run with the binary log
-        action(Fixture.SolutionBinaryLogPath);
-
-        // Now create a compiler log
-        var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-        var diagnostics = CompilerLogUtil.ConvertBinaryLog(Fixture.SolutionBinaryLogPath, complogPath);
-        Assert.Empty(diagnostics);
-        action(complogPath);
+        Assert.NotNull(logData.BinaryLogPath);
+        action(logData.BinaryLogPath);
+        action(logData.CompilerLogPath);
     }
 
     [Fact]
     public void AnalyzersBoth()
     {
-        RunWithBoth(void (string logPath) =>
+        RunWithBoth(Fixture.Console.Value, void (string logPath) =>
         {
             AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logPath));
-            var (exitCode, output) = RunCompLogEx($"analyzers {logPath} -p console.csproj");
+            var (exitCode, output) = RunCompLogEx($@"analyzers ""{logPath}""");
             Assert.Equal(Constants.ExitSuccess, exitCode);
             Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
         });
@@ -141,7 +205,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void AnalyzersProjectFilesDeleted()
     {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($"analyzers {ClassFixture.RemovedConsoleProject.Value.BinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("CSharp.NetAnalyzers.dll", output);
     }
@@ -149,7 +213,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void AnalyzersBadOption()
     {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.RemovedBinaryLogPath} --not-an-option");
+        var (exitCode, output) = RunCompLogEx($"analyzers {ClassFixture.RemovedConsoleProject.Value.BinaryLogPath} --not-an-option");
         Assert.NotEqual(Constants.ExitSuccess, exitCode);
         Assert.StartsWith("Extra arguments", output);
     }
@@ -157,12 +221,12 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void AnalyzersSimple()
     {
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($@"analyzers ""{Fixture.Console.Value.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.DoesNotContain("Analyzers:", output);
         Assert.DoesNotContain("Generators:", output);
 
-        (exitCode, output) = RunCompLogEx($"analyzers {Fixture.SolutionBinaryLogPath} -t");
+        (exitCode, output) = RunCompLogEx($@"analyzers ""{Fixture.Console.Value.BinaryLogPath}"" -t");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("Analyzers:", output);
         Assert.Contains("Generators:", output);
@@ -174,7 +238,7 @@ public sealed class CompilerLogAppTests : TestBase
     public void AnalyzersPath(bool includePath)
     {
         var arg = includePath ? "--path" : "";
-        var (exitCode, output) = RunCompLogEx($"analyzers {Fixture.ConsoleProjectPath} {arg}");
+        var (exitCode, output) = RunCompLogEx($@"analyzers ""{Fixture.Console.Value.ProjectFilePath}"" {arg}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
         if (includePath)
@@ -201,7 +265,8 @@ public sealed class CompilerLogAppTests : TestBase
     [InlineData("-o custom.complog", "custom.complog")]
     public void Create(string extra, string fileName)
     {
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"create {extra} -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}"));
+        var logData = Fixture.ClassLibMulti.Value;
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($@"create {extra} -f {TestUtil.TestTargetFramework} -p {Path.GetFileName(logData.ProjectFilePath)} ""{logData.BinaryLogPath}"""));
         var complogPath = Path.Combine(RootDirectory, fileName);
         Assert.True(File.Exists(complogPath));
     }
@@ -233,14 +298,16 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void CreateWithBuild()
     {
-        RunCore(Fixture.SolutionPath);
-        RunCore(Fixture.ConsoleProjectPath);
+        RunCore(Fixture.Console.Value.ProjectFilePath!);
+        RunCore(Fixture.ClassLib.Value.ProjectFilePath!);
         void RunCore(string filePath)
         {
-            Assert.Equal(Constants.ExitSuccess, RunCompLog($"create {filePath} -o msbuild.complog"));
             var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-            using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"create ""{filePath}"" -o ""{complogPath}"""));
+            var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
             Assert.NotEmpty(reader.ReadAllCompilerCalls());
+            reader.Dispose();
+            File.Delete(complogPath);
         }
     }
 
@@ -272,10 +339,15 @@ public sealed class CompilerLogAppTests : TestBase
     /// When the resulting compiler log is empty an error should be returned cause clearly
     /// there was a mistake somewhere on the command line.
     /// </summary>
-    [Fact]
-    public void CreateEmpty()
+    [InlineData(true)]
+    [InlineData(false)]
+    [Theory]
+    public void CreateEmpty(bool complog)
     {
-        var result = RunCompLog($"create -p does-not-exist.csproj {Fixture.SolutionBinaryLogPath}");
+        var logData = Fixture.Console.Value;
+        var logFilePath = complog ? logData.CompilerLogPath : logData.BinaryLogPath;
+        Assert.NotNull(logFilePath);
+        var result = RunCompLog($"create -p does-not-exist.csproj {logFilePath}");
         Assert.NotEqual(Constants.ExitSuccess, result);
     }
 
@@ -290,7 +362,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void CreateOverRemovedProject()
     {
-        var (exitCode, output) = RunCompLogEx($"create {Fixture.RemovedBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($"create {ClassFixture.RemovedConsoleProject.Value.BinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains(RoslynUtil.GetDiagnosticMissingFile(""), output);
     }
@@ -314,14 +386,14 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void CreateExtraArguments()
     {
-        Assert.Equal(Constants.ExitFailure, RunCompLog($"create {Fixture.SolutionBinaryLogPath} extra"));
+        Assert.Equal(Constants.ExitFailure, RunCompLog($"create {Fixture.Console.Value.BinaryLogPath} extra"));
     }
 
     [Fact]
     public void CreateFilePathOutput()
     {
         var complogFilePath = Path.Combine(RootDirectory, "file.complog");
-        var (exitCode, output) = RunCompLogEx($"create {Fixture.ClassLibProjectPath} -o {complogFilePath}");
+        var (exitCode, output) = RunCompLogEx($@"create ""{Fixture.ClassLib.Value.ProjectFilePath}"" -o {complogFilePath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains($"Wrote {complogFilePath}", output);
     }
@@ -329,8 +401,8 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void CreateMultipleFiles()
     {
-        File.Copy(Fixture.ConsoleWithDiagnosticsBinaryLogPath, Path.Combine(RootDirectory, "console1.binlog"));
-        File.Copy(Fixture.ConsoleWithDiagnosticsBinaryLogPath, Path.Combine(RootDirectory, "console2.binlog"));
+        File.Copy(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath, Path.Combine(RootDirectory, "console1.binlog"));
+        File.Copy(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath, Path.Combine(RootDirectory, "console2.binlog"));
         var (exitCode, output) = RunCompLogEx($"create");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains($"Found multiple log files in {RootDirectory}", output);
@@ -339,7 +411,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void HashBadCommand()
     {
-        var (exitCode, output) = RunCompLogEx($"hash move {Fixture.SolutionBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($"hash move {Fixture.Console.Value.BinaryLogPath}");
         Assert.NotEqual(Constants.ExitSuccess, exitCode);
         Assert.Contains("move is not a valid command", output);
     }
@@ -363,9 +435,11 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void HashPrintSimple()
     {
+        var logData = Fixture.Console.Value;
+        Assert.NotNull(logData.BinaryLogPath);
         AddContentHashToTestArtifacts();
 
-        var (exitCode, output) = RunCompLogEx($"hash print -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($@"hash print ""{logData.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Matches($"console [0-9A-F]+", output);
 
@@ -373,8 +447,8 @@ public sealed class CompilerLogAppTests : TestBase
         // seen locally.
         void AddContentHashToTestArtifacts()
         {
-            var reader = CompilerLogReader.Create(Fixture.SolutionBinaryLogPath, BasicAnalyzerKind.None);
-            var compilerCall = reader.ReadAllCompilerCalls(x => x.ProjectFileName == Fixture.ConsoleProjectName).Single();
+            var reader = CompilerLogReader.Create(logData.BinaryLogPath, BasicAnalyzerKind.None);
+            var compilerCall = reader.ReadAllCompilerCalls().Single();
             var compilationData = reader.ReadCompilationData(compilerCall);
             var contentHash = compilationData.GetContentHash();
             AddContentToTestArtifacts("console-hash.txt", contentHash);
@@ -384,16 +458,19 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void HashPrintAll()
     {
+        var logData = Fixture.ClassLibMulti.Value;
+        Assert.NotNull(logData.BinaryLogPath);
+
         AddContentHashToTestArtifacts();
-        var (exitCode, output) = RunCompLogEx($"hash print {Fixture.SolutionBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($@"hash print ""{logData.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Matches($"console [0-9A-F]+", output);
+        Assert.Matches($"classlibmulti-{TestUtil.TestTargetFramework} [0-9A-F]+", output);
 
         // Save the full content to test artifacts so we can compare it to what is
         // seen locally.
         void AddContentHashToTestArtifacts()
         {
-            var reader = CompilerLogReader.Create(Fixture.SolutionBinaryLogPath, BasicAnalyzerKind.None);
+            var reader = CompilerLogReader.Create(logData.BinaryLogPath, BasicAnalyzerKind.None);
             foreach (var compilerCall in reader.ReadAllCompilerCalls())
             {
                 var compilationData = reader.ReadCompilationData(compilerCall);
@@ -501,10 +578,10 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void References()
     {
-        RunWithBoth(logPath =>
+        RunWithBoth(Fixture.Console.Value, logPath =>
         {
             AssertCompilerCallReader(reader => AssertCorrectReader(reader, logPath));
-            Assert.Equal(Constants.ExitSuccess, RunCompLog($"ref -o {RootDirectory} {logPath}"));
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"ref -o {RootDirectory} ""{logPath}"""));
             Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "refs"), "*.dll"));
             Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(RootDirectory, "console", "analyzers"), "*.dll", SearchOption.AllDirectories));
         });
@@ -529,7 +606,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ResponseSingleLine()
     {
-        var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj -s");
+        var exitCode = RunCompLog($@"rsp ""{Fixture.Console.Value.BinaryLogPath}"" -s");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         var rsp = Path.Combine(RootDirectory, @".complog", "rsp", "console", "build.rsp");
         Assert.True(File.Exists(rsp));
@@ -543,7 +620,7 @@ public sealed class CompilerLogAppTests : TestBase
     public void ResponseOutputPath()
     {
         var dir = Root.NewDirectory("output");
-        var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj -o {dir}");
+        var exitCode = RunCompLog($@"rsp ""{Fixture.Console.Value.BinaryLogPath}"" -o {dir}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         var rsp = Path.Combine(dir, "console", "build.rsp");
         Assert.True(File.Exists(rsp));
@@ -553,7 +630,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ResponseProjectFilter()
     {
-        var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath} -p console.csproj");
+        var exitCode = RunCompLog($@"rsp ""{Fixture.Console.Value.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         var rspBaseDir = Path.Combine(RootDirectory, ".complog", "rsp");
         var rsp = Path.Combine(rspBaseDir, "console", "build.rsp");
@@ -565,9 +642,12 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ResponseOnCompilerLog()
     {
+        var logData = Fixture.ClassLibMulti.Value;
+        Assert.NotNull(logData.BinaryLogPath);
+
         var complogPath = Path.Combine(RootDirectory, "msbuild.complog");
-        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(Fixture.SolutionBinaryLogPath, complogPath));
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"rsp {complogPath} -p console.csproj"));
+        Assert.Empty(CompilerLogUtil.ConvertBinaryLog(logData.BinaryLogPath, complogPath));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"rsp {complogPath}"));
     }
 
     [Fact]
@@ -581,7 +661,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ResponseAll()
     {
-        var exitCode = RunCompLog($"rsp {Fixture.SolutionBinaryLogPath}");
+        var exitCode = RunCompLog($@"rsp ""{Fixture.Console.Value.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         var rsp = Path.Combine(RootDirectory, @".complog", "rsp", "console", "build.rsp");
         Assert.True(File.Exists(rsp));
@@ -591,7 +671,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ResponseMultiTarget()
     {
-        var exitCode = RunCompLog($"rsp {Fixture.ClassLibMultiProjectPath}");
+        var exitCode = RunCompLog($@"rsp ""{Fixture.ClassLibMulti.Value.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.True(File.Exists(Path.Combine(RootDirectory, ".complog", "rsp", "classlibmulti-net6.0", "build.rsp")));
         Assert.True(File.Exists(Path.Combine(RootDirectory, ".complog", "rsp", $"classlibmulti-{TestUtil.TestTargetFramework}", "build.rsp")));
@@ -600,7 +680,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ResponseNoLogArgument()
     {
-        var consoleDir = Path.GetDirectoryName(Fixture.ConsoleProjectPath)!;
+        var consoleDir = Path.GetDirectoryName(Fixture.Console.Value.ProjectFilePath)!;
         var (exitCode, output) = RunCompLogEx($"rsp -o {RootDirectory}", consoleDir);
         TestOutputHelper.WriteLine(output);
         Assert.Equal(Constants.ExitSuccess, exitCode);
@@ -645,9 +725,10 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ResponseInlineMultiTarget()
     {
-        var dir = Root.CopyDirectory(Path.GetDirectoryName(Fixture.ClassLibMultiProjectPath)!);
-        RunDotNet($"new console --name example --output .", dir);
-        var (exitCode, output) = RunCompLogEx($"rsp -i", dir);
+        var logData = Fixture.ClassLibMulti.Value;
+        var dir = Root.CopyDirectory(Path.GetDirectoryName(logData.ProjectFilePath)!);
+        var fileName = Path.GetFileName(logData.ProjectFilePath);
+        var (exitCode, output) = RunCompLogEx($"rsp -i {fileName}", dir);
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("Generating response files inline", output);
         Assert.True(File.Exists(Path.Combine(dir, "build-net6.0.rsp")));
@@ -680,12 +761,12 @@ public sealed class CompilerLogAppTests : TestBase
     [InlineData("--no-analyzers", true)]
     public void ExportCompilerLog(string arg, bool excludeAnalyzers)
     {
-        RunWithBoth(logPath =>
+        RunWithBoth(Fixture.Console.Value, logPath =>
         {
             using var exportDir = new TempDir();
 
             AssertCompilerCallReader(reader => Assert.Equal(BasicAnalyzerKind.None, reader.BasicAnalyzerKind));
-            Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} {arg} {logPath} ", RootDirectory));
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"export -o {exportDir.DirectoryPath} {arg} ""{logPath}"" ", RootDirectory));
 
             // Now run the generated build.cmd and see if it succeeds;
             var exportPath = Path.Combine(exportDir.DirectoryPath, "console");
@@ -707,7 +788,7 @@ public sealed class CompilerLogAppTests : TestBase
     public void ExportSatellite()
     {
         using var exportDir = new TempDir();
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} --all {Fixture.ClassLibWithResourceLibs} ", RootDirectory));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($@"export -o {exportDir.DirectoryPath} --all ""{Fixture.ClassLibWithResourceLibs.Value.BinaryLogPath}""", RootDirectory));
         Assert.Equal(3, Directory.EnumerateDirectories(exportDir.DirectoryPath).Count());
     }
 
@@ -718,7 +799,7 @@ public sealed class CompilerLogAppTests : TestBase
     public void ExportSatelliteDefault()
     {
         using var exportDir = new TempDir();
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"export -o {exportDir.DirectoryPath} {Fixture.ClassLibWithResourceLibs} ", RootDirectory));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($@"export -o {exportDir.DirectoryPath} ""{Fixture.ClassLibWithResourceLibs.Value.BinaryLogPath}""", RootDirectory));
         Assert.Single(Directory.EnumerateDirectories(exportDir.DirectoryPath));
     }
 
@@ -741,7 +822,8 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ExportBadProjectFilter()
     {
-        var (exitCode, output) = RunCompLogEx($"export --project console-with-diagnostics.csproj {Fixture.SolutionBinaryLogPath}");
+        var tuple = ClassFixture.ConsoleWithDiagnostics.Value;
+        var (exitCode, output) = RunCompLogEx($"export -p does-not-exist.csproj {tuple.BinaryLogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("No compilations found", output);
     }
@@ -800,7 +882,7 @@ public sealed class CompilerLogAppTests : TestBase
         {
             Assert.Equal(kind.Value, reader.BasicAnalyzerKind);
         });
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"{command} {arg} {Fixture.SolutionBinaryLogPath}"));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"{command} {arg} {Fixture.Console.Value.CompilerLogPath}"));
     }
 
     [Theory]
@@ -809,7 +891,7 @@ public sealed class CompilerLogAppTests : TestBase
     public void ReplayConsoleWithEmit(string arg)
     {
         using var emitDir = new TempDir();
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {arg} -o {emitDir.DirectoryPath} {Fixture.SolutionBinaryLogPath}"));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($@"replay {arg} -o {emitDir.DirectoryPath} ""{Fixture.Console.Value.BinaryLogPath}"""));
 
         AssertOutput(@"console\console.dll");
         AssertOutput(@"console\console.pdb");
@@ -837,10 +919,10 @@ public sealed class CompilerLogAppTests : TestBase
     }
 
     [Fact]
-    public void ReplayWithBadProject()
+    public void ReplayWithBadProjectFilter()
     {
         using var emitDir = new TempDir();
-        var (extiCode, output) = RunCompLogEx($"replay --severity Info --project console-with-diagnostics.csproj {Fixture.SolutionBinaryLogPath}");
+        var (extiCode, output) = RunCompLogEx($@"replay -p does-not-exist.csproj --severity Info ""{ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, extiCode);
         Assert.Contains("No compilations found", output);
     }
@@ -849,7 +931,7 @@ public sealed class CompilerLogAppTests : TestBase
     public void ReplayWithDiagnostics()
     {
         using var emitDir = new TempDir();
-        var (exitCode, output) = RunCompLogEx($"replay --severity Info {Fixture.ConsoleWithDiagnosticsBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($@"replay --severity Info ""{ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath}""");
         Assert.Equal(Constants.ExitFailure, exitCode);
         Assert.Contains("CS0219", output);
     }
@@ -874,9 +956,8 @@ public sealed class CompilerLogAppTests : TestBase
         {
             var logFilePath = Path.Combine(RootDirectory, "mutated.complog");
             CompilerLogUtil.ConvertBinaryLog(
-                Fixture.SolutionBinaryLogPath,
-                logFilePath,
-                cc => cc.ProjectFileName == "console.csproj");
+                Fixture.Console.Value.BinaryLogPath!,
+                logFilePath);
             MutateArchive(logFilePath, CancellationToken);
             return logFilePath;
         }
@@ -907,25 +988,28 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ReplayWithBothLogs()
     {
-        RunWithBoth(void (string logFilePath) =>
+        RunWithBoth(Fixture.Console.Value, void (string logFilePath) =>
         {
             AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logFilePath));
             RunCompLog($"replay {logFilePath}");
         });
     }
 
+    /// <summary>
+    /// When replaying with a project file, the binary log reader should be used
+    /// </summary>
     [Fact]
     public void ReplayWithProject()
     {
         AssertCompilerCallReader(void (ICompilerCallReader reader) => Assert.IsType<BinaryLogReader>(reader));
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"replay {Fixture.ConsoleProjectPath}"));
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($@"replay ""{Fixture.Console.Value.ProjectFilePath}"""));
     }
 
     [Theory]
     [MemberData(nameof(GetCustomCompilerArgument))]
     public void ReplayConsoleCustomCompiler(string customCompilerArgument, bool isOlderCompiler)
     {
-        var exitCode = RunCompLog($"replay {customCompilerArgument} -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
+        var exitCode = RunCompLog($@"replay {customCompilerArgument} ""{Fixture.Console.Value.BinaryLogPath}""");
         if (exitCode != Constants.ExitSuccess)
         {
             Assert.True(isOlderCompiler);
@@ -935,7 +1019,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void ReplayWithCustomCompilerInvalid()
     {
-        var exitCode = RunCompLog($"replay --compiler \"{Root.DirectoryPath}\" -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath}");
+        var exitCode = RunCompLog($"replay --compiler \"{Root.DirectoryPath}\" {Fixture.Console.Value.BinaryLogPath}");
         Assert.NotEqual(Constants.ExitSuccess, exitCode);
     }
 
@@ -943,11 +1027,11 @@ public sealed class CompilerLogAppTests : TestBase
     [MemberData(nameof(GetBasicAnalyzerKinds))]
     public void GeneratedBoth(BasicAnalyzerKind basicAnalyzerKind)
     {
-        RunWithBoth(logPath =>
+        RunWithBoth(Fixture.Console.Value, logPath =>
         {
             AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logPath));
             var dir = Root.NewDirectory("generated");
-            var (exitCode, output) = RunCompLogEx($"generated {logPath} -p console.csproj -a {basicAnalyzerKind} -o {dir}");
+            var (exitCode, output) = RunCompLogEx($@"generated ""{logPath}"" -a {basicAnalyzerKind} -o {dir}");
             Assert.Equal(Constants.ExitSuccess, exitCode);
             Assert.Single(Directory.EnumerateFiles(dir, "RegexGenerator.g.cs", SearchOption.AllDirectories));
         });
@@ -957,10 +1041,10 @@ public sealed class CompilerLogAppTests : TestBase
     [MemberData(nameof(GetCustomCompilerArgument))]
     public void GeneratedCustomCompilers(string customCompilerArgument, bool isOlderCompiler)
     {
-        RunWithBoth(logPath =>
+        RunWithBoth(Fixture.Console.Value, logPath =>
         {
             var dir = Root.NewDirectory("generated");
-            var (exitCode, output) = RunCompLogEx($"generated {logPath} -p console.csproj -o {dir} {customCompilerArgument}");
+            var (exitCode, output) = RunCompLogEx($@"generated ""{logPath}"" -o {dir} {customCompilerArgument}");
             if (exitCode != Constants.ExitSuccess)
             {
                 Assert.True(isOlderCompiler);
@@ -972,13 +1056,16 @@ public sealed class CompilerLogAppTests : TestBase
         });
     }
 
+    /// <summary>
+    /// Verify the behavior when an invalid project filter is specified
+    /// </summary>
     [Fact]
     public void GeneratedBadFilter()
     {
-        RunWithBoth(logPath =>
+        RunWithBoth(Fixture.Console.Value, logPath =>
         {
             AssertCompilerCallReader(void (ICompilerCallReader reader) => AssertCorrectReader(reader, logPath));
-            var (exitCode, output) = RunCompLogEx($"generated {logPath} -p console-does-not-exist.csproj");
+            var (exitCode, output) = RunCompLogEx($@"generated ""{logPath}"" -p console-does-not-exist.csproj");
             Assert.Equal(Constants.ExitSuccess, exitCode);
             Assert.Contains("No compilations found", output);
         });
@@ -1017,28 +1104,30 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void PrintAll()
     {
-        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath}");
+        var (exitCode, output) = RunCompLogEx($@"print ""{Fixture.ClassLibMulti.Value.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains($"console.csproj ({TestUtil.TestTargetFramework})", output);
-        Assert.Contains($"classlib.csproj ({TestUtil.TestTargetFramework})", output);
+        Assert.Contains($"classlibmulti.csproj ({TestUtil.TestTargetFramework})", output);
+        Assert.Contains($"classlibmulti.csproj ({TestUtil.TestTargetFramework})", output);
     }
 
     [Fact]
     public void PrintOne()
     {
-        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -p classlib.csproj");
+        var logData = Fixture.ClassLibMulti.Value;
+        var projectFileName = Path.GetFileName(logData.ProjectFilePath);
+        var (exitCode, output) = RunCompLogEx($@"print ""{logData.BinaryLogPath}"" -f {TestUtil.TestTargetFramework}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.DoesNotContain("console.csproj (net9.0)", output);
-        Assert.Contains($"classlib.csproj ({TestUtil.TestTargetFramework})", output);
+        Assert.DoesNotContain($"{projectFileName} (net6.0)", output);
+        Assert.Contains($"{projectFileName} ({TestUtil.TestTargetFramework})", output);
     }
 
     [Fact]
     public void PrintCompilers()
     {
-        var (exitCode, output) = RunCompLogEx($"print {Fixture.SolutionBinaryLogPath} -c");
+        var (exitCode, output) = RunCompLogEx($@"print ""{Fixture.Console.Value.BinaryLogPath}"" -c");
         Assert.Equal(Constants.ExitSuccess, exitCode);
 
-        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithDiagnosticsBinaryLogPath);
+        using var reader = CompilerLogReader.Create(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath);
         var tuple = reader.ReadAllCompilerAssemblies().Single();
         Assert.Contains($"""
             Compilers
@@ -1054,7 +1143,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void PrintWithoutProject()
     {
-        var (exitCode, output) = RunCompLogEx($"print {Fixture.RemovedBinaryLogPath} -c");
+        var (exitCode, output) = RunCompLogEx($"print {ClassFixture.RemovedConsoleProject.Value.BinaryLogPath} -c");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.StartsWith("Projects", output);
     }
@@ -1065,10 +1154,21 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void PrintDirectory()
     {
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {Path.GetDirectoryName(Fixture.SolutionBinaryLogPath)}"));
+        var logData = Fixture.Console.Value;
+        var dest = Path.Combine(Root.DirectoryPath, "msbuild.binlog");
+        File.Copy(logData.BinaryLogPath!, dest);
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {Root.DirectoryPath}"));
+    }
 
-        // Make sure this works on a build that will fail!
-        Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {Path.GetDirectoryName(Fixture.ConsoleWithDiagnosticsProjectPath)}"));
+    /// <summary>
+    /// Engage the code to find files in the specified directory.Make sure that it works
+    /// on builds that fail.
+    /// </summary>
+    [Fact]
+    public void PrintDirectoryBadProject()
+    {
+        var dir = Path.GetDirectoryName(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath);
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($"print {dir}"));
     }
 
     [Fact]
@@ -1090,12 +1190,14 @@ public sealed class CompilerLogAppTests : TestBase
     [WindowsFact]
     public void PrintKinds()
     {
-        Debug.Assert(Fixture.WpfAppProjectPath is not null);
-        var (exitCode, output) = RunCompLogEx($"print --all {Fixture.WpfAppProjectPath}");
+        Debug.Assert(Fixture.WpfApp is not null);
+        var logData = Fixture.WpfApp.Value;
+
+        var (exitCode, output) = RunCompLogEx($@"print --all ""{logData.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains("WpfTemporaryCompile", output);
 
-        (exitCode, output) = RunCompLogEx($"print {Fixture.WpfAppProjectPath}");
+        (exitCode, output) = RunCompLogEx($@"print ""{logData.BinaryLogPath}""");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.DoesNotContain("WpfTemporaryCompile", output);
     }
@@ -1103,7 +1205,7 @@ public sealed class CompilerLogAppTests : TestBase
     [Fact]
     public void PrintFrameworks()
     {
-        var (exitCode, output) = RunCompLogEx($"print --all {Fixture.ClassLibMultiProjectPath} --framework {TestUtil.TestTargetFramework}");
+        var (exitCode, output) = RunCompLogEx($@"print --all ""{Fixture.ClassLibMulti.Value.BinaryLogPath}"" --framework {TestUtil.TestTargetFramework}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.Contains($"({TestUtil.TestTargetFramework})", output);
     }
@@ -1132,7 +1234,7 @@ public sealed class CompilerLogAppTests : TestBase
 
         void Create()
         {
-            using var binlogStream = new FileStream(Fixture.ConsoleWithDiagnosticsBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var binlogStream = new FileStream(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             using var complogStream = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
             var result = CompilerLogUtil.TryConvertBinaryLog(binlogStream, complogStream, predicate: null, metadataVersion: metadataVersion);
             Assert.True(result.Succeeded);
@@ -1152,7 +1254,7 @@ public sealed class CompilerLogAppTests : TestBase
     {
         var dir = Root.NewDirectory("empty");
         var zipFilePath = Path.Combine(dir, "example.zip");
-        var exitCode = RunCompLog($"create -p {Fixture.ConsoleProjectName} {Fixture.SolutionBinaryLogPath} -o build.complog", RootDirectory);
+        var exitCode = RunCompLog($@"create ""{Fixture.Console.Value.BinaryLogPath}"" -o build.complog", RootDirectory);
         Assert.Equal(Constants.ExitSuccess, exitCode);
         CreateZip();
         exitCode = RunCompLog($"print {zipFilePath}", dir);
@@ -1177,7 +1279,7 @@ public sealed class CompilerLogAppTests : TestBase
         void CreateZip()
         {
             using var zipArchive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create);
-            zipArchive.CreateEntryFromFile(Fixture.SolutionBinaryLogPath, "build.binlog");
+            zipArchive.CreateEntryFromFile(Fixture.Console.Value.BinaryLogPath!, "build.binlog");
         }
     }
 }
