@@ -314,11 +314,12 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     [WindowsFact]
     public void CreateCapturesWpfTemporaryCompile()
     {
-        Debug.Assert(Fixture.WpfAppProjectPath is not null);
-        
+        Debug.Assert(Fixture.WpfApp is not null);
+        var logData = Fixture.WpfApp.Value;
+
         // Create a compiler log from the solution binary log that contains the WPF project
         var complogPath = Path.Combine(RootDirectory, "wpf-test.complog");
-        var (exitCode, output) = RunCompLogEx($"create {Fixture.SolutionBinaryLogPath} -o {complogPath}");
+        var (exitCode, output) = RunCompLogEx($@"create ""{logData.BinaryLogPath}"" -o {complogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.True(File.Exists(complogPath));
         
@@ -331,7 +332,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         Assert.NotNull(wpfTempCompile);
 
         // Should also have the regular compile for the WPF project
-        var regularCompile = compilerCalls.FirstOrDefault(c => c.Kind == CompilerCallKind.Regular && c.ProjectFilePath == Fixture.WpfAppProjectPath);
+        var regularCompile = compilerCalls.FirstOrDefault(c => c.Kind == CompilerCallKind.Regular && c.ProjectFilePath == logData.ProjectFilePath);
         Assert.NotNull(regularCompile);
     }
 
