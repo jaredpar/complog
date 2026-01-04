@@ -9,6 +9,13 @@ using System.Security.Principal;
 
 namespace Basic.CompilerLog.UnitTests;
 
+/// <summary>
+/// Scope that makes a directory and all files under it read-only for the duration of the scope.
+/// </summary>
+/// <remarks>
+/// This is primarily intended for unit tests to verify that code does not attempt to write to files
+/// in any of the shared state directories (e.g. the fixture directories).
+/// </remarks>
 internal sealed class ReadOnlyDirectoryScope : IDisposable
 {
     public string DirectoryPath { get; }
