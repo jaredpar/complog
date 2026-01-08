@@ -24,7 +24,7 @@ public static class CompilerCallReaderUtil
             // Check if the zip contains a single .complog entry
             // If yes: it's a zipped complog file (extract it)
             // If no: the zip file itself is a renamed .complog file
-            using (var zipArchive = System.IO.Compression.ZipFile.OpenRead(filePath))
+            using (var zipArchive = ZipFile.OpenRead(filePath))
             {
                 var complogEntries = zipArchive.Entries
                     .Where(x => Path.GetExtension(x.FullName) == ".complog")
@@ -38,22 +38,9 @@ public static class CompilerCallReaderUtil
                         return CompilerLogReader.Create(c, basicAnalyzerKind, logReaderState, leaveOpen: false);
                     }
                 }
-
-                // Check for binlog as fallback
-                var binlogEntries = zipArchive.Entries
-                    .Where(x => Path.GetExtension(x.FullName) == ".binlog")
-                    .ToList();
-
-                if (binlogEntries.Count == 1)
-                {
-                    if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".binlog") is { } b)
-                    {
-                        return BinaryLogReader.Create(b, basicAnalyzerKind, logReaderState, leaveOpen: false);
-                    }
-                }
             }
 
-            // No nested .complog or .binlog found, treat the .zip as a renamed .complog
+            // No nested .complog found, treat the .zip as a renamed .complog
             return CompilerLogReader.Create(filePath, basicAnalyzerKind, logReaderState);
         }
     }
