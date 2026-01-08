@@ -20,6 +20,18 @@ public static class CompilerCallReaderUtil
 
         ICompilerCallReader CreateFromZip()
         {
+            // First try to open the .zip file directly as a complog
+            // (handles case where .complog is renamed to .zip)
+            try
+            {
+                return CompilerLogReader.Create(filePath, basicAnalyzerKind, logReaderState);
+            }
+            catch (CompilerLogException)
+            {
+                // Not a valid complog, try extracting nested files
+            }
+
+            // Fall back to existing logic - look for nested .complog or .binlog files
             if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".complog") is { } c)
             {
                 return CompilerLogReader.Create(c, basicAnalyzerKind, logReaderState, leaveOpen: false);
