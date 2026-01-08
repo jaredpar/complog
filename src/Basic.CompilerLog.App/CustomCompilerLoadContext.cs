@@ -9,11 +9,15 @@ internal sealed class CustomCompilerLoadContext : AssemblyLoadContext
 {
     internal Dictionary<string, Version?> CompilerAssemblyMap { get; } = new (StringComparer.OrdinalIgnoreCase);
 
-    internal CustomCompilerLoadContext(string compilerDirectory, string compilerLogDirectory)
+    /// <summary>
+    /// Create an <see cref="AssemblyLoadContext"/> that loads assemblies from the given directories. The order
+    /// of the directories matters as matches in earlier directories take precedence over later ones.
+    /// </summary>
+    internal CustomCompilerLoadContext(string[] dllDirectories)
         : base("Custom Compiler Load Context")
     {
         var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var dir in (string[])[compilerDirectory, compilerLogDirectory])
+        foreach (var dir in dllDirectories)
         {
             foreach (var dllFilePath in Directory.EnumerateFiles(dir, "*.dll"))
             {
@@ -48,6 +52,6 @@ internal sealed class CustomCompilerLoadContext : AssemblyLoadContext
             throw new Exception("The requested version of compiler assembly {assemblyName.Name} is greater than the version loaded from the compiler directory.");
         }
 
-        return base.Load(assemblyName);
+        return null;
     }
 }

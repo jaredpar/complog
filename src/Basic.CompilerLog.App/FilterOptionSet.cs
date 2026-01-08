@@ -7,6 +7,7 @@ internal sealed class FilterOptionSet : OptionSet
 {
     private string? _customCompilerFilePath;
     private bool _hasAnalyzerOptions;
+    private bool _hasCustomCompilerOption;
     private BasicAnalyzerKind _basicAnalyzerKind;
 
     internal List<string> TargetFrameworks { get; } = new();
@@ -21,7 +22,10 @@ internal sealed class FilterOptionSet : OptionSet
     {
         get
         {
-            CheckHasAnalyzerOptions();
+            if (!_hasCustomCompilerOption)
+            {
+                throw new InvalidOperationException();
+            }
             return _customCompilerFilePath;
         }
     }
@@ -44,7 +48,7 @@ internal sealed class FilterOptionSet : OptionSet
         }
     }
 
-    internal FilterOptionSet(bool analyzers = false)
+    internal FilterOptionSet(bool analyzers = false, bool customCompiler = false)
     {
         Add("all", "include all compilation kinds", i => { if (i is not null) IncludeAllKinds = true; });
         Add("f|framework=", "include only compilations for the target framework (allows multiple)", TargetFrameworks.Add);
@@ -57,7 +61,12 @@ internal sealed class FilterOptionSet : OptionSet
             _basicAnalyzerKind = BasicAnalyzerHost.DefaultKind;
             Add("a|analyzers=", "analyzer load strategy: none, ondisk, inmemory", void (BasicAnalyzerKind k) => _basicAnalyzerKind = k);
             Add("n|none", "Do not run analyzers", i => { if (i is not null) _basicAnalyzerKind = BasicAnalyzerKind.None; }, hidden: true);
-            Add("c|compiler=", "path to compiler to use for replay", void (string c) => _customCompilerFilePath = c);
+        }
+
+        if (customCompiler)
+        {
+            _hasCustomCompilerOption = true;
+            Add("c|compiler=", "path to compiler to use", void (string c) => _customCompilerFilePath = c);
         }
     }
 

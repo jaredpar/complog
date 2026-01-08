@@ -19,8 +19,10 @@ public sealed class CustomCompilerLoadContextTests : TestBase
     public void LoadOlderCompiler()
     {
         var context = new CustomCompilerLoadContext(
-            Path.GetDirectoryName(typeof(Compilation).Assembly.Location)!,
-            Root.NewDirectory());
+            [
+                Path.GetDirectoryName(typeof(Compilation).Assembly.Location)!,
+                Root.NewDirectory()
+            ]);
 
         Assert.Throws<FileLoadException>(() => context.LoadFromAssemblyName(new("Microsoft.CodeAnalysis, Version=25.0.0.0")));
     }
@@ -29,8 +31,10 @@ public sealed class CustomCompilerLoadContextTests : TestBase
     public void LoadCompilerNoVersion()
     {
         var context = new CustomCompilerLoadContext(
-            Path.GetDirectoryName(typeof(Compilation).Assembly.Location)!,
-            Root.NewDirectory());
+            [
+                Path.GetDirectoryName(typeof(Compilation).Assembly.Location)!,
+                Root.NewDirectory()
+            ]);
 
         var assembly = context.LoadFromAssemblyName(new("Microsoft.CodeAnalysis"));
         Assert.NotNull(assembly);

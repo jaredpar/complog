@@ -119,7 +119,12 @@ public sealed partial class ExportUtil
         }
     }
 
-    public void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories)
+    /// <summary>
+    /// This will export the given compilation to disk in a form that can be recompiled using the same
+    /// command line arguments and inputs. It will return the path to the generated rsp file.
+    /// </summary>
+    /// <returns>Path to the generated RSP file</returns>
+    public string Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories)
     {
         if (!Path.IsPathRooted(destinationDir))
         {
@@ -160,6 +165,7 @@ public sealed partial class ExportUtil
                 WriteBuildCmd(bestSdkDir, "build");
             }
 
+            return rspFilePath;
         }
         finally
         {

@@ -2,8 +2,8 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "print -c \"C:\\Users\\jaredpar\\Downloads\\out_no_analyzers.binlog\" -p MiddleTier.Provider.csproj",
-      "workingDirectory": "C:\\users\\jaredpar\\temp"
+      "commandLineArgs": "server -c \"C:\\Program Files\\dotnet\\sdk\\10.0.100\\Roslyn\\bincore\"",
+      "workingDirectory": "C:\\users\\jaredpar\\temp\\console"
     }
   }
 }
