@@ -54,7 +54,9 @@ public static class CompilerCallReaderUtil
             }
 
             // No nested .complog or .binlog found, treat the .zip as a renamed .complog
-            return CompilerLogReader.Create(filePath, basicAnalyzerKind, logReaderState);
+            // Open as stream to bypass GetOrCreateCompilerLogStream's .zip handling
+            var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return CompilerLogReader.Create(stream, basicAnalyzerKind, logReaderState, leaveOpen: false);
         }
     }
 
