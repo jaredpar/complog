@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Microsoft.Build.Logging.StructuredLogger;
 
 namespace Basic.CompilerLog.Util;
@@ -20,17 +21,42 @@ public static class CompilerCallReaderUtil
 
         ICompilerCallReader CreateFromZip()
         {
-            if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".complog") is { } c)
+            // Check if the zip contains a single .complog or .binlog entry
+            // If yes: it's a zipped log file (extract it)
+            // If no: the zip file itself is a renamed .complog file
+            using (var zipArchive = ZipFile.OpenRead(filePath))
             {
-                return CompilerLogReader.Create(c, basicAnalyzerKind, logReaderState, leaveOpen: false);
+                var complogEntries = zipArchive.Entries
+                    .Where(x => Path.GetExtension(x.FullName) == ".complog")
+                    .ToList();
+
+                if (complogEntries.Count == 1)
+                {
+                    // This is a zipped complog file, extract it
+                    if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".complog") is { } c)
+                    {
+                        return CompilerLogReader.Create(c, basicAnalyzerKind, logReaderState, leaveOpen: false);
+                    }
+                }
+
+                var binlogEntries = zipArchive.Entries
+                    .Where(x => Path.GetExtension(x.FullName) == ".binlog")
+                    .ToList();
+
+                if (binlogEntries.Count == 1)
+                {
+                    // This is a zipped binlog file, extract it
+                    if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".binlog") is { } b)
+                    {
+                        return BinaryLogReader.Create(b, basicAnalyzerKind, logReaderState, leaveOpen: false);
+                    }
+                }
             }
 
-            if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".binlog") is { } b)
-            {
-                return BinaryLogReader.Create(b, basicAnalyzerKind, logReaderState, leaveOpen: false);
-            }
-
-            throw new Exception($"Could not find a .complog or .binlog file in {filePath}");
+            // No nested .complog or .binlog found, treat the .zip as a renamed .complog
+            // Open as stream to bypass GetOrCreateCompilerLogStream's .zip handling
+            var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return CompilerLogReader.Create(stream, basicAnalyzerKind, logReaderState, leaveOpen: false);
         }
     }
 
