@@ -289,17 +289,15 @@ public sealed class CompilerLogApp(
             }
 
             using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
-            var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
-            var compilerCallNames = GetCompilerCallNames(compilerCalls);
+            var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
 
             baseOutputPath = GetBaseOutputPath(baseOutputPath, "refs");
             WriteLine($"Copying references to {baseOutputPath}");
             Directory.CreateDirectory(baseOutputPath);
 
-            for (int i = 0; i < compilerCalls.Count; i++)
+            foreach (var (name, compilerCall) in namedCompilerCalls)
             {
-                var compilerCall = compilerCalls[i];
-                var refDirPath = Path.Combine(baseOutputPath, compilerCallNames[i], "refs");
+                var refDirPath = Path.Combine(baseOutputPath, name, "refs");
                 Directory.CreateDirectory(refDirPath);
                 foreach (var data in reader.ReadAllReferenceData(compilerCall))
                 {
@@ -307,7 +305,7 @@ public sealed class CompilerLogApp(
                     WriteTo(data.AssemblyData, filePath);
                 }
 
-                var analyzerDirPath = Path.Combine(baseOutputPath, compilerCallNames[i], "analyzers");
+                var analyzerDirPath = Path.Combine(baseOutputPath, name, "analyzers");
                 var groupMap = new Dictionary<string, string>(PathUtil.Comparer);
                 foreach (var data in reader.ReadAllAnalyzerData(compilerCall))
                 {
@@ -382,8 +380,7 @@ public sealed class CompilerLogApp(
 
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
             using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None);
-            var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
-            var compilerCallNames = GetCompilerCallNames(compilerCalls);
+            var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var exportUtil = new ExportUtil(reader, excludeAnalyzers);
 
             baseOutputPath = GetBaseOutputPath(baseOutputPath, "export");
@@ -391,10 +388,9 @@ public sealed class CompilerLogApp(
             Directory.CreateDirectory(baseOutputPath);
 
             var sdkDirs = SdkUtil.GetSdkDirectories();
-            for (int i = 0; i < compilerCalls.Count; i++)
+            foreach (var (name, compilerCall) in namedCompilerCalls)
             {
-                var compilerCall = compilerCalls[i];
-                var exportDir = Path.Combine(baseOutputPath, compilerCallNames[i]);
+                var exportDir = Path.Combine(baseOutputPath, name);
                 exportUtil.Export(compilerCall, exportDir, sdkDirs);
             }
 
@@ -453,14 +449,13 @@ public sealed class CompilerLogApp(
                 Directory.CreateDirectory(baseOutputPath);
             }
 
-            var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
-            var compilerCallNames = GetCompilerCallNames(compilerCalls);
-            for (int i = 0; i < compilerCalls.Count; i++)
+            var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
+            var allCompilerCalls = namedCompilerCalls.Select(x => x.CompilerCall).ToList();
+            foreach (var (name, compilerCall) in namedCompilerCalls)
             {
-                var compilerCall = compilerCalls[i];
                 var rspDirPath = inline
                     ? compilerCall.ProjectDirectory
-                    : Path.Combine(baseOutputPath, compilerCallNames[i]);
+                    : Path.Combine(baseOutputPath, name);
                 Directory.CreateDirectory(rspDirPath);
                 var rspFilePath = Path.Combine(rspDirPath, GetRspFileName());
                 using var writer = new StreamWriter(rspFilePath, append: false, Encoding.UTF8);
@@ -478,7 +473,7 @@ public sealed class CompilerLogApp(
                 {
                     if (inline)
                     {
-                        return IsSingleTarget(compilerCall, compilerCalls)
+                        return IsSingleTarget(compilerCall, allCompilerCalls)
                             ? "build.rsp"
                             : $"build-{compilerCall.TargetFramework}.rsp";
                     }
@@ -534,14 +529,11 @@ public sealed class CompilerLogApp(
             }
 
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
-            var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
-            var compilerCallNames = GetCompilerCallNames(compilerCalls);
+            var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allSucceeded = true;
 
-            for (int i = 0; i < compilerCalls.Count; i++)
+            foreach (var (name, compilerCall) in namedCompilerCalls)
             {
-                var compilerCall = compilerCalls[i];
-
                 Write($"{compilerCall.GetDiagnosticName()} ...");
 
                 var compilationData = reader.ReadCompilationData(compilerCall);
@@ -551,7 +543,7 @@ public sealed class CompilerLogApp(
                 IEmitResult emitResult;
                 if (baseOutputPath is not null)
                 {
-                    var path = Path.Combine(baseOutputPath, compilerCallNames[i]);
+                    var path = Path.Combine(baseOutputPath, name);
                     Directory.CreateDirectory(path);
                     emitResult = compilationData.EmitToDisk(path);
                 }
@@ -623,13 +615,11 @@ public sealed class CompilerLogApp(
             WriteLine($"Outputting to {baseOutputPath}");
 
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
-            var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
-            var compilerCallNames = GetCompilerCallNames(compilerCalls);
+            var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var succeeded = true;
 
-            for (int i = 0; i < compilerCalls.Count; i++)
+            foreach (var (name, compilerCall) in namedCompilerCalls)
             {
-                var compilerCall = compilerCalls[i];
                 var compilationData = reader.ReadCompilationData(compilerCall);
 
                 Write($"{compilerCall.GetDiagnosticName()} ... ");
@@ -655,7 +645,7 @@ public sealed class CompilerLogApp(
                     var fileRelativePath = generatedTree.FilePath.StartsWith(compilerCall.ProjectDirectory, StringComparison.OrdinalIgnoreCase)
                         ? generatedTree.FilePath.Substring(compilerCall.ProjectDirectory.Length + 1)
                         : Path.GetFileName(generatedTree.FilePath);
-                    var outputPath = Path.Combine(baseOutputPath, compilerCallNames[i]);
+                    var outputPath = Path.Combine(baseOutputPath, name);
                     var filePath = Path.Combine(outputPath, fileRelativePath);
                     Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                     File.WriteAllText(filePath, generatedTree.ToString());
@@ -747,12 +737,9 @@ public sealed class CompilerLogApp(
             }
 
             using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
-            var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-            var compilerCallNames = GetCompilerCallNames(compilerCalls);
-            for (int i = 0; i < compilerCalls.Count; i++)
+            var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
+            foreach (var (name, compilerCall) in namedCompilerCalls)
             {
-                var compilerCall = compilerCalls[i];
-                var name = compilerCallNames[i];
                 var compilationData = reader.ReadCompilationData(compilerCall);
                 var identityHash = compilationData.GetIdentityHash();
 
@@ -813,17 +800,16 @@ public sealed class CompilerLogApp(
                 Directory.CreateDirectory(baseOutputPath);
             }
 
-            var compilerCalls = reader.ReadAllCompilerCalls(options.FilterCompilerCalls);
-            var compilerCallNames = GetCompilerCallNames(compilerCalls);
-            for (int i = 0; i < compilerCalls.Count; i++)
+            var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
+            var allCompilerCalls = namedCompilerCalls.Select(x => x.CompilerCall).ToList();
+            foreach (var (name, compilerCall) in namedCompilerCalls)
             {
-                var compilerCall = compilerCalls[i];
                 var compilationData = reader.ReadCompilationData(compilerCall);
                 var (contentHash, identityHash) = compilationData.GetContentAndIdentityHash();
 
                 var dir = inline
                     ? compilerCall.ProjectDirectory
-                    : Path.Combine(baseOutputPath, compilerCallNames[i]);
+                    : Path.Combine(baseOutputPath, name);
                 Directory.CreateDirectory(dir);
                 var (contentFileName, identityFileName) = GetFileNames();
 
@@ -836,7 +822,7 @@ public sealed class CompilerLogApp(
                     const string simpleIdentityFileName = "build-identity-hash.txt";
                     if (inline)
                     {
-                        return IsSingleTarget(compilerCall, compilerCalls)
+                        return IsSingleTarget(compilerCall, allCompilerCalls)
                             ? (simpleContentFileName, simpleIdentityFileName)
                             : ($"build-{compilerCall.TargetFramework}-content-hash.txt", $"build-{compilerCall.TargetFramework}-identity-hash.txt");
                     }
@@ -929,6 +915,52 @@ public sealed class CompilerLogApp(
         }
 
         return compilerCalls;
+    }
+
+    /// <summary>
+    /// Reads all compiler calls and generates unique names for each. These names will only contain alpha numeric characters, dashes and
+    /// underscores.
+    /// </summary>
+    internal List<(string Name, CompilerCall CompilerCall)> ReadAllNamedCompilerCalls(ICompilerCallReader reader, Func<CompilerCall, bool>? predicate)
+    {
+        var compilerCalls = ReadAllCompilerCalls(reader, predicate);
+
+        // Generate unique names for each compiler call
+        var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<(string Name, CompilerCall CompilerCall)>(compilerCalls.Count);
+
+        foreach (var compilerCall in compilerCalls)
+        {
+            var name = GetName(compilerCall, compilerCalls);
+            if (!hashSet.Add(name))
+            {
+                var suffix = 1;
+                string newName;
+                do
+                {
+                    newName = $"{name}-{suffix}";
+                    suffix++;
+                } while (!hashSet.Add(newName));
+
+                name = newName;
+            }
+
+            result.Add((name, compilerCall));
+        }
+
+        return result;
+
+        static string GetName(CompilerCall compilerCall, List<CompilerCall> compilerCalls)
+        {
+            var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
+            return compilerCall.Kind switch
+            {
+                CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || IsSingleTarget(compilerCall, compilerCalls)
+                    ? name
+                    : $"{name}-{compilerCall.TargetFramework}",
+                _ => $"{name}-{compilerCall.Kind.ToString().ToLowerInvariant()}",
+            };
+        }
     }
 
     internal CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
@@ -1108,46 +1140,6 @@ public sealed class CompilerLogApp(
         return compilerCalls.Count(x =>
             x.ProjectFilePath == compilerCall.ProjectFilePath &&
             x.Kind == CompilerCallKind.Regular) == 1;
-    }
-
-    // Convert the CompilerCall instances into a list of unique names that are
-    // valid file names
-    internal static List<string> GetCompilerCallNames(List<CompilerCall> compilerCalls)
-    {
-        var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var list = new List<string>();
-        foreach (var compilerCall in compilerCalls)
-        {
-            var name = GetName(compilerCall, compilerCalls);
-            if (!hashSet.Add(name))
-            {
-                var suffix = 1;
-                string newName;
-                do
-                {
-                    newName = $"{name}-{suffix}";
-                    suffix++;
-                } while (!hashSet.Add(newName));
-
-                name = newName;
-            }
-
-            list.Add(name);
-        }
-
-        return list;
-
-        string GetName(CompilerCall compilerCall, List<CompilerCall> compilerCalls)
-        {
-            var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
-            return compilerCall.Kind switch
-            {
-                CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || IsSingleTarget(compilerCall, compilerCalls)
-                    ? name
-                    : $"{name}-{compilerCall.TargetFramework}",
-                _ => $"{name}-{compilerCall.Kind.ToString().ToLowerInvariant()}",
-            };
-        }
     }
 
     internal static string GetResolvedPath(string baseDirectory, string path)
