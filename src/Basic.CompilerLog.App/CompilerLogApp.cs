@@ -15,6 +15,26 @@ using static Basic.CompilerLog.App.Constants;
 
 namespace Basic.CompilerLog.App;
 
+public readonly struct NamedCompilerCall(string name, CompilerCall compilerCall, bool isSingleTarget)
+{
+    public string Name { get; } = name;
+    public CompilerCall CompilerCall { get; } = compilerCall;
+    public bool IsSingleTarget { get; } = isSingleTarget;
+
+    public void Deconstruct(out string name, out CompilerCall compilerCall)
+    {
+        name = Name;
+        compilerCall = CompilerCall;
+    }
+
+    public void Deconstruct(out string name, out CompilerCall compilerCall, out bool isSingleTarget)
+    {
+        name = Name;
+        compilerCall = CompilerCall;
+        isSingleTarget = IsSingleTarget;
+    }
+}
+
 public sealed class CompilerLogApp(
     string? workingDirectory = null,
     string? appDataDirectory = null,
@@ -921,13 +941,13 @@ public sealed class CompilerLogApp(
     /// Reads all compiler calls and generates unique names for each. These names will only contain alpha numeric characters, dashes and
     /// underscores.
     /// </summary>
-    internal List<(string Name, CompilerCall CompilerCall)> ReadAllNamedCompilerCalls(ICompilerCallReader reader, Func<CompilerCall, bool>? predicate)
+    internal List<NamedCompilerCall> ReadAllNamedCompilerCalls(ICompilerCallReader reader, Func<CompilerCall, bool>? predicate)
     {
         var compilerCalls = ReadAllCompilerCalls(reader, predicate);
 
         // Generate unique names for each compiler call
         var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var result = new List<(string Name, CompilerCall CompilerCall)>(compilerCalls.Count);
+        var result = new List<NamedCompilerCall>(compilerCalls.Count);
 
         foreach (var compilerCall in compilerCalls)
         {
@@ -945,7 +965,8 @@ public sealed class CompilerLogApp(
                 name = newName;
             }
 
-            result.Add((name, compilerCall));
+            var isSingleTarget = IsSingleTarget(compilerCall, compilerCalls);
+            result.Add(new NamedCompilerCall(name, compilerCall, isSingleTarget));
         }
 
         return result;
