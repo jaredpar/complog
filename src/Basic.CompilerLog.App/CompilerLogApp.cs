@@ -471,7 +471,7 @@ public sealed class CompilerLogApp(
 
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allCompilerCalls = namedCompilerCalls.Select(x => x.CompilerCall).ToList();
-            foreach (var (name, compilerCall) in namedCompilerCalls)
+            foreach (var (name, compilerCall, isSingleTarget) in namedCompilerCalls)
             {
                 var rspDirPath = inline
                     ? compilerCall.ProjectDirectory
@@ -493,7 +493,7 @@ public sealed class CompilerLogApp(
                 {
                     if (inline)
                     {
-                        return IsSingleTarget(compilerCall, allCompilerCalls)
+                        return isSingleTarget
                             ? "build.rsp"
                             : $"build-{compilerCall.TargetFramework}.rsp";
                     }
@@ -822,7 +822,7 @@ public sealed class CompilerLogApp(
 
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allCompilerCalls = namedCompilerCalls.Select(x => x.CompilerCall).ToList();
-            foreach (var (name, compilerCall) in namedCompilerCalls)
+            foreach (var (name, compilerCall, isSingleTarget) in namedCompilerCalls)
             {
                 var compilationData = reader.ReadCompilationData(compilerCall);
                 var (contentHash, identityHash) = compilationData.GetContentAndIdentityHash();
@@ -842,7 +842,7 @@ public sealed class CompilerLogApp(
                     const string simpleIdentityFileName = "build-identity-hash.txt";
                     if (inline)
                     {
-                        return IsSingleTarget(compilerCall, allCompilerCalls)
+                        return isSingleTarget
                             ? (simpleContentFileName, simpleIdentityFileName)
                             : ($"build-{compilerCall.TargetFramework}-content-hash.txt", $"build-{compilerCall.TargetFramework}-identity-hash.txt");
                     }
@@ -945,13 +945,24 @@ public sealed class CompilerLogApp(
     {
         var compilerCalls = ReadAllCompilerCalls(reader, predicate);
 
+        // Set used to determine if the projects are single or multi-targeted.
+        var isMultiTargetedMap = new Dictionary<string, bool>(PathUtil.Comparer);
+        foreach (var compilerCall in compilerCalls)
+        {
+            if (compilerCall.Kind == CompilerCallKind.Regular)
+            {
+                ref bool isMultiTargeted = ref CollectionsMarshal.GetValueRefOrAddDefault(isMultiTargetedMap, compilerCall.ProjectFilePath, out var exists);
+                isMultiTargeted = !exists;
+            }
+        }
+
         // Generate unique names for each compiler call
         var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new List<NamedCompilerCall>(compilerCalls.Count);
 
         foreach (var compilerCall in compilerCalls)
         {
-            var name = GetName(compilerCall, compilerCalls);
+            var name = GetName(compilerCall);
             if (!hashSet.Add(name))
             {
                 var suffix = 1;
@@ -965,18 +976,17 @@ public sealed class CompilerLogApp(
                 name = newName;
             }
 
-            var isSingleTarget = IsSingleTarget(compilerCall, compilerCalls);
-            result.Add(new NamedCompilerCall(name, compilerCall, isSingleTarget));
+            result.Add(new NamedCompilerCall(name, compilerCall, !isMultiTargetedMap[compilerCall.ProjectFilePath]));
         }
 
         return result;
 
-        static string GetName(CompilerCall compilerCall, List<CompilerCall> compilerCalls)
+        string GetName(CompilerCall compilerCall)
         {
             var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
             return compilerCall.Kind switch
             {
-                CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || IsSingleTarget(compilerCall, compilerCalls)
+                CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || !isMultiTargetedMap[compilerCall.ProjectFilePath]
                     ? name
                     : $"{name}-{compilerCall.TargetFramework}",
                 _ => $"{name}-{compilerCall.Kind.ToString().ToLowerInvariant()}",
@@ -1152,15 +1162,6 @@ public sealed class CompilerLogApp(
         }
 
         return baseOutputPath;
-    }
-
-    // Is the project for this <see cref="CompilerCall"/> only occur once in the list as a
-    // non-satellite assembly?
-    internal static bool IsSingleTarget(CompilerCall compilerCall, List<CompilerCall> compilerCalls)
-    {
-        return compilerCalls.Count(x =>
-            x.ProjectFilePath == compilerCall.ProjectFilePath &&
-            x.Kind == CompilerCallKind.Regular) == 1;
     }
 
     internal static string GetResolvedPath(string baseDirectory, string path)
