@@ -15,11 +15,11 @@ using static Basic.CompilerLog.App.Constants;
 
 namespace Basic.CompilerLog.App;
 
-public readonly struct NamedCompilerCall(string name, CompilerCall compilerCall, bool isSingleTarget)
+public readonly struct NamedCompilerCall(string name, CompilerCall compilerCall, bool isMultiTargeted)
 {
     public string Name { get; } = name;
     public CompilerCall CompilerCall { get; } = compilerCall;
-    public bool IsSingleTarget { get; } = isSingleTarget;
+    public bool IsMultiTargeted { get; } = isMultiTargeted;
 
     public void Deconstruct(out string name, out CompilerCall compilerCall)
     {
@@ -27,11 +27,11 @@ public readonly struct NamedCompilerCall(string name, CompilerCall compilerCall,
         compilerCall = CompilerCall;
     }
 
-    public void Deconstruct(out string name, out CompilerCall compilerCall, out bool isSingleTarget)
+    public void Deconstruct(out string name, out CompilerCall compilerCall, out bool isMultiTargeted)
     {
         name = Name;
         compilerCall = CompilerCall;
-        isSingleTarget = IsSingleTarget;
+        isMultiTargeted = IsMultiTargeted;
     }
 }
 
@@ -471,7 +471,7 @@ public sealed class CompilerLogApp(
 
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allCompilerCalls = namedCompilerCalls.Select(x => x.CompilerCall).ToList();
-            foreach (var (name, compilerCall, isSingleTarget) in namedCompilerCalls)
+            foreach (var (name, compilerCall, isMultiTargeted) in namedCompilerCalls)
             {
                 var rspDirPath = inline
                     ? compilerCall.ProjectDirectory
@@ -493,9 +493,9 @@ public sealed class CompilerLogApp(
                 {
                     if (inline)
                     {
-                        return isSingleTarget
-                            ? "build.rsp"
-                            : $"build-{compilerCall.TargetFramework}.rsp";
+                        return isMultiTargeted
+                            ? $"build-{compilerCall.TargetFramework}.rsp"
+                            : "build.rsp";
                     }
 
                     return "build.rsp";
@@ -822,7 +822,7 @@ public sealed class CompilerLogApp(
 
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allCompilerCalls = namedCompilerCalls.Select(x => x.CompilerCall).ToList();
-            foreach (var (name, compilerCall, isSingleTarget) in namedCompilerCalls)
+            foreach (var (name, compilerCall, isMultiTargeted) in namedCompilerCalls)
             {
                 var compilationData = reader.ReadCompilationData(compilerCall);
                 var (contentHash, identityHash) = compilationData.GetContentAndIdentityHash();
@@ -842,9 +842,9 @@ public sealed class CompilerLogApp(
                     const string simpleIdentityFileName = "build-identity-hash.txt";
                     if (inline)
                     {
-                        return isSingleTarget
-                            ? (simpleContentFileName, simpleIdentityFileName)
-                            : ($"build-{compilerCall.TargetFramework}-content-hash.txt", $"build-{compilerCall.TargetFramework}-identity-hash.txt");
+                        return isMultiTargeted
+                            ? ($"build-{compilerCall.TargetFramework}-content-hash.txt", $"build-{compilerCall.TargetFramework}-identity-hash.txt")
+                            : (simpleContentFileName, simpleIdentityFileName);
                     }
 
                     return (simpleContentFileName, simpleIdentityFileName);
@@ -952,7 +952,7 @@ public sealed class CompilerLogApp(
             if (compilerCall.Kind == CompilerCallKind.Regular)
             {
                 ref bool isMultiTargeted = ref CollectionsMarshal.GetValueRefOrAddDefault(isMultiTargetedMap, compilerCall.ProjectFilePath, out var exists);
-                isMultiTargeted = !exists;
+                isMultiTargeted = exists;
             }
         }
 
@@ -976,7 +976,7 @@ public sealed class CompilerLogApp(
                 name = newName;
             }
 
-            result.Add(new NamedCompilerCall(name, compilerCall, !isMultiTargetedMap[compilerCall.ProjectFilePath]));
+            result.Add(new NamedCompilerCall(name, compilerCall, isMultiTargetedMap.GetValueOrDefault(compilerCall.ProjectFilePath)));
         }
 
         return result;
@@ -986,7 +986,7 @@ public sealed class CompilerLogApp(
             var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
             return compilerCall.Kind switch
             {
-                CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || !isMultiTargetedMap[compilerCall.ProjectFilePath]
+                CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || !isMultiTargetedMap.GetValueOrDefault(compilerCall.ProjectFilePath)
                     ? name
                     : $"{name}-{compilerCall.TargetFramework}",
                 _ => $"{name}-{compilerCall.Kind.ToString().ToLowerInvariant()}",
