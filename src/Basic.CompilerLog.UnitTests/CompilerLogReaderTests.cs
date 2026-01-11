@@ -57,15 +57,6 @@ public sealed class CompilerLogReaderTests : TestBase
         Assert.Equal(content, DefaultEncoding.GetString(contentBytes));
     }
 
-    [Fact]
-    public void CreateInvalidZipFile()
-    {
-        using var stream = new MemoryStream();
-        stream.Write([1, 2, 3, 4, 5], 0, 0);
-        stream.Position = 0;
-        Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, BasicAnalyzerKind.None, leaveOpen: true));
-    }
-
     [Theory]
     [InlineData(BasicAnalyzerKind.InMemory, true)]
     [InlineData(BasicAnalyzerKind.OnDisk, true)]
@@ -108,6 +99,48 @@ public sealed class CompilerLogReaderTests : TestBase
             using var zip = new ZipArchive(fileStream, ZipArchiveMode.Create);
         }
         Assert.Throws<Exception>(() => CompilerLogReader.Create(zipFilePath));
+    }
+
+    [Fact]
+    public void CreateFromZipInvalid()
+    {
+        using var stream = new MemoryStream();
+        stream.Write([1, 2, 3, 4, 5], 0, 0);
+        stream.Position = 0;
+        Assert.Throws<CompilerLogException>(() => CompilerLogReader.Create(stream, BasicAnalyzerKind.None, leaveOpen: true));
+    }
+
+    [Fact]
+    public void CreateFromZipOfLogfile()
+    {
+        var logData = Fixture.Console.Value;
+        Core(logData.BinaryLogPath!);
+        Core(logData.CompilerLogPath);
+
+        void Core(string logFilePath)
+        {
+            var zipFilePath = Path.Combine(RootDirectory, "file.zip");
+            ZipFile(zipFilePath, logFilePath);
+            var stream = CompilerLogUtil.GetOrCreateCompilerLogStream(zipFilePath);
+            using var reader = CompilerLogReader.Create(stream, BasicAnalyzerKind.None, leaveOpen: false);
+            Assert.NotEmpty(reader.ReadAllCompilerCalls());
+
+            void ZipFile(string zipFilePath, string filePath)
+            {
+                using var zipArchive = new ZipArchive(File.Open(zipFilePath, FileMode.Create), ZipArchiveMode.Create);
+                var entry = zipArchive.CreateEntry(Path.GetFileName(filePath));
+                using var entryStream = entry.Open();
+                using var fileStream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                fileStream.CopyTo(entryStream);
+            }
+        }
+    }
+
+    [Fact]
+    public void CreateFromInvalidExtension()
+    {
+        var filePath = Root.NewFile("file.txt", "this is some content");
+        Assert.Throws<ArgumentException>(() => CompilerLogReader.Create(filePath));
     }
 
     [Fact]
