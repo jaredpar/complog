@@ -11,14 +11,12 @@
     <!-- Mono.Options is not signed -->
     <NoWarn>$(NoWarn);CS8002</NoWarn>
 
-    <_BasicGeneratedConstantsFile>$(BaseIntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
-    <Compile Include="$(_BasicGeneratedConstantsFile)" />
     <PackageReference Include="Mono.Options" />
     <PackageReference Include="Microsoft.CodeAnalysis" VersionOverride="$(RoslynReferenceVersion)" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(RoslynReferenceVersion)" />
@@ -26,10 +24,14 @@
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 
-  <Target Name="GenerateConstants" BeforeTargets="BeforeBuild">
+  <Target Name="GenerateConstants"
+          BeforeTargets="BeforeCompile"
+          Inputs="$(MSBuildProjectFile)"
+          Outputs="$(IntermediateOutputPath)GeneratedConstants.cs">
     <PropertyGroup>
       <_BasicToolVersion>$(PackageVersion)</_BasicToolVersion>
       <_BasicToolVersion Condition="'$(_BasicToolVersion)' == ''">42.42.42.42</_BasicToolVersion>
+      <_BasicGeneratedConstantsFile>$(IntermediateOutputPath)GeneratedConstants.cs</_BasicGeneratedConstantsFile>
       <_BasicCode>namespace Basic.CompilerLog.App%3B
 
 internal static partial class Constants
@@ -41,7 +43,12 @@ internal static partial class Constants
     <WriteLinesToFile
       File="$(_BasicGeneratedConstantsFile)"
       Lines="$(_BasicCode)"
-      Overwrite="true" />
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_BasicGeneratedConstantsFile)" KeepDuplicates="false" />
+      <FileWrites Include="$(_BasicGeneratedConstantsFile)" />
+    </ItemGroup>
   </Target>
 
 </Project>
