@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Microsoft.Build.Logging.StructuredLogger;
 
 namespace Basic.CompilerLog.Util;
@@ -10,7 +11,7 @@ public static class CompilerCallReaderUtil
     public static ICompilerCallReader Create(string filePath, BasicAnalyzerKind? basicAnalyzerKind = null, LogReaderState? logReaderState = null)
     {
         var ext = Path.GetExtension(filePath);
-        return ext switch 
+        return ext switch
         {
             ".binlog" => BinaryLogReader.Create(filePath, basicAnalyzerKind, logReaderState),
             ".complog" => CompilerLogReader.Create(filePath, basicAnalyzerKind, logReaderState),
@@ -20,17 +21,10 @@ public static class CompilerCallReaderUtil
 
         ICompilerCallReader CreateFromZip()
         {
-            if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".complog") is { } c)
-            {
-                return CompilerLogReader.Create(c, basicAnalyzerKind, logReaderState, leaveOpen: false);
-            }
-
-            if (CompilerLogUtil.TryCopySingleFileWithExtensionFromZip(filePath, ".binlog") is { } b)
-            {
-                return BinaryLogReader.Create(b, basicAnalyzerKind, logReaderState, leaveOpen: false);
-            }
-
-            throw new Exception($"Could not find a .complog or .binlog file in {filePath}");
+            var stream = CompilerLogUtil.ReadLogFromZip(filePath, out var isComplog);
+            return isComplog
+                ? CompilerLogReader.Create(stream, basicAnalyzerKind, logReaderState, leaveOpen: false)
+                : BinaryLogReader.Create(stream, basicAnalyzerKind, logReaderState, leaveOpen: false);
         }
     }
 

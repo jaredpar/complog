@@ -47,6 +47,22 @@ public sealed class CompilerCallReaderUtilTests : TestBase
     }
 
 
+    [Fact]
+    public void CreateFromZipRenamedComplog()
+    {
+        // Test for issue #307: support .complog files renamed to .zip extension
+        var d = Root.NewDirectory();
+        var zipFilePath = Path.Combine(d, "build.zip");
+
+        // Copy the .complog file to a .zip extension (simulating a rename)
+        File.Copy(Fixture.Console.Value.CompilerLogPath, zipFilePath);
+
+        // Should be able to open it directly
+        using var reader = CompilerCallReaderUtil.Create(zipFilePath);
+        var compilerCalls = reader.ReadAllCompilerCalls();
+        Assert.NotEmpty(compilerCalls);
+    }
+
     [Theory]
     [MemberData(nameof(GetBasicAnalyzerKinds))]
     public void GetAllAnalyzerKinds(BasicAnalyzerKind basicAnalyzerKind)
