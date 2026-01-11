@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Basic.CompilerLog.Util;
@@ -35,53 +37,33 @@ public static class CompilerLogUtil
     public static Stream GetOrCreateCompilerLogStream(string filePath)
     {
         var ext = Path.GetExtension(filePath);
-        if (ext is ".binlog")
+        return ext switch
+        {
+            ".binlog" => ConvertBinaryLogFile(filePath),
+            ".complog" => new FileStream(filePath, FileMode.Open, FileAccess.Read),
+            ".zip" => GetFromZip(filePath),
+            _ => throw new ArgumentException($"Unrecognized extension: {ext}")
+        };
+
+        MemoryStream ConvertBinaryLogFile(string filePath)
+        {
+            using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
+            return ConvertBinaryLogStream(fileStream);
+        }
+
+        static MemoryStream ConvertBinaryLogStream(Stream binlogStream)
         {
             var memoryStream = new MemoryStream();
-            using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            ConvertBinaryLog(fileStream, memoryStream);
+            _ = ConvertBinaryLog(binlogStream, memoryStream);
             memoryStream.Position = 0;
             return memoryStream;
         }
 
-        if (ext is ".zip")
+        static Stream GetFromZip(string zipFilePath)
         {
-            var memoryStream = TryCopySingleFileWithExtensionFromZip(filePath, ".complog");
-            if (memoryStream is not null)
-            {
-                return memoryStream;
-            }
-
-            throw new Exception($"Could not find a .complog file in {filePath}");
+            var logStream = ReadLogFromZip(zipFilePath, out var isComplog);
+            return isComplog ? logStream : ConvertBinaryLogStream(logStream);
         }
-
-        if (ext is ".complog")
-        {
-            return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        }
-
-        throw new Exception($"Unrecognized extension: {ext}");
-    }
-
-    public static MemoryStream? TryCopySingleFileWithExtensionFromZip(string filePath, string ext)
-    {
-        Debug.Assert(ext.Length > 0 && ext[0] == '.', "Extension must start with a period");
-
-        using var zipArchive = ZipFile.OpenRead(filePath);
-        var entry = zipArchive.Entries
-            .Where(x => Path.GetExtension(x.FullName) == ext)
-            .ToList();
-
-        if (entry.Count == 1)
-        {
-            var memoryStream = new MemoryStream();
-            using var entryStream = entry[0].Open();
-            entryStream.CopyTo(memoryStream);
-            memoryStream.Position = 0;
-            return memoryStream;
-        }
-
-        return null;
     }
 
     public static List<string> ConvertBinaryLog(string binaryLogFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
@@ -153,5 +135,47 @@ public static class CompilerLogUtil
         }
 
         return new ConvertBinaryLogResult(success, included, diagnostics);
+    }
+
+    /// <summary>
+    /// Try and read a log file from the provided zip file path. This will consider all of the following
+    /// cases:
+    /// - zip file is just a renamed .complog file
+    /// - zip has a single embedded .complog file
+    /// - zip has a single embedded .binlog file
+    /// Any other case will throw an exception
+    /// </summary>
+    internal static Stream ReadLogFromZip(string zipFilePath, out bool isComplog)
+    {
+        using var zipArchive = ZipFile.OpenRead(zipFilePath);
+        if (zipArchive.GetEntry(CommonUtil.MetadataFileName) is not null)
+        {
+            zipArchive.Dispose();
+            isComplog  = true;
+            return RoslynUtil.OpenBuildFileForRead(zipFilePath);
+        }
+
+        if (zipArchive.Entries.SingleOrDefault(x => Path.GetExtension(x.Name) == ".complog") is { } complogEntry)
+        {
+            isComplog = true;
+            return CopyArchiveEntry(complogEntry);
+        }
+
+        if (zipArchive.Entries.SingleOrDefault(x => Path.GetExtension(x.Name) == ".binlog") is { } binlogEntry)
+        {
+            isComplog = false;
+            return CopyArchiveEntry(binlogEntry);
+        }
+
+        throw new Exception($"The zip file '{zipFilePath}' does not contain a single .complog or .binlog file");
+
+        static MemoryStream CopyArchiveEntry(ZipArchiveEntry entry)
+        {
+            var memoryStream = new MemoryStream();
+            using var entryStream = entry.Open();
+            entryStream.CopyTo(memoryStream);
+            memoryStream.Position = 0;
+            return memoryStream;
+        }
     }
 }
