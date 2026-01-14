@@ -321,11 +321,106 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .ToList();
     }
 
-    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
+    public IReadOnlyCollection<string> ReadRawArguments(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);
         var infoPack = GetOrReadCompilationInfoPack(index);
         return GetContentPack<string[]>(infoPack.CommandLineArgsHash);
+    }
+
+    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
+    {
+        var rawArgs = ReadRawArguments(compilerCall);
+        if (PathNormalizationUtil.IsEmpty)
+        {
+            return rawArgs;
+        }
+
+        var normalizedArgs = new string[rawArgs.Count];
+        var index = 0;
+        foreach (var arg in rawArgs)
+        {
+            normalizedArgs[index++] = NormalizeArgument(arg);
+        }
+
+        return normalizedArgs;
+
+        string NormalizeArgument(string arg)
+        {
+            // Arguments without an option name are source file paths
+            if (!CompilerArgumentUtil.IsOption(arg.AsSpan()))
+            {
+                return NormalizePathArgument(arg);
+            }
+
+            if (!CompilerArgumentUtil.TryParseOption(arg, out var optionName, out var optionValue))
+            {
+                // No colon means no path argument (e.g., /noconfig, /unsafe+)
+                return arg;
+            }
+
+            if (!CompilerArgumentUtil.IsPathOption(optionName))
+            {
+                return arg;
+            }
+
+            // /errorlog can have suffix like /errorlog:"path,version=123"
+            if (optionName.Equals("errorlog".AsSpan(), StringComparison.OrdinalIgnoreCase))
+            {
+                return NormalizeErrorLogOption(arg, optionValue);
+            }
+
+            return NormalizeOptionWithPath(arg, optionValue);
+        }
+
+        string NormalizeOptionWithPath(string arg, string valuePart)
+        {
+            var colonIndex = arg.IndexOf(':');
+            var optionPart = arg[..(colonIndex + 1)];
+
+            // Handle alias syntax: /reference:alias=path
+            var equalsIndex = valuePart.IndexOf('=');
+            if (equalsIndex >= 0)
+            {
+                var alias = valuePart[..(equalsIndex + 1)];
+                var path = valuePart[(equalsIndex + 1)..];
+                return optionPart + alias + NormalizePathArgument(path);
+            }
+
+            return optionPart + NormalizePathArgument(valuePart);
+        }
+
+        string NormalizeErrorLogOption(string arg, string valuePart)
+        {
+            var colonIndex = arg.IndexOf(':');
+            var optionPart = arg[..(colonIndex + 1)];
+
+            valuePart = CompilerArgumentUtil.RemoveQuotes(valuePart);
+
+            // Find comma that separates path from suffix
+            var commaIndex = valuePart.IndexOf(',');
+            if (commaIndex >= 0)
+            {
+                var path = valuePart[..commaIndex];
+                var suffix = valuePart[commaIndex..];
+                var normalizedPath = NormalizePath(path) ?? path;
+                return optionPart + CompilerArgumentUtil.MaybeQuotePath(normalizedPath + suffix);
+            }
+
+            return optionPart + NormalizePathArgument(valuePart);
+        }
+
+        string NormalizePathArgument(string pathArg)
+        {
+            var path = CompilerArgumentUtil.RemoveQuotes(pathArg);
+            var normalizedPath = NormalizePath(path);
+            if (normalizedPath is null)
+            {
+                return pathArg;
+            }
+
+            return CompilerArgumentUtil.MaybeQuotePath(normalizedPath);
+        }
     }
 
     private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)

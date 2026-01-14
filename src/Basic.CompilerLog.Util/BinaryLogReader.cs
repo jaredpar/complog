@@ -451,11 +451,14 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         return list;
     }
 
-    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
+    public IReadOnlyCollection<string> ReadRawArguments(CompilerCall compilerCall)
     {
         CheckOwnership(compilerCall);
         return _argumentsMap[compilerCall];
     }
+
+    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall) =>
+        ReadRawArguments(compilerCall);
 
     /// <summary>
     /// Set the arguments for the given <see cref="CompilerCall"/>. This is primarily used

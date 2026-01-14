@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using NuGet.Versioning;
 
 namespace Basic.CompilerLog.Util;
@@ -91,8 +90,6 @@ public sealed partial class ExportUtil
 
         internal override string RootFileName(string fileName) => PathNormalizationUtil.RootFileName(fileName);
     }
-
-    internal static Regex OptionsRegex { get; } = GetOptionRegex();
 
     public CompilerLogReader Reader { get; }
     public bool ExcludeAnalyzers { get; }
@@ -205,77 +202,82 @@ public sealed partial class ExportUtil
 
         List<string> ProcessRsp()
         {
-            var arguments = Reader.ReadArguments(compilerCall);
+            var arguments = Reader.ReadRawArguments(compilerCall);
             var lines = new List<string>(capacity: arguments.Count);
-
-            // compiler options aren't case sensitive
             var comparison = StringComparison.OrdinalIgnoreCase;
 
             foreach (var line in arguments)
             {
                 // The only non-options are source files and those are rewritten by other
                 // methods and added to commandLineList
-                if (!IsOption(line.AsSpan()))
+                if (!CompilerArgumentUtil.IsOption(line.AsSpan()))
                 {
                     continue;
                 }
 
-                var span = line.AsSpan().Slice(1);
-
-                if (span.Equals("noconfig".AsSpan(), comparison))
+                // Handle options without a value (e.g., /noconfig, /unsafe+)
+                if (!CompilerArgumentUtil.TryParseOption(line, out var optionName, out var optionValue))
                 {
-                    hasNoConfigOption = true;
+                    // For options without colon, the option name is everything after the /
+                    var lineSpan = line.AsSpan()[1..];
+                    if (lineSpan.Equals("noconfig".AsSpan(), comparison))
+                    {
+                        hasNoConfigOption = true;
+                    }
+                    else
+                    {
+                        lines.Add(line);
+                    }
                     continue;
                 }
 
                 // These options are all rewritten below
-                if (span.StartsWith("reference", comparison) ||
-                    span.StartsWith("analyzer", comparison) ||
-                    span.StartsWith("additionalfile", comparison) ||
-                    span.StartsWith("analyzerconfig", comparison) ||
-                    span.StartsWith("embed", comparison) ||
-                    span.StartsWith("resource", comparison) ||
-                    span.StartsWith("linkresource", comparison) ||
-                    span.StartsWith("sourcelink", comparison) ||
-                    span.StartsWith("ruleset", comparison) ||
-                    span.StartsWith("keyfile", comparison) ||
-                    span.StartsWith("link", comparison))
+                if (optionName.Equals("reference".AsSpan(), comparison) ||
+                    optionName.Equals("r".AsSpan(), comparison) ||
+                    optionName.Equals("analyzer".AsSpan(), comparison) ||
+                    optionName.Equals("a".AsSpan(), comparison) ||
+                    optionName.Equals("additionalfile".AsSpan(), comparison) ||
+                    optionName.Equals("analyzerconfig".AsSpan(), comparison) ||
+                    optionName.Equals("embed".AsSpan(), comparison) ||
+                    optionName.Equals("resource".AsSpan(), comparison) ||
+                    optionName.Equals("res".AsSpan(), comparison) ||
+                    optionName.Equals("linkresource".AsSpan(), comparison) ||
+                    optionName.Equals("linkres".AsSpan(), comparison) ||
+                    optionName.Equals("sourcelink".AsSpan(), comparison) ||
+                    optionName.Equals("ruleset".AsSpan(), comparison) ||
+                    optionName.Equals("keyfile".AsSpan(), comparison) ||
+                    optionName.Equals("link".AsSpan(), comparison) ||
+                    optionName.Equals("l".AsSpan(), comparison))
                 {
                     continue;
                 }
 
                 // Map all of the output items to the build output directory
-                if (span.StartsWith("out", comparison) ||
-                    span.StartsWith("refout", comparison) ||
-                    span.StartsWith("doc", comparison) ||
-                    span.StartsWith("generatedfilesout", comparison) ||
-                    span.StartsWith("errorlog", comparison))
+                if (optionName.Equals("out".AsSpan(), comparison) ||
+                    optionName.Equals("refout".AsSpan(), comparison) ||
+                    optionName.Equals("doc".AsSpan(), comparison) ||
+                    optionName.Equals("generatedfilesout".AsSpan(), comparison) ||
+                    optionName.Equals("errorlog".AsSpan(), comparison))
                 {
-                    var index = span.IndexOf(':');
-                    var argName = span.Slice(0, index).ToString();
-                    var argValue = span.Slice(index + 1);
-
                     // Handle `/errorlog:"path,version=123"`.
-                    ReadOnlySpan<char> path = argValue;
+                    var path = optionValue;
                     var suffix = "";
-                    if (span.StartsWith("errorlog", comparison) &&
-                        argValue.IndexOf(',') is var commaIndex and >= 0)
+                    if (optionName.Equals("errorlog".AsSpan(), comparison))
                     {
-                        // Remove quotes.
-                        if (argValue is ['"', .., '"'])
+                        path = CompilerArgumentUtil.RemoveQuotes(path);
+                        var commaIndex = path.IndexOf(',');
+                        if (commaIndex >= 0)
                         {
-                            argValue = argValue[1..^1];
+                            suffix = path[commaIndex..];
+                            path = path[..commaIndex];
                         }
-
-                        path = argValue[0..commaIndex];
-                        suffix = argValue[commaIndex..].ToString();
                     }
 
-                    var originalPath = PathNormalizationUtil.NormalizePath(path.ToString());
+                    var originalPath = PathNormalizationUtil.NormalizePath(path);
                     var newPath = builder.BuildOutput.GetNewFilePath(originalPath);
-                    commandLineList.Add($@"/{argName}:{FormatPathArgument(newPath + suffix)}");
+                    commandLineList.Add($@"/{optionName.ToString()}:{FormatPathArgument(newPath + suffix)}");
 
-                    if (span.StartsWith("generatedfilesout", comparison))
+                    if (optionName.Equals("generatedfilesout".AsSpan(), comparison))
                     {
                         Directory.CreateDirectory(newPath);
                     }
@@ -478,7 +480,7 @@ public sealed partial class ExportUtil
 
     private static string MaybeQuoteArgument(string arg)
     {
-        if (IsOption(arg.AsSpan()))
+        if (CompilerArgumentUtil.IsOption(arg.AsSpan()))
         {
             return arg;
         }
@@ -491,28 +493,6 @@ public sealed partial class ExportUtil
 
         return arg;
     }
-
-    private static bool IsOption(ReadOnlySpan<char> str) => OptionsRegex.IsMatch(str);
-
-    /// <summary>
-    /// Options start with a slash, then contain a colon and continue with a path,
-    /// or end with +/- or nothing. Examples:
-    /// <list type="bullet">
-    /// <item><c>/ref:...</c></item>
-    /// <item><c>/unsafe+</c></item>
-    /// <item><c>/checked-</c></item>
-    /// <item><c>/noconfig</c></item>
-    /// </list>
-    /// </summary>
-    /* lang=regex */
-    private const string OptionRegexContent = @"^/[a-z0-9]+(:|[+-]?$)";
-
-#if NET
-    [GeneratedRegex(OptionRegexContent, RegexOptions.IgnoreCase)]
-    private static partial Regex GetOptionRegex();
-#else
-    private static Regex GetOptionRegex() => new Regex(OptionRegexContent, RegexOptions.IgnoreCase);
-#endif
 
     /// <summary>
     /// This will return the logical source root for the given compilation. This is the prefix
