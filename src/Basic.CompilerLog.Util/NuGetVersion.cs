@@ -5,7 +5,7 @@ namespace Basic.CompilerLog.Util;
 /// <summary>
 /// Represents a NuGet semantic version number following the format: major.minor.patch[-prerelease]
 /// </summary>
-public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVersion>
+internal sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVersion>
 {
     /// <summary>
     /// Gets the major version number (X.0.0)
@@ -40,9 +40,20 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
     /// </summary>
     public NuGetVersion(int major, int minor, int patch, string? prerelease)
     {
-        if (major < 0) throw new ArgumentOutOfRangeException(nameof(major), "Major version must be non-negative");
-        if (minor < 0) throw new ArgumentOutOfRangeException(nameof(minor), "Minor version must be non-negative");
-        if (patch < 0) throw new ArgumentOutOfRangeException(nameof(patch), "Patch version must be non-negative");
+        if (major < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(major), "Major version must be non-negative");
+        }
+
+        if (minor < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(minor), "Minor version must be non-negative");
+        }
+
+        if (patch < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(patch), "Patch version must be non-negative");
+        }
 
         Major = major;
         Minor = minor;
@@ -127,13 +138,22 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
 
         // Compare major.minor.patch
         var result = Major.CompareTo(other.Major);
-        if (result != 0) return result;
+        if (result != 0)
+        {
+            return result;
+        }
 
         result = Minor.CompareTo(other.Minor);
-        if (result != 0) return result;
+        if (result != 0)
+        {
+            return result;
+        }
 
         result = Patch.CompareTo(other.Patch);
-        if (result != 0) return result;
+        if (result != 0)
+        {
+            return result;
+        }
 
         // If major.minor.patch are equal, compare prerelease
         // Stable versions (no prerelease) > prerelease versions
@@ -180,7 +200,10 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
             {
                 // Both are numeric, compare numerically
                 var result = num1.CompareTo(num2);
-                if (result != 0) return result;
+                if (result != 0)
+                {
+                    return result;
+                }
             }
             else if (isNum1)
             {
@@ -196,7 +219,10 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
             {
                 // Both are alphanumeric, compare lexicographically
                 var result = string.Compare(part1, part2, StringComparison.OrdinalIgnoreCase);
-                if (result != 0) return result;
+                if (result != 0)
+                {
+                    return result;
+                }
             }
         }
 
@@ -206,8 +232,15 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
 
     public bool Equals(NuGetVersion? other)
     {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
+        if (other is null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
 
         return Major == other.Major &&
                Minor == other.Minor &&
@@ -215,7 +248,10 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
                string.Equals(Prerelease, other.Prerelease, StringComparison.OrdinalIgnoreCase);
     }
 
-    public override bool Equals(object? obj) => Equals(obj as NuGetVersion);
+    public override bool Equals(object? obj)
+    {
+        return Equals(obj as NuGetVersion);
+    }
 
     public override int GetHashCode()
     {
@@ -236,33 +272,56 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
 
     public static bool operator ==(NuGetVersion? left, NuGetVersion? right)
     {
-        if (left is null) return right is null;
+        if (left is null)
+        {
+            return right is null;
+        }
+
         return left.Equals(right);
     }
 
-    public static bool operator !=(NuGetVersion? left, NuGetVersion? right) => !(left == right);
+    public static bool operator !=(NuGetVersion? left, NuGetVersion? right)
+    {
+        return !(left == right);
+    }
 
     public static bool operator <(NuGetVersion? left, NuGetVersion? right)
     {
-        if (left is null) return right is not null;
+        if (left is null)
+        {
+            return right is not null;
+        }
+
         return left.CompareTo(right) < 0;
     }
 
     public static bool operator <=(NuGetVersion? left, NuGetVersion? right)
     {
-        if (left is null) return true;
+        if (left is null)
+        {
+            return true;
+        }
+
         return left.CompareTo(right) <= 0;
     }
 
     public static bool operator >(NuGetVersion? left, NuGetVersion? right)
     {
-        if (left is null) return false;
+        if (left is null)
+        {
+            return false;
+        }
+
         return left.CompareTo(right) > 0;
     }
 
     public static bool operator >=(NuGetVersion? left, NuGetVersion? right)
     {
-        if (left is null) return right is null;
+        if (left is null)
+        {
+            return right is null;
+        }
+
         return left.CompareTo(right) >= 0;
     }
 }

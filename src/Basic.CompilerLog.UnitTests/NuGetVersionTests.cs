@@ -5,8 +5,6 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class NuGetVersionTests
 {
-    #region Constructor Tests
-
     [Fact]
     public void Constructor_ValidVersions_Succeeds()
     {
@@ -50,10 +48,6 @@ public sealed class NuGetVersionTests
         var v2 = new NuGetVersion(1, 0, 0, "   ");
         Assert.Null(v2.Prerelease);
     }
-
-    #endregion
-
-    #region TryParse Tests
 
     [Theory]
     [InlineData("1.0.0", 1, 0, 0, null)]
@@ -128,10 +122,6 @@ public sealed class NuGetVersionTests
         Assert.True(NuGetVersion.TryParse("7.5.3", out var v3));
         Assert.Equal(new NuGetVersion(7, 5, 3), v3);
     }
-
-    #endregion
-
-    #region Comparison Tests
 
     [Fact]
     public void CompareTo_SameVersions_ReturnsZero()
@@ -234,10 +224,6 @@ public sealed class NuGetVersionTests
         Assert.True(v10rc.CompareTo(v9) > 0);
     }
 
-    #endregion
-
-    #region Equality Tests
-
     [Fact]
     public void Equals_SameVersions_ReturnsTrue()
     {
@@ -323,10 +309,6 @@ public sealed class NuGetVersionTests
         Assert.Equal(v1.GetHashCode(), v2.GetHashCode());
     }
 
-    #endregion
-
-    #region Operator Tests
-
     [Fact]
     public void Operators_LessThan_WorksCorrectly()
     {
@@ -367,10 +349,6 @@ public sealed class NuGetVersionTests
         Assert.False(v1 >= v2);
     }
 
-    #endregion
-
-    #region ToString Tests
-
     [Fact]
     public void ToString_StableVersion_FormatsCorrectly()
     {
@@ -391,10 +369,6 @@ public sealed class NuGetVersionTests
         var v = new NuGetVersion(10, 0, 100, "rc.2.25502.107");
         Assert.Equal("10.0.100-rc.2.25502.107", v.ToString());
     }
-
-    #endregion
-
-    #region Sorting Tests
 
     [Fact]
     public void Sorting_MultipleVersions_OrdersCorrectly()
@@ -454,10 +428,6 @@ public sealed class NuGetVersionTests
         Assert.Equal(new NuGetVersion(10, 0, 100, "rc.2.25502.107"), latest);
     }
 
-    #endregion
-
-    #region Edge Cases
-
     [Fact]
     public void EdgeCase_ZeroVersion_WorksCorrectly()
     {
@@ -495,6 +465,4 @@ public sealed class NuGetVersionTests
         Assert.Equal("1.0.0-preview.2", sorted[1].ToString());
         Assert.Equal("1.0.0-preview.10", sorted[2].ToString());
     }
-
-    #endregion
 }
