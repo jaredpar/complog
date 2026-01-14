@@ -1,5 +1,4 @@
 using Basic.CompilerLog.Util;
-using NuGet.Versioning;
 using Xunit;
 using Xunit.Sdk;
 

@@ -1,4 +1,3 @@
-using NuGet.Versioning;
 using System.Runtime.InteropServices;
 
 namespace Basic.CompilerLog.Util;
