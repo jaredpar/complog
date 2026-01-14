@@ -36,39 +36,35 @@ internal static partial class CompilerArgumentUtil
     /// <summary>
     /// Checks if the given option name takes a path argument.
     /// </summary>
-    internal static bool IsPathOption(ReadOnlySpan<char> optionName)
-    {
-        var comparison = StringComparison.OrdinalIgnoreCase;
-        return
-            optionName.Equals("reference".AsSpan(), comparison) ||
-            optionName.Equals("r".AsSpan(), comparison) ||
-            optionName.Equals("analyzer".AsSpan(), comparison) ||
-            optionName.Equals("a".AsSpan(), comparison) ||
-            optionName.Equals("additionalfile".AsSpan(), comparison) ||
-            optionName.Equals("analyzerconfig".AsSpan(), comparison) ||
-            optionName.Equals("embed".AsSpan(), comparison) ||
-            optionName.Equals("resource".AsSpan(), comparison) ||
-            optionName.Equals("res".AsSpan(), comparison) ||
-            optionName.Equals("linkresource".AsSpan(), comparison) ||
-            optionName.Equals("linkres".AsSpan(), comparison) ||
-            optionName.Equals("sourcelink".AsSpan(), comparison) ||
-            optionName.Equals("ruleset".AsSpan(), comparison) ||
-            optionName.Equals("keyfile".AsSpan(), comparison) ||
-            optionName.Equals("link".AsSpan(), comparison) ||
-            optionName.Equals("l".AsSpan(), comparison) ||
-            optionName.Equals("out".AsSpan(), comparison) ||
-            optionName.Equals("refout".AsSpan(), comparison) ||
-            optionName.Equals("doc".AsSpan(), comparison) ||
-            optionName.Equals("generatedfilesout".AsSpan(), comparison) ||
-            optionName.Equals("pdb".AsSpan(), comparison) ||
-            optionName.Equals("errorlog".AsSpan(), comparison) ||
-            optionName.Equals("win32manifest".AsSpan(), comparison) ||
-            optionName.Equals("win32res".AsSpan(), comparison) ||
-            optionName.Equals("win32icon".AsSpan(), comparison) ||
-            optionName.Equals("addmodule".AsSpan(), comparison) ||
-            optionName.Equals("appconfig".AsSpan(), comparison) ||
-            optionName.Equals("lib".AsSpan(), comparison);
-    }
+    internal static bool IsPathOption(ReadOnlySpan<char> optionName) =>
+        optionName switch
+        {
+            "reference" or "r" or
+            "analyzer" or "a" or
+            "additionalfile" or
+            "analyzerconfig" or
+            "embed" or
+            "resource" or
+            "res" or
+            "linkresource" or "linkres" or
+            "sourcelink" or
+            "ruleset" or
+            "keyfile" or
+            "link" or "l" or
+            "out" or
+            "refout" or
+            "doc" or
+            "generatedfilesout" or
+            "pdb" or
+            "errorlog" or
+            "win32manifest" or
+            "win32res" or
+            "win32icon" or
+            "addmodule" or
+            "appconfig" or
+            "lib" => true,
+            _ => false
+        };
 
     /// <summary>
     /// Tries to parse an option argument into its name and value parts.
