@@ -57,6 +57,8 @@ public sealed class NuGetVersionTests
 
     [Theory]
     [InlineData("1.0.0", 1, 0, 0, null)]
+    [InlineData("1.0", 1, 0, 0, null)]             // Missing patch defaults to 0
+    [InlineData("1", 1, 0, 0, null)]               // Missing minor and patch default to 0
     [InlineData("9.0.100", 9, 0, 100, null)]
     [InlineData("10.0.100", 10, 0, 100, null)]
     [InlineData("1.2.3-alpha", 1, 2, 3, "alpha")]
@@ -66,6 +68,10 @@ public sealed class NuGetVersionTests
     [InlineData("1.0.0-alpha.beta.gamma", 1, 0, 0, "alpha.beta.gamma")]
     [InlineData("5.4.3-RC", 5, 4, 3, "RC")]
     [InlineData("0.0.0", 0, 0, 0, null)]
+    [InlineData("0", 0, 0, 0, null)]               // Zero version with defaults
+    [InlineData("5.2", 5, 2, 0, null)]             // Two components
+    [InlineData("3-alpha", 3, 0, 0, "alpha")]      // One component with prerelease
+    [InlineData("2.1-beta", 2, 1, 0, "beta")]      // Two components with prerelease
     public void TryParse_ValidVersionStrings_ReturnsTrue(string input, int major, int minor, int patch, string? prerelease)
     {
         Assert.True(NuGetVersion.TryParse(input, out var version));
@@ -80,18 +86,19 @@ public sealed class NuGetVersionTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    [InlineData("1.0")]                    // Missing patch
-    [InlineData("1")]                      // Missing minor and patch
     [InlineData("a.b.c")]                  // Non-numeric components
     [InlineData("1.2.c")]                  // Non-numeric patch
     [InlineData("1.b.3")]                  // Non-numeric minor
+    [InlineData("1.b")]                    // Non-numeric minor (two components)
     [InlineData("a.2.3")]                  // Non-numeric major
+    [InlineData("a")]                      // Non-numeric major (one component)
     [InlineData("-1.0.0")]                 // Negative major
     [InlineData("1.-1.0")]                 // Negative minor
     [InlineData("1.0.-1")]                 // Negative patch
     [InlineData("1.0.0-")]                 // Empty prerelease (trailing dash)
     [InlineData("not.a.version")]          // Invalid format
-    [InlineData("1.2.3.4")]                // Extra version component (build metadata not supported in this simple implementation)
+    [InlineData("1.2.3.4")]                // Too many version components
+    [InlineData("1.2.3.4.5")]              // Too many version components
     public void TryParse_InvalidVersionStrings_ReturnsFalse(string? input)
     {
         Assert.False(NuGetVersion.TryParse(input, out var version));
@@ -106,6 +113,20 @@ public sealed class NuGetVersionTests
         Assert.True(NuGetVersion.TryParse("1.0.0-", out var version));
         Assert.NotNull(version);
         Assert.Null(version.Prerelease);
+    }
+
+    [Fact]
+    public void TryParse_FlexibleVersionFormats_ParsesCorrectly()
+    {
+        // Test that missing components default to 0
+        Assert.True(NuGetVersion.TryParse("7", out var v1));
+        Assert.Equal(new NuGetVersion(7, 0, 0), v1);
+
+        Assert.True(NuGetVersion.TryParse("7.5", out var v2));
+        Assert.Equal(new NuGetVersion(7, 5, 0), v2);
+
+        Assert.True(NuGetVersion.TryParse("7.5.3", out var v3));
+        Assert.Equal(new NuGetVersion(7, 5, 3), v3);
     }
 
     #endregion

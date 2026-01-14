@@ -51,7 +51,8 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
     }
 
     /// <summary>
-    /// Attempts to parse a version string in the format "major.minor.patch[-prerelease]"
+    /// Attempts to parse a version string in the format "major[.minor[.patch]][-prerelease]"
+    /// Missing components default to 0 (e.g., "1" → "1.0.0", "1.2" → "1.2.0")
     /// </summary>
     public static bool TryParse(string? value, [NotNullWhen(true)] out NuGetVersion? version)
     {
@@ -78,8 +79,9 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
         }
 
         // Parse the version components (major.minor.patch)
+        // Allow 1-3 components, defaulting missing ones to 0
         var parts = versionPart.Split('.');
-        if (parts.Length < 3)
+        if (parts.Length < 1 || parts.Length > 3)
         {
             return false;
         }
@@ -89,14 +91,22 @@ public sealed class NuGetVersion : IComparable<NuGetVersion>, IEquatable<NuGetVe
             return false;
         }
 
-        if (!int.TryParse(parts[1], out var minor) || minor < 0)
+        int minor = 0;
+        if (parts.Length > 1)
         {
-            return false;
+            if (!int.TryParse(parts[1], out minor) || minor < 0)
+            {
+                return false;
+            }
         }
 
-        if (!int.TryParse(parts[2], out var patch) || patch < 0)
+        int patch = 0;
+        if (parts.Length > 2)
         {
-            return false;
+            if (!int.TryParse(parts[2], out patch) || patch < 0)
+            {
+                return false;
+            }
         }
 
         version = new NuGetVersion(major, minor, patch, prereleasePart);
