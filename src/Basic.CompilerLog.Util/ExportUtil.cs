@@ -129,7 +129,7 @@ public sealed partial class ExportUtil
         ExcludeAnalyzers = excludeAnalyzers;
     }
 
-    public void ExportAll(string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
+    internal void ExportAll(string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
         for (int  i = 0; i < Reader.Count ; i++)
@@ -144,7 +144,7 @@ public sealed partial class ExportUtil
         }
     }
 
-    public void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories)
+    internal void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories)
     {
         if (!Path.IsPathRooted(destinationDir))
         {

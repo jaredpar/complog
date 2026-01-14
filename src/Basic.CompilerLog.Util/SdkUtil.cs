@@ -44,7 +44,7 @@ public static class SdkUtil
         }
     }
 
-    public static List<(string SdkDirectory, NuGetVersion SdkVersion)> GetSdkDirectories(string? dotnetDirectory = null)
+    internal static List<(string SdkDirectory, NuGetVersion SdkVersion)> GetSdkDirectories(string? dotnetDirectory = null)
     {
         dotnetDirectory ??= GetDotnetDirectory();
         var sdk = Path.Combine(dotnetDirectory, "sdk");
@@ -67,7 +67,7 @@ public static class SdkUtil
         return sdks;
     }
 
-    public static (string SdkDirectory, NuGetVersion SdkVersion) GetLatestSdkDirectories(string? dotnetDirectory = null) =>
+    internal static (string SdkDirectory, NuGetVersion SdkVersion) GetLatestSdkDirectories(string? dotnetDirectory = null) =>
         GetSdkDirectories(dotnetDirectory)
             .OrderByDescending(x => x.SdkVersion)
             .First();
