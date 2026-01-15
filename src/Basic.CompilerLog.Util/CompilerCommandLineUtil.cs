@@ -132,10 +132,19 @@ internal static partial class CompilerCommandLineUtil
 
     /// <summary>
     /// The error log option can have an optional suffix on the path.
+    /// Handles both quoted and unquoted paths. When quoted, the format is:
+    /// /errorlog:"path with spaces,version=2"
     /// </summary>
     internal static void ParseErrorLogArgument(OptionParts option, out ReadOnlySpan<char> path, out ReadOnlySpan<char> version)
     {
         var optionValue = option.Value;
+
+        // If the entire value is quoted, strip the quotes first then look for comma
+        if (IsQuoted(optionValue))
+        {
+            optionValue = RemoveQuotes(optionValue);
+        }
+
         var commaIndex = optionValue.IndexOf(',');
         if (commaIndex < 0)
         {
@@ -199,7 +208,7 @@ internal static partial class CompilerCommandLineUtil
 
     internal static string NormalizePathOption(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
     {
-        Debug.Assert(!IsPathOption(option.Name));
+        Debug.Assert(IsPathOption(option.Name));
         Debug.Assert(option.HasColon);
 
         return option.Name switch
@@ -212,12 +221,16 @@ internal static partial class CompilerCommandLineUtil
         static string NormalizeErrorLogOption(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
         {
             ParseErrorLogArgument(option, out var path, out var version);
+            var normalizedPath = pathNormalizationUtil.NormalizePath(path.ToString());
+
             if (version.Length == 0)
             {
-                return NormalizeOptionWithPath(option, pathNormalizationUtil);
+                return $"{option.Prefix}{option.Name.ToString()}:{MaybeQuotePath(normalizedPath)}";
             }
 
-            return $"{option.Prefix}{option.Name.ToString()}:{NormalizePath(path.ToString(), pathNormalizationUtil)},{version.ToString()}";
+            // When there's a version suffix, quotes must wrap the entire value (path + version)
+            var fullValue = $@"""{normalizedPath},{version.ToString()}""";
+            return $"{option.Prefix}{option.Name.ToString()}:{fullValue}";
         }
 
         static string NormalizeReference(OptionParts option, PathNormalizationUtil pathNormalizationUtil)

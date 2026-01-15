@@ -5,6 +5,7 @@
 * Never change global.json unless explicitly asked to.
 * Never change NuGet.config files unless explicitly asked to.
 * Always use comments to explain why not what.
+* Do not use regions.
 
 ## Formatting
 

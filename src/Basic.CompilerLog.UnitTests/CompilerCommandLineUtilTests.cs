@@ -5,8 +5,6 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class CompilerCommandLineUtilTests
 {
-    #region IsOption
-
     [Theory]
     [InlineData("/reference:test.dll", true)]
     [InlineData("/r:test.dll", true)]
@@ -31,10 +29,6 @@ public sealed class CompilerCommandLineUtilTests
     {
         Assert.Equal(expected, CompilerCommandLineUtil.IsOption(arg));
     }
-
-    #endregion
-
-    #region IsPathOption
 
     [Theory]
     [InlineData("reference", true)]
@@ -77,10 +71,6 @@ public sealed class CompilerCommandLineUtilTests
     {
         Assert.Equal(expected, CompilerCommandLineUtil.IsPathOption(optionName));
     }
-
-    #endregion
-
-    #region TryParseOption
 
     [Theory]
     [InlineData("/reference:test.dll", true, '/', true, "reference", "test.dll")]
@@ -129,10 +119,6 @@ public sealed class CompilerCommandLineUtilTests
         Assert.Equal("target", option.Name.ToString());
     }
 
-    #endregion
-
-    #region ParseErrorLogArgument
-
     [Theory]
     [InlineData("/errorlog:build.sarif", "build.sarif", "")]
     [InlineData("/errorlog:build.sarif,version=2", "build.sarif", "version=2")]
@@ -147,9 +133,43 @@ public sealed class CompilerCommandLineUtilTests
         Assert.Equal(expectedVersion, version.ToString());
     }
 
-    #endregion
+    [Theory]
+    [InlineData("/errorlog:\"path with spaces/build.sarif\"", "path with spaces/build.sarif", "")]
+    [InlineData("/errorlog:\"path with spaces/build.sarif,version=2\"", "path with spaces/build.sarif", "version=2")]
+    public void ParseErrorLogArgument_QuotedPath(string arg, string expectedPath, string expectedVersion)
+    {
+        Assert.True(CompilerCommandLineUtil.TryParseOption(arg, out var option));
+        CompilerCommandLineUtil.ParseErrorLogArgument(option, out var path, out var version);
+        Assert.Equal(expectedPath, path.ToString());
+        Assert.Equal(expectedVersion, version.ToString());
+    }
 
-    #region MaybeQuotePath
+    [Theory]
+    [InlineData("/errorlog:build.sarif", "/errorlog:build.sarif")]
+    [InlineData("/errorlog:build.sarif,version=2", @"/errorlog:""build.sarif,version=2""")]
+    public void NormalizeArgument_ErrorLog_NoSpaces(string arg, string expected)
+    {
+        var util = PathNormalizationUtil.Empty;
+        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util));
+    }
+
+    [Theory]
+    [InlineData(@"/errorlog:c:\src\build.sarif", "/errorlog:/code/src/build.sarif")]
+    [InlineData(@"/errorlog:c:\src\build.sarif,version=2", @"/errorlog:""/code/src/build.sarif,version=2""")]
+    public void NormalizeArgument_ErrorLog_NormalizesPath(string arg, string expected)
+    {
+        var util = PathNormalizationUtil.WindowsToUnix;
+        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util));
+    }
+
+    [Theory]
+    [InlineData(@"/errorlog:""c:\path with spaces\build.sarif""", @"/errorlog:""/code/path with spaces/build.sarif""")]
+    [InlineData(@"/errorlog:""c:\path with spaces\build.sarif,version=2""", @"/errorlog:""/code/path with spaces/build.sarif,version=2""")]
+    public void NormalizeArgument_ErrorLog_QuotedPathWithSpaces(string arg, string expected)
+    {
+        var util = PathNormalizationUtil.WindowsToUnix;
+        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util));
+    }
 
     [Theory]
     [InlineData("simple.cs", "simple.cs")]
@@ -161,10 +181,6 @@ public sealed class CompilerCommandLineUtilTests
     {
         Assert.Equal(expected, CompilerCommandLineUtil.MaybeQuotePath(path));
     }
-
-    #endregion
-
-    #region IsQuoted
 
     [Theory]
     [InlineData("\"quoted\"", true)]
@@ -179,10 +195,6 @@ public sealed class CompilerCommandLineUtilTests
     {
         Assert.Equal(expected, CompilerCommandLineUtil.IsQuoted(value));
     }
-
-    #endregion
-
-    #region MaybeRemoveQuotes
 
     [Theory]
     [InlineData("\"quoted\"", "quoted")]
@@ -204,10 +216,6 @@ public sealed class CompilerCommandLineUtilTests
         var result = CompilerCommandLineUtil.MaybeRemoveQuotes(span);
         Assert.Equal(expected, result.ToString());
     }
-
-    #endregion
-
-    #region NormalizeArgument
 
     [Theory]
     [InlineData("/debug+", "/debug+")]
@@ -235,6 +243,4 @@ public sealed class CompilerCommandLineUtilTests
         var result = CompilerCommandLineUtil.NormalizeArgument(@"""c:\src\my file.cs""", util);
         Assert.Equal("\"/code/src/my file.cs\"", result);
     }
-
-    #endregion
 }
