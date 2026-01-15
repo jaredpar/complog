@@ -210,13 +210,13 @@ public sealed partial class ExportUtil
             {
                 // The only non-options are source files and those are rewritten by other
                 // methods and added to commandLineList
-                if (!CompilerArgumentUtil.IsOption(line.AsSpan()))
+                if (!CompilerCommandLineUtil.IsOption(line.AsSpan()))
                 {
                     continue;
                 }
 
                 // Handle options without a value (e.g., /noconfig, /unsafe+)
-                if (!CompilerArgumentUtil.TryParseOption(line, out var optionName, out var optionValue))
+                if (!CompilerCommandLineUtil.TryParseOptionWithValue(line, out var optionName, out var optionValue))
                 {
                     // For options without colon, the option name is everything after the /
                     var lineSpan = line.AsSpan()[1..];
@@ -264,7 +264,7 @@ public sealed partial class ExportUtil
                     var suffix = "";
                     if (optionName.Equals("errorlog".AsSpan(), comparison))
                     {
-                        path = CompilerArgumentUtil.RemoveQuotes(path);
+                        path = CompilerCommandLineUtil.MaybeRemoveQuotes(path);
                         var commaIndex = path.IndexOf(',');
                         if (commaIndex >= 0)
                         {
@@ -480,7 +480,7 @@ public sealed partial class ExportUtil
 
     private static string MaybeQuoteArgument(string arg)
     {
-        if (CompilerArgumentUtil.IsOption(arg.AsSpan()))
+        if (CompilerCommandLineUtil.IsOption(arg.AsSpan()))
         {
             return arg;
         }
