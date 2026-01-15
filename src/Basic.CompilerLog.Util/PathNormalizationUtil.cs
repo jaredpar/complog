@@ -37,6 +37,12 @@ internal abstract class PathNormalizationUtil
     /// <summary>
     /// Normalize the path from the "from" platform to the "to" platform
     /// </summary>
+    internal ReadOnlySpan<char> NormalizePath(ReadOnlySpan<char> path) =>
+        NormalizePath(path.ToString()) ?? ReadOnlySpan<char>.Empty;
+
+    /// <summary>
+    /// Normalize the path from the "from" platform to the "to" platform
+    /// </summary>
     [return: NotNullIfNotNull("path")]
     internal abstract string? NormalizePath(string? path);
 

@@ -350,7 +350,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             // Arguments without an option name are source file paths
             if (!CompilerArgumentUtil.IsOption(arg.AsSpan()))
             {
-                return NormalizePathArgument(arg);
+                return NormalizePathArgument(arg).ToString();
             }
 
             if (!CompilerArgumentUtil.TryParseOption(arg, out var optionName, out var optionValue))
@@ -373,7 +373,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             return NormalizeOptionWithPath(arg, optionValue);
         }
 
-        string NormalizeOptionWithPath(string arg, string valuePart)
+        string NormalizeOptionWithPath(ReadOnlySpan<char> arg, ReadOnlySpan<char> valuePart)
         {
             var colonIndex = arg.IndexOf(':');
             var optionPart = arg[..(colonIndex + 1)];
@@ -384,13 +384,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             {
                 var alias = valuePart[..(equalsIndex + 1)];
                 var path = valuePart[(equalsIndex + 1)..];
-                return optionPart + alias + NormalizePathArgument(path);
+                return string.Concat(optionPart, alias, NormalizePathArgument(path));
             }
 
-            return optionPart + NormalizePathArgument(valuePart);
+            return string.Concat(optionPart, NormalizePathArgument(valuePart));
         }
 
-        string NormalizeErrorLogOption(string arg, string valuePart)
+        string NormalizeErrorLogOption(ReadOnlySpan<char> arg, ReadOnlySpan<char> valuePart)
         {
             var colonIndex = arg.IndexOf(':');
             var optionPart = arg[..(colonIndex + 1)];
@@ -403,23 +403,25 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             {
                 var path = valuePart[..commaIndex];
                 var suffix = valuePart[commaIndex..];
-                var normalizedPath = NormalizePath(path) ?? path;
-                return optionPart + CompilerArgumentUtil.MaybeQuotePath(normalizedPath + suffix);
+                var normalizedPath = NormalizePath(path);
+                return string.Concat(
+                    optionPart,
+                    CompilerArgumentUtil.MaybeQuotePath(string.Concat(normalizedPath, suffix)));
             }
 
-            return optionPart + NormalizePathArgument(valuePart);
+            return string.Concat(optionPart, NormalizePathArgument(valuePart));
         }
 
-        string NormalizePathArgument(string pathArg)
+        ReadOnlySpan<char> NormalizePathArgument(ReadOnlySpan<char> pathArg)
         {
             var path = CompilerArgumentUtil.RemoveQuotes(pathArg);
             var normalizedPath = NormalizePath(path);
-            if (normalizedPath is null)
+            if (normalizedPath.Length == 0)
             {
                 return pathArg;
             }
 
-            return CompilerArgumentUtil.MaybeQuotePath(normalizedPath);
+            return CompilerArgumentUtil.MaybeQuotePath(normalizedPath.ToString());
         }
     }
 
@@ -1004,6 +1006,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     [return: NotNullIfNotNull("path")]
     private string? NormalizePath(string? path) => PathNormalizationUtil.NormalizePath(path);
+
+    private ReadOnlySpan<char> NormalizePath(ReadOnlySpan<char> path) => PathNormalizationUtil.NormalizePath(path);
 
     public void Dispose()
     {

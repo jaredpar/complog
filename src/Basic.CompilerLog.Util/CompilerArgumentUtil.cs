@@ -73,7 +73,7 @@ internal static partial class CompilerArgumentUtil
     /// <param name="optionName">The option name without the leading slash (e.g., "reference")</param>
     /// <param name="optionValue">The value after the colon (e.g., "path")</param>
     /// <returns>True if the argument is an option with a value, false otherwise</returns>
-    internal static bool TryParseOption(string arg, out ReadOnlySpan<char> optionName, out string optionValue)
+    internal static bool TryParseOption(string arg, out ReadOnlySpan<char> optionName, out ReadOnlySpan<char> optionValue)
     {
         optionName = default;
         optionValue = "";
@@ -91,7 +91,7 @@ internal static partial class CompilerArgumentUtil
         }
 
         optionName = span[..colonIndex];
-        optionValue = span[(colonIndex + 1)..].ToString();
+        optionValue = span[(colonIndex + 1)..];
         return true;
     }
 
@@ -107,10 +107,19 @@ internal static partial class CompilerArgumentUtil
         return path;
     }
 
+    internal static string RemoveQuotes(string value)
+    {
+        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+        {
+            return value[1..^1];
+        }
+        return value;
+    }
+
     /// <summary>
     /// Removes surrounding quotes from a string if present.
     /// </summary>
-    internal static string RemoveQuotes(string value)
+    internal static ReadOnlySpan<char> RemoveQuotes(ReadOnlySpan<char> value)
     {
         if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
         {

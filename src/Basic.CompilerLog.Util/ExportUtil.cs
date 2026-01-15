@@ -260,7 +260,7 @@ public sealed partial class ExportUtil
                     optionName.Equals("errorlog".AsSpan(), comparison))
                 {
                     // Handle `/errorlog:"path,version=123"`.
-                    var path = optionValue;
+                    var path = optionValue.ToString();
                     var suffix = "";
                     if (optionName.Equals("errorlog".AsSpan(), comparison))
                     {
