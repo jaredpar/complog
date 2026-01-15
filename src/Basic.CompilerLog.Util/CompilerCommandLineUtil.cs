@@ -12,13 +12,13 @@ internal static partial class CompilerCommandLineUtil
     internal readonly ref struct OptionParts(
         char prefix,
         bool hasColon,
-        ReadOnlySpan<char> optionName,
-        ReadOnlySpan<char> optionValue)
+        ReadOnlySpan<char> namme,
+        ReadOnlySpan<char> value)
     {
         internal char Prefix { get; } = prefix;
         internal bool HasColon { get; }= hasColon;
-        internal ReadOnlySpan<char> OptionName { get; }= optionName;
-        internal ReadOnlySpan<char> OptionValue { get; }= optionValue;
+        internal ReadOnlySpan<char> Name { get; }= namme;
+        internal ReadOnlySpan<char> Value { get; }= value;
     }
 
     /* lang=regex */
@@ -87,8 +87,7 @@ internal static partial class CompilerCommandLineUtil
         var colonIndex = arg.IndexOf(':');
         if (colonIndex > 0)
         {
-            // TODO: ensure this is lower case
-            var optionName = arg[..colonIndex];
+            var optionName = ToLowerInvariant(arg[..colonIndex]);
             var optionValue = arg[(colonIndex + 1)..];
             optionParts = new OptionParts(prefix, hasColon: true, optionName, optionValue);
         }
@@ -104,14 +103,40 @@ internal static partial class CompilerCommandLineUtil
         }
 
         return true;
+
+        static ReadOnlySpan<char> ToLowerInvariant(ReadOnlySpan<char> value)
+        {
+            var anyUpper = false;
+            for (int i = 0; i < value.Length; i++)
+            {
+                if (char.IsUpper(value[i]))
+                {
+                    anyUpper = true;
+                    break;
+                }
+            }
+
+            if (!anyUpper)
+            {
+                return value;
+            }
+
+            var array = new char[value.Length];
+            for (int i = 0; i < value.Length; i++)
+            {
+                array[i] = char.ToLowerInvariant(value[i]);
+            }
+            return array;
+        }
     }
 
     /// <summary>
     /// The error log option can have an optional suffix on the path.
     /// </summary>
-    internal static void ParseErrorLogArgument(ReadOnlySpan<char> optionValue, out ReadOnlySpan<char> path, out ReadOnlySpan<char> version)
+    internal static void ParseErrorLogArgument(OptionParts option, out ReadOnlySpan<char> path, out ReadOnlySpan<char> version)
     {
-        var commaIndex = optionValue.LastIndexOf(',');
+        var optionValue = option.Value;
+        var commaIndex = optionValue.IndexOf(',');
         if (commaIndex < 0)
         {
             path = optionValue;
@@ -164,47 +189,56 @@ internal static partial class CompilerCommandLineUtil
         }
 
         // If it's not a /option:value format then return as is as we don't need to normalize
-        if (!TryParseOptionWithValue(argument, out var optionName, out var optionValue) ||
-            IsPathOption(optionName) == false)
+        if (!TryParseOption(argument, out var option) || !IsPathOption(option.Name))
         {
             return argument;
         }
 
-        return NormalizePathOption(optionName.ToString(), optionValue.ToString(), pathNormalizationUtil);
+        return NormalizePathOption(option, pathNormalizationUtil);
     }
 
-    internal static string NormalizePathOption(string optionName, string optionValue, PathNormalizationUtil pathNormalizationUtil)
+    internal static string NormalizePathOption(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
     {
-        return optionName switch
+        Debug.Assert(!IsPathOption(option.Name));
+        Debug.Assert(option.HasColon);
+
+        return option.Name switch
         {
-            "errorlog" => NormalizeErrorLogOption(optionName, optionValue),
-            "reference" => NormalizeReference(optionName, optionValue),
-            _ => NormalizeOptionWithPath(argument, optionValue),
+            "errorlog" => NormalizeErrorLogOption(option, pathNormalizationUtil),
+            "reference" => NormalizeReference(option, pathNormalizationUtil),
+            _ => NormalizeOptionWithPath(option, pathNormalizationUtil)
         };
 
-        string NormalizeErrorLogOption(ReadOnlySpan<char> optionName, ReadOnlySpan<char> optionValue)
+        static string NormalizeErrorLogOption(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
         {
-            CompilerCommandLineUtil.ParseErrorLogArgument(optionValue, out var path, out var version);
+            ParseErrorLogArgument(option, out var path, out var version);
             if (version.Length == 0)
             {
-                return NormalizeOptionWithPath(optionName, optionValue);
+                return NormalizeOptionWithPath(option, pathNormalizationUtil);
             }
 
-            return $"{optionName}:{NormalizePathArgument(path.ToString())},{version.ToString()}";
+            return $"{option.Prefix}{option.Name.ToString()}:{NormalizePath(path.ToString(), pathNormalizationUtil)},{version.ToString()}";
         }
 
-        string NormalizeOptionWithPath(ReadOnlySpan<char> optionName, ReadOnlySpan<char> optionValue)
+        static string NormalizeReference(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
         {
             // Handle alias syntax: /reference:alias=path
-            var equalsIndex = optionValue.IndexOf('=');
+            var value = option.Value;
+            var equalsIndex = value.IndexOf('=');
             if (equalsIndex >= 0)
             {
-                var alias = optionValue[..(equalsIndex + 1)];
-                var path = optionValue[(equalsIndex + 1)..];
-                return string.Concat(optionName, alias, NormalizePathArgument(path));
+                // TODO: when the path has a space where do the quotes go?
+                var alias = value[..(equalsIndex + 1)];
+                var path = value[(equalsIndex + 1)..];
+                return $"{option.Prefix}{option.Name.ToString()}:{alias.ToString()}={NormalizePath(path.ToString(), pathNormalizationUtil)}";
             }
 
-            return $"/{optionName}:{NormalizePath(optionValue.ToString(), pathNormalizationUtil)}";
+            return NormalizeOptionWithPath(option, pathNormalizationUtil);
+        }
+
+        static string NormalizeOptionWithPath(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
+        {
+            return $"{option.Prefix}{option.Name.ToString()}:{NormalizePath(option.Value.ToString(), pathNormalizationUtil)}";
         }
     }
 

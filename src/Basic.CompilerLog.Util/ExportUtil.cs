@@ -210,13 +210,13 @@ public sealed partial class ExportUtil
             {
                 // The only non-options are source files and those are rewritten by other
                 // methods and added to commandLineList
-                if (!CompilerCommandLineUtil.IsOption(line.AsSpan()))
+                if (!CompilerCommandLineUtil.IsOption(line))
                 {
                     continue;
                 }
 
                 // Handle options without a value (e.g., /noconfig, /unsafe+)
-                if (!CompilerCommandLineUtil.TryParseOptionWithValue(line, out var optionName, out var optionValue))
+                if (!CompilerCommandLineUtil.TryParseOption(line, out var option))
                 {
                     // For options without colon, the option name is everything after the /
                     var lineSpan = line.AsSpan()[1..];
@@ -230,6 +230,9 @@ public sealed partial class ExportUtil
                     }
                     continue;
                 }
+
+                var optionName = option.Name;
+                var optionValue = option.Value;
 
                 // These options are all rewritten below
                 if (optionName.Equals("reference".AsSpan(), comparison) ||

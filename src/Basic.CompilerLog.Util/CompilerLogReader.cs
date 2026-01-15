@@ -340,7 +340,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var index = 0;
         foreach (var arg in rawArgs)
         {
-            normalizedArgs[index++] = NormalizeArgument(arg);
+            normalizedArgs[index++] = CompilerCommandLineUtil.NormalizeArgument(arg, PathNormalizationUtil);
         }
 
         return normalizedArgs;
