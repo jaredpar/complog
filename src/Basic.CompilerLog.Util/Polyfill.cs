@@ -70,88 +70,101 @@ internal static class PolyfillExtensions
 
     extension (MemoryMarshal)
     {
-        internal static unsafe ref T GetNonNullPinnableReference<T>(Span<T> span) =>
+        public static unsafe ref T GetNonNullPinnableReference<T>(Span<T> span) =>
             ref (span.Length != 0)
                 ? ref MemoryMarshal.GetReference(span)
                 : ref Unsafe.AsRef<T>((void*)1);
 
-        internal static unsafe ref T GetNonNullPinnableReference<T>(ReadOnlySpan<T> span) =>
+        public static unsafe ref T GetNonNullPinnableReference<T>(ReadOnlySpan<T> span) =>
             ref (span.Length != 0)
                 ? ref MemoryMarshal.GetReference(span)
                 : ref Unsafe.AsRef<T>((void*)1);
     }
 
-    internal static void Append(this StringBuilder @this, ReadOnlySpan<char> value)
+    extension  (StringBuilder @this)
     {
-        foreach (var c in value)
+        public void Append(ReadOnlySpan<char> value)
         {
-            @this.Append(c);
-        }
-    }
-
-    internal static bool StartsWith(this ReadOnlySpan<char> @this, string value, StringComparison comparisonType) =>
-        @this.StartsWith(value.AsSpan(), comparisonType);
-
-    internal static bool Contains(this string @this, string value, StringComparison comparisonType) =>
-        @this.IndexOf(value, comparisonType) >= 0;
-
-    internal static bool Contains(this ReadOnlySpan<char> @this, char value) =>
-        @this.IndexOf(value) >= 0;
-
-    internal static void ReadExactly(this Stream @this, Span<byte> buffer)
-    {
-        var bytes = new byte[1024];
-        while (buffer.Length > 0)
-        {
-            var read = @this.Read(bytes, 0, Math.Min(bytes.Length, buffer.Length));
-            if (read == 0)
+            foreach (var c in value)
             {
-                throw new EndOfStreamException();
+                @this.Append(c);
             }
-
-            bytes.AsSpan(0, read).CopyTo(buffer);
-            buffer = buffer.Slice(read);
         }
     }
 
-    internal static void Write(this TextWriter @this, ReadOnlySpan<char> buffer)
+    extension (ReadOnlySpan<char> @this)
     {
-        for (int i = 0; i < buffer.Length; i++)
+        internal bool StartsWith(string value, StringComparison comparisonType) =>
+            @this.StartsWith(value.AsSpan(), comparisonType);
+
+        internal bool Contains(string value, StringComparison comparisonType) =>
+            @this.IndexOf(value, comparisonType) >= 0;
+
+        internal bool Contains(char value) =>
+            @this.IndexOf(value) >= 0;
+    }
+
+    extension (Stream @this)
+    {
+        public void ReadExactly(Span<byte> buffer)
         {
-            @this.Write(buffer[i]);
+            var bytes = new byte[1024];
+            while (buffer.Length > 0)
+            {
+                var read = @this.Read(bytes, 0, Math.Min(bytes.Length, buffer.Length));
+                if (read == 0)
+                {
+                    throw new EndOfStreamException();
+                }
+
+                bytes.AsSpan(0, read).CopyTo(buffer);
+                buffer = buffer.Slice(read);
+            }
         }
     }
 
-    internal static void WriteLine(this TextWriter @this, ReadOnlySpan<char> buffer)
+    extension (TextWriter @this)
     {
-        Write(@this, buffer);
-        @this.WriteLine();
-    }
-
-    internal static unsafe int GetByteCount(this Encoding @this, ReadOnlySpan<char> chars)
-    {
-        fixed (char* charsPtr = &MemoryMarshal.GetNonNullPinnableReference(chars))
+        public void Write(ReadOnlySpan<char> buffer)
         {
-            return @this.GetByteCount(charsPtr, chars.Length);
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                @this.Write(buffer[i]);
+            }
         }
-    }
 
-    internal static unsafe int GetBytes(this Encoding @this, ReadOnlySpan<char> chars, Span<byte> bytes)
-    {
-        fixed (char* charsPtr = &MemoryMarshal.GetNonNullPinnableReference(chars))
-        fixed (byte* bytesPtr = &MemoryMarshal.GetNonNullPinnableReference(bytes))
+        public void WriteLine(ReadOnlySpan<char> buffer)
         {
-            return @this.GetBytes(charsPtr, chars.Length, bytesPtr, bytes.Length);
+            Write(@this, buffer);
+            @this.WriteLine();
         }
     }
 
-    internal static bool IsMatch(this Regex @this, ReadOnlySpan<char> input) =>
-        @this.IsMatch(input.ToString());
+    extension (Encoding @this)
+    {
+        public unsafe int GetByteCount(ReadOnlySpan<char> chars)
+        {
+            fixed (char* charsPtr = &MemoryMarshal.GetNonNullPinnableReference(chars))
+            {
+                return @this.GetByteCount(charsPtr, chars.Length);
+            }
+        }
 
-#if !NET9_0_OR_GREATER
-    internal static IEnumerable<(int Index, T Item)> Index<T>(this IEnumerable<T> @this) =>
-        @this.Select((item, index) => (index, item));
-#endif
+        public unsafe int GetBytes(ReadOnlySpan<char> chars, Span<byte> bytes)
+        {
+            fixed (char* charsPtr = &MemoryMarshal.GetNonNullPinnableReference(chars))
+            fixed (byte* bytesPtr = &MemoryMarshal.GetNonNullPinnableReference(bytes))
+            {
+                return @this.GetBytes(charsPtr, chars.Length, bytesPtr, bytes.Length);
+            }
+        }
+    }
+
+    extension (Regex @this)
+    {
+        public bool IsMatch(ReadOnlySpan<char> input) =>
+            @this.IsMatch(input.ToString());
+    }
 
 #endif
 }
