@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util;
 using Basic.Reference.Assemblies;
 using System;
 using System.Collections.Generic;
@@ -262,7 +262,7 @@ public sealed class ExportUtilTests : TestBase
                 if (line.StartsWith("/link:", StringComparison.Ordinal))
                 {
                     foundPath = true;
-                    Assert.Equal($@"/link:""ref{Path.DirectorySeparatorChar}{piaInfo.FileName}""", line);
+                    Assert.Equal($@"/link:ref{Path.DirectorySeparatorChar}{piaInfo.FileName}", line);
                 }
             }
 

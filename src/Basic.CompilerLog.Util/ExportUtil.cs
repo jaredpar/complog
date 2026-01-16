@@ -65,8 +65,8 @@ public sealed partial class ExportUtil
             // Normalize out all of the ..\ and .\ in the path to the current platform.
             var normalizedPath = PathNormalizationUtil.NormalizePath(path);
 
-            // If the path isn't rooted then it's relative to the source directory. Need to
-            // make it relative to the new source directory.
+            // If the path isn't rooted then it's relative to the working directory. Need to
+            // make it relative to the new working directory
             if (!Path.IsPathRooted(normalizedPath))
             {
                 return Path.Combine(Path.GetFileName(SourceOutputDirectory)!, normalizedPath);
@@ -98,15 +98,15 @@ public sealed partial class ExportUtil
         {
             if (optionName is "out" or "refout" or "doc" or "generatedfilesout" or "errorlog")
             {
-                var originalPath = PathNormalizationUtil.NormalizePath(path, optionName);
-                var newPath = BuildOutput.GetNewFilePath(originalPath);
+                var normalizedPath = PathNormalizationUtil.NormalizePath(path, optionName);
+                var newPath = BuildOutput.GetNewFilePath(normalizedPath);
 
                 if (optionName is "generatedfilesout")
                 {
                     _ = Directory.CreateDirectory(newPath);
                 }
 
-               return PathUtil.RemovePathStart(newPath, BuildOutput.DirectoryPath);
+                return PathUtil.RemovePathStart(newPath, DestinationDirectory);
             }
 
             return NormalizePath(path);
@@ -248,7 +248,7 @@ public sealed partial class ExportUtil
                 {
                     switch (option.Name)
                     {
-                        case "reference" or "r":
+                        case "reference" or "r" or "link" or "l":
                         {
                             newLines.AddRange(referenceLines);
                             referenceLines.Clear();
