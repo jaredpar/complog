@@ -1,4 +1,4 @@
-using Basic.CompilerLog.Util.Impl;
+﻿using Basic.CompilerLog.Util.Impl;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.CodeAnalysis;
@@ -340,7 +340,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var index = 0;
         foreach (var arg in rawArgs)
         {
-            normalizedArgs[index++] = CompilerCommandLineUtil.NormalizeArgument(arg, PathNormalizationUtil);
+            normalizedArgs[index++] = CompilerCommandLineUtil.NormalizeArgument(arg, PathNormalizationUtil.NormalizePath);
         }
 
         return normalizedArgs;

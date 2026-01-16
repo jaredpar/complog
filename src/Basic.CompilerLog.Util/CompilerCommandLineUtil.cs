@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using Microsoft.CodeAnalysis.Options;
 
 namespace Basic.CompilerLog.Util;
 
@@ -9,6 +8,8 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 internal static partial class CompilerCommandLineUtil
 {
+    internal delegate string NormalizePathFunc(string path, ReadOnlySpan<char> optionName);
+
     internal readonly ref struct OptionParts(
         char prefix,
         bool hasColon,
@@ -40,14 +41,13 @@ internal static partial class CompilerCommandLineUtil
     /// <summary>
     /// Checks if the given option name takes a path argument.
     /// </summary>
-    internal static bool IsPathOption(ReadOnlySpan<char> optionName) =>
-        optionName switch
+    internal static bool IsPathOption(OptionParts option) =>
+        option.Name switch
         {
             "reference" or "r" or
             "analyzer" or "a" or
             "additionalfile" or
             "analyzerconfig" or
-            "embed" or
             "resource" or
             "res" or
             "linkresource" or "linkres" or
@@ -67,6 +67,7 @@ internal static partial class CompilerCommandLineUtil
             "addmodule" or
             "appconfig" or
             "lib" => true,
+            "embed" when option.HasColon => true,
             _ => false
         };
 
@@ -163,10 +164,11 @@ internal static partial class CompilerCommandLineUtil
     /// </summary>
     internal static string MaybeQuotePath(string path)
     {
-        if (path.Contains(' '))
+        if (path.IndexOfAny([' ', '=', ',']) >= 0)
         {
             return $"\"{path}\"";
         }
+
         return path;
     }
 
@@ -187,41 +189,41 @@ internal static partial class CompilerCommandLineUtil
 
     /// <summary>
     /// This normalizes a single compiler commmand line argument according to the
-    /// provided <paramref name="pathNormalizationUtil"/>
+    /// provided <paramref name="normalizePathFunc"/>
     /// </summary>
-    internal static string NormalizeArgument(string argument, PathNormalizationUtil pathNormalizationUtil)
+    internal static string NormalizeArgument(string argument, NormalizePathFunc normalizePathFunc)
     {
         // If this not an option then it's a source file path that needs to be normalized
         if (!IsOption(argument))
         {
-            return NormalizePath(argument, pathNormalizationUtil);
+            return NormalizePath(argument, "", normalizePathFunc);
         }
 
         // If it's not a /option:value format then return as is as we don't need to normalize
-        if (!TryParseOption(argument, out var option) || !IsPathOption(option.Name))
+        if (!TryParseOption(argument, out var option) || !IsPathOption(option))
         {
             return argument;
         }
 
-        return NormalizePathOption(option, pathNormalizationUtil);
+        return NormalizePathOption(option, normalizePathFunc);
     }
 
-    internal static string NormalizePathOption(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
+    internal static string NormalizePathOption(OptionParts option, NormalizePathFunc normalizePathFunc)
     {
-        Debug.Assert(IsPathOption(option.Name));
+        Debug.Assert(IsPathOption(option));
         Debug.Assert(option.HasColon);
 
         return option.Name switch
         {
-            "errorlog" => NormalizeErrorLogOption(option, pathNormalizationUtil),
-            "reference" => NormalizeReference(option, pathNormalizationUtil),
-            _ => NormalizeOptionWithPath(option, pathNormalizationUtil)
+            "errorlog" => NormalizeErrorLogOption(option, normalizePathFunc),
+            "reference" => NormalizeReference(option, normalizePathFunc),
+            _ => NormalizeOptionWithPath(option, normalizePathFunc)
         };
 
-        static string NormalizeErrorLogOption(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
+        static string NormalizeErrorLogOption(OptionParts option, NormalizePathFunc normalizePathFunc)
         {
             ParseErrorLogArgument(option, out var path, out var version);
-            var normalizedPath = pathNormalizationUtil.NormalizePath(path.ToString());
+            var normalizedPath = normalizePathFunc(path.ToString(), option.Name);
 
             if (version.Length == 0)
             {
@@ -233,7 +235,7 @@ internal static partial class CompilerCommandLineUtil
             return $"{option.Prefix}{option.Name.ToString()}:{fullValue}";
         }
 
-        static string NormalizeReference(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
+        static string NormalizeReference(OptionParts option, NormalizePathFunc normalizePathFunc)
         {
             // Handle alias syntax: /reference:alias=path
             var value = option.Value;
@@ -243,22 +245,22 @@ internal static partial class CompilerCommandLineUtil
                 // TODO: when the path has a space where do the quotes go?
                 var alias = value[..(equalsIndex + 1)];
                 var path = value[(equalsIndex + 1)..];
-                return $"{option.Prefix}{option.Name.ToString()}:{alias.ToString()}={NormalizePath(path.ToString(), pathNormalizationUtil)}";
+                return $"{option.Prefix}{option.Name.ToString()}:{alias.ToString()}={NormalizePath(path.ToString(), option.Name, normalizePathFunc)}";
             }
 
-            return NormalizeOptionWithPath(option, pathNormalizationUtil);
+            return NormalizeOptionWithPath(option, normalizePathFunc);
         }
 
-        static string NormalizeOptionWithPath(OptionParts option, PathNormalizationUtil pathNormalizationUtil)
+        static string NormalizeOptionWithPath(OptionParts option, NormalizePathFunc normalizePathFunc)
         {
-            return $"{option.Prefix}{option.Name.ToString()}:{NormalizePath(option.Value.ToString(), pathNormalizationUtil)}";
+            return $"{option.Prefix}{option.Name.ToString()}:{NormalizePath(option.Value.ToString(), option.Name, normalizePathFunc)}";
         }
     }
 
-    private static string NormalizePath(string path, PathNormalizationUtil pathNormalizationUtil)
+    private static string NormalizePath(string path, ReadOnlySpan<char> optionName, NormalizePathFunc normalizePathFunc)
     {
-        path = CompilerCommandLineUtil.MaybeRemoveQuotes(path);
-        path = pathNormalizationUtil.NormalizePath(path);
-        return CompilerCommandLineUtil.MaybeQuotePath(path);
+        path = MaybeRemoveQuotes(path);
+        path = normalizePathFunc(path, optionName);
+        return MaybeQuotePath(path);
     }
 }

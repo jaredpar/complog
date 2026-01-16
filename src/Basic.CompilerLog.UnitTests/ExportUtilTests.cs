@@ -104,7 +104,7 @@ public sealed class ExportUtilTests : TestBase
         {
             count++;
             testOutputHelper.WriteLine($"Testing export for {compilerCall.ProjectFileName} - {compilerCall.TargetFramework}");
-            using var tempDir = new TempDir();
+            using var tempDir = new TempDir(compilerCall.ProjectFileName);
             exportUtil.Export(compilerCall, tempDir.DirectoryPath, sdkDirs);
 
             if (runBuild)
@@ -114,7 +114,7 @@ public sealed class ExportUtilTests : TestBase
                 testOutputHelper.WriteLine(buildResult.StandardOut);
                 testOutputHelper.WriteLine(buildResult.StandardError);
                 verifyBuildResult?.Invoke(buildResult);
-                Assert.True(buildResult.Succeeded, $"Cannot build {compilerCall.ProjectFileName}");
+                Assert.True(buildResult.Succeeded, $"Cannot build {compilerCall.ProjectFileName}: {buildResult.StandardOut}");
             }
 
             // Ensure that full paths aren't getting written out to the RSP file. That makes the

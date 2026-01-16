@@ -65,6 +65,7 @@ public interface ICompilerCallReader : IDisposable
     public List<(SourceText SourceText, string FilePath)> ReadAllGeneratedSourceTexts(CompilerCall compilerCall);
 
     /// <summary>
+    /// TODO: delete this
     /// Read the raw command line arguments passed to the compiler without any path normalization.
     /// </summary>
     /// <remarks>

@@ -1,4 +1,5 @@
 using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis.Options;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -69,7 +70,8 @@ public sealed class CompilerCommandLineUtilTests
     [InlineData("", false)]
     public void IsPathOption(string optionName, bool expected)
     {
-        Assert.Equal(expected, CompilerCommandLineUtil.IsPathOption(optionName));
+        var option = new CompilerCommandLineUtil.OptionParts('/', true, optionName, "");
+        Assert.Equal(expected, CompilerCommandLineUtil.IsPathOption(option));
     }
 
     [Theory]
@@ -150,7 +152,7 @@ public sealed class CompilerCommandLineUtilTests
     public void NormalizeArgument_ErrorLog_NoSpaces(string arg, string expected)
     {
         var util = PathNormalizationUtil.Empty;
-        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util));
+        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util.NormalizePath));
     }
 
     [Theory]
@@ -159,7 +161,7 @@ public sealed class CompilerCommandLineUtilTests
     public void NormalizeArgument_ErrorLog_NormalizesPath(string arg, string expected)
     {
         var util = PathNormalizationUtil.WindowsToUnix;
-        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util));
+        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util.NormalizePath));
     }
 
     [Theory]
@@ -168,7 +170,7 @@ public sealed class CompilerCommandLineUtilTests
     public void NormalizeArgument_ErrorLog_QuotedPathWithSpaces(string arg, string expected)
     {
         var util = PathNormalizationUtil.WindowsToUnix;
-        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util));
+        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util.NormalizePath));
     }
 
     [Theory]
@@ -225,14 +227,14 @@ public sealed class CompilerCommandLineUtilTests
     public void NormalizeArgument_NonPathOptions_ReturnsUnchanged(string arg, string expected)
     {
         var util = PathNormalizationUtil.Empty;
-        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util));
+        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util.NormalizePath));
     }
 
     [Fact]
     public void NormalizeArgument_SourceFile_NormalizesPath()
     {
         var util = PathNormalizationUtil.WindowsToUnix;
-        var result = CompilerCommandLineUtil.NormalizeArgument(@"c:\src\file.cs", util);
+        var result = CompilerCommandLineUtil.NormalizeArgument(@"c:\src\file.cs", util.NormalizePath);
         Assert.Equal("/code/src/file.cs", result);
     }
 
@@ -240,7 +242,7 @@ public sealed class CompilerCommandLineUtilTests
     public void NormalizeArgument_QuotedSourceFile_NormalizesPath()
     {
         var util = PathNormalizationUtil.WindowsToUnix;
-        var result = CompilerCommandLineUtil.NormalizeArgument(@"""c:\src\my file.cs""", util);
+        var result = CompilerCommandLineUtil.NormalizeArgument(@"""c:\src\my file.cs""", util.NormalizePath);
         Assert.Equal("\"/code/src/my file.cs\"", result);
     }
 }
