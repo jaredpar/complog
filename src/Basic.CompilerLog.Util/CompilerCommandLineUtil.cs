@@ -1,4 +1,6 @@
+using Microsoft.CodeAnalysis.Diagnostics;
 using System.Diagnostics;
+using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 
 namespace Basic.CompilerLog.Util;
@@ -10,20 +12,32 @@ internal static partial class CompilerCommandLineUtil
 {
     internal delegate string NormalizePathFunc(string path, ReadOnlySpan<char> optionName);
 
+    internal enum OptionSuffix
+    {
+        None,
+        Plus,
+        Minus,
+        Colon,
+        PlusColon,
+        MinusColon
+    }
+
     internal readonly ref struct OptionParts(
         char prefix,
-        bool hasColon,
-        ReadOnlySpan<char> namme,
+        ReadOnlySpan<char> name,
+        OptionSuffix suffix,
         ReadOnlySpan<char> value)
     {
         internal char Prefix { get; } = prefix;
-        internal bool HasColon { get; }= hasColon;
-        internal ReadOnlySpan<char> Name { get; }= namme;
+        internal ReadOnlySpan<char> Name { get; }= name;
+        internal OptionSuffix Suffix { get; } = suffix;
         internal ReadOnlySpan<char> Value { get; }= value;
+        internal bool HasColon => HasColon(Suffix);
+
     }
 
     /* lang=regex */
-    private const string OptionRegexContent = @"^[/-][a-z0-9]+(:|[+-]?$)";
+    private const string OptionRegexContent = @"^[/-][a-z0-9]+(:|\+|-|\+:|-:)?$";
 
 #if NET
     [GeneratedRegex(OptionRegexContent, RegexOptions.IgnoreCase)]
@@ -33,10 +47,14 @@ internal static partial class CompilerCommandLineUtil
     private static Regex OptionsRegex { get; } = new Regex(OptionRegexContent, RegexOptions.IgnoreCase);
 #endif
 
+    internal static bool HasColon(OptionSuffix suffix) => suffix is OptionSuffix.Colon or OptionSuffix.PlusColon or OptionSuffix.MinusColon;
+
     /// <summary>
     /// Checks if an argument is a compiler option (starts with / and has valid option format)
     /// </summary>
-    internal static bool IsOption(ReadOnlySpan<char> arg) => OptionsRegex.IsMatch(arg);
+    internal static bool IsOption(ReadOnlySpan<char> arg) => TryParseOption(arg, out _);
+
+    internal static bool IsPathOption(ReadOnlySpan<char> arg) => TryParseOption(arg, out var option) && IsPathOption(option);
 
     /// <summary>
     /// Checks if the given option name takes a path argument.
@@ -67,7 +85,7 @@ internal static partial class CompilerCommandLineUtil
             "addmodule" or
             "appconfig" or
             "lib" => true,
-            "embed" when option.HasColon => true,
+            "embed" when option.Suffix == OptionSuffix.Colon => true,
             _ => false
         };
 
@@ -77,7 +95,9 @@ internal static partial class CompilerCommandLineUtil
     /// </summary>
     internal static bool TryParseOption(ReadOnlySpan<char> arg, out OptionParts optionParts)
     {
-        if (!IsOption(arg))
+        arg = arg.TrimEnd();
+
+        if (arg.Length < 3 || arg[0] is not ('/' or '-'))
         {
             optionParts = default;
             return false;
@@ -85,49 +105,86 @@ internal static partial class CompilerCommandLineUtil
 
         var prefix = arg[0];
         arg = arg[1..];
-        var colonIndex = arg.IndexOf(':');
-        if (colonIndex > 0)
+        if (!TryGetName(ref arg, out var name))
         {
-            var optionName = ToLowerInvariant(arg[..colonIndex]);
-            var optionValue = arg[(colonIndex + 1)..];
-            optionParts = new OptionParts(prefix, hasColon: true, optionName, optionValue);
+            optionParts = default;
+            return false;
         }
-        else if (arg[^1] is '+' or '-')
+
+        if (arg.Length == 0)
         {
-            var optionName = arg[..^1];
-            var optionValue = arg[^1..];
-            optionParts = new OptionParts(prefix, hasColon: false, optionName, optionValue);
+            optionParts = new(prefix, name, OptionSuffix.None, "");
+            return true;
+        }
+
+        OptionSuffix suffix;
+        if (arg[0] is '+' or '-')
+        {
+            if (arg.Length > 1 && arg[1] == ':')
+            {
+                suffix = arg[0] == '+' ? OptionSuffix.PlusColon : OptionSuffix.MinusColon;
+                arg = arg[2..];
+            }
+            else
+            {
+                suffix = arg[0] == '+' ? OptionSuffix.Plus : OptionSuffix.Minus;
+                arg = arg[1..];
+            }
+        }
+        else if (arg[0] == ':')
+        {
+            suffix = OptionSuffix.Colon;
+            arg = arg[1..];
         }
         else
         {
-            optionParts = new OptionParts(prefix, hasColon: false, arg, "");
+            suffix = OptionSuffix.None;
         }
 
+        if (!HasColon(suffix) && arg.Length > 0)
+        {
+            optionParts = default;
+            return false;
+        }
+
+        optionParts = new(prefix, name, suffix, arg);
         return true;
 
-        static ReadOnlySpan<char> ToLowerInvariant(ReadOnlySpan<char> value)
+        static bool TryGetName(scoped ref ReadOnlySpan<char> buffer, out ReadOnlySpan<char> name)
         {
             var anyUpper = false;
-            for (int i = 0; i < value.Length; i++)
+            var index = 0;
+            while (index < buffer.Length && char.IsLetterOrDigit(buffer[index]))
             {
-                if (char.IsUpper(value[i]))
+                if (char.IsLetter(buffer[index]) && char.IsUpper(buffer[index]))
                 {
                     anyUpper = true;
-                    break;
                 }
+                index++;
             }
 
-            if (!anyUpper)
+            if (index == 0)
             {
-                return value;
+                name = default;
+                return false;
             }
 
-            var array = new char[value.Length];
-            for (int i = 0; i < value.Length; i++)
+            if (anyUpper)
             {
-                array[i] = char.ToLowerInvariant(value[i]);
+                var array = new char[index];
+                for (int i = 0; i < index; i++)
+                {
+                    array[i] = char.ToLowerInvariant(buffer[i]);
+                }
+                name = array;
             }
-            return array;
+            else
+            {
+                name = buffer[..index];
+            }
+
+            buffer = buffer[index..];
+            return true;
         }
     }
 

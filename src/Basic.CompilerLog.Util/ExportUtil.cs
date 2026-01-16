@@ -62,22 +62,28 @@ public sealed partial class ExportUtil
                 return null;
             }
 
-            // Normalize out all of the ..\ and .\ in the path
+            // Normalize out all of the ..\ and .\ in the path to the current platform.
             var normalizedPath = PathNormalizationUtil.NormalizePath(path);
-            var fullNormalizedPath = Path.GetFullPath(normalizedPath!);
 
-            string filePath;
-            if (fullNormalizedPath.StartsWith(SourceDirectory, PathUtil.Comparison))
+            // If the path isn't rooted then it's relative to the source directory. Need to
+            // make it relative to the new source directory.
+            if (!Path.IsPathRooted(normalizedPath))
             {
-                filePath = PathUtil.ReplacePathStart(fullNormalizedPath, SourceDirectory, SourceOutputDirectory);
-                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+                return Path.Combine(Path.GetFileName(SourceOutputDirectory)!, normalizedPath);
+            }
+
+            var normalizedFullPath = Path.GetFullPath(normalizedPath);
+
+            if (normalizedFullPath.StartsWith(SourceDirectory, PathUtil.Comparison))
+            {
+                var exportFilePath = PathUtil.ReplacePathStart(normalizedFullPath, SourceDirectory, SourceOutputDirectory);
+                _ = Directory.CreateDirectory(Path.GetDirectoryName(exportFilePath)!);
+                return exportFilePath;
             }
             else
             {
-                return MiscDirectory.GetNewFilePath(fullNormalizedPath);
+                return MiscDirectory.GetNewFilePath(normalizedFullPath);
             }
-
-            return filePath;
         }
 
         [return: NotNullIfNotNull("path")]

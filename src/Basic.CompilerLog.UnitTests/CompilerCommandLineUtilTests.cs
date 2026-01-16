@@ -17,6 +17,8 @@ public sealed class CompilerCommandLineUtilTests
     [InlineData("-debug+", true)]
     [InlineData("/nullable+", true)]
     [InlineData("/nullable-", true)]
+    [InlineData("/warnaserror+:CA2000", true)]
+    [InlineData("/warnaserror-:CA2000", true)]
     [InlineData("/REFERENCE:test.dll", true)]
     [InlineData("/Reference:test.dll", true)]
     [InlineData("/target:library", true)]
@@ -38,7 +40,6 @@ public sealed class CompilerCommandLineUtilTests
     [InlineData("a", true)]
     [InlineData("additionalfile", true)]
     [InlineData("analyzerconfig", true)]
-    [InlineData("embed", true)]
     [InlineData("resource", true)]
     [InlineData("res", true)]
     [InlineData("linkresource", true)]
@@ -70,7 +71,16 @@ public sealed class CompilerCommandLineUtilTests
     [InlineData("", false)]
     public void IsPathOption(string optionName, bool expected)
     {
-        var option = new CompilerCommandLineUtil.OptionParts('/', true, optionName, "");
+        var option = new CompilerCommandLineUtil.OptionParts('/', optionName, CompilerCommandLineUtil.OptionSuffix.Colon, "");
+        Assert.Equal(expected, CompilerCommandLineUtil.IsPathOption(option));
+    }
+
+    [Theory]
+    [InlineData("/embed", false)]
+    [InlineData("-embed", false)]
+    [InlineData("-embed:hello", true)]
+    public void IsPathOption_Embed(string option, bool expected)
+    {
         Assert.Equal(expected, CompilerCommandLineUtil.IsPathOption(option));
     }
 
@@ -78,11 +88,11 @@ public sealed class CompilerCommandLineUtilTests
     [InlineData("/reference:test.dll", true, '/', true, "reference", "test.dll")]
     [InlineData("/r:test.dll", true, '/', true, "r", "test.dll")]
     [InlineData("/out:output.exe", true, '/', true, "out", "output.exe")]
-    [InlineData("/debug+", true, '/', false, "debug", "+")]
-    [InlineData("/debug-", true, '/', false, "debug", "-")]
+    [InlineData("/debug+", true, '/', false, "debug", "")]
+    [InlineData("/debug-", true, '/', false, "debug", "")]
     [InlineData("/optimize", true, '/', false, "optimize", "")]
     [InlineData("-reference:test.dll", true, '-', true, "reference", "test.dll")]
-    [InlineData("-debug+", true, '-', false, "debug", "+")]
+    [InlineData("-debug+", true, '-', false, "debug", "")]
     [InlineData("/REFERENCE:Test.dll", true, '/', true, "reference", "Test.dll")]
     [InlineData("/Reference:Test.dll", true, '/', true, "reference", "Test.dll")]
     [InlineData("/nullable:enable", true, '/', true, "nullable", "enable")]
