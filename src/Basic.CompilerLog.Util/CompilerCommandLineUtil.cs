@@ -1,7 +1,9 @@
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Diagnostics;
 using System.Reflection.Metadata.Ecma335;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.XPath;
 
 namespace Basic.CompilerLog.Util;
 
@@ -302,15 +304,36 @@ internal static partial class CompilerCommandLineUtil
                 // TODO: when the path has a space where do the quotes go?
                 var alias = value[..(equalsIndex + 1)];
                 var path = value[(equalsIndex + 1)..];
-                return $"{option.Prefix}{option.Name.ToString()}:{alias.ToString()}={NormalizePath(path.ToString(), option.Name, normalizePathFunc)}";
+                return $"{option.Prefix}{option.Name.ToString()}:{alias.ToString()}={NormalizePathList(path, option.Name, normalizePathFunc)}";
             }
 
-            return NormalizeOptionWithPath(option, normalizePathFunc);
+            return $"{option.Prefix}{option.Name.ToString()}:{NormalizePathList(option.Value, option.Name, normalizePathFunc)}";
+        } 
+
+        static string NormalizePathList(ReadOnlySpan<char> path, ReadOnlySpan<char> optionName, NormalizePathFunc normalizePathFunc)
+        {
+            var commaIndex = path.IndexOf(',');
+            if (commaIndex < 0)
+            {
+                return NormalizePath(path.ToString(), optionName, normalizePathFunc);
+            }
+
+            var builder = new StringBuilder();
+            do
+            {
+                builder.Append(NormalizePath(path[..commaIndex].ToString(), optionName, normalizePathFunc));
+                builder.Append(',');
+                path = path[(commaIndex + 1)..];
+                commaIndex = path.IndexOf(",");
+            } while (commaIndex >= 0);
+
+            builder.Append(NormalizePath(path.ToString(), optionName, normalizePathFunc));
+            return builder.ToString();
         }
 
         static string NormalizeOptionWithPath(OptionParts option, NormalizePathFunc normalizePathFunc)
         {
-            return $"{option.Prefix}{option.Name.ToString()}:{NormalizePath(option.Value.ToString(), option.Name, normalizePathFunc)}";
+            return $"{option.Prefix}{option.Name.ToString()}:{NormalizePathList(option.Value.ToString(), option.Name, normalizePathFunc)}";
         }
     }
 

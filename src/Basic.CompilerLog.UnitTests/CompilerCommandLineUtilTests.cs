@@ -1,5 +1,6 @@
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis.Options;
+using System.Text;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -132,6 +133,16 @@ public sealed class CompilerCommandLineUtilTests
     }
 
     [Theory]
+    [InlineData(@"/reference:a,b")]
+    [InlineData(@"/reference:""a"",b")]
+    public void TryParseOption_References(string str)
+    {
+        Assert.True(CompilerCommandLineUtil.TryParseOption(str, out var option));
+        Assert.True(CompilerCommandLineUtil.IsPathOption(option));
+        Assert.Equal("reference", option.Name);
+    }
+
+    [Theory]
     [InlineData("/errorlog:build.sarif", "build.sarif", "")]
     [InlineData("/errorlog:build.sarif,version=2", "build.sarif", "version=2")]
     [InlineData("/errorlog:build.sarif,version=2.1", "build.sarif", "version=2.1")]
@@ -254,5 +265,22 @@ public sealed class CompilerCommandLineUtilTests
         var util = PathNormalizationUtil.WindowsToUnix;
         var result = CompilerCommandLineUtil.NormalizeArgument(@"""c:\src\my file.cs""", util.NormalizePath);
         Assert.Equal("\"/code/src/my file.cs\"", result);
+    }
+
+    [Theory]
+    [InlineData(@"/reference:a,b", "a-b-")]
+    [InlineData(@"/reference:a,""b c""", "a-b c-")]
+    [InlineData(@"/reference:a,""b c"",d", "a-b c-d-")]
+    public void NormalizeArgument_PathList(string optionText, string expected)
+    {
+        var builder = new StringBuilder(expected.Length);
+        Assert.True(CompilerCommandLineUtil.TryParseOption(optionText, out var option));
+        Assert.Equal(optionText, CompilerCommandLineUtil.NormalizePathOption(option, (x, _) =>
+        {
+            builder.Append(x);
+            builder.Append('-');
+            return x;
+        }));
+        Assert.Equal(expected, builder.ToString());
     }
 }

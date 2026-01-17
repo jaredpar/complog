@@ -106,7 +106,9 @@ public sealed partial class ExportUtil
                     _ = Directory.CreateDirectory(newPath);
                 }
 
-                return PathUtil.RemovePathStart(newPath, DestinationDirectory);
+                return Path.IsPathRooted(normalizedPath)
+                    ? newPath
+                    : PathUtil.RemovePathStart(newPath, DestinationDirectory);
             }
 
             return NormalizePath(path);
