@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
@@ -51,12 +51,13 @@ internal static class PolyfillExtensions
 
         public static string Concat(ReadOnlySpan<char> arg1, ReadOnlySpan<char> arg2, ReadOnlySpan<char> arg3)
         {
-            var array = ArrayPool<char>.Shared.Rent(arg1.Length + arg2.Length + arg3.Length);
+            var total = arg1.Length + arg2.Length + arg3.Length;
+            var array = ArrayPool<char>.Shared.Rent(total);
             var span = array.AsSpan();
-            arg1.CopyTo(span[0..arg1.Length]);
-            arg2.CopyTo(span[arg1.Length..arg2.Length]);
-            arg3.CopyTo(span[(arg1.Length + arg2.Length)..arg3.Length]);
-            var result = new string(array);
+            arg1.CopyTo(span.Slice(0, arg1.Length));
+            arg2.CopyTo(span.Slice(arg1.Length, arg2.Length));
+            arg3.CopyTo(span.Slice(arg1.Length + arg2.Length, arg3.Length));
+            var result = new string(array, 0, total);
             ArrayPool<char>.Shared.Return(array);
             return result;
         }
