@@ -1,4 +1,3 @@
-using NuGet.Versioning;
 using System.Runtime.InteropServices;
 
 namespace Basic.CompilerLog.Util;
@@ -45,15 +44,18 @@ public static class SdkUtil
         }
     }
 
-    public static List<(string SdkDirectory, NuGetVersion SdkVersion)> GetSdkDirectories(string? dotnetDirectory = null)
+    /// <summary>
+    /// Returns the sdk directories ordered by version ascending
+    /// </summary>
+    public static List<(string SdkDirectory, SdkVersion SdkVersion)> GetSdkDirectories(string? dotnetDirectory = null)
     {
         dotnetDirectory ??= GetDotnetDirectory();
         var sdk = Path.Combine(dotnetDirectory, "sdk");
-        var sdks = new List<(string, NuGetVersion)>();
+        var sdks = new List<(string, SdkVersion)>();
         foreach (var dir in Directory.EnumerateDirectories(sdk))
         {
             var versionStr = Path.GetFileName(dir)!;
-            if (!NuGetVersion.TryParse(versionStr, out var version))
+            if (!SdkVersion.TryParse(versionStr, out var version))
             {
                 continue;
             }
@@ -68,7 +70,7 @@ public static class SdkUtil
         return sdks;
     }
 
-    public static (string SdkDirectory, NuGetVersion SdkVersion) GetLatestSdkDirectories(string? dotnetDirectory = null) =>
+    internal static (string SdkDirectory, SdkVersion SdkVersion) GetLatestSdkDirectory(string? dotnetDirectory = null) =>
         GetSdkDirectories(dotnetDirectory)
             .OrderByDescending(x => x.SdkVersion)
             .First();

@@ -1,5 +1,4 @@
 using Basic.CompilerLog.Util;
-using NuGet.Versioning;
 using Xunit;
 using Xunit.Sdk;
 
@@ -23,12 +22,12 @@ public sealed class SdkUtilTests
         var sdks = SdkUtil.GetSdkDirectories(temp.DirectoryPath);
         Assert.Equal(
             [
-                (a, new NuGetVersion(9, 0, 100)),
-                (b, new NuGetVersion(10, 0, 100, "rc.2.25502.107")),
+                (a, new SdkVersion(9, 0, 100)),
+                (b, new SdkVersion(10, 0, 100, "rc.2.25502.107")),
             ],
             sdks.OrderBy(t => t.SdkVersion));
 
-        var latestSdk = SdkUtil.GetLatestSdkDirectories(temp.DirectoryPath);
-        Assert.Equal((b, new NuGetVersion(10, 0, 100, "rc.2.25502.107")), latestSdk);
+        var latestSdk = SdkUtil.GetLatestSdkDirectory(temp.DirectoryPath);
+        Assert.Equal((b, new SdkVersion(10, 0, 100, "rc.2.25502.107")), latestSdk);
     }
 }
