@@ -60,4 +60,52 @@ public class PolyfillTests
         Assert.Equal(0, TestBase.DefaultEncoding.GetBytes(ReadOnlySpan<char>.Empty, buffer.AsSpan()));
         Assert.Throws<ArgumentException>(() => TestBase.DefaultEncoding.GetBytes("hello".AsSpan(), buffer.AsSpan(0, 0)));
     }
+
+    [Fact]
+    public void ConcatTwoSpans()
+    {
+        ReadOnlySpan<char> span1 = "hello".AsSpan();
+        ReadOnlySpan<char> span2 = " world".AsSpan();
+        var result = string.Concat(span1, span2);
+        Assert.Equal("hello world", result);
+    }
+
+    [Fact]
+    public void ConcatTwoSpansEmpty()
+    {
+        ReadOnlySpan<char> span1 = ReadOnlySpan<char>.Empty;
+        ReadOnlySpan<char> span2 = ReadOnlySpan<char>.Empty;
+        var result = string.Concat(span1, span2);
+        Assert.Equal("", result);
+    }
+
+    [Fact]
+    public void ConcatThreeSpans()
+    {
+        ReadOnlySpan<char> span1 = "hello".AsSpan();
+        ReadOnlySpan<char> span2 = " ".AsSpan();
+        ReadOnlySpan<char> span3 = "world".AsSpan();
+        var result = string.Concat(span1, span2, span3);
+        Assert.Equal("hello world", result);
+    }
+
+    [Fact]
+    public void ConcatThreeSpansWithEmpty()
+    {
+        ReadOnlySpan<char> span1 = "foo".AsSpan();
+        ReadOnlySpan<char> span2 = ReadOnlySpan<char>.Empty;
+        ReadOnlySpan<char> span3 = "bar".AsSpan();
+        var result = string.Concat(span1, span2, span3);
+        Assert.Equal("foobar", result);
+    }
+
+    [Fact]
+    public void ConcatThreeSpansAllEmpty()
+    {
+        ReadOnlySpan<char> span1 = ReadOnlySpan<char>.Empty;
+        ReadOnlySpan<char> span2 = ReadOnlySpan<char>.Empty;
+        ReadOnlySpan<char> span3 = ReadOnlySpan<char>.Empty;
+        var result = string.Concat(span1, span2, span3);
+        Assert.Equal("", result);
+    }
 }

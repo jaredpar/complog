@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,6 +24,7 @@ internal static class PathUtil
 
     internal static string RemovePathStart(string filePath, string start)
     {
+        Debug.Assert(filePath.StartsWith(start, Comparison));
         var str = filePath.Substring(start.Length);
         if (str.Length > 0 && str[0] == Path.DirectorySeparatorChar)
         {
@@ -30,5 +32,15 @@ internal static class PathUtil
         }
 
         return str;
+    }
+
+    internal static string MaybeRemovePathStart(string filePath, string start)
+    {
+        if (filePath.StartsWith(start, Comparison))
+        {
+            return RemovePathStart(filePath, start);
+        }
+
+        return filePath;
     }
 }

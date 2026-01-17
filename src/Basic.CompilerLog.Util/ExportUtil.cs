@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using NuGet.Versioning;
 
 namespace Basic.CompilerLog.Util;
@@ -11,7 +11,7 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed partial class ExportUtil
 {
-    private sealed class ContentBuilder : PathNormalizationUtil
+    internal sealed class ContentBuilder : PathNormalizationUtil
     {
         /// <summary>
         /// This is the <see cref="PathNormalizationUtil"/> that was used by the <see cref="CompilerLogReader"/>.
@@ -62,22 +62,28 @@ public sealed partial class ExportUtil
                 return null;
             }
 
-            // Normalize out all of the ..\ and .\ in the path
+            // Normalize out all of the ..\ and .\ in the path to the current platform.
             var normalizedPath = PathNormalizationUtil.NormalizePath(path);
-            var fullNormalizedPath = Path.GetFullPath(normalizedPath!);
 
-            string filePath;
-            if (fullNormalizedPath.StartsWith(SourceDirectory, PathUtil.Comparison))
+            // If the path isn't rooted then it's relative to the working directory. Need to
+            // make it relative to the new working directory
+            if (!Path.IsPathRooted(normalizedPath))
             {
-                filePath = PathUtil.ReplacePathStart(fullNormalizedPath, SourceDirectory, SourceOutputDirectory);
-                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+                return Path.Combine(Path.GetFileName(SourceOutputDirectory)!, normalizedPath);
+            }
+
+            var normalizedFullPath = Path.GetFullPath(normalizedPath);
+
+            if (normalizedFullPath.StartsWith(SourceDirectory, PathUtil.Comparison))
+            {
+                var exportFilePath = PathUtil.ReplacePathStart(normalizedFullPath, SourceDirectory, SourceOutputDirectory);
+                _ = Directory.CreateDirectory(Path.GetDirectoryName(exportFilePath)!);
+                return exportFilePath;
             }
             else
             {
-                return MiscDirectory.GetNewFilePath(fullNormalizedPath);
+                return MiscDirectory.GetNewFilePath(normalizedFullPath);
             }
-
-            return filePath;
         }
 
         [return: NotNullIfNotNull("path")]
@@ -87,12 +93,31 @@ public sealed partial class ExportUtil
             _ => NormalizePath(path),
         };
 
+        [return: NotNullIfNotNull("path")]
+        internal override string? NormalizePath(string path, ReadOnlySpan<char> optionName)
+        {
+            if (optionName is "out" or "refout" or "doc" or "generatedfilesout" or "errorlog")
+            {
+                var normalizedPath = PathNormalizationUtil.NormalizePath(path, optionName);
+                var newPath = BuildOutput.GetNewFilePath(normalizedPath);
+
+                if (optionName is "generatedfilesout")
+                {
+                    _ = Directory.CreateDirectory(newPath);
+                }
+
+                return Path.IsPathRooted(normalizedPath)
+                    ? newPath
+                    : PathUtil.RemovePathStart(newPath, DestinationDirectory);
+            }
+
+            return NormalizePath(path);
+        }
+
         internal override bool IsPathRooted([NotNullWhen(true)] string? path) => PathNormalizationUtil.IsPathRooted(path);
 
         internal override string RootFileName(string fileName) => PathNormalizationUtil.RootFileName(fileName);
     }
-
-    internal static Regex OptionsRegex { get; } = GetOptionRegex();
 
     public CompilerLogReader Reader { get; }
     public bool ExcludeAnalyzers { get; }
@@ -128,7 +153,6 @@ public sealed partial class ExportUtil
 
         var originalSourceDirectory = GetSourceDirectory(Reader, compilerCall);
         var builder = new ContentBuilder(destinationDir, originalSourceDirectory, PathNormalizationUtil);
-        var commandLineList = new List<string>();
         bool hasNoConfigOption = false;
         var checksumAlgorithm = Reader.GetChecksumAlgorithm(compilerCall);
 
@@ -136,16 +160,16 @@ public sealed partial class ExportUtil
         {
             Reader.PathNormalizationUtil = builder;
             Directory.CreateDirectory(destinationDir);
-            WriteGeneratedFiles();
-            WriteEmbedLines();
             WriteContent();
-            WriteAnalyzers();
-            WriteReferences();
-            WriteResources();
-            WriteIncludedRulesets();
-
+            var rspReferenceLines = WriteReferences();
+            var rspAnalyzerLines = WriteAnalyzers();
+            var rspResourceLines = WriteResources();
+            var rspLines = CreateRsp(
+                rspReferenceLines,
+                rspAnalyzerLines,
+                rspResourceLines);
             var rspFilePath = Path.Combine(destinationDir, "build.rsp");
-            File.WriteAllLines(rspFilePath, ProcessRsp());
+            File.WriteAllLines(rspFilePath, rspLines);
 
             // Need to create a few directories so that the builds will actually function
             foreach (var sdkDir in sdkDirectories)
@@ -203,109 +227,83 @@ public sealed partial class ExportUtil
 #endif
         }
 
-        List<string> ProcessRsp()
+        List<string> CreateRsp(List<string> referenceLines, List<string> analyzerLines, List<string> resourceLines)
         {
-            var arguments = Reader.ReadArguments(compilerCall);
-            var lines = new List<string>(capacity: arguments.Count);
+            var oldLines = Reader.ReadArguments(compilerCall);
+            var newLines = new List<string>(capacity: oldLines.Count);
 
-            // compiler options aren't case sensitive
-            var comparison = StringComparison.OrdinalIgnoreCase;
-
-            foreach (var line in arguments)
+            // If we're excluding analyzers then we need to add the generated files as inputs
+            // to the compilation. The compiler adds generated syntax trees first into the 
+            // compilation so replicate that here.
+            if (ExcludeAnalyzers)
             {
-                // The only non-options are source files and those are rewritten by other
-                // methods and added to commandLineList
-                if (!IsOption(line.AsSpan()))
+                foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.GeneratedText))
                 {
-                    continue;
+                    var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                    newLines.Add(NormalizeSourceFilePath(filePath));
                 }
+            }
 
-                var span = line.AsSpan().Slice(1);
-
-                if (span.Equals("noconfig".AsSpan(), comparison))
+            foreach (var oldLine in oldLines)
+            {
+                if (CompilerCommandLineUtil.TryParseOption(oldLine, out var option))
                 {
-                    hasNoConfigOption = true;
-                    continue;
-                }
-
-                // These options are all rewritten below
-                if (span.StartsWith("reference", comparison) ||
-                    span.StartsWith("analyzer", comparison) ||
-                    span.StartsWith("additionalfile", comparison) ||
-                    span.StartsWith("analyzerconfig", comparison) ||
-                    span.StartsWith("embed", comparison) ||
-                    span.StartsWith("resource", comparison) ||
-                    span.StartsWith("linkresource", comparison) ||
-                    span.StartsWith("sourcelink", comparison) ||
-                    span.StartsWith("ruleset", comparison) ||
-                    span.StartsWith("keyfile", comparison) ||
-                    span.StartsWith("link", comparison))
-                {
-                    continue;
-                }
-
-                // Map all of the output items to the build output directory
-                if (span.StartsWith("out", comparison) ||
-                    span.StartsWith("refout", comparison) ||
-                    span.StartsWith("doc", comparison) ||
-                    span.StartsWith("generatedfilesout", comparison) ||
-                    span.StartsWith("errorlog", comparison))
-                {
-                    var index = span.IndexOf(':');
-                    var argName = span.Slice(0, index).ToString();
-                    var argValue = span.Slice(index + 1);
-
-                    // Handle `/errorlog:"path,version=123"`.
-                    ReadOnlySpan<char> path = argValue;
-                    var suffix = "";
-                    if (span.StartsWith("errorlog", comparison) &&
-                        argValue.IndexOf(',') is var commaIndex and >= 0)
+                    switch (option.Name)
                     {
-                        // Remove quotes.
-                        if (argValue is ['"', .., '"'])
+                        case "reference" or "r" or "link" or "l":
                         {
-                            argValue = argValue[1..^1];
+                            newLines.AddRange(referenceLines);
+                            referenceLines.Clear();
+                            continue;
                         }
-
-                        path = argValue[0..commaIndex];
-                        suffix = argValue[commaIndex..].ToString();
+                        case "analyzer" or "a":
+                        {
+                            newLines.AddRange(analyzerLines);
+                            analyzerLines.Clear();
+                            continue;
+                        }
+                        case "resource" or "res" or "linkresource" or "linkres":
+                        {
+                            newLines.AddRange(resourceLines);
+                            resourceLines.Clear();
+                            continue;
+                        }
+                        case "noconfig":
+                        {
+                            hasNoConfigOption = true;
+                            continue;
+                        }
                     }
 
-                    var originalPath = PathNormalizationUtil.NormalizePath(path.ToString());
-                    var newPath = builder.BuildOutput.GetNewFilePath(originalPath);
-                    commandLineList.Add($@"/{argName}:{FormatPathArgument(newPath + suffix)}");
-
-                    if (span.StartsWith("generatedfilesout", comparison))
+                    if (CompilerCommandLineUtil.IsPathOption(option))
                     {
-                        Directory.CreateDirectory(newPath);
+                        var newLine = CompilerCommandLineUtil.NormalizePathOption(option, (p, _) => PathUtil.MaybeRemovePathStart(p, destinationDir));
+                        newLines.Add(newLine);
+                        continue;
                     }
 
-                    continue;
+                    newLines.Add(oldLine);
                 }
-
-                lines.Add(line);
+                else
+                {
+                    // This is a source file, just clean up the prefix
+                    newLines.Add(NormalizeSourceFilePath(oldLine));
+                }
             }
 
-            lines.AddRange(commandLineList);
-            return lines;
-        }
+            return newLines;
 
-        // Write these contents to disk and return the new file path
-        string WriteRawContent(RawContent rawContent)
-        {
-            var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
-
-            if (rawContent.ContentHash is not null)
+            string NormalizeSourceFilePath(string path)
             {
-                using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
-                contentStream.WriteTo(filePath);
+                path = CompilerCommandLineUtil.MaybeRemoveQuotes(path);
+                path = PathUtil.MaybeRemovePathStart(path, destinationDir);
+                return CompilerCommandLineUtil.MaybeQuotePath(path);
             }
-
-            return filePath;
         }
 
-        void WriteReferences()
+        List<string> WriteReferences()
         {
+            var list = new List<string>();
             var refDir = Path.Combine(destinationDir, "ref");
             Directory.CreateDirectory(refDir);
 
@@ -321,106 +319,48 @@ public sealed partial class ExportUtil
                 {
                     foreach (var alias in pack.Aliases)
                     {
-                        var arg = $@"/reference:{alias}=""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
-                        commandLineList.Add(arg);
+                        var arg = $@"/reference:{alias}={FormatPathArgument(filePath)}";
+                        list.Add(arg);
                     }
                 }
                 else if (pack.EmbedInteropTypes)
                 {
-                    var arg = $@"/link:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
-                    commandLineList.Add(arg);
+                    var arg = $@"/link:{FormatPathArgument(filePath)}";
+                    list.Add(arg);
                 }
                 else
                 {
-                    var arg = $@"/reference:""{PathUtil.RemovePathStart(filePath, destinationDir)}""";
-                    commandLineList.Add(arg);
+                    var arg = $@"/reference:{FormatPathArgument(filePath)}";
+                    list.Add(arg);
                 }
             }
+
+            return list;
         }
 
-        void WriteAnalyzers()
+        List<string> WriteAnalyzers()
         {
             if (ExcludeAnalyzers)
             {
-                return;
+                return [];
             }
 
+            var list = new List<string>();
             foreach (var analyzer in Reader.ReadAllAnalyzerData(compilerCall))
             {
                 var filePath = builder.AnalyzerDirectory.GetNewFilePath(analyzer.FilePath);
                 using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
                 analyzerStream.WriteTo(filePath);
-                var arg = $@"/analyzer:""{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)}""";
-                commandLineList.Add(arg);
+                var arg = $@"/analyzer:""{FormatPathArgument(filePath)}""";
+                list.Add(arg);
             }
+
+            return list;
         }
 
-        void WriteContent()
+        List<string> WriteResources()
         {
-            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall))
-            {
-                var prefix = rawContent.Kind switch
-                {
-                    RawContentKind.SourceText => "",
-                    RawContentKind.GeneratedText => null,
-                    RawContentKind.AdditionalText => "/additionalfile:",
-                    RawContentKind.AnalyzerConfig => "/analyzerconfig:",
-                    RawContentKind.Embed => "/embed:",
-                    RawContentKind.EmbedLine => null,
-                    RawContentKind.SourceLink => "/sourcelink:",
-                    RawContentKind.RuleSet => "/ruleset:",
-                    RawContentKind.RuleSetInclude => null,
-                    RawContentKind.AppConfig => "/appconfig:",
-                    RawContentKind.Win32Manifest => "/win32manifest:",
-                    RawContentKind.Win32Resource => "/win32res:",
-                    RawContentKind.Win32Icon => "/win32icon:",
-                    RawContentKind.CryptoKeyFile => "/keyfile:",
-                    _ => throw new Exception(),
-                };
-
-                if (prefix is null)
-                {
-                    continue;
-                }
-
-                var filePath = WriteRawContent(rawContent);
-                commandLineList.Add($@"{prefix}{FormatPathArgument(filePath)}");
-            }
-        }
-
-        void WriteGeneratedFiles()
-        {
-            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.GeneratedText))
-            {
-                // Write out the generated text, even if it's not a part of the compilation. This makes it easier
-                // for users to see everything that was generated.
-                var filePath = WriteRawContent(rawContent);
-
-                if (ExcludeAnalyzers)
-                {
-                    commandLineList.Add(FormatPathArgument(filePath));
-                }
-            }
-        }
-
-        void WriteIncludedRulesets()
-        {
-            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.RuleSetInclude))
-            {
-                WriteRawContent(rawContent);
-            }
-        }
-
-        void WriteEmbedLines()
-        {
-            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.EmbedLine))
-            {
-                WriteRawContent(rawContent);
-            }
-        }
-
-        void WriteResources()
-        {
+            var lines = new List<string>();
             foreach (var resourceData in Reader.ReadAllResourceData(compilerCall))
             {
                 // The name of file resources isn't that important. It doesn't contribute to the compilation
@@ -435,15 +375,33 @@ public sealed partial class ExportUtil
 
                 var accessibility = d.IsPublic() ? "public" : "private";
                 var kind = originalFileName is null ? "/resource:" : "/linkresource";
-                var arg = $"{kind}{PathUtil.RemovePathStart(filePath, builder.DestinationDirectory)},{resourceName},{accessibility}";
-                commandLineList.Add(arg);
+                // TODO: how do quotes work with this format?
+                var arg = $"{kind}{FormatPathArgument(filePath)},{resourceName},{accessibility}";
+                lines.Add(arg);
+            }
+
+            return lines;
+        }
+
+        // Write out all of the raw content to disk so it can be referenced by the exported 
+        // data
+        void WriteContent()
+        {
+            foreach (var rawContent in Reader.ReadAllRawContent(compilerCall))
+            {
+                if (rawContent.ContentHash is not null)
+                {
+                    var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                    using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
+                    contentStream.WriteTo(filePath);
+                }
             }
         }
 
         string FormatPathArgument(string filePath)
         {
             filePath = PathUtil.RemovePathStart(filePath, destinationDir);
-            return MaybeQuoteArgument(filePath);
+            return CompilerCommandLineUtil.MaybeQuotePath(filePath);
         }
     }
 
@@ -478,7 +436,7 @@ public sealed partial class ExportUtil
 
     private static string MaybeQuoteArgument(string arg)
     {
-        if (IsOption(arg.AsSpan()))
+        if (CompilerCommandLineUtil.IsOption(arg.AsSpan()))
         {
             return arg;
         }
@@ -491,28 +449,6 @@ public sealed partial class ExportUtil
 
         return arg;
     }
-
-    private static bool IsOption(ReadOnlySpan<char> str) => OptionsRegex.IsMatch(str);
-
-    /// <summary>
-    /// Options start with a slash, then contain a colon and continue with a path,
-    /// or end with +/- or nothing. Examples:
-    /// <list type="bullet">
-    /// <item><c>/ref:...</c></item>
-    /// <item><c>/unsafe+</c></item>
-    /// <item><c>/checked-</c></item>
-    /// <item><c>/noconfig</c></item>
-    /// </list>
-    /// </summary>
-    /* lang=regex */
-    private const string OptionRegexContent = @"^/[a-z0-9]+(:|[+-]?$)";
-
-#if NET
-    [GeneratedRegex(OptionRegexContent, RegexOptions.IgnoreCase)]
-    private static partial Regex GetOptionRegex();
-#else
-    private static Regex GetOptionRegex() => new Regex(OptionRegexContent, RegexOptions.IgnoreCase);
-#endif
 
     /// <summary>
     /// This will return the logical source root for the given compilation. This is the prefix

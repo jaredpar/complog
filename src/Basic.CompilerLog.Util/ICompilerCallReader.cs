@@ -65,10 +65,7 @@ public interface ICompilerCallReader : IDisposable
     public List<(SourceText SourceText, string FilePath)> ReadAllGeneratedSourceTexts(CompilerCall compilerCall);
 
     /// <summary>
-    /// Read the raw command line arguments passed to the compiler.
+    /// Read the command line arguments passed to the compiler with paths normalized for the current machine.
     /// </summary>
-    /// <remarks>
-    /// Warning: the paths returned may not be valid on the current machine.
-    /// </remarks>
     public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall);
 }

@@ -321,11 +321,29 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .ToList();
     }
 
-    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
+    public IReadOnlyCollection<string> ReadRawArguments(CompilerCall compilerCall)
     {
         var index = GetIndex(compilerCall);
         var infoPack = GetOrReadCompilationInfoPack(index);
         return GetContentPack<string[]>(infoPack.CommandLineArgsHash);
+    }
+
+    public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
+    {
+        var rawArgs = ReadRawArguments(compilerCall);
+        if (PathNormalizationUtil.IsEmpty)
+        {
+            return rawArgs;
+        }
+
+        var normalizedArgs = new string[rawArgs.Count];
+        var index = 0;
+        foreach (var arg in rawArgs)
+        {
+            normalizedArgs[index++] = CompilerCommandLineUtil.NormalizeArgument(arg, PathNormalizationUtil.NormalizePath);
+        }
+
+        return normalizedArgs;
     }
 
     private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)

@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util;
+using Basic.CompilerLog.Util;
 using Basic.Reference.Assemblies;
 using System;
 using System.Collections.Generic;
@@ -114,7 +114,7 @@ public sealed class ExportUtilTests : TestBase
                 testOutputHelper.WriteLine(buildResult.StandardOut);
                 testOutputHelper.WriteLine(buildResult.StandardError);
                 verifyBuildResult?.Invoke(buildResult);
-                Assert.True(buildResult.Succeeded, $"Cannot build {compilerCall.ProjectFileName}");
+                Assert.True(buildResult.Succeeded, $"Cannot build {compilerCall.ProjectFileName}: {buildResult.StandardOut}");
             }
 
             // Ensure that full paths aren't getting written out to the RSP file. That makes the
@@ -262,7 +262,7 @@ public sealed class ExportUtilTests : TestBase
                 if (line.StartsWith("/link:", StringComparison.Ordinal))
                 {
                     foundPath = true;
-                    Assert.Equal($@"/link:""ref{Path.DirectorySeparatorChar}{piaInfo.FileName}""", line);
+                    Assert.Equal($@"/link:ref{Path.DirectorySeparatorChar}{piaInfo.FileName}", line);
                 }
             }
 
@@ -457,6 +457,17 @@ public sealed class ExportUtilTests : TestBase
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: false);
         exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkDirectories());
 #endif
+    }
+
+    [Fact]
+    public void ContentBuilder_NormalizePathNull()
+    {
+        using var temp = new TempDir();
+        var builder = new ExportUtil.ContentBuilder(
+            destinationDirectory: temp.NewDirectory("dest"),
+            originalSourceDirectory: temp.NewDirectory("src"),
+            PathNormalizationUtil.Empty);
+        Assert.Null(builder.NormalizePath(null));
     }
 
 #if NET

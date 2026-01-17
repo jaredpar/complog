@@ -37,14 +37,30 @@ internal abstract class PathNormalizationUtil
     /// <summary>
     /// Normalize the path from the "from" platform to the "to" platform
     /// </summary>
-    [return: NotNullIfNotNull("path")]
-    internal abstract string? NormalizePath(string? path);
+    internal ReadOnlySpan<char> NormalizePath(ReadOnlySpan<char> path) =>
+        NormalizePath(path.ToString()) ?? ReadOnlySpan<char>.Empty;
 
     /// <summary>
     /// Normalize the path from the "from" platform to the "to" platform
     /// </summary>
     [return: NotNullIfNotNull("path")]
+    internal abstract string? NormalizePath(string? path);
+
+    /// <summary>
+    /// Normalize the path from the "from" platform to the "to" platform. The 
+    /// <paramref name="kind"/> parameter represents the kind of content the path is 
+    /// associated with.
+    /// </summary>
+    [return: NotNullIfNotNull("path")]
     internal virtual string? NormalizePath(string? path, RawContentKind kind) => NormalizePath(path);
+
+    /// <summary>
+    /// Normalize the path from the "from" platform to the "to" platform. The
+    /// <paramref name="optionName"/> parameter represents the compiler option. An empty
+    /// string is used to represent paths not associated with any option (just raw source
+    /// files on the command line)
+    /// </summary>
+    internal virtual string NormalizePath(string path, ReadOnlySpan<char> optionName)  => NormalizePath(path);
 
     /// <summary>
     /// Make the file name an absolute path by putting it under the root
