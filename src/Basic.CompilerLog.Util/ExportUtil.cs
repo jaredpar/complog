@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using NuGet.Versioning;
 
 namespace Basic.CompilerLog.Util;
 
@@ -129,7 +128,7 @@ public sealed partial class ExportUtil
         ExcludeAnalyzers = excludeAnalyzers;
     }
 
-    internal void ExportAll(string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
+    internal void ExportAll(string destinationDir, IEnumerable<(string SdkDirectory, SdkVersion SdkVersion)> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
         for (int  i = 0; i < Reader.Count ; i++)
@@ -144,7 +143,7 @@ public sealed partial class ExportUtil
         }
     }
 
-    internal void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, NuGetVersion SdkVersion)> sdkDirectories)
+    public void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, SdkVersion SdkVersion)> sdkDirectories)
     {
         if (!Path.IsPathRooted(destinationDir))
         {

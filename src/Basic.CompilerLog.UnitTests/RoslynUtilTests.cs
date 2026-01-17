@@ -306,7 +306,7 @@ public sealed class RoslynUtilTests
     private void WithCompilerCopy(Action<string> action)
     {
         using var temp = new TempDir();
-        var sdkDirectory = SdkUtil.GetLatestSdkDirectories().SdkDirectory;
+        var sdkDirectory = SdkUtil.GetLatestSdkDirectory().SdkDirectory;
         var roslynDir = Path.Combine(sdkDirectory, "Roslyn", "bincore");
         foreach (var file  in (string[])["csc.dll", "vbc.dll"])
         {
