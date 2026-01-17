@@ -1,4 +1,4 @@
-﻿using Basic.CompilerLog.Util.Impl;
+using Basic.CompilerLog.Util.Impl;
 using Basic.CompilerLog.Util.Serialize;
 using MessagePack;
 using Microsoft.CodeAnalysis;
@@ -344,7 +344,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
 
         return normalizedArgs;
-
     }
 
     private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)
@@ -928,8 +927,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     [return: NotNullIfNotNull("path")]
     private string? NormalizePath(string? path) => PathNormalizationUtil.NormalizePath(path);
-
-    private ReadOnlySpan<char> NormalizePath(ReadOnlySpan<char> path) => PathNormalizationUtil.NormalizePath(path);
 
     public void Dispose()
     {

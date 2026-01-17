@@ -35,19 +35,7 @@ internal static partial class CompilerCommandLineUtil
         internal OptionSuffix Suffix { get; } = suffix;
         internal ReadOnlySpan<char> Value { get; }= value;
         internal bool HasColon => HasColon(Suffix);
-
     }
-
-    /* lang=regex */
-    private const string OptionRegexContent = @"^[/-][a-z0-9]+(:|\+|-|\+:|-:)?$";
-
-#if NET
-    [GeneratedRegex(OptionRegexContent, RegexOptions.IgnoreCase)]
-    private static partial Regex GetOptionRegex();
-    private static Regex OptionsRegex => GetOptionRegex();
-#else
-    private static Regex OptionsRegex { get; } = new Regex(OptionRegexContent, RegexOptions.IgnoreCase);
-#endif
 
     internal static bool HasColon(OptionSuffix suffix) => suffix is OptionSuffix.Colon or OptionSuffix.PlusColon or OptionSuffix.MinusColon;
 
@@ -308,7 +296,7 @@ internal static partial class CompilerCommandLineUtil
             }
 
             return $"{option.Prefix}{option.Name.ToString()}:{NormalizePathList(option.Value, option.Name, normalizePathFunc)}";
-        } 
+        }
 
         static string NormalizePathList(ReadOnlySpan<char> path, ReadOnlySpan<char> optionName, NormalizePathFunc normalizePathFunc)
         {

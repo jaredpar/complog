@@ -104,7 +104,7 @@ public sealed class ExportUtilTests : TestBase
         {
             count++;
             testOutputHelper.WriteLine($"Testing export for {compilerCall.ProjectFileName} - {compilerCall.TargetFramework}");
-            using var tempDir = new TempDir(compilerCall.ProjectFileName);
+            using var tempDir = new TempDir();
             exportUtil.Export(compilerCall, tempDir.DirectoryPath, sdkDirs);
 
             if (runBuild)
@@ -457,6 +457,17 @@ public sealed class ExportUtilTests : TestBase
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: false);
         exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkDirectories());
 #endif
+    }
+
+    [Fact]
+    public void ContentBuilder_NormalizePathNull()
+    {
+        using var temp = new TempDir();
+        var builder = new ExportUtil.ContentBuilder(
+            destinationDirectory: temp.NewDirectory("dest"),
+            originalSourceDirectory: temp.NewDirectory("src"),
+            PathNormalizationUtil.Empty);
+        Assert.Null(builder.NormalizePath(null));
     }
 
 #if NET

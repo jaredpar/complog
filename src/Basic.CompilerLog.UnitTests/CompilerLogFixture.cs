@@ -292,6 +292,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     <KeyOriginatorFile>{keyFilePath}</KeyOriginatorFile>
                     <DocumentationFile>console-complex.xml</DocumentationFile>
                     <SourceLink>example.sourcelink</SourceLink>
+                    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
                   </PropertyGroup>
                   <ItemGroup>
                     <EmbeddedResource Include="resource.txt" />

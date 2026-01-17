@@ -11,7 +11,7 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 public sealed partial class ExportUtil
 {
-    private sealed class ContentBuilder : PathNormalizationUtil
+    internal sealed class ContentBuilder : PathNormalizationUtil
     {
         /// <summary>
         /// This is the <see cref="PathNormalizationUtil"/> that was used by the <see cref="CompilerLogReader"/>.
