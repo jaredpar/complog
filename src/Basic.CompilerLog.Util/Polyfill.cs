@@ -167,5 +167,44 @@ internal static class PolyfillExtensions
             @this.IsMatch(input.ToString());
     }
 
+    extension (Path)
+    {
+        /// <summary>
+        /// Gets a relative path from one path to another.
+        /// </summary>
+        public static string GetRelativePath(string relativeTo, string path)
+        {
+            // Ensure both paths are absolute
+            relativeTo = Path.GetFullPath(relativeTo);
+            path = Path.GetFullPath(path);
+
+            // Ensure relativeTo ends with a directory separator for directory comparison
+            if (!relativeTo.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            {
+                relativeTo += Path.DirectorySeparatorChar;
+            }
+
+            var relativeToUri = new Uri(relativeTo);
+            var pathUri = new Uri(path);
+
+            if (relativeToUri.Scheme != pathUri.Scheme)
+            {
+                // Different schemes, return the path as-is
+                return path;
+            }
+
+            var relativeUri = relativeToUri.MakeRelativeUri(pathUri);
+            var relativePath = Uri.UnescapeDataString(relativeUri.ToString());
+
+            // Replace forward slashes with the platform separator
+            if (Path.DirectorySeparatorChar != '/')
+            {
+                relativePath = relativePath.Replace('/', Path.DirectorySeparatorChar);
+            }
+
+            return relativePath;
+        }
+    }
+
 #endif
 }

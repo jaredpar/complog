@@ -4,7 +4,10 @@
       "Bash(dotnet build *)",
       "Bash(dotnet msbuild *)",
       "Bash(dotnet test *)",
-      "Edit(**/*)"
+      "Edit(**/*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet run:*)",
+      "Bash(dotnet complog:*)"
     ]
   }
 }

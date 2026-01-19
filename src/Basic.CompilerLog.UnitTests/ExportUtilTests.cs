@@ -493,5 +493,124 @@ public sealed class ExportUtilTests : TestBase
             }
         });
     }
+
+    [Fact]
+    public void ExportSolutionBasic()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var solutionPath = exportUtil.ExportSolution(RootDirectory);
+
+        Assert.True(File.Exists(solutionPath));
+        Assert.Equal("export.slnx", Path.GetFileName(solutionPath));
+
+        var slnContent = File.ReadAllText(solutionPath);
+        Assert.Contains("<Solution>", slnContent);
+        Assert.Contains("<Project Path=\"console/console.csproj\"", slnContent);
+
+        // Check that project file was created
+        var projectDir = Path.Combine(RootDirectory, "console");
+        Assert.True(Directory.Exists(projectDir));
+        var projectFile = Path.Combine(projectDir, "console.csproj");
+        Assert.True(File.Exists(projectFile));
+
+        var projectContent = File.ReadAllText(projectFile);
+        Assert.Contains("<TargetFramework>", projectContent);
+        Assert.Contains("<OutputType>", projectContent);
+    }
+
+    [Fact]
+    public void ExportSolutionMultiTarget()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var solutionPath = exportUtil.ExportSolution(RootDirectory, "multitarget");
+
+        Assert.True(File.Exists(solutionPath));
+        Assert.Equal("multitarget.slnx", Path.GetFileName(solutionPath));
+
+        // Check that project file was created with multiple frameworks
+        var projectDir = Path.Combine(RootDirectory, "classlibmulti");
+        Assert.True(Directory.Exists(projectDir));
+        var projectFile = Path.Combine(projectDir, "classlibmulti.csproj");
+        Assert.True(File.Exists(projectFile));
+
+        var projectContent = File.ReadAllText(projectFile);
+        // Should have TargetFrameworks (plural) for multi-target
+        Assert.Contains("<TargetFrameworks>", projectContent);
+    }
+
+    [Fact]
+    public void ExportSolutionWithCustomName()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var solutionPath = exportUtil.ExportSolution(RootDirectory, "custom-name");
+
+        Assert.Equal("custom-name.slnx", Path.GetFileName(solutionPath));
+    }
+
+    [Fact]
+    public void ExportSolutionBadPath()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportSolution("relative/path"));
+    }
+
+    [Fact]
+    public void ExportSolutionNoFrameworkReferences()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var solutionPath = exportUtil.ExportSolution(RootDirectory);
+
+        var projectDir = Path.Combine(RootDirectory, "console");
+        var projectFile = Path.Combine(projectDir, "console.csproj");
+        var projectContent = File.ReadAllText(projectFile);
+
+        // Should not contain references to core framework assemblies
+        Assert.DoesNotContain("System.Runtime", projectContent);
+        Assert.DoesNotContain("System.Collections.Immutable", projectContent);
+        Assert.DoesNotContain("System.Console", projectContent);
+        Assert.DoesNotContain("mscorlib", projectContent);
+        Assert.DoesNotContain("netstandard", projectContent);
+    }
+
+    [Theory]
+    // Path-based detection
+    [InlineData("/packs/Microsoft.NETCore.App.Ref/8.0.0/ref/net8.0/System.Runtime.dll", null, true)]
+    [InlineData("/packs/Microsoft.AspNetCore.App.Ref/8.0.0/ref/net8.0/Microsoft.AspNetCore.dll", null, true)]
+    [InlineData("C:/Program Files/dotnet/shared/Microsoft.NETCore.App/8.0.0/System.Runtime.dll", null, true)]
+    [InlineData("/home/user/.nuget/packages/microsoft.netcore.app.ref/8.0.0/ref/net8.0/System.Runtime.dll", null, true)]
+    [InlineData("/home/user/.nuget/packages/netstandard.library/2.0.3/build/netstandard2.0/ref/netstandard.dll", null, true)]
+    [InlineData("/home/user/.nuget/packages/microsoft.netframework.referenceassemblies.net472/1.0.0/build/net472/mscorlib.dll", null, true)]
+    [InlineData("C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.7.2/mscorlib.dll", null, true)]
+    // Assembly name-based detection (for compiler logs where path is synthetic)
+    [InlineData("/System.Runtime.dll", "System.Runtime", true)]
+    [InlineData("/System.Collections.Immutable.dll", "System.Collections.Immutable", true)]
+    [InlineData("/System.Console.dll", "System.Console", true)]
+    [InlineData("/mscorlib.dll", "mscorlib", true)]
+    [InlineData("/netstandard.dll", "netstandard", true)]
+    [InlineData("/Microsoft.CSharp.dll", "Microsoft.CSharp", true)]
+    [InlineData("/Microsoft.VisualBasic.Core.dll", "Microsoft.VisualBasic.Core", true)]
+    [InlineData("/Microsoft.Win32.Registry.dll", "Microsoft.Win32.Registry", true)]
+    // Non-framework references
+    [InlineData("/home/user/.nuget/packages/newtonsoft.json/13.0.1/lib/net6.0/Newtonsoft.Json.dll", "Newtonsoft.Json", false)]
+    [InlineData("/home/user/projects/myapp/bin/Debug/MyLibrary.dll", "MyLibrary", false)]
+    [InlineData("C:/Users/user/.nuget/packages/serilog/2.12.0/lib/net6.0/Serilog.dll", "Serilog", false)]
+    [InlineData("/MyCustom.dll", "MyCustom", false)]
+    public void IsFrameworkReferenceTests(string path, string? assemblyName, bool expected)
+    {
+        // Use reflection to test the private method
+        var method = typeof(ExportUtil).GetMethod("IsFrameworkReference",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+            null,
+            new[] { typeof(string), typeof(string) },
+            null);
+        Assert.NotNull(method);
+        var result = (bool)method!.Invoke(null, new object?[] { path, assemblyName })!;
+        Assert.Equal(expected, result);
+    }
 #endif
 }
