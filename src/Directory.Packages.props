@@ -5,7 +5,7 @@
     <!-- We are not using package source mapping. -->
     <NoWarn>$(NoWarn);NU1507</NoWarn>
     <_RoslynVersion>5.0.0</_RoslynVersion>
-    <_RuntimeVersion>10.0.1</_RuntimeVersion>
+    <_RuntimeVersion>10.0.2</_RuntimeVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Basic.Reference.Assemblies.Net90" Version="1.8.4" />
@@ -29,6 +29,6 @@
     <PackageVersion Include="System.Buffers" Version="4.6.1" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageVersion Include="xunit.v3" Version="3.2.1" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
   </ItemGroup>
 </Project>
