@@ -17,6 +17,7 @@
     <Compile Include="..\Shared\DotnetUtil.cs" Link="DotnetUtil.cs" />
     <Compile Include="..\Shared\PathUtil.cs" Link="PathUtil.cs" />
     <Compile Include="..\Shared\ProcessUtil.cs" Link="ProcessUtil.cs" />
+    <PackageReference Include="GitHub.Copilot.SDK" />
     <PackageReference Include="Mono.Options" />
     <PackageReference Include="Microsoft.CodeAnalysis" VersionOverride="$(RoslynReferenceVersion)" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(RoslynReferenceVersion)" />
@@ -24,10 +25,7 @@
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 
-  <Target Name="GenerateConstants"
-          BeforeTargets="BeforeCompile"
-          Inputs="$(MSBuildProjectFile)"
-          Outputs="$(IntermediateOutputPath)GeneratedConstants.cs">
+  <Target Name="GenerateConstants" BeforeTargets="BeforeCompile" Inputs="$(MSBuildProjectFile)" Outputs="$(IntermediateOutputPath)GeneratedConstants.cs">
     <PropertyGroup>
       <_BasicToolVersion>$(PackageVersion)</_BasicToolVersion>
       <_BasicToolVersion Condition="'$(_BasicToolVersion)' == ''">42.42.42.42</_BasicToolVersion>
@@ -36,15 +34,11 @@
 
 internal static partial class Constants
 {
-    public const string ToolVersion = &quot;$(_BasicToolVersion)&quot;%3B
+    public const string ToolVersion = "$(_BasicToolVersion)"%3B
 }
       </_BasicCode>
     </PropertyGroup>
-    <WriteLinesToFile
-      File="$(_BasicGeneratedConstantsFile)"
-      Lines="$(_BasicCode)"
-      Overwrite="true"
-      WriteOnlyWhenDifferent="true" />
+    <WriteLinesToFile File="$(_BasicGeneratedConstantsFile)" Lines="$(_BasicCode)" Overwrite="true" WriteOnlyWhenDifferent="true" />
     <ItemGroup>
       <Compile Include="$(_BasicGeneratedConstantsFile)" KeepDuplicates="false" />
       <FileWrites Include="$(_BasicGeneratedConstantsFile)" />

@@ -2,7 +2,7 @@
   "profiles": {
     "CompilerLogger": {
       "commandName": "Project",
-      "commandLineArgs": "print -c \"C:\\Users\\jaredpar\\Downloads\\out_no_analyzers.binlog\" -p MiddleTier.Provider.csproj",
+      "commandLineArgs": "copilot \"C:\\Users\\jaredpar\\code\\roslyn\\msbuild.binlog",
       "workingDirectory": "C:\\users\\jaredpar\\temp"
     }
   }

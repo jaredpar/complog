@@ -69,6 +69,7 @@ public sealed class CompilerLogApp(
                 "generated" => RunGenerated(rest),
                 "hash" => RunHash(rest),
                 "print" => RunPrint(rest),
+                "copilot" => RunCopilot(rest),
                 "help" => RunHelp(rest),
 
                 // Older option names
@@ -287,6 +288,39 @@ public sealed class CompilerLogApp(
         void PrintUsage()
         {
             WriteLine("complog print [OPTIONS] msbuild.complog");
+            options.WriteOptionDescriptions(OutputWriter);
+        }
+    }
+
+    internal int RunCopilot(IEnumerable<string> args)
+    {
+        var options = new FilterOptionSet();
+
+        try
+        {
+            var extra = options.Parse(args);
+            if (options.Help)
+            {
+                PrintUsage();
+                return ExitSuccess;
+            }
+
+            using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
+            var copilotUtil = new CopilotUtil();
+            copilotUtil.Run(reader, OutputWriter).GetAwaiter().GetResult();
+
+            return ExitSuccess;
+        }
+        catch (OptionException e)
+        {
+            WriteLine(e.Message);
+            PrintUsage();
+            return ExitFailure;
+        }
+
+        void PrintUsage()
+        {
+            WriteLine("complog copilot [OPTIONS] msbuild.complog");
             options.WriteOptionDescriptions(OutputWriter);
         }
     }
@@ -900,6 +934,7 @@ public sealed class CompilerLogApp(
             generated     Get generated files for the compilation
             hash          Get the compilation hashes
             print         Print summary of entries in the log
+            copilot       Interactive AI assistant to explore compiler logs
             help          Print help
             """);
 
