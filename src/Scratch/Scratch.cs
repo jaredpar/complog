@@ -34,7 +34,7 @@ RunComplog($"hash export {filePath}");
 Console.WriteLine("done");
 /*
 using var reader = CompilerLogReader.Create(filePath);
-var exportUtil = new ExportUtil(reader);
+var exportUtil = new ExportRspUtil(reader);
 
 var dir = @"C:\Users\jaredpar\temp\export";
 if (Directory.Exists(dir))
@@ -380,7 +380,7 @@ static void ExportScratch()
     }
 
     using var reader = CompilerLogReader.Create(filePath, BasicAnalyzerKind.None);
-    var exportUtil = new ExportUtil(reader);
+    var exportUtil = new ExportRspUtil(reader);
     exportUtil.ExportAll(dest, SdkUtil.GetSdkDirectories());
 }
 
@@ -484,7 +484,7 @@ void ExportTest(CompilerLogReader reader)
     EmptyDirectory(dest);
 
     var d = SdkUtil.GetSdkDirectories();
-    var util = new ExportUtil(reader);
+    var util = new ExportRspUtil(reader);
     util.ExportAll(dest, d);
 }
 
@@ -552,7 +552,6 @@ static void TestDiagnostics(string binlogFilePath)
         }
     }
 }
-
 
 
 

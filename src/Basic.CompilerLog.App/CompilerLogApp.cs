@@ -383,10 +383,12 @@ public sealed class CompilerLogApp(
     {
         var baseOutputPath = "";
         var excludeAnalyzers = false;
+        var exportProject = false;
         var options = new FilterOptionSet()
         {
             { "o|out=", "path to export build content", o => baseOutputPath = o },
             { "n|no-analyzers", "do not include analyzers in rsp", i => excludeAnalyzers = i is not null },
+            { "p|project", "export as a solution with projects", p => exportProject = p is not null },
         };
 
         try
@@ -401,17 +403,25 @@ public sealed class CompilerLogApp(
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
             using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None);
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
-            var exportUtil = new ExportUtil(reader, excludeAnalyzers);
 
-            baseOutputPath = GetBaseOutputPath(baseOutputPath, "export");
+            baseOutputPath = GetBaseOutputPath(baseOutputPath, exportProject ? "project" : "export");
             WriteLine($"Exporting to {baseOutputPath}");
             Directory.CreateDirectory(baseOutputPath);
 
-            var sdkDirs = SdkUtil.GetSdkDirectories();
-            foreach (var (name, compilerCall) in namedCompilerCalls)
+            if (exportProject)
             {
-                var exportDir = Path.Combine(baseOutputPath, name);
-                exportUtil.Export(compilerCall, exportDir, sdkDirs);
+                var projectUtil = new ExportProjectUtil(reader, excludeAnalyzers);
+                projectUtil.ExportProject(namedCompilerCalls.Select(x => x.CompilerCall).ToList(), baseOutputPath);
+            }
+            else
+            {
+                var exportUtil = new ExportRspUtil(reader, excludeAnalyzers);
+                var sdkDirs = SdkUtil.GetSdkDirectories();
+                foreach (var (name, compilerCall) in namedCompilerCalls)
+                {
+                    var exportDir = Path.Combine(baseOutputPath, name);
+                    exportUtil.Export(compilerCall, exportDir, sdkDirs);
+                }
             }
 
             return ExitSuccess;
@@ -487,7 +497,7 @@ public sealed class CompilerLogApp(
                     writer.WriteLine($"# csc {(hasNoConfigOption ? "/noconfig " : "")}@\"{rspFilePath}\"");
                 }
 
-                ExportUtil.ExportRsp(reader.ReadArguments(compilerCall), writer, singleLine);
+                ExportRspUtil.ExportRsp(reader.ReadArguments(compilerCall), writer, singleLine);
 
                 string GetRspFileName()
                 {

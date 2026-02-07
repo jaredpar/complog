@@ -8,7 +8,7 @@ namespace Basic.CompilerLog.Util;
 /// <summary>
 /// Tool to export compilations to disk for other uses
 /// </summary>
-public sealed partial class ExportUtil
+public sealed partial class ExportRspUtil
 {
     internal sealed class ContentBuilder : PathNormalizationUtil
     {
@@ -122,7 +122,7 @@ public sealed partial class ExportUtil
     public bool ExcludeAnalyzers { get; }
     internal PathNormalizationUtil PathNormalizationUtil => Reader.PathNormalizationUtil;
 
-    public ExportUtil(CompilerLogReader reader, bool excludeAnalyzers = true)
+    public ExportRspUtil(CompilerLogReader reader, bool excludeAnalyzers = true)
     {
         Reader = reader;
         ExcludeAnalyzers = excludeAnalyzers;

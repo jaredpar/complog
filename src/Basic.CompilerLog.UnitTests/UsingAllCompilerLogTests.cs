@@ -267,7 +267,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             return;
         }
 
-        ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
+        ExportRspUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
     }
 
     public static IEnumerable<object[]> GetLoadAllCoreData()
