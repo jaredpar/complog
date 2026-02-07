@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
+using System.Text;
 using static Basic.CompilerLog.App.Constants;
 
 namespace Basic.CompilerLog.App;
@@ -415,7 +416,7 @@ public sealed class CompilerLogApp(
             WriteLine($"Exporting to {baseOutputPath}");
             Directory.CreateDirectory(baseOutputPath);
 
-            IReadOnlyList<CompilerInvocation> compilerInvocations;
+            IReadOnlyList<CompilerToolData> compilerInvocations;
             if (useVisualStudio)
             {
                 var visualStudioCompilers = VisualStudioUtil.GetInstalledCompilers();

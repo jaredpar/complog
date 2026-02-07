@@ -2,8 +2,10 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.VisualStudio.Setup.Configuration;
+using Basic.CompilerLog.Util;
+using static Basic.CompilerLog.Util.ExportUtil;
 
-namespace Basic.CompilerLog.Util;
+namespace Basic.CompilerLog.App;
 
 internal sealed record VisualStudioCompiler(string InstanceId, Version? Version, string InstallationPath)
 {
@@ -59,12 +61,12 @@ internal static class VisualStudioUtil
         }
     }
 
-    internal static IReadOnlyList<CompilerInvocation> GetCompilerInvocations(IReadOnlyList<VisualStudioCompiler> compilers)
+    internal static IReadOnlyList<CompilerToolData> GetCompilerInvocations(IReadOnlyList<VisualStudioCompiler> compilers)
     {
         return compilers
             .OrderByDescending(compiler => compiler.Version)
             .ThenBy(compiler => compiler.InstanceId, StringComparer.Ordinal)
-            .Select(compiler => new CompilerInvocation(
+            .Select(compiler => new CompilerToolData(
                 Name: BuildVisualStudioInvocationName(compiler),
                 CSharpCommand: BuildVisualStudioCommand(compiler.GetCompilerPath(isCSharp: true)),
                 VisualBasicCommand: BuildVisualStudioCommand(compiler.GetCompilerPath(isCSharp: false))))

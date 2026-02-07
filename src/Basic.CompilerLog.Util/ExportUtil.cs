@@ -6,9 +6,11 @@ using System.Runtime.InteropServices;
 namespace Basic.CompilerLog.Util;
 
 /// <summary>
-/// Tool to export compilations to disk for other uses
+/// Information about a compiler tool on disk. Essentially the path to csc.exe but the commands
+/// can be multipart to support things like the SDK where you need to invoke dotnet.exe with the sdk 
+/// specified as an argument
 /// </summary>
-public sealed record CompilerInvocation(string Name, string CSharpCommand, string VisualBasicCommand);
+public sealed record CompilerToolData(string Name, string CSharpCommand, string VisualBasicCommand);
 
 public sealed partial class ExportUtil
 {
@@ -132,7 +134,7 @@ public sealed partial class ExportUtil
 
     internal void ExportAll(
         string destinationDir,
-        IReadOnlyList<CompilerInvocation> compilerInvocations,
+        IReadOnlyList<CompilerToolData> compilerInvocations,
         Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
@@ -151,7 +153,7 @@ public sealed partial class ExportUtil
     public void Export(
         CompilerCall compilerCall,
         string destinationDir,
-        IReadOnlyList<CompilerInvocation> compilerInvocations)
+        IReadOnlyList<CompilerToolData> compilerInvocations)
     {
         if (!Path.IsPathRooted(destinationDir))
         {
@@ -197,7 +199,7 @@ public sealed partial class ExportUtil
             Reader.PathNormalizationUtil = Reader.DefaultPathNormalizationUtil;
         }
 
-        void WriteBuildCmd(CompilerInvocation invocation, string cmdFileName)
+        void WriteBuildCmd(CompilerToolData invocation, string cmdFileName)
         {
             var lines = new List<string>();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

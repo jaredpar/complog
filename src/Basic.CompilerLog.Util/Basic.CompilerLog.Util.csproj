@@ -29,7 +29,6 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(RoslynReferenceVersion)" />
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" VersionOverride="$(RoslynReferenceVersion)" />
     <PackageReference Include="Microsoft.Extensions.ObjectPool" />
-    <PackageReference Include="Microsoft.VisualStudio.Setup.Configuration.Interop" />
     <PackageReference Include="MSBuild.StructuredLogger" />
     <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472'" />
     <AdditionalFiles Include="BannedSymbols.txt" />

@@ -71,17 +71,19 @@ public sealed class ExportUtilTests : TestBase
         bool excludeAnalyzers = false,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
-        Action<ProcessResult>? verifyBuildResult = null)
+        Action<ProcessResult>? verifyBuildResult = null,
+        IReadOnlyList<CompilerToolData>? compilerInvocations = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
         TestExport(
             testOutputHelper,
-            reader,
+            reader: reader,
             expectedCount,
             excludeAnalyzers,
             verifyExportCallback,
             runBuild,
-            verifyBuildResult);
+            verifyBuildResult,
+            compilerInvocations);
     }
 
     internal static void TestExport(
@@ -92,7 +94,7 @@ public sealed class ExportUtilTests : TestBase
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
         Action<ProcessResult>? verifyBuildResult = null,
-        IReadOnlyList<CompilerInvocation>? compilerInvocations = null)
+        IReadOnlyList<CompilerToolData>? compilerInvocations = null)
     {
 #if NET
         compilerInvocations ??= SdkUtil.GetSdkCompilerInvocations();

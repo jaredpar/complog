@@ -75,11 +75,11 @@ public static class SdkUtil
             .OrderByDescending(x => x.SdkVersion)
             .First();
 
-    internal static IReadOnlyList<CompilerInvocation> GetSdkCompilerInvocations(string? dotnetDirectory = null)
+    public static IReadOnlyList<CompilerToolData> GetSdkCompilerInvocations(string? dotnetDirectory = null)
     {
         return GetSdkDirectories(dotnetDirectory)
             .OrderByDescending(sdk => sdk.SdkVersion)
-            .Select(sdk => new CompilerInvocation(
+            .Select(sdk => new CompilerToolData(
                 Name: Path.GetFileName(sdk.SdkDirectory)!,
                 CSharpCommand: BuildSdkCommand(sdk.SdkDirectory, isCSharp: true),
                 VisualBasicCommand: BuildSdkCommand(sdk.SdkDirectory, isCSharp: false)))
