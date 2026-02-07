@@ -70,6 +70,7 @@ Solution file: `BasicCompilerLog.slnx`
 - Use `is null` / `is not null` instead of `== null` / `!= null`
 - No `#region` directives
 - Comments explain **why**, not **what**
+- Nested types should be grouped at the top of the type
 
 ### Naming (enforced via .editorconfig)
 
