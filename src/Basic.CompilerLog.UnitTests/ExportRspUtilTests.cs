@@ -14,12 +14,12 @@ using Xunit;
 namespace Basic.CompilerLog.UnitTests;
 
 [Collection(CompilerLogCollection.Name)]
-public sealed class ExportUtilTests : TestBase
+public sealed class ExportRspUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
 
-    public ExportUtilTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
-        : base(testOutputHelper, testContextAccessor, nameof(ExportUtilTests))
+    public ExportRspUtilTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
+        : base(testOutputHelper, testContextAccessor, nameof(ExportRspUtilTests))
     {
         Fixture = fixture;
     }
@@ -98,7 +98,7 @@ public sealed class ExportUtilTests : TestBase
 #else
         var sdkDirs = SdkUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
 #endif
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers);
+        var exportUtil = new ExportRspUtil(reader, excludeAnalyzers);
         var count = 0;
         foreach (var compilerCall in reader.ReadAllCompilerCalls())
         {
@@ -281,7 +281,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportAll()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportRspUtil(reader, excludeAnalyzers: true);
         exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkDirectories());
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "1")));
@@ -291,7 +291,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportAllBadPath()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportRspUtil(reader, excludeAnalyzers: true);
         Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
     }
 #endif
@@ -401,7 +401,7 @@ public sealed class ExportUtilTests : TestBase
         };
 
         using var writer = new StringWriter();
-        ExportUtil.ExportRsp(args, writer);
+        ExportRspUtil.ExportRsp(args, writer);
         Assert.Equal("""
             "blah .cs"
             /r:blah .cs
@@ -411,7 +411,7 @@ public sealed class ExportUtilTests : TestBase
             """, writer.ToString());
 
         writer.GetStringBuilder().Length = 0;
-        ExportUtil.ExportRsp(args, writer, singleLine: true);
+        ExportRspUtil.ExportRsp(args, writer, singleLine: true);
         Assert.Equal(@"""blah .cs"" /r:blah .cs ""a b.cs"" ab.cs", writer.ToString());
     }
 
@@ -425,7 +425,7 @@ public sealed class ExportUtilTests : TestBase
         };
 
         using var writer = new StringWriter();
-        ExportUtil.ExportRsp(args, writer);
+        ExportRspUtil.ExportRsp(args, writer);
         Assert.Equal("""
             blah.cs
             /embed:"c:\blah\a,b=net472.cs"
@@ -449,12 +449,12 @@ public sealed class ExportUtilTests : TestBase
 
         using var writer = new StringWriter();
         var compilerCall = reader.ReadCompilerCall(0);
-        ExportUtil.ExportRsp(reader.ReadArguments(compilerCall), writer);
+        ExportRspUtil.ExportRsp(reader.ReadArguments(compilerCall), writer);
         Assert.Contains(fileName, writer.ToString());
 
 #if NET
         using var scratchDir = new TempDir("export test");
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: false);
+        var exportUtil = new ExportRspUtil(reader, excludeAnalyzers: false);
         exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkDirectories());
 #endif
     }
@@ -463,7 +463,7 @@ public sealed class ExportUtilTests : TestBase
     public void ContentBuilder_NormalizePathNull()
     {
         using var temp = new TempDir();
-        var builder = new ExportUtil.ContentBuilder(
+        var builder = new ExportRspUtil.ContentBuilder(
             destinationDirectory: temp.NewDirectory("dest"),
             originalSourceDirectory: temp.NewDirectory("src"),
             PathNormalizationUtil.Empty);
