@@ -21,6 +21,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis" VersionOverride="$(RoslynReferenceVersion)" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(RoslynReferenceVersion)" />
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" VersionOverride="$(RoslynReferenceVersion)" />
+    <PackageReference Include="Microsoft.VisualStudio.Setup.Configuration.Interop" />
     <ProjectReference Include="..\Basic.CompilerLog.Util\Basic.CompilerLog.Util.csproj" />
   </ItemGroup>
 

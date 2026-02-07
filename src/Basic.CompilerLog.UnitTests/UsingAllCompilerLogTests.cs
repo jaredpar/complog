@@ -10,6 +10,10 @@ using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
+#if NET
+using Basic.CompilerLog.App;
+#endif
+
 namespace Basic.CompilerLog.UnitTests;
 
 [Collection(CompilerLogCollection.Name)]
@@ -269,6 +273,36 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
         ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
     }
+
+#if NET
+
+    [WindowsTheory]
+    [MemberData(nameof(GetExportAndBuildData))]
+    public async Task ExportAndBuildVs(bool excludeAnalyzers, string logDataName)
+    {
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        if (excludeAnalyzers && !logData.SupportsNoneHost)
+        {
+            return;
+        }
+
+        var compilers = VisualStudioUtil.GetInstalledCompilers();
+        if (compilers.Count == 0)
+        {
+            return;
+        }
+
+        var compilerInvocations = VisualStudioUtil.GetCompilerInvocations(compilers);
+        ExportUtilTests.TestExport(
+            TestOutputHelper,
+            logData.CompilerLogPath,
+            expectedCount: null,
+            excludeAnalyzers,
+            runBuild: true,
+            compilerInvocations: compilerInvocations);
+    }
+
+#endif
 
     public static IEnumerable<object[]> GetLoadAllCoreData()
     {
