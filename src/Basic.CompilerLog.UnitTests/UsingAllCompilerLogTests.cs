@@ -270,6 +270,32 @@ public sealed class UsingAllCompilerLogTests : TestBase
         ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
     }
 
+    [WindowsTheory]
+    [MemberData(nameof(GetExportAndBuildData))]
+    public async Task ExportAndBuildVs(bool excludeAnalyzers, string logDataName)
+    {
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        if (excludeAnalyzers && !logData.SupportsNoneHost)
+        {
+            return;
+        }
+
+        var compilers = VisualStudioUtil.GetInstalledCompilers();
+        if (compilers.Count == 0)
+        {
+            return;
+        }
+
+        var compilerInvocations = VisualStudioUtil.GetCompilerInvocations(compilers);
+        ExportUtilTests.TestExport(
+            TestOutputHelper,
+            logData.CompilerLogPath,
+            expectedCount: null,
+            excludeAnalyzers,
+            runBuild: true,
+            compilerInvocations: compilerInvocations);
+    }
+
     public static IEnumerable<object[]> GetLoadAllCoreData()
     {
         foreach (var logData in CompilerLogFixture.GetAllLogDataNames())

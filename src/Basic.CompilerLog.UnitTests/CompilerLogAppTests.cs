@@ -790,6 +790,39 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         });
     }
 
+    [WindowsFact]
+    public void ExportCompilerLogVs()
+    {
+        RunWithBoth(Fixture.Console.Value, logPath =>
+        {
+            using var exportDir = new TempDir();
+            var (exitCode, output) = RunCompLogEx($@"export --vs -o {exportDir.DirectoryPath} ""{logPath}""");
+
+            var compilers = VisualStudioUtil.GetInstalledCompilers();
+            if (compilers.Count == 0)
+            {
+                Assert.Equal(Constants.ExitFailure, exitCode);
+                Assert.Contains("No Visual Studio installations with csc.exe were found.", output);
+                return;
+            }
+
+            Assert.Equal(Constants.ExitSuccess, exitCode);
+
+            var exportPath = Path.Combine(exportDir.DirectoryPath, "console");
+            var buildScripts = Directory.EnumerateFiles(exportPath, "build-vs-*.cmd").ToList();
+            Assert.NotEmpty(buildScripts);
+        });
+    }
+
+    [UnixFact]
+    public void ExportCompilerLogVsUnsupported()
+    {
+        var logPath = Fixture.Console.Value.CompilerLogPath;
+        var (exitCode, output) = RunCompLogEx($@"export --vs ""{logPath}""");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains("The --vs option is only supported on Windows.", output);
+    }
+
     /// <summary>
     /// The --all option should force all the compilations, including satellite ones, to be exported.
     /// </summary>
