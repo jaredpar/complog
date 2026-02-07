@@ -247,6 +247,8 @@ public sealed class RoslynUtilTests
     [InlineData("indent_style", false)]
     [InlineData("charset", false)]
     [InlineData("is_global", false)]
+    [InlineData("", false)]
+    [InlineData("a.b", false)]
     public void IsLikelyPathEditorConfigKey(string key, bool expected)
     {
         Assert.Equal(expected, RoslynUtil.IsLikelyPathEditorConfigKey(key.AsSpan()));
