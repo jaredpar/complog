@@ -282,6 +282,10 @@ public static class RoslynUtil
                     builder.Append(line.Slice(index));
                 }
             }
+            else if (line[0] != ';' && line[0] != '#' && TryNormalizeEditorConfigPathValue(line, pathMapFunc, builder))
+            {
+                // Value was normalized and appended by TryNormalizeEditorConfigPathValue
+            }
             else
             {
                 builder.Append(line);
@@ -292,6 +296,100 @@ public static class RoslynUtil
         });
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Try to normalize the value of a key=value line in an editor config file when the
+    /// key is likely to represent a path.
+    /// </summary>
+    /// <returns>true if the value was normalized and appended to the builder</returns>
+    internal static bool TryNormalizeEditorConfigPathValue(ReadOnlySpan<char> line, Func<string, string> pathMapFunc, StringBuilder builder)
+    {
+        var equalsIndex = line.IndexOf('=');
+        if (equalsIndex <= 0)
+        {
+            return false;
+        }
+
+        var key = line.Slice(0, equalsIndex);
+        while (key.Length > 0 && key[key.Length - 1] == ' ')
+        {
+            key = key.Slice(0, key.Length - 1);
+        }
+
+        if (!IsLikelyPathEditorConfigKey(key))
+        {
+            return false;
+        }
+
+        // Find where the value starts (skip whitespace after =)
+        var valueStart = equalsIndex + 1;
+        while (valueStart < line.Length && line[valueStart] == ' ')
+        {
+            valueStart++;
+        }
+
+        // Preserve everything up to the value start
+        builder.Append(line.Slice(0, valueStart));
+
+        // Normalize the value as a path
+        var value = line.Slice(valueStart);
+        if (value.Length > 0)
+        {
+            builder.Append(pathMapFunc(value.ToString()));
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Determines whether an editor config key is likely to have a path as its value based
+    /// on common naming conventions in MSBuild build properties.
+    /// </summary>
+    internal static bool IsLikelyPathEditorConfigKey(ReadOnlySpan<char> key)
+    {
+        // Use the portion after the last '.' as the property name for matching.
+        // For example, in "build_property.ProjectDir" we check "ProjectDir".
+        var dotIndex = key.LastIndexOf('.');
+        ReadOnlySpan<char> name = dotIndex >= 0 ? key.Slice(dotIndex + 1) : key;
+
+        if (name.Length == 0)
+        {
+            return false;
+        }
+
+        return ContainsIgnoreCase(name, "Path") ||
+               ContainsIgnoreCase(name, "Dir") ||
+               ContainsIgnoreCase(name, "File") ||
+               ContainsIgnoreCase(name, "Folder");
+
+        static bool ContainsIgnoreCase(ReadOnlySpan<char> span, string value)
+        {
+            if (span.Length < value.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i <= span.Length - value.Length; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < value.Length; j++)
+                {
+                    if (char.ToUpperInvariant(span[i + j]) != char.ToUpperInvariant(value[j]))
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     /// <summary>
