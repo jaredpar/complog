@@ -4,7 +4,7 @@ This file provides guidance for AI assistants working with the complog (Compiler
 
 ## Project Overview
 
-**complog** is a .NET tool and library for creating, consuming, and analyzing compiler log files. These files are built from MSBuild binary logs and contain everything needed to recreate Roslyn `Compilation` instances. The project is authored by Jared Parsons and licensed under MIT.
+**complog** is a .NET tool and library for creating, consuming, and analyzing compiler log files. These files are built from MSBuild binary logs and contain everything needed to recreate Roslyn `Compilation` instances. The project is licensed under MIT.
 
 Repository: https://github.com/jaredpar/complog
 
