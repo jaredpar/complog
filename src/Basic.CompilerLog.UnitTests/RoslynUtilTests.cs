@@ -333,6 +333,83 @@ public sealed class RoslynUtilTests
     }
 
     [Fact]
+    public void RewriteGlobalEditorConfigPathValueNoEquals()
+    {
+        // A line with a path-like key but no equals sign should be left as-is
+        Core(
+            """
+            is_global = true
+            build_property.ProjectDir
+            [/example]
+            """,
+            """
+            is_global = true
+            build_property.ProjectDir
+            [/new]
+            """,
+            x => x.Replace("/example", "/new"));
+
+        void Core(string content, string expected, Func<string, string> mapFunc)
+        {
+            var sourceText = SourceText.From(content);
+            var actual = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, mapFunc);
+            Assert.Equal(expected, actual);
+        }
+    }
+
+    [Fact]
+    public void RewriteGlobalEditorConfigPathValueSpacesAroundEquals()
+    {
+        // Spaces before and after the equals sign should be preserved
+        Core(
+            """
+            is_global = true
+            [/example]
+            build_property.ProjectDir   =   /src/project/
+            """,
+            """
+            is_global = true
+            [/new]
+            build_property.ProjectDir   =   /new/project/
+            """,
+            x => x.Replace("/src/project", "/new/project").Replace("/example", "/new"));
+
+        void Core(string content, string expected, Func<string, string> mapFunc)
+        {
+            var sourceText = SourceText.From(content);
+            var actual = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, mapFunc);
+            Assert.Equal(expected, actual);
+        }
+    }
+
+    [Fact]
+    public void RewriteGlobalEditorConfigPathValueEmpty()
+    {
+        // An empty value after the equals sign should be left as-is
+        Core(
+            """
+            is_global = true
+            [/example]
+            build_property.ProjectDir =
+            build_property.OutputPath =
+            """,
+            """
+            is_global = true
+            [/new]
+            build_property.ProjectDir =
+            build_property.OutputPath =
+            """,
+            x => x.Replace("/example", "/new"));
+
+        void Core(string content, string expected, Func<string, string> mapFunc)
+        {
+            var sourceText = SourceText.From(content);
+            var actual = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, mapFunc);
+            Assert.Equal(expected, actual);
+        }
+    }
+
+    [Fact]
     public void RewriteGlobalEditorConfigSkipsComments()
     {
         Core(
