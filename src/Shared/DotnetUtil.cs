@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Configuration.Internal;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -15,6 +16,7 @@ namespace Basic.CompilerLog;
 internal static class DotnetUtil
 {
     private static readonly Lazy<Dictionary<string, string>> _lazyDotnetEnvironmentVariables = new(CreateDotnetEnvironmentVariables);
+    private static readonly Lazy<string> _lazyDotnetPath = new(GetDotnetPath);
 
     private static Dictionary<string, string> CreateDotnetEnvironmentVariables()
     {
@@ -29,7 +31,7 @@ internal static class DotnetUtil
             var key = (string)entry.Key;
             if (!string.Equals(key, "MSBuildSDKsPath", StringComparison.OrdinalIgnoreCase))
             {
-                map.Add(key, (string)entry.Value!);
+                map[key] = (string)entry.Value!;
 
             }
         }
@@ -38,8 +40,29 @@ internal static class DotnetUtil
 
     internal static ProcessResult Command(string args, string? workingDirectory = null) =>
         ProcessUtil.Run(
-            "dotnet",
+            _lazyDotnetPath.Value,
             args,
             workingDirectory: workingDirectory,
             environment: _lazyDotnetEnvironmentVariables.Value);
+
+    private static string GetDotnetPath()
+    {
+        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!string.IsNullOrWhiteSpace(dotnetRoot))
+        {
+            var candidate = Path.Combine(dotnetRoot, "dotnet");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        const string defaultDotnetPath = "/root/.dotnet/dotnet";
+        if (File.Exists(defaultDotnetPath))
+        {
+            return defaultDotnetPath;
+        }
+
+        return "dotnet";
+    }
 }

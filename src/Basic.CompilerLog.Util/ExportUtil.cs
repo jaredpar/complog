@@ -8,6 +8,8 @@ namespace Basic.CompilerLog.Util;
 /// <summary>
 /// Tool to export compilations to disk for other uses
 /// </summary>
+public sealed record CompilerInvocation(string Name, string CSharpCommand, string VisualBasicCommand);
+
 public sealed partial class ExportUtil
 {
     internal sealed class ContentBuilder : PathNormalizationUtil
@@ -128,7 +130,10 @@ public sealed partial class ExportUtil
         ExcludeAnalyzers = excludeAnalyzers;
     }
 
-    internal void ExportAll(string destinationDir, IEnumerable<(string SdkDirectory, SdkVersion SdkVersion)> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
+    internal void ExportAll(
+        string destinationDir,
+        IReadOnlyList<CompilerInvocation> compilerInvocations,
+        Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
         for (int  i = 0; i < Reader.Count ; i++)
@@ -138,16 +143,24 @@ public sealed partial class ExportUtil
             {
                 var dir = Path.Combine(destinationDir, i.ToString());
                 Directory.CreateDirectory(dir);
-                Export(compilerCall, dir, sdkDirectories);
+                Export(compilerCall, dir, compilerInvocations);
             }
         }
     }
 
-    public void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, SdkVersion SdkVersion)> sdkDirectories)
+    public void Export(
+        CompilerCall compilerCall,
+        string destinationDir,
+        IReadOnlyList<CompilerInvocation> compilerInvocations)
     {
         if (!Path.IsPathRooted(destinationDir))
         {
             throw new ArgumentException("Need a full path", nameof(destinationDir));
+        }
+
+        if (compilerInvocations.Count == 0)
+        {
+            throw new ArgumentException("Need at least one compiler invocation.", nameof(compilerInvocations));
         }
 
         var originalSourceDirectory = GetSourceDirectory(Reader, compilerCall);
@@ -170,18 +183,13 @@ public sealed partial class ExportUtil
             var rspFilePath = Path.Combine(destinationDir, "build.rsp");
             File.WriteAllLines(rspFilePath, rspLines);
 
-            // Need to create a few directories so that the builds will actually function
-            foreach (var sdkDir in sdkDirectories)
+            foreach (var invocation in compilerInvocations)
             {
-                var cmdFileName = $"build-{Path.GetFileName(sdkDir.SdkDirectory)}";
-                WriteBuildCmd(sdkDir.SdkDirectory, cmdFileName);
+                var cmdFileName = $"build-{invocation.Name}";
+                WriteBuildCmd(invocation, cmdFileName);
             }
 
-            string? bestSdkDir = sdkDirectories.OrderByDescending(x => x.SdkVersion).Select(x => x.SdkDirectory).FirstOrDefault();
-            if (bestSdkDir is not null)
-            {
-                WriteBuildCmd(bestSdkDir, "build");
-            }
+            WriteBuildCmd(compilerInvocations[0], "build");
 
         }
         finally
@@ -189,7 +197,7 @@ public sealed partial class ExportUtil
             Reader.PathNormalizationUtil = Reader.DefaultPathNormalizationUtil;
         }
 
-        void WriteBuildCmd(string sdkDir, string cmdFileName)
+        void WriteBuildCmd(CompilerInvocation invocation, string cmdFileName)
         {
             var lines = new List<string>();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -202,16 +210,14 @@ public sealed partial class ExportUtil
                 lines.Add(@"#!/bin/sh");
             }
 
-            var execPath = Path.Combine(sdkDir, "Roslyn", "bincore");
-            execPath = compilerCall.IsCSharp
-                ? Path.Combine(execPath, "csc.dll")
-                : Path.Combine(execPath, "vbc.dll");
-
             var noConfig = hasNoConfigOption
                 ? "/noconfig "
                 : string.Empty;
 
-            lines.Add($@"dotnet exec ""{execPath}"" {noConfig}@build.rsp");
+            var compilerCommand = compilerCall.IsCSharp
+                ? invocation.CSharpCommand
+                : invocation.VisualBasicCommand;
+            lines.Add($@"{compilerCommand} {noConfig}@build.rsp");
             var cmdFilePath = Path.Combine(destinationDir, cmdFileName);
             File.WriteAllLines(cmdFilePath, lines);
 

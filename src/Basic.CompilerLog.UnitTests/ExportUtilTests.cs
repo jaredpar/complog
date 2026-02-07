@@ -71,7 +71,8 @@ public sealed class ExportUtilTests : TestBase
         bool excludeAnalyzers = false,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
-        Action<ProcessResult>? verifyBuildResult = null)
+        Action<ProcessResult>? verifyBuildResult = null,
+        IReadOnlyList<CompilerInvocation>? compilerInvocations = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
         TestExport(
@@ -81,7 +82,8 @@ public sealed class ExportUtilTests : TestBase
             excludeAnalyzers,
             verifyExportCallback,
             runBuild,
-            verifyBuildResult);
+            verifyBuildResult,
+            compilerInvocations);
     }
 
     internal static void TestExport(
@@ -91,12 +93,13 @@ public sealed class ExportUtilTests : TestBase
         bool excludeAnalyzers = false,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
-        Action<ProcessResult>? verifyBuildResult = null)
+        Action<ProcessResult>? verifyBuildResult = null,
+        IReadOnlyList<CompilerInvocation>? compilerInvocations = null)
     {
 #if NET
-        var sdkDirs = SdkUtil.GetSdkDirectories();
+        compilerInvocations ??= SdkUtil.GetSdkCompilerInvocations();
 #else
-        var sdkDirs = SdkUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
+        compilerInvocations ??= SdkUtil.GetSdkCompilerInvocations(@"c:\Program Files\dotnet");
 #endif
         var exportUtil = new ExportUtil(reader, excludeAnalyzers);
         var count = 0;
@@ -105,7 +108,7 @@ public sealed class ExportUtilTests : TestBase
             count++;
             testOutputHelper.WriteLine($"Testing export for {compilerCall.ProjectFileName} - {compilerCall.TargetFramework}");
             using var tempDir = new TempDir();
-            exportUtil.Export(compilerCall, tempDir.DirectoryPath, sdkDirs);
+            exportUtil.Export(compilerCall, tempDir.DirectoryPath, compilerInvocations);
 
             if (runBuild)
             {
@@ -282,7 +285,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkDirectories());
+        exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkCompilerInvocations());
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "1")));
     }
@@ -292,7 +295,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkCompilerInvocations()));
     }
 #endif
 
@@ -455,7 +458,7 @@ public sealed class ExportUtilTests : TestBase
 #if NET
         using var scratchDir = new TempDir("export test");
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: false);
-        exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkDirectories());
+        exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkCompilerInvocations());
 #endif
     }
 
