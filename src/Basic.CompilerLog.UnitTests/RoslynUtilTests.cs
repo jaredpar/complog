@@ -233,6 +233,132 @@ public sealed class RoslynUtilTests
     }
 
     [Theory]
+    [InlineData("build_property.ProjectDir", true)]
+    [InlineData("build_property.OutputPath", true)]
+    [InlineData("build_property.IntermediateOutputPath", true)]
+    [InlineData("build_property.MSBuildProjectDirectory", true)]
+    [InlineData("build_property.CsWin32InputMetadataPaths", true)]
+    [InlineData("build_property.CryptoKeyFile", true)]
+    [InlineData("build_property.SomeFolder", true)]
+    [InlineData("build_property.RootNamespace", false)]
+    [InlineData("build_property.TargetFramework", false)]
+    [InlineData("build_property.AssemblyName", false)]
+    [InlineData("dotnet_diagnostic.CA1234.severity", false)]
+    [InlineData("indent_style", false)]
+    [InlineData("charset", false)]
+    [InlineData("is_global", false)]
+    public void IsLikelyPathEditorConfigKey(string key, bool expected)
+    {
+        Assert.Equal(expected, RoslynUtil.IsLikelyPathEditorConfigKey(key.AsSpan()));
+    }
+
+    [Fact]
+    public void RewriteGlobalEditorConfigPathValues()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Core(
+                """
+                is_global = true
+                [c:\example.cs]
+                build_property.ProjectDir = c:\src\project\
+                build_property.RootNamespace = MyProject
+                """,
+                """
+                is_global = true
+                [d:/example.cs]
+                build_property.ProjectDir = d:\src\project\
+                build_property.RootNamespace = MyProject
+                """,
+                x => x.Replace("c:", "d:"));
+
+            Core(
+                """
+                is_global = true
+                [c:\src\project\Project.csproj]
+                build_property.ProjectDir = c:\src\project\
+                build_property.OutputPath = c:\src\project\bin\Debug\
+                build_property.TargetFramework = net8.0
+                """,
+                """
+                is_global = true
+                [d:/src/project/Project.csproj]
+                build_property.ProjectDir = d:\src\project\
+                build_property.OutputPath = d:\src\project\bin\Debug\
+                build_property.TargetFramework = net8.0
+                """,
+                x => x.Replace("c:", "d:"));
+        }
+        else
+        {
+            Core(
+                """
+                is_global = true
+                [/src/project/Project.csproj]
+                build_property.ProjectDir = /src/project/
+                build_property.RootNamespace = MyProject
+                """,
+                """
+                is_global = true
+                [/new/project/Project.csproj]
+                build_property.ProjectDir = /new/project/
+                build_property.RootNamespace = MyProject
+                """,
+                x => x.Replace("/src/project", "/new/project"));
+
+            Core(
+                """
+                is_global = true
+                [/src/project/Project.csproj]
+                build_property.ProjectDir = /src/project/
+                build_property.OutputPath = /src/project/bin/Debug/
+                build_property.TargetFramework = net8.0
+                """,
+                """
+                is_global = true
+                [/new/project/Project.csproj]
+                build_property.ProjectDir = /new/project/
+                build_property.OutputPath = /new/project/bin/Debug/
+                build_property.TargetFramework = net8.0
+                """,
+                x => x.Replace("/src/project", "/new/project"));
+        }
+
+        void Core(string content, string expected, Func<string, string> mapFunc)
+        {
+            var sourceText = SourceText.From(content);
+            var actual = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, mapFunc);
+            Assert.Equal(expected, actual);
+        }
+    }
+
+    [Fact]
+    public void RewriteGlobalEditorConfigSkipsComments()
+    {
+        Core(
+            """
+            is_global = true
+            ; build_property.ProjectDir = /old/path
+            # build_property.OutputPath = /old/path
+            [/example]
+            """,
+            """
+            is_global = true
+            ; build_property.ProjectDir = /old/path
+            # build_property.OutputPath = /old/path
+            [/new]
+            """,
+            x => x.Replace("/example", "/new"));
+
+        void Core(string content, string expected, Func<string, string> mapFunc)
+        {
+            var sourceText = SourceText.From(content);
+            var actual = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, mapFunc);
+            Assert.Equal(expected, actual);
+        }
+    }
+
+    [Theory]
     [InlineData(@"/target:exe", "app.exe")]
     [InlineData(@"/target:winexe", "app.exe")]
     [InlineData(@"/target:module", "app.netmodule")]
