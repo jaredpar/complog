@@ -130,7 +130,7 @@ public sealed class ExportProjectUtil
             throw new ArgumentException("Need a full path", nameof(destinationDir));
         }
 
-        var compilerCallKeys = compilerCalls.Select(CompilerCallKey.Create).ToHashSet();
+        var compilerCallKeys = new HashSet<CompilerCallKey>(compilerCalls.Select(CompilerCallKey.Create));
         var compilerCallIndexMap = new Dictionary<CompilerCallKey, int>();
         for (int i = 0; i < Reader.Count; i++)
         {
@@ -256,7 +256,8 @@ public sealed class ExportProjectUtil
                 }
 
                 var relativePath = referenceLayout.GetReferencePath(referenceData);
-                var filePath = Path.Combine(referencesDir, Path.GetRelativePath("references", relativePath));
+                var relativeFilePath = PathUtil.RemovePathStart(relativePath, "references");
+                var filePath = Path.Combine(referencesDir, relativeFilePath);
                 if (File.Exists(filePath))
                 {
                     continue;
@@ -264,7 +265,7 @@ public sealed class ExportProjectUtil
 
                 _ = Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                 using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-                Reader.CopyAssemblyBytes(referenceData, fileStream);
+                Reader.CopyAssemblyBytes(referenceData.AssemblyData, fileStream);
             }
         }
     }
@@ -306,7 +307,7 @@ public sealed class ExportProjectUtil
             }
             else if (targetFrameworks.Count > 1)
             {
-                propertyGroup.Add(new XElement("TargetFrameworks", string.Join(';', targetFrameworks)));
+                propertyGroup.Add(new XElement("TargetFrameworks", string.Join(";", targetFrameworks)));
             }
 
             if (propertyGroup.HasElements)
@@ -376,7 +377,7 @@ public sealed class ExportProjectUtil
     private static void AddResourceGroup(XElement project, IEnumerable<ResourceItem> resources)
     {
         var resourceList = resources.ToList();
-        Debug.Assert(resourceList.Count == resourceList.DistinctBy(resource => resource.Path, StringComparer.OrdinalIgnoreCase).Count(), "Unexpected duplicate resources.");
+        Debug.Assert(resourceList.Count == resourceList.GroupBy(resource => resource.Path, StringComparer.OrdinalIgnoreCase).Count(), "Unexpected duplicate resources.");
         if (resourceList.Count == 0)
         {
             return;
@@ -396,7 +397,7 @@ public sealed class ExportProjectUtil
     private static void AddReferenceGroup(XElement project, IEnumerable<ReferenceItem> references)
     {
         var referenceList = references.ToList();
-        Debug.Assert(referenceList.Count == referenceList.DistinctBy(reference => reference.Path, StringComparer.OrdinalIgnoreCase).Count(), "Unexpected duplicate references.");
+        Debug.Assert(referenceList.Count == referenceList.GroupBy(reference => reference.Path, StringComparer.OrdinalIgnoreCase).Count(), "Unexpected duplicate references.");
         if (referenceList.Count == 0)
         {
             return;
@@ -407,9 +408,9 @@ public sealed class ExportProjectUtil
         {
             var element = new XElement("Reference", new XAttribute("Include", reference.Include));
             element.Add(new XElement("HintPath", reference.Path));
-            if (reference.Aliases.Length > 0)
+            if (reference.Aliases.Count > 0)
             {
-                element.Add(new XElement("Aliases", string.Join(',', reference.Aliases)));
+                element.Add(new XElement("Aliases", string.Join(",", reference.Aliases)));
             }
 
             if (reference.EmbedInteropTypes)
@@ -605,7 +606,7 @@ public sealed class ExportProjectUtil
         }
 
         var projectDir = GetProjectDirectoryPath(compilerCall, projectPathMap, destinationDir);
-        return Path.GetRelativePath(projectDir, filePath);
+        return GetRelativePath(projectDir, filePath);
     }
 
     private static string GetProjectDirectoryPath(
@@ -630,6 +631,25 @@ public sealed class ExportProjectUtil
 
         var projectDir = GetProjectDirectoryPath(compilerCall, projectPathMap, destinationDir);
         return filePath.StartsWith(projectDir, PathUtil.Comparison);
+    }
+
+    private static string GetRelativePath(string basePath, string path)
+    {
+        if (path.StartsWith(basePath, PathUtil.Comparison))
+        {
+            return PathUtil.RemovePathStart(path, basePath);
+        }
+
+        if (!basePath.EndsWith(Path.DirectorySeparatorChar.ToString(), PathUtil.Comparison))
+        {
+            basePath += Path.DirectorySeparatorChar;
+        }
+
+        var baseUri = new Uri(basePath);
+        var pathUri = new Uri(path);
+        var relativeUri = baseUri.MakeRelativeUri(pathUri);
+        return Uri.UnescapeDataString(relativeUri.ToString())
+            .Replace('/', Path.DirectorySeparatorChar);
     }
 
     /// <summary>
