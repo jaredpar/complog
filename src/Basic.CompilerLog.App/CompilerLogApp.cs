@@ -416,27 +416,14 @@ public sealed class CompilerLogApp(
             WriteLine($"Exporting to {baseOutputPath}");
             Directory.CreateDirectory(baseOutputPath);
 
-            IReadOnlyList<CompilerToolData> compilerInvocations;
-            if (useVisualStudio)
-            {
-                var visualStudioCompilers = VisualStudioUtil.GetInstalledCompilers();
-                if (visualStudioCompilers.Count == 0)
-                {
-                    WriteLine("No Visual Studio installations with csc.exe were found.");
-                    return ExitFailure;
-                }
-
-                compilerInvocations = VisualStudioUtil.GetCompilerInvocations(visualStudioCompilers);
-            }
-            else
-            {
-                compilerInvocations = SdkUtil.GetSdkCompilerInvocations();
-            }
+            var compilerDirectories = useVisualStudio
+                ? VisualStudioUtil.GetCompilerDirectories()
+                : SdkUtil.GetSdkCompilerDirectories();
 
             foreach (var (name, compilerCall) in namedCompilerCalls)
             {
                 var exportDir = Path.Combine(baseOutputPath, name);
-                exportUtil.Export(compilerCall, exportDir, compilerInvocations);
+                exportUtil.Export(compilerCall, exportDir, compilerDirectories);
             }
 
             return ExitSuccess;

@@ -1000,6 +1000,49 @@ public static class RoslynUtil
         }
     }
 
+    /// <summary>
+    /// <see cref="TryGetCompilerInvocation(string, bool, out string?)"/>
+    /// </summary>
+    internal static string GetCompilerInvocation(string compilerDirectory, bool isCSharp)
+    {
+        if (!TryGetCompilerInvocation(compilerDirectory, isCSharp, out var invocation))
+        {
+            throw new InvalidOperationException($"Can't find compiler invocation for {(isCSharp ? "csc" : "vbc")} in {compilerDirectory}");
+        }
+
+        return invocation;
+    }
+
+    /// <summary>
+    /// Try and get the compiler invocation for the specified compiler directory. This will look for both apphost
+    /// and dll based compilers and return the correct path to invoke the compiler.
+    /// </summary>
+    internal static bool TryGetCompilerInvocation(string compilerDirectory, bool isCSharp, [NotNullWhen(true)] out string? invocation)
+    {
+        var (appHostName, dllName) = isCSharp
+            ? ("csc.exe", "csc.dll")
+            : ("vbc.exe", "vbc.dll");
+
+        var appHostPath = Path.Combine(compilerDirectory, appHostName);
+        if (File.Exists(appHostPath))
+        {
+            invocation = MaybeQuote(appHostPath);
+            return true;
+        }
+
+        var dllPath = Path.Combine(compilerDirectory, dllName);
+        if (File.Exists(dllPath))
+        {
+            invocation = $@"dotnet exec ""{MaybeQuote(dllPath)}""";
+            return true;
+        }
+
+        invocation = null;
+        return false;
+
+        string MaybeQuote(string path) => path.Contains(' ') ? $@"""{path}""" : path;
+    }
+
     internal static string GetCompilerAppFileName(bool isCSharp)
     {
         return isCSharp

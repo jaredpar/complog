@@ -70,32 +70,13 @@ public static class SdkUtil
         return sdks;
     }
 
+    public static List<(string CompilerDirectory, string Name)> GetSdkCompilerDirectories(string? dotnetDirectory = null) =>
+        GetSdkDirectories(dotnetDirectory)
+            .Select(x => (CompilerDirectory: Path.Combine(x.SdkDirectory, "Roslyn", "bincore"), Name: x.SdkVersion.ToString()))
+            .ToList();
+
     internal static (string SdkDirectory, SdkVersion SdkVersion) GetLatestSdkDirectory(string? dotnetDirectory = null) =>
         GetSdkDirectories(dotnetDirectory)
             .OrderByDescending(x => x.SdkVersion)
             .First();
-
-    public static IReadOnlyList<CompilerToolData> GetSdkCompilerInvocations(string? dotnetDirectory = null)
-    {
-        return GetSdkDirectories(dotnetDirectory)
-            .OrderByDescending(sdk => sdk.SdkVersion)
-            .Select(sdk => new CompilerToolData(
-                Name: Path.GetFileName(sdk.SdkDirectory)!,
-                CSharpCommand: BuildSdkCommand(sdk.SdkDirectory, isCSharp: true),
-                VisualBasicCommand: BuildSdkCommand(sdk.SdkDirectory, isCSharp: false)))
-            .ToList();
-
-        static string BuildSdkCommand(string sdkDir, bool isCSharp)
-        {
-            var binCoreDir = Path.Combine(sdkDir, "Roslyn", "bincore");
-            var exePath = Path.Combine(binCoreDir, isCSharp ? "csc.exe" : "vbc.exe");
-            if (File.Exists(exePath))
-            {
-                return $@"""{exePath}""";
-            }
-
-            var dllPath = Path.Combine(binCoreDir, isCSharp ? "csc.dll" : "vbc.dll");
-            return $@"dotnet exec ""{dllPath}""";
-        }
-    }
 }

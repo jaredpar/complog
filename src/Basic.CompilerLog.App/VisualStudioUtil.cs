@@ -7,17 +7,14 @@ using static Basic.CompilerLog.Util.ExportUtil;
 
 namespace Basic.CompilerLog.App;
 
-internal sealed record VisualStudioCompiler(string InstanceId, Version? Version, string InstallationPath)
+internal sealed record VisualStudioInstallation(string InstanceId, Version? Version, string InstallationPath)
 {
     public string RoslynDirectory => Path.Combine(InstallationPath, "MSBuild", "Current", "Bin", "Roslyn");
-
-    public string GetCompilerPath(bool isCSharp) =>
-        Path.Combine(RoslynDirectory, isCSharp ? "csc.exe" : "vbc.exe");
 }
 
 internal static class VisualStudioUtil
 {
-    public static IReadOnlyList<VisualStudioCompiler> GetInstalledCompilers()
+    public static List<VisualStudioInstallation> GetInstallations()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -27,9 +24,9 @@ internal static class VisualStudioUtil
         return GetInstalledCompilersOnWindows();
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        static IReadOnlyList<VisualStudioCompiler> GetInstalledCompilersOnWindows()
+        static List<VisualStudioInstallation> GetInstalledCompilersOnWindows()
         {
-            var compilers = new List<VisualStudioCompiler>();
+            var installations = new List<VisualStudioInstallation>();
             var configuration = new SetupConfiguration();
             var configuration2 = (ISetupConfiguration2)configuration;
             var enumInstances = configuration2.EnumAllInstances();
@@ -48,56 +45,33 @@ internal static class VisualStudioUtil
                 var instanceId = instance2.GetInstanceId();
                 var versionString = instance2.GetInstallationVersion();
                 Version? version = null;
-                Version.TryParse(versionString, out version);
+                _ = Version.TryParse(versionString, out version);
 
-                var compiler = new VisualStudioCompiler(instanceId, version, installationPath);
-                if (File.Exists(compiler.GetCompilerPath(isCSharp: true)))
-                {
-                    compilers.Add(compiler);
-                }
+                installations.Add(new(instanceId, version, installationPath));
             }
 
-            return compilers;
+            return installations;
         }
     }
 
-    internal static IReadOnlyList<CompilerToolData> GetCompilerInvocations(IReadOnlyList<VisualStudioCompiler> compilers)
+    internal static List<(string CompilerDirectory, string Name)> GetCompilerDirectories()
     {
-        return compilers
-            .OrderByDescending(compiler => compiler.Version)
-            .ThenBy(compiler => compiler.InstanceId, StringComparer.Ordinal)
-            .Select(compiler => new CompilerToolData(
-                Name: BuildVisualStudioInvocationName(compiler),
-                CSharpCommand: BuildVisualStudioCommand(compiler.GetCompilerPath(isCSharp: true)),
-                VisualBasicCommand: BuildVisualStudioCommand(compiler.GetCompilerPath(isCSharp: false))))
-            .ToList();
-    }
-
-    private static string BuildVisualStudioCommand(string compilerPath) => $@"""{compilerPath}""";
-
-    private static string BuildVisualStudioInvocationName(VisualStudioCompiler compiler)
-    {
-        var versionText = compiler.Version is null
-            ? "unknown"
-            : $"{compiler.Version.Major}.{compiler.Version.Minor}";
-        var instanceId = MakeSafeFileName(compiler.InstanceId);
-        return $"vs-{versionText}-{instanceId}";
-    }
-
-    private static string MakeSafeFileName(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
+        var list = new List<(string CompilerDirectory, string Name)>();
+        var installations = GetInstallations()
+            .OrderByDescending(i => i.Version)
+            .ThenBy(compiler => compiler.InstanceId, StringComparer.Ordinal);
+        foreach (var installation in installations)
         {
-            return "unknown";
+            var name = BuildVisualStudioInvocationName(installation);
+            list.Add((installation.RoslynDirectory, name));
         }
 
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var builder = new StringBuilder(value.Length);
-        foreach (var ch in value)
-        {
-            builder.Append(invalidChars.Contains(ch) ? '_' : ch);
-        }
+        return list;
 
-        return builder.ToString();
+        static string BuildVisualStudioInvocationName(VisualStudioInstallation installation) =>
+            installation.Version is null
+                ? "unknown"
+                : $"{installation.Version.Major}.{installation.Version.Minor}";
     }
+
 }
