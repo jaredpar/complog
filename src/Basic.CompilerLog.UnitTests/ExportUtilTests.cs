@@ -109,6 +109,10 @@ public sealed class ExportUtilTests : TestBase
 
             if (runBuild)
             {
+                var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "build.cmd" : "build.sh";
+                testOutputHelper.WriteLine("Build script");
+                testOutputHelper.WriteLine(File.ReadAllText(Path.Combine(tempDir.DirectoryPath, buildScript)));
+
                 // Now run the generated build.cmd and see if it succeeds;
                 var buildResult = TestUtil.RunBuildCmd(tempDir.DirectoryPath);
                 testOutputHelper.WriteLine(buildResult.StandardOut);
