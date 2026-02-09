@@ -562,4 +562,111 @@ public sealed class RoslynUtilTests
             Assert.Null(commit);
         });
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TryGetCompilerInvocationEmptyDirectory(bool isCSharp)
+    {
+        using var temp = new TempDir();
+        var result = RoslynUtil.TryGetCompilerInvocation(temp.DirectoryPath, isCSharp, out var invocation);
+        Assert.False(result);
+        Assert.Null(invocation);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GetCompilerInvocationEmptyDirectory(bool isCSharp)
+    {
+        using var temp = new TempDir();
+        var ex = Assert.Throws<InvalidOperationException>(() => 
+            RoslynUtil.GetCompilerInvocation(temp.DirectoryPath, isCSharp));
+        Assert.Contains(isCSharp ? "csc" : "vbc", ex.Message);
+        Assert.Contains(temp.DirectoryPath, ex.Message);
+    }
+
+    [Theory]
+    [InlineData(true, "csc.dll")]
+    [InlineData(false, "vbc.dll")]
+    public void TryGetCompilerInvocationDllOnly(bool isCSharp, string dllName)
+    {
+        WithCompilerCopy(dir =>
+        {
+            var result = RoslynUtil.TryGetCompilerInvocation(dir, isCSharp, out var invocation);
+            Assert.True(result);
+            Assert.NotNull(invocation);
+            Assert.Contains("dotnet exec", invocation);
+            Assert.Contains(dllName, invocation);
+        });
+    }
+
+    [Theory]
+    [InlineData(true, "csc.dll")]
+    [InlineData(false, "vbc.dll")]
+    public void GetCompilerInvocationDllOnly(bool isCSharp, string dllName)
+    {
+        WithCompilerCopy(dir =>
+        {
+            var invocation = RoslynUtil.GetCompilerInvocation(dir, isCSharp);
+            Assert.Contains("dotnet exec", invocation);
+            Assert.Contains(dllName, invocation);
+        });
+    }
+
+    [Theory]
+    [InlineData(true, "csc.exe")]
+    [InlineData(false, "vbc.exe")]
+    public void TryGetCompilerInvocationAppHost(bool isCSharp, string appHostName)
+    {
+        WithCompilerCopy(dir =>
+        {
+            var appHostPath = Path.Combine(dir, appHostName);
+            File.WriteAllText(appHostPath, "fake app host");
+            
+            var result = RoslynUtil.TryGetCompilerInvocation(dir, isCSharp, out var invocation);
+            Assert.True(result);
+            Assert.NotNull(invocation);
+            Assert.DoesNotContain("dotnet exec", invocation);
+            Assert.Contains(appHostName, invocation);
+        });
+    }
+
+    [Theory]
+    [InlineData(true, "csc.exe")]
+    [InlineData(false, "vbc.exe")]
+    public void GetCompilerInvocationAppHost(bool isCSharp, string appHostName)
+    {
+        WithCompilerCopy(dir =>
+        {
+            var appHostPath = Path.Combine(dir, appHostName);
+            File.WriteAllText(appHostPath, "fake app host");
+            
+            var invocation = RoslynUtil.GetCompilerInvocation(dir, isCSharp);
+            Assert.DoesNotContain("dotnet exec", invocation);
+            Assert.Contains(appHostName, invocation);
+        });
+    }
+
+    [Theory]
+    [InlineData(true, "csc.dll")]
+    [InlineData(false, "vbc.dll")]
+    public void TryGetCompilerInvocationWithSpacesInPath(bool isCSharp, string dllName)
+    {
+        using var temp = new TempDir();
+        var dirWithSpaces = Path.Combine(temp.DirectoryPath, "path with spaces");
+        Directory.CreateDirectory(dirWithSpaces);
+        
+        var sdkDirectory = SdkUtil.GetLatestSdkDirectory().SdkDirectory;
+        var roslynDir = Path.Combine(sdkDirectory, "Roslyn", "bincore");
+        var srcPath = Path.Combine(roslynDir, dllName);
+        var destPath = Path.Combine(dirWithSpaces, dllName);
+        File.Copy(srcPath, destPath);
+        
+        var result = RoslynUtil.TryGetCompilerInvocation(dirWithSpaces, isCSharp, out var invocation);
+        Assert.True(result);
+        Assert.NotNull(invocation);
+        Assert.Contains("\"", invocation);
+        Assert.Contains(dllName, invocation);
+    }
 }

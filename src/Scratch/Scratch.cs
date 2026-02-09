@@ -43,7 +43,7 @@ if (Directory.Exists(dir))
 }
 
 Directory.CreateDirectory(dir);
-exportUtil.ExportAll(dir, SdkUtil.GetSdkDirectories());
+exportUtil.ExportAll(dir, SdkUtil.GetSdkCompilerInvocations());
 
 */
 /*
@@ -381,7 +381,7 @@ static void ExportScratch()
 
     using var reader = CompilerLogReader.Create(filePath, BasicAnalyzerKind.None);
     var exportUtil = new ExportUtil(reader);
-    exportUtil.ExportAll(dest, SdkUtil.GetSdkDirectories());
+    exportUtil.ExportAll(dest, SdkUtil.GetSdkCompilerDirectories());
 }
 
 static void RoslynScratch()
@@ -483,7 +483,7 @@ void ExportTest(CompilerLogReader reader)
     var dest = @"c:\users\jaredpar\temp\export";
     EmptyDirectory(dest);
 
-    var d = SdkUtil.GetSdkDirectories();
+    var d = SdkUtil.GetSdkCompilerDirectories();
     var util = new ExportUtil(reader);
     util.ExportAll(dest, d);
 }
@@ -552,7 +552,6 @@ static void TestDiagnostics(string binlogFilePath)
         }
     }
 }
-
 
 
 
