@@ -29,8 +29,7 @@ internal static class DotnetUtil
             var key = (string)entry.Key;
             if (!string.Equals(key, "MSBuildSDKsPath", StringComparison.OrdinalIgnoreCase))
             {
-                map.Add(key, (string)entry.Value!);
-
+                map[key] = (string)entry.Value!;
             }
         }
         return map;

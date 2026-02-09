@@ -101,6 +101,22 @@ public static class CompilerLogUtil
     public static ConvertBinaryLogResult TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null) =>
         TryConvertBinaryLog(binaryLogStream, compilerLogStream, predicate, metadataVersion: null);
 
+    public static ConvertBinaryLogResult TryConvertBuildFile(string buildFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
+    {
+        return Path.GetExtension(buildFilePath) switch
+        {
+            ".rsp" => TryConvertResponseFile(buildFilePath, compilerLogFilePath, predicate),
+            ".binlog" => TryConvertBinaryLog(buildFilePath, compilerLogFilePath, predicate),
+            var ext => throw new ArgumentException($"Unrecognized extension: {ext}")
+        };
+    }
+
+    public static ConvertBinaryLogResult TryConvertResponseFile(string responseFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
+    {
+        using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        return TryConvertResponseFile(responseFilePath, compilerLogStream, predicate, metadataVersion: null);
+    }
+
     internal static ConvertBinaryLogResult TryConvertBinaryLog(Stream binaryLogStream, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null, int? metadataVersion = null)
     {
         predicate ??= static _ => true;
@@ -135,6 +151,120 @@ public static class CompilerLogUtil
         }
 
         return new ConvertBinaryLogResult(success, included, diagnostics);
+    }
+
+    internal static ConvertBinaryLogResult TryConvertResponseFile(string responseFilePath, Stream compilerLogStream, Func<CompilerCall, bool>? predicate = null, int? metadataVersion = null)
+    {
+        predicate ??= static _ => true;
+        var diagnostics = new List<string>();
+        var included = new List<CompilerCall>();
+        var success = true;
+
+        string[] arguments;
+        try
+        {
+            arguments = File.ReadAllLines(responseFilePath);
+        }
+        catch (Exception ex)
+        {
+            diagnostics.Add($"Error reading response file: {ex.GetType().FullName}: {ex.Message}");
+            return new ConvertBinaryLogResult(false, included, diagnostics);
+        }
+
+        if (arguments.Length == 0)
+        {
+            diagnostics.Add($"Response file contains no arguments: {responseFilePath}");
+            return new ConvertBinaryLogResult(false, included, diagnostics);
+        }
+
+        var isCSharp = GuessIsCSharpResponseFile(arguments, diagnostics);
+        var compilerCall = new CompilerCall(responseFilePath, CompilerCallKind.Regular, targetFramework: null, isCSharp: isCSharp, compilerFilePath: null);
+        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
+
+        if (predicate(compilerCall))
+        {
+            try
+            {
+                var originalDirectory = Environment.CurrentDirectory;
+                try
+                {
+                    Environment.CurrentDirectory = Path.GetDirectoryName(responseFilePath) ?? originalDirectory;
+                    builder.AddFromDisk(compilerCall, arguments);
+                }
+                finally
+                {
+                    Environment.CurrentDirectory = originalDirectory;
+                }
+                included.Add(compilerCall);
+            }
+            catch (Exception ex)
+            {
+                diagnostics.Add($"Error adding {compilerCall.ProjectFilePath}: {ex.Message}");
+                success = false;
+            }
+        }
+
+        return new ConvertBinaryLogResult(success, included, diagnostics);
+        bool GuessIsCSharpResponseFile(IEnumerable<string> arguments, List<string> diagnostics)
+        {
+            var csharpCount = 0;
+            var visualBasicCount = 0;
+
+            foreach (var arg in arguments)
+            {
+                if (!TryGetExtensionSuffix(arg.AsSpan(), out var extension))
+                {
+                    continue;
+                }
+
+                if (extension.Equals(".cs".AsSpan(), StringComparison.OrdinalIgnoreCase))
+                {
+                    csharpCount++;
+                }
+                else if (extension.Equals(".vb".AsSpan(), StringComparison.OrdinalIgnoreCase))
+                {
+                    visualBasicCount++;
+                }
+            }
+
+            if (csharpCount == 0 && visualBasicCount == 0)
+            {
+                diagnostics.Add("Could not determine response file language from source extensions. Defaulting to C#.");
+                return true;
+            }
+
+            if (csharpCount == 0)
+            {
+                return false;
+            }
+
+            if (visualBasicCount == 0)
+            {
+                return true;
+            }
+
+            if (csharpCount >= visualBasicCount)
+            {
+                diagnostics.Add("Response file contains both C# and VB sources. Defaulting to C#.");
+                return true;
+            }
+
+            diagnostics.Add("Response file contains both C# and VB sources. Defaulting to VB.");
+            return false;
+        }
+
+        static bool TryGetExtensionSuffix(ReadOnlySpan<char> arg, [NotNullWhen(true)] out ReadOnlySpan<char> extension)
+        {
+            extension = default;
+            var trimmed = arg.TrimEnd();
+            if (trimmed.Length < 3)
+            {
+                return false;
+            }
+
+            extension = trimmed[^3..];
+            return true;
+        }
     }
 
     /// <summary>

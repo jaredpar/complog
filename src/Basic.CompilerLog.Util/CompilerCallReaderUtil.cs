@@ -1,3 +1,4 @@
+using System.IO;
 using System.IO.Compression;
 using Microsoft.Build.Logging.StructuredLogger;
 
@@ -16,8 +17,22 @@ public static class CompilerCallReaderUtil
             ".binlog" => BinaryLogReader.Create(filePath, basicAnalyzerKind, logReaderState),
             ".complog" => CompilerLogReader.Create(filePath, basicAnalyzerKind, logReaderState),
             ".zip" => CreateFromZip(),
+            ".rsp" => CreateFromResponseFile(),
             _ => throw new ArgumentException($"Unrecognized extension: {ext}")
         };
+
+        ICompilerCallReader CreateFromResponseFile()
+        {
+            var stream = new MemoryStream();
+            var result = CompilerLogUtil.TryConvertResponseFile(filePath, stream, predicate: null, metadataVersion: null);
+            if (!result.Succeeded)
+            {
+                throw new CompilerLogException("Could not convert response file", result.Diagnostics);
+            }
+
+            stream.Position = 0;
+            return CompilerLogReader.Create(stream, basicAnalyzerKind, logReaderState, leaveOpen: false);
+        }
 
         ICompilerCallReader CreateFromZip()
         {

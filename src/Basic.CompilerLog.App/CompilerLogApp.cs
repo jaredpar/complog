@@ -110,20 +110,20 @@ public sealed class CompilerLogApp(
                 return ExitFailure;
             }
 
-            string binlogFilePath = GetLogFilePath(extra, includeCompilerLogs: false);
-            if (PathUtil.Comparer.Equals(".complog", Path.GetExtension(binlogFilePath)))
+            string logFilePath = GetLogFilePath(extra, includeCompilerLogs: false, includeResponseFiles: true);
+            if (PathUtil.Comparer.Equals(".complog", Path.GetExtension(logFilePath)))
             {
-                WriteLine($"Already a .complog file: {binlogFilePath}");
+                WriteLine($"Already a .complog file: {logFilePath}");
                 return ExitFailure;
             }
 
             if (complogFilePath is null)
             {
-                complogFilePath = Path.ChangeExtension(Path.GetFileName(binlogFilePath), ".complog");
+                complogFilePath = Path.ChangeExtension(Path.GetFileName(logFilePath), ".complog");
             }
 
             complogFilePath = GetResolvedPath(WorkingDirectory, complogFilePath);
-            var convertResult = CompilerLogUtil.TryConvertBinaryLog(binlogFilePath, complogFilePath, options.FilterCompilerCalls);
+            var convertResult = CompilerLogUtil.TryConvertBuildFile(logFilePath, complogFilePath, options.FilterCompilerCalls);
             foreach (var diagnostic in convertResult.Diagnostics)
             {
                 WriteLine(diagnostic);
@@ -1041,7 +1041,7 @@ public sealed class CompilerLogApp(
     /// <summary>
     /// Returns a path to a .complog or .binlog to be used for processing
     /// </summary>
-    internal string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true)
+    internal string GetLogFilePath(List<string> extra, bool includeCompilerLogs = true, bool includeResponseFiles = false)
     {
         string? logFilePath;
         bool foundMultiple = false;
@@ -1086,6 +1086,7 @@ public sealed class CompilerLogApp(
             case ".complog":
             case ".binlog":
             case ".zip":
+            case ".rsp" when includeResponseFiles:
                 if (args.Any())
                 {
                     throw new OptionException($"Extra arguments: {string.Join(' ', args.Skip(1))}", "log");
@@ -1100,10 +1101,14 @@ public sealed class CompilerLogApp(
                 throw new OptionException($"Not a valid log file {logFilePath}", "log");
         }
 
-        static (string? FilePath, bool FoundMultiple) FindLogFilePath(string baseDirectory, bool includeCompilerLogs = true) =>
-            includeCompilerLogs
-                ? FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj")
-                : FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj");
+        (string? FilePath, bool FoundMultiple) FindLogFilePath(string baseDirectory, bool includeCompilerLogs = true) =>
+            (includeCompilerLogs, includeResponseFiles) switch
+            {
+                (true, true) => FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj", "*.rsp"),
+                (false, true) => FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj", "*.rsp"),
+                (true, false) => FindFirstFileWithPattern(baseDirectory, "*.complog", "*.binlog", "*.sln", "*.csproj", ".vbproj"),
+                _ => FindFirstFileWithPattern(baseDirectory, "*.binlog", "*.sln", "*.csproj", ".vbproj"),
+            };
 
         string GetLogFilePathAfterBuild(string appDataDirectory, string baseDirectory, string buildFileName, IEnumerable<string> buildArgs)
         {
