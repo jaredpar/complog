@@ -809,7 +809,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
             Assert.Equal(Constants.ExitSuccess, exitCode);
 
             var exportPath = Path.Combine(exportDir.DirectoryPath, "console");
-            var buildScripts = Directory.EnumerateFiles(exportPath, "build-vs-*.cmd").ToList();
+            var buildScripts = Directory.EnumerateFiles(exportPath, "build*.cmd").ToList();
             Assert.NotEmpty(buildScripts);
 
             var buildResult = TestUtil.RunBuildCmd(exportPath);
