@@ -319,33 +319,35 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     }
 
     [Fact]
-    public void CreateFromResponseFileCSharp()
+    public void CreateFromResponseFile()
     {
-        using var tempDir = new TempDir("rsp-cs");
-        var rspPath = WriteResponseFile(Fixture.Console.Value, tempDir);
-        var complogPath = Path.Combine(tempDir.DirectoryPath, "rsp-cs.complog");
-        var (exitCode, output) = RunCompLogEx($@"create ""{rspPath}"" -o ""{complogPath}""");
-        Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("Wrote", output);
+        Core(Fixture.Console.Value, true);
+        Core(Fixture.ConsoleVisualBasic.Value, false);
+        void Core(LogData logData, bool isCSharp)
+        {
+            using var tempDir = new TempDir($"rsp-{(isCSharp ? "cs" : "vb")}");
+            TestUtil.CopyDirectory(Path.GetDirectoryName(logData.ProjectFilePath)!, tempDir.DirectoryPath);
+            var rspPath = WriteResponseFile(Fixture.Console.Value, tempDir);
+            var complogPath = Path.Combine(tempDir.DirectoryPath, "rsp.complog");
+            var (exitCode, output) = RunCompLogEx($@"create ""{rspPath}"" -o ""{complogPath}""");
+            Assert.Equal(Constants.ExitSuccess, exitCode);
+            Assert.Contains("Wrote", output);
 
-        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
-        var compilerCall = Assert.Single(reader.ReadAllCompilerCalls());
-        Assert.True(compilerCall.IsCSharp);
-    }
+            using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
+            var compilerCall = Assert.Single(reader.ReadAllCompilerCalls());
+            Assert.Equal(isCSharp, compilerCall.IsCSharp);
+        }
 
-    [Fact]
-    public void CreateFromResponseFileVisualBasic()
-    {
-        using var tempDir = new TempDir("rsp-vb");
-        var rspPath = WriteResponseFile(Fixture.ConsoleVisualBasic.Value, tempDir);
-        var complogPath = Path.Combine(tempDir.DirectoryPath, "rsp-vb.complog");
-        var (exitCode, output) = RunCompLogEx($@"create ""{rspPath}"" -o ""{complogPath}""");
-        Assert.Equal(Constants.ExitSuccess, exitCode);
-        Assert.Contains("Wrote", output);
-
-        using var reader = CompilerLogReader.Create(complogPath, BasicAnalyzerKind.None);
-        var compilerCall = Assert.Single(reader.ReadAllCompilerCalls());
-        Assert.False(compilerCall.IsCSharp);
+        static string WriteResponseFile(LogData logData, TempDir tempDir)
+        {
+            using var reader = CompilerLogReader.Create(logData.CompilerLogPath, BasicAnalyzerKind.None);
+            var compilerCall = Assert.Single(reader.ReadAllCompilerCalls());
+            var exportUtil = new ExportUtil(reader);
+            exportUtil.Export(compilerCall, tempDir.DirectoryPath, SdkUtil.GetSdkCompilerDirectories().Take(1).ToList());
+            var rspPath = Path.Combine(tempDir.DirectoryPath, "build.rsp");
+            Assert.True(File.Exists(rspPath));
+            return rspPath;
+        }
     }
 
     [WindowsFact]
@@ -371,17 +373,6 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         // Should also have the regular compile for the WPF project
         var regularCompile = compilerCalls.FirstOrDefault(c => c.Kind == CompilerCallKind.Regular && c.ProjectFilePath == logData.ProjectFilePath);
         Assert.NotNull(regularCompile);
-    }
-
-    private static string WriteResponseFile(LogData logData, TempDir tempDir)
-    {
-        using var reader = CompilerLogReader.Create(logData.CompilerLogPath, BasicAnalyzerKind.None);
-        var compilerCall = Assert.Single(reader.ReadAllCompilerCalls());
-        var exportUtil = new ExportUtil(reader);
-        exportUtil.Export(compilerCall, tempDir.DirectoryPath, SdkUtil.GetSdkCompilerDirectories().Take(1).ToList());
-        var rspPath = Path.Combine(tempDir.DirectoryPath, "build.rsp");
-        Assert.True(File.Exists(rspPath));
-        return rspPath;
     }
 
     /// <summary>

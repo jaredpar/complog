@@ -204,4 +204,21 @@ internal static class TestUtil
 
         return args;
     }
+
+    internal static void CopyDirectory(string sourceDir, string targetDir)
+    {
+        _ = Directory.CreateDirectory(targetDir);
+
+        foreach (var file in Directory.EnumerateFiles(sourceDir))
+        {
+            var targetFile = Path.Combine(targetDir, Path.GetFileName(file));
+            File.Copy(file, targetFile);
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(sourceDir))
+        {
+            var targetSubDir = Path.Combine(targetDir, Path.GetFileName(dir));
+            CopyDirectory(dir, targetSubDir);
+        }
+    }
 }

@@ -179,7 +179,7 @@ public static class CompilerLogUtil
 
         var isCSharp = GuessIsCSharpResponseFile(arguments);
         var compilerCall = new CompilerCall(
-            Path.ChangeExtension(responseFilePath, isCSharp ? ".csproj" : ".vbproj"),
+            responseFilePath,
             CompilerCallKind.Regular,
             targetFramework: null,
             isCSharp: isCSharp,
