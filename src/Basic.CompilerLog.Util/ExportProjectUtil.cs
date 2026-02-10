@@ -17,12 +17,12 @@ public sealed class ExportProjectUtil
         internal ResilientDirectory GeneratedCodeDirectory { get; }
         private MiscDirectory MiscDirectory { get; }
 
-        internal ProjectContentBuilder(string destinationDirectory, string originalSourceDirectory, PathNormalizationUtil pathNormalizationUtil)
+        internal ProjectContentBuilder(string destinationDirectory, string sourceOutputDirectory, string originalSourceDirectory, PathNormalizationUtil pathNormalizationUtil)
         {
             PathNormalizationUtil = pathNormalizationUtil;
             DestinationDirectory = destinationDirectory;
             SourceDirectory = originalSourceDirectory;
-            SourceOutputDirectory = Path.Combine(destinationDirectory, "src");
+            SourceOutputDirectory = sourceOutputDirectory;
             EmbeddedResourceDirectory = Path.Combine(SourceOutputDirectory, "resources");
             AnalyzerDirectory = new(Path.Combine(SourceOutputDirectory, "analyzers"));
             GeneratedCodeDirectory = new(Path.Combine(SourceOutputDirectory, "generated"));
@@ -42,7 +42,8 @@ public sealed class ExportProjectUtil
             var normalizedPath = PathNormalizationUtil.NormalizePath(path);
             if (!Path.IsPathRooted(normalizedPath))
             {
-                return Path.Combine(Path.GetFileName(SourceOutputDirectory)!, normalizedPath);
+                var relativeRoot = PathUtil.RemovePathStart(SourceOutputDirectory, DestinationDirectory);
+                return Path.Combine(relativeRoot, normalizedPath);
             }
 
             var normalizedFullPath = Path.GetFullPath(normalizedPath);
@@ -161,7 +162,8 @@ public sealed class ExportProjectUtil
             foreach (var group in projectGroups)
             {
                 var representativeCall = group.First();
-                var builder = new ProjectContentBuilder(destinationDir, GetSourceDirectory(Reader, representativeCall), PathNormalizationUtil);
+                var projectDir = Path.Combine(destinationDir, Path.GetDirectoryName(projectPathMap[group.Key])!);
+                var builder = new ProjectContentBuilder(destinationDir, projectDir, GetSourceDirectory(Reader, representativeCall), PathNormalizationUtil);
                 Reader.PathNormalizationUtil = builder;
 
                 foreach (var compilerCall in group)
@@ -214,7 +216,7 @@ public sealed class ExportProjectUtil
         var referenceMap = new Dictionary<string, HashSet<Guid>>(StringComparer.OrdinalIgnoreCase);
         foreach (var compilerCall in compilerCalls)
         {
-            foreach (var referenceData in Reader.ReadAllReferenceData(compilerCall))
+            foreach (var referenceData in ReadAllReferenceDataDefault(compilerCall))
             {
                 if (IsFrameworkReference(referenceData))
                 {
@@ -243,7 +245,7 @@ public sealed class ExportProjectUtil
     {
         foreach (var compilerCall in compilerCalls)
         {
-            foreach (var referenceData in Reader.ReadAllReferenceData(compilerCall))
+            foreach (var referenceData in ReadAllReferenceDataDefault(compilerCall))
             {
                 if (IsFrameworkReference(referenceData))
                 {
@@ -273,10 +275,41 @@ public sealed class ExportProjectUtil
     private static bool IsFrameworkReference(ReferenceData referenceData)
     {
         var path = referenceData.FilePath;
-        return path.Contains($"{Path.DirectorySeparatorChar}packs{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+        if (!Path.IsPathRooted(path))
+        {
+            return true;
+        }
+
+        if (path.IndexOf(".nuget", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return false;
+        }
+
+        if (path.IndexOf("dotnet", StringComparison.OrdinalIgnoreCase) >= 0 &&
+            (path.Contains($"{Path.DirectorySeparatorChar}shared{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+             path.Contains($"{Path.DirectorySeparatorChar}packs{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+             path.Contains($"{Path.DirectorySeparatorChar}sdk{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (path.Contains($"{Path.DirectorySeparatorChar}packs{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
             || path.Contains("Reference Assemblies", StringComparison.OrdinalIgnoreCase)
             || path.Contains("Microsoft.NETCore.App.Ref", StringComparison.OrdinalIgnoreCase)
-            || path.Contains($"{Path.DirectorySeparatorChar}ref{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
+            || path.Contains($"{Path.DirectorySeparatorChar}ref{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var assemblyName = referenceData.AssemblyIdentityData.AssemblyName;
+        if (string.IsNullOrEmpty(assemblyName))
+        {
+            return false;
+        }
+
+        return assemblyName.StartsWith("System.", StringComparison.Ordinal)
+            || assemblyName.StartsWith("Microsoft.", StringComparison.Ordinal)
+            || assemblyName is "System" or "mscorlib" or "netstandard" or "WindowsBase";
     }
 
     private void WriteProjectFiles(
@@ -538,7 +571,7 @@ public sealed class ExportProjectUtil
         }
 
         var seenReferences = new HashSet<Guid>();
-        foreach (var referenceData in Reader.ReadAllReferenceData(compilerCall))
+        foreach (var referenceData in ReadAllReferenceDataDefault(compilerCall))
         {
             if (!seenReferences.Add(referenceData.Mvid))
             {
@@ -650,6 +683,20 @@ public sealed class ExportProjectUtil
         var relativeUri = baseUri.MakeRelativeUri(pathUri);
         return Uri.UnescapeDataString(relativeUri.ToString())
             .Replace('/', Path.DirectorySeparatorChar);
+    }
+
+    private List<ReferenceData> ReadAllReferenceDataDefault(CompilerCall compilerCall)
+    {
+        var original = Reader.PathNormalizationUtil;
+        try
+        {
+            Reader.PathNormalizationUtil = Reader.DefaultPathNormalizationUtil;
+            return Reader.ReadAllReferenceData(compilerCall);
+        }
+        finally
+        {
+            Reader.PathNormalizationUtil = original;
+        }
     }
 
     /// <summary>

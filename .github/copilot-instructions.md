@@ -32,5 +32,4 @@
 
 ## Running tests
 
-* To build and run tests in the repo use the `dotnet test` command
-
+* To build and run tests in the repo use `dotnet test --framework net10.0`

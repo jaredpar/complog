@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Configuration.Internal;
 using System.Diagnostics;
 using System.Linq;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -29,17 +30,40 @@ internal static class DotnetUtil
             var key = (string)entry.Key;
             if (!string.Equals(key, "MSBuildSDKsPath", StringComparison.OrdinalIgnoreCase))
             {
-                map.Add(key, (string)entry.Value!);
-
+                map[key] = (string)entry.Value!;
             }
         }
         return map;
     }
 
-    internal static ProcessResult Command(string args, string? workingDirectory = null) =>
-        ProcessUtil.Run(
-            "dotnet",
+    internal static ProcessResult Command(string args, string? workingDirectory = null)
+    {
+        if (workingDirectory is not null)
+        {
+            _ = Directory.CreateDirectory(workingDirectory);
+        }
+
+        var dotnetPath = GetDotnetPath();
+        return ProcessUtil.Run(
+            dotnetPath,
             args,
             workingDirectory: workingDirectory,
             environment: _lazyDotnetEnvironmentVariables.Value);
+    }
+
+    private static string GetDotnetPath()
+    {
+        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!string.IsNullOrEmpty(dotnetRoot))
+        {
+            var candidate = Path.Combine(dotnetRoot, "dotnet");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        const string defaultPath = "/root/.dotnet/dotnet";
+        return File.Exists(defaultPath) ? defaultPath : "dotnet";
+    }
 }

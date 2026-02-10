@@ -1,5 +1,4 @@
-// Polyfills for older target frameworks.
-#if NET472 || NETSTANDARD2_0
+﻿#if !NET
 namespace System.Runtime.CompilerServices
 {
     internal static class IsExternalInit

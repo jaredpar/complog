@@ -45,6 +45,13 @@ public sealed class ExportProjectUtilTests : TestBase
               <PropertyGroup>
                 <TargetFramework>{TestUtil.TestTargetFramework}</TargetFramework>
               </PropertyGroup>
+              <ItemGroup>
+                <Compile Include="generated/group0/RegexGenerator.g.cs" />
+              </ItemGroup>
+              <ItemGroup>
+                <EditorConfigFiles Include="misc/root/.dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_9_default.globalconfig" />
+                <EditorConfigFiles Include="obj/Debug/net9.0/console.GeneratedMSBuildEditorConfig.editorconfig" />
+              </ItemGroup>
             </Project>
             """;
         Assert.Equal(expectedProject, NormalizeLineEndings(File.ReadAllText(projectPath)));
