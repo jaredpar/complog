@@ -498,4 +498,113 @@ public sealed class ExportUtilTests : TestBase
         });
     }
 #endif
+
+    [Fact]
+    public void ExportProjectBasic()
+    {
+        RunDotNet("new console --name example --output .");
+        RunDotNet("build -bl -nr:false");
+
+        var binlog = Path.Combine(RootDirectory, "msbuild.binlog");
+        var complog = Path.Combine(RootDirectory, "msbuild.complog");
+        var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
+        Assert.True(result.Succeeded);
+
+        using var reader = CompilerLogReader.Create(complog);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        
+        using var tempDir = new TempDir();
+        exportUtil.ExportProject(tempDir.DirectoryPath);
+
+        // Verify solution file exists
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile), "Solution file should exist");
+
+        // Verify solution file format
+        var solutionContent = File.ReadAllText(solutionFile);
+        Assert.Contains("<Solution>", solutionContent);
+        Assert.Contains("<Project Path=", solutionContent);
+        Assert.Contains("</Solution>", solutionContent);
+
+        // Verify references directory exists
+        var referencesDir = Path.Combine(tempDir.DirectoryPath, "references");
+        Assert.True(Directory.Exists(referencesDir), "References directory should exist");
+
+        // Verify project directory and files exist
+        var projectDirs = Directory.GetDirectories(tempDir.DirectoryPath)
+            .Where(d => !Path.GetFileName(d).Equals("references", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.NotEmpty(projectDirs);
+
+        var projectDir = projectDirs[0];
+        var projectFiles = Directory.GetFiles(projectDir, "*.csproj");
+        Assert.NotEmpty(projectFiles);
+
+        var projectFile = projectFiles[0];
+        var projectContent = File.ReadAllText(projectFile);
+        
+        // Verify project file format
+        Assert.Contains("<Project Sdk=\"Microsoft.NET.Sdk\">", projectContent);
+        Assert.Contains("<TargetFramework>", projectContent);
+        Assert.Contains("<AssemblyName>", projectContent);
+
+        // Verify source files were copied
+        var sourceFiles = Directory.GetFiles(projectDir, "*.cs");
+        Assert.NotEmpty(sourceFiles);
+    }
+
+    [Fact]
+    public void ExportProjectWithMultiTarget()
+    {
+        TestOutputHelper.WriteLine($"Testing multi-target project export from {Fixture.ClassLibMulti.Value.CompilerLogPath}");
+        
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        
+        using var tempDir = new TempDir();
+        exportUtil.ExportProject(tempDir.DirectoryPath);
+
+        // Verify solution file exists
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile), "Solution file should exist");
+
+        var solutionContent = File.ReadAllText(solutionFile);
+        TestOutputHelper.WriteLine("Solution content:");
+        TestOutputHelper.WriteLine(solutionContent);
+
+        // For multi-target projects, we currently create separate projects per target framework
+        // Verify we have multiple projects in the solution
+        var projectCount = solutionContent.Split(new[] { "<Project Path=" }, StringSplitOptions.None).Length - 1;
+        Assert.True(projectCount >= 2, $"Should have at least 2 projects for multi-target, got {projectCount}");
+    }
+
+    [Fact]
+    public void ExportProjectValidateFrameworkReferencesFiltered()
+    {
+        RunDotNet("new console --name example --output .");
+        RunDotNet("build -bl -nr:false");
+
+        var binlog = Path.Combine(RootDirectory, "msbuild.binlog");
+        var complog = Path.Combine(RootDirectory, "msbuild.complog");
+        var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
+        Assert.True(result.Succeeded);
+
+        using var reader = CompilerLogReader.Create(complog);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        
+        using var tempDir = new TempDir();
+        exportUtil.ExportProject(tempDir.DirectoryPath);
+
+        // Find the project file
+        var projectFiles = Directory.GetFiles(tempDir.DirectoryPath, "*.csproj", SearchOption.AllDirectories);
+        Assert.NotEmpty(projectFiles);
+
+        var projectContent = File.ReadAllText(projectFiles[0]);
+        TestOutputHelper.WriteLine("Project content:");
+        TestOutputHelper.WriteLine(projectContent);
+
+        // Verify that framework references like System.Runtime are NOT included
+        Assert.DoesNotContain("System.Runtime.dll", projectContent);
+        Assert.DoesNotContain("System.Private.CoreLib.dll", projectContent);
+    }
 }

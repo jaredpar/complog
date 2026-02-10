@@ -643,6 +643,13 @@ public sealed partial class ExportUtil
             sb.AppendLine("    <OutputType>Library</OutputType>");
         }
         
+        // Disable default compile items since we're explicitly including source files
+        sb.AppendLine("    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>");
+        
+        // Disable auto-generation of assembly info since we're including the original
+        sb.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
+        sb.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
+        
         sb.AppendLine("  </PropertyGroup>");
         sb.AppendLine();
         
