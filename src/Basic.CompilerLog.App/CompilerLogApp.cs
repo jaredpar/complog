@@ -423,7 +423,7 @@ public sealed class CompilerLogApp(
             foreach (var (name, compilerCall) in namedCompilerCalls)
             {
                 var exportDir = Path.Combine(baseOutputPath, name);
-                exportUtil.Export(compilerCall, exportDir, compilerDirectories);
+                _ = exportUtil.Export(compilerCall, exportDir, compilerDirectories);
             }
 
             return ExitSuccess;

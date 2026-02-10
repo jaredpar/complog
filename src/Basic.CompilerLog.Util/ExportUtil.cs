@@ -139,15 +139,15 @@ public sealed partial class ExportUtil
             {
                 var dir = Path.Combine(destinationDir, i.ToString());
                 Directory.CreateDirectory(dir);
-                Export(compilerCall, dir, compilerDirectories);
+                _ = Export(compilerCall, dir, compilerDirectories);
             }
         }
     }
 
-    public void Export(
+    public string Export(
         CompilerCall compilerCall,
         string destinationDir,
-        IReadOnlyList<(string CompilerDirectory, string Name)> compilerDirectories)
+        IReadOnlyList<(string CompilerDirectory, string Name)>? compilerDirectories = null)
     {
         if (!Path.IsPathRooted(destinationDir))
         {
@@ -174,14 +174,18 @@ public sealed partial class ExportUtil
             var rspFilePath = Path.Combine(destinationDir, "build.rsp");
             File.WriteAllLines(rspFilePath, rspLines);
 
-            foreach (var compiler in compilerDirectories)
+            if (compilerDirectories is not null)
             {
-                var cmdFileName = $"build-{MakeSafeFileName(compiler.Name)}";
-                WriteBuildCmd(compiler.CompilerDirectory, cmdFileName);
+                foreach (var compiler in compilerDirectories)
+                {
+                    var cmdFileName = $"build-{MakeSafeFileName(compiler.Name)}";
+                    WriteBuildCmd(compiler.CompilerDirectory, cmdFileName);
+                }
+
+                WriteBuildCmd(compilerDirectories[0].CompilerDirectory, "build");
             }
 
-            WriteBuildCmd(compilerDirectories[0].CompilerDirectory, "build");
-
+            return rspFilePath;
         }
         finally
         {
