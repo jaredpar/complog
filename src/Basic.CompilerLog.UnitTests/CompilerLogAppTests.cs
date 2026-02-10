@@ -378,7 +378,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         using var reader = CompilerLogReader.Create(logData.CompilerLogPath, BasicAnalyzerKind.None);
         var compilerCall = Assert.Single(reader.ReadAllCompilerCalls());
         var exportUtil = new ExportUtil(reader);
-        exportUtil.Export(compilerCall, tempDir.DirectoryPath, []);
+        exportUtil.Export(compilerCall, tempDir.DirectoryPath, SdkUtil.GetSdkCompilerDirectories().Take(1).ToList());
         var rspPath = Path.Combine(tempDir.DirectoryPath, "build.rsp");
         Assert.True(File.Exists(rspPath));
         return rspPath;
