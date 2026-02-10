@@ -45,13 +45,13 @@ public static class SdkUtil
     }
 
     /// <summary>
-    /// Returns the sdk directories ordered by version ascending
+    /// Returns the sdk directories ordered by version descending.
     /// </summary>
     public static List<(string SdkDirectory, SdkVersion SdkVersion)> GetSdkDirectories(string? dotnetDirectory = null)
     {
         dotnetDirectory ??= GetDotnetDirectory();
         var sdk = Path.Combine(dotnetDirectory, "sdk");
-        var sdks = new List<(string, SdkVersion)>();
+        var sdks = new List<(string SdkDirectory, SdkVersion SdkVersion)>();
         foreach (var dir in Directory.EnumerateDirectories(sdk))
         {
             var versionStr = Path.GetFileName(dir)!;
@@ -67,8 +67,14 @@ public static class SdkUtil
             }
         }
 
+        sdks.Sort((a, b) => b.SdkVersion.CompareTo(a.SdkVersion));
         return sdks;
     }
+
+    public static List<(string CompilerDirectory, string Name)> GetSdkCompilerDirectories(string? dotnetDirectory = null) =>
+        GetSdkDirectories(dotnetDirectory)
+            .Select(x => (CompilerDirectory: Path.Combine(x.SdkDirectory, "Roslyn", "bincore"), Name: x.SdkVersion.ToString()))
+            .ToList();
 
     internal static (string SdkDirectory, SdkVersion SdkVersion) GetLatestSdkDirectory(string? dotnetDirectory = null) =>
         GetSdkDirectories(dotnetDirectory)

@@ -10,6 +10,10 @@ using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Xunit;
 
+#if NET
+using Basic.CompilerLog.App;
+#endif
+
 namespace Basic.CompilerLog.UnitTests;
 
 [Collection(CompilerLogCollection.Name)]

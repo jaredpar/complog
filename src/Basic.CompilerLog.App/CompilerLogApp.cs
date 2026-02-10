@@ -383,10 +383,12 @@ public sealed class CompilerLogApp(
     {
         var baseOutputPath = "";
         var excludeAnalyzers = false;
+        var useVisualStudio = false;
         var options = new FilterOptionSet()
         {
             { "o|out=", "path to export build content", o => baseOutputPath = o },
             { "n|no-analyzers", "do not include analyzers in rsp", i => excludeAnalyzers = i is not null },
+            { "vs", "use the csc.exe from installed Visual Studio instances", v => useVisualStudio = v is not null },
         };
 
         try
@@ -398,6 +400,13 @@ public sealed class CompilerLogApp(
                 return ExitSuccess;
             }
 
+            if (useVisualStudio && !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                WriteLine("The --vs option is only supported on Windows.");
+                PrintUsage();
+                return ExitFailure;
+            }
+
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
             using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None);
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
@@ -407,11 +416,14 @@ public sealed class CompilerLogApp(
             WriteLine($"Exporting to {baseOutputPath}");
             Directory.CreateDirectory(baseOutputPath);
 
-            var sdkDirs = SdkUtil.GetSdkDirectories();
+            var compilerDirectories = useVisualStudio
+                ? VisualStudioUtil.GetCompilerDirectories()
+                : SdkUtil.GetSdkCompilerDirectories();
+
             foreach (var (name, compilerCall) in namedCompilerCalls)
             {
                 var exportDir = Path.Combine(baseOutputPath, name);
-                exportUtil.Export(compilerCall, exportDir, sdkDirs);
+                exportUtil.Export(compilerCall, exportDir, compilerDirectories);
             }
 
             return ExitSuccess;
@@ -428,6 +440,7 @@ public sealed class CompilerLogApp(
             WriteLine("complog export [OPTIONS] msbuild.complog");
             options.WriteOptionDescriptions(OutputWriter);
         }
+
     }
 
     internal int RunResponseFile(IEnumerable<string> args)

@@ -359,11 +359,11 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         var (exitCode, output) = RunCompLogEx($@"create ""{logData.BinaryLogPath}"" -o {complogPath}");
         Assert.Equal(Constants.ExitSuccess, exitCode);
         Assert.True(File.Exists(complogPath));
-        
+
         // Verify that the created compiler log contains WPF temporary compile
         using var reader = CompilerLogReader.Create(complogPath);
         var compilerCalls = reader.ReadAllCompilerCalls();
-        
+
         // Should have WPF-related compiler calls (WpfTemporaryCompile should be captured by default)
         var wpfTempCompile = compilerCalls.FirstOrDefault(c => c.Kind == CompilerCallKind.WpfTemporaryCompile);
         Assert.NotNull(wpfTempCompile);
@@ -829,6 +829,44 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
                 .Any(x => x.StartsWith("/analyzer:", StringComparison.Ordinal));
             Assert.Equal(!excludeAnalyzers, anyAnalyzers);
         });
+    }
+
+    [WindowsFact]
+    public void ExportCompilerLogVs()
+    {
+        RunWithBoth(Fixture.Console.Value, logPath =>
+        {
+            using var exportDir = new TempDir();
+            var (exitCode, output) = RunCompLogEx($@"export --vs -o {exportDir.DirectoryPath} ""{logPath}""");
+
+            var compilers = VisualStudioUtil.GetInstallations();
+            if (compilers.Count == 0)
+            {
+                Assert.Equal(Constants.ExitFailure, exitCode);
+                Assert.Contains("No Visual Studio installations with csc.exe were found.", output);
+                return;
+            }
+
+            Assert.Equal(Constants.ExitSuccess, exitCode);
+
+            var exportPath = Path.Combine(exportDir.DirectoryPath, "console");
+            var buildScripts = Directory.EnumerateFiles(exportPath, "build*.cmd").ToList();
+            Assert.NotEmpty(buildScripts);
+
+            var buildResult = TestUtil.RunBuildCmd(exportPath);
+            TestOutputHelper.WriteLine(buildResult.StandardOut);
+            TestOutputHelper.WriteLine(buildResult.StandardError);
+            Assert.True(buildResult.Succeeded);
+        });
+    }
+
+    [UnixFact]
+    public void ExportCompilerLogVsUnsupported()
+    {
+        var logPath = Fixture.Console.Value.CompilerLogPath;
+        var (exitCode, output) = RunCompLogEx($@"export --vs ""{logPath}""");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains("The --vs option is only supported on Windows.", output);
     }
 
     /// <summary>

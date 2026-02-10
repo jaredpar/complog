@@ -2,12 +2,10 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Basic.CompilerLog.Util;
 
-/// <summary>
-/// Tool to export compilations to disk for other uses
-/// </summary>
 public sealed partial class ExportUtil
 {
     internal sealed class ContentBuilder : PathNormalizationUtil
@@ -49,8 +47,8 @@ public sealed partial class ExportUtil
             GeneratedCodeDirectory = new(Path.Combine(destinationDirectory, "generated"));
             AnalyzerDirectory = new(Path.Combine(destinationDirectory, "analyzers"));
             BuildOutput = new(Path.Combine(destinationDirectory, "output"), flatten: true);
-            Directory.CreateDirectory(SourceOutputDirectory);
-            Directory.CreateDirectory(EmbeddedResourceDirectory);
+            _ = Directory.CreateDirectory(SourceOutputDirectory);
+            _ = Directory.CreateDirectory(EmbeddedResourceDirectory);
         }
 
         [return: NotNullIfNotNull("path")]
@@ -128,7 +126,10 @@ public sealed partial class ExportUtil
         ExcludeAnalyzers = excludeAnalyzers;
     }
 
-    internal void ExportAll(string destinationDir, IEnumerable<(string SdkDirectory, SdkVersion SdkVersion)> sdkDirectories, Func<CompilerCall, bool>? predicate = null)
+    internal void ExportAll(
+        string destinationDir,
+        IReadOnlyList<(string CompilerDirectory, string Name)> compilerDirectories,
+        Func<CompilerCall, bool>? predicate = null)
     {
         predicate ??= static _ => true;
         for (int  i = 0; i < Reader.Count ; i++)
@@ -138,12 +139,15 @@ public sealed partial class ExportUtil
             {
                 var dir = Path.Combine(destinationDir, i.ToString());
                 Directory.CreateDirectory(dir);
-                Export(compilerCall, dir, sdkDirectories);
+                Export(compilerCall, dir, compilerDirectories);
             }
         }
     }
 
-    public void Export(CompilerCall compilerCall, string destinationDir, IEnumerable<(string SdkDirectory, SdkVersion SdkVersion)> sdkDirectories)
+    public void Export(
+        CompilerCall compilerCall,
+        string destinationDir,
+        IReadOnlyList<(string CompilerDirectory, string Name)> compilerDirectories)
     {
         if (!Path.IsPathRooted(destinationDir))
         {
@@ -170,18 +174,13 @@ public sealed partial class ExportUtil
             var rspFilePath = Path.Combine(destinationDir, "build.rsp");
             File.WriteAllLines(rspFilePath, rspLines);
 
-            // Need to create a few directories so that the builds will actually function
-            foreach (var sdkDir in sdkDirectories)
+            foreach (var compiler in compilerDirectories)
             {
-                var cmdFileName = $"build-{Path.GetFileName(sdkDir.SdkDirectory)}";
-                WriteBuildCmd(sdkDir.SdkDirectory, cmdFileName);
+                var cmdFileName = $"build-{MakeSafeFileName(compiler.Name)}";
+                WriteBuildCmd(compiler.CompilerDirectory, cmdFileName);
             }
 
-            string? bestSdkDir = sdkDirectories.OrderByDescending(x => x.SdkVersion).Select(x => x.SdkDirectory).FirstOrDefault();
-            if (bestSdkDir is not null)
-            {
-                WriteBuildCmd(bestSdkDir, "build");
-            }
+            WriteBuildCmd(compilerDirectories[0].CompilerDirectory, "build");
 
         }
         finally
@@ -189,7 +188,19 @@ public sealed partial class ExportUtil
             Reader.PathNormalizationUtil = Reader.DefaultPathNormalizationUtil;
         }
 
-        void WriteBuildCmd(string sdkDir, string cmdFileName)
+        static string MakeSafeFileName(string value)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var builder = new StringBuilder(value.Length);
+            foreach (var ch in value)
+            {
+                builder.Append(invalidChars.Contains(ch) ? '_' : ch);
+            }
+
+            return builder.ToString();
+        }
+
+        void WriteBuildCmd(string compilerDirectory, string cmdFileName)
         {
             var lines = new List<string>();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -202,16 +213,12 @@ public sealed partial class ExportUtil
                 lines.Add(@"#!/bin/sh");
             }
 
-            var execPath = Path.Combine(sdkDir, "Roslyn", "bincore");
-            execPath = compilerCall.IsCSharp
-                ? Path.Combine(execPath, "csc.dll")
-                : Path.Combine(execPath, "vbc.dll");
-
             var noConfig = hasNoConfigOption
                 ? "/noconfig "
                 : string.Empty;
 
-            lines.Add($@"dotnet exec ""{execPath}"" {noConfig}@build.rsp");
+            var compilerCommand = RoslynUtil.GetCompilerInvocation(compilerDirectory, compilerCall.IsCSharp);
+            lines.Add($@"{compilerCommand} {noConfig}@build.rsp");
             var cmdFilePath = Path.Combine(destinationDir, cmdFileName);
             File.WriteAllLines(cmdFilePath, lines);
 
@@ -232,7 +239,7 @@ public sealed partial class ExportUtil
             var newLines = new List<string>(capacity: oldLines.Count);
 
             // If we're excluding analyzers then we need to add the generated files as inputs
-            // to the compilation. The compiler adds generated syntax trees first into the 
+            // to the compilation. The compiler adds generated syntax trees first into the
             // compilation so replicate that here.
             if (ExcludeAnalyzers)
             {
@@ -382,7 +389,7 @@ public sealed partial class ExportUtil
             return lines;
         }
 
-        // Write out all of the raw content to disk so it can be referenced by the exported 
+        // Write out all of the raw content to disk so it can be referenced by the exported
         // data
         void WriteContent()
         {

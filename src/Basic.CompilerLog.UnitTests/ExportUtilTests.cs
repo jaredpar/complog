@@ -76,7 +76,7 @@ public sealed class ExportUtilTests : TestBase
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
         TestExport(
             testOutputHelper,
-            reader,
+            reader: reader,
             expectedCount,
             excludeAnalyzers,
             verifyExportCallback,
@@ -94,9 +94,9 @@ public sealed class ExportUtilTests : TestBase
         Action<ProcessResult>? verifyBuildResult = null)
     {
 #if NET
-        var sdkDirs = SdkUtil.GetSdkDirectories();
+        var compilerDirectories = SdkUtil.GetSdkCompilerDirectories();
 #else
-        var sdkDirs = SdkUtil.GetSdkDirectories(@"c:\Program Files\dotnet");
+        var compilerDirectories = SdkUtil.GetSdkCompilerDirectories(@"c:\Program Files\dotnet");
 #endif
         var exportUtil = new ExportUtil(reader, excludeAnalyzers);
         var count = 0;
@@ -105,10 +105,14 @@ public sealed class ExportUtilTests : TestBase
             count++;
             testOutputHelper.WriteLine($"Testing export for {compilerCall.ProjectFileName} - {compilerCall.TargetFramework}");
             using var tempDir = new TempDir();
-            exportUtil.Export(compilerCall, tempDir.DirectoryPath, sdkDirs);
+            exportUtil.Export(compilerCall, tempDir.DirectoryPath, compilerDirectories);
 
             if (runBuild)
             {
+                var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "build.cmd" : "build.sh";
+                testOutputHelper.WriteLine("Build script");
+                testOutputHelper.WriteLine(File.ReadAllText(Path.Combine(tempDir.DirectoryPath, buildScript)));
+
                 // Now run the generated build.cmd and see if it succeeds;
                 var buildResult = TestUtil.RunBuildCmd(tempDir.DirectoryPath);
                 testOutputHelper.WriteLine(buildResult.StandardOut);
@@ -282,7 +286,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkDirectories());
+        exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkCompilerDirectories());
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "1")));
     }
@@ -292,7 +296,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkDirectories()));
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkCompilerDirectories()));
     }
 #endif
 
@@ -455,7 +459,7 @@ public sealed class ExportUtilTests : TestBase
 #if NET
         using var scratchDir = new TempDir("export test");
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: false);
-        exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkDirectories());
+        exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkCompilerDirectories());
 #endif
     }
 
