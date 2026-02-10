@@ -626,7 +626,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         {
             var filePath = referencePack.FilePath is string fp
                 ? NormalizePath(fp)
-                : PathNormalizationUtil.RootFileName(GetMetadataReferenceFileName(referencePack.Mvid));
+                : GetMetadataReferenceFileName(referencePack.Mvid);
             var assemblyIdentityData = new AssemblyIdentityData(
                 referencePack.Mvid,
                 referencePack.AssemblyName,

@@ -61,11 +61,6 @@ internal abstract class PathNormalizationUtil
     /// files on the command line)
     /// </summary>
     internal virtual string NormalizePath(string path, ReadOnlySpan<char> optionName)  => NormalizePath(path);
-
-    /// <summary>
-    /// Make the file name an absolute path by putting it under the root
-    /// </summary>
-    internal abstract string RootFileName(string fileName);
 }
 
 /// <summary>
@@ -128,8 +123,6 @@ file sealed class WindowsToUnixNormalizationUtil(string root) : PathNormalizatio
         ArrayPool<char>.Shared.Return(array);
         return normalizedPath;
     }
-
-    internal override string RootFileName(string fileName)=> Root + fileName;
 }
 
 file sealed class UnixToWindowsNormalizationUtil(string root) : PathNormalizationUtil
@@ -177,8 +170,6 @@ file sealed class UnixToWindowsNormalizationUtil(string root) : PathNormalizatio
         ArrayPool<char>.Shared.Return(array);
         return normalizedPath;
     }
-
-    internal override string RootFileName(string fileName)=> Root + fileName;
 }
 
 /// <summary>
@@ -191,6 +182,4 @@ file sealed class EmptyNormalizationUtil : PathNormalizationUtil
 
     internal override bool IsPathRooted(string? path) => Path.IsPathRooted(path);
     internal override string? NormalizePath(string? path) => path;
-
-    internal override string RootFileName(string fileName)=> Root + fileName;
 }
