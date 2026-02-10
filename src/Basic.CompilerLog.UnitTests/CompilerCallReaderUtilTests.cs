@@ -46,7 +46,6 @@ public sealed class CompilerCallReaderUtilTests : TestBase
         }
     }
 
-
     [Fact]
     public void CreateFromZipRenamedComplog()
     {
@@ -76,6 +75,20 @@ public sealed class CompilerCallReaderUtilTests : TestBase
         var compilerCall = Assert.Single(reader.ReadAllCompilerCalls());
         Assert.True(compilerCall.IsCSharp);
         Assert.Equal(rspPath, compilerCall.ProjectFilePath);
+    }
+
+    [Fact]
+    public void CreateFromResponseFileMissingReference()
+    {
+        using var tempDir = new TempDir();
+        var rspPath = Path.Combine(tempDir.DirectoryPath, "missing.rsp");
+        File.WriteAllText(rspPath, """
+            /noconfig
+            /nostdlib+
+            /reference:missing.dll
+            missing.cs
+            """, DefaultEncoding);
+        Assert.Throws<CompilerLogException>(() => CompilerCallReaderUtil.Create(rspPath, BasicAnalyzerKind.None));
     }
 
     [Theory]

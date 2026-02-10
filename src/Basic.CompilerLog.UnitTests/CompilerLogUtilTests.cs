@@ -21,6 +21,12 @@ public sealed class CompilerLogUtilTests : TestBase
     }
 
     [Fact]
+    public void TryConvertBuildFileBadExtension()
+    {
+        Assert.Throws<ArgumentException>(() => CompilerLogUtil.TryConvertBuildFile("file.bad", "output.complog"));
+    }
+
+    [Fact]
     public void TryConvertResponseFileMissingFile()
     {
         using var tempDir = new TempDir();

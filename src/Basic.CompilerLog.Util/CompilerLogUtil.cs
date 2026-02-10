@@ -177,24 +177,20 @@ public static class CompilerLogUtil
             return new ConvertBinaryLogResult(false, included, diagnostics);
         }
 
-        var isCSharp = GuessIsCSharpResponseFile(arguments, diagnostics);
-        var compilerCall = new CompilerCall(responseFilePath, CompilerCallKind.Regular, targetFramework: null, isCSharp: isCSharp, compilerFilePath: null);
+        var isCSharp = GuessIsCSharpResponseFile(arguments);
+        var compilerCall = new CompilerCall(
+            Path.ChangeExtension(responseFilePath, isCSharp ? ".csproj" : ".vbproj"),
+            CompilerCallKind.Regular,
+            targetFramework: null,
+            isCSharp: isCSharp,
+            compilerFilePath: null);
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
 
         if (predicate(compilerCall))
         {
             try
             {
-                var originalDirectory = Environment.CurrentDirectory;
-                try
-                {
-                    Environment.CurrentDirectory = Path.GetDirectoryName(responseFilePath) ?? originalDirectory;
-                    builder.AddFromDisk(compilerCall, arguments);
-                }
-                finally
-                {
-                    Environment.CurrentDirectory = originalDirectory;
-                }
+                builder.AddFromDisk(compilerCall, arguments);
                 included.Add(compilerCall);
             }
             catch (Exception ex)
@@ -205,65 +201,30 @@ public static class CompilerLogUtil
         }
 
         return new ConvertBinaryLogResult(success, included, diagnostics);
-        bool GuessIsCSharpResponseFile(IEnumerable<string> arguments, List<string> diagnostics)
+        static bool GuessIsCSharpResponseFile(string[] arguments)
         {
-            var csharpCount = 0;
-            var visualBasicCount = 0;
-
-            foreach (var arg in arguments)
+            for (int i = arguments.Length - 1; i >= 0; i--)
             {
-                if (!TryGetExtensionSuffix(arg.AsSpan(), out var extension))
+                var arg = arguments[i].AsSpan();
+                var trimmed = arg.TrimEnd();
+                if (trimmed.Length < 3)
                 {
                     continue;
                 }
 
-                if (extension.Equals(".cs".AsSpan(), StringComparison.OrdinalIgnoreCase))
+                var extension = trimmed[^3..];
+                if (extension.Equals(".cs", StringComparison.OrdinalIgnoreCase))
                 {
-                    csharpCount++;
+                    return true;
                 }
-                else if (extension.Equals(".vb".AsSpan(), StringComparison.OrdinalIgnoreCase))
+
+                if (extension.Equals(".vb", StringComparison.OrdinalIgnoreCase))
                 {
-                    visualBasicCount++;
+                    return false;
                 }
             }
 
-            if (csharpCount == 0 && visualBasicCount == 0)
-            {
-                diagnostics.Add("Could not determine response file language from source extensions. Defaulting to C#.");
-                return true;
-            }
-
-            if (csharpCount == 0)
-            {
-                return false;
-            }
-
-            if (visualBasicCount == 0)
-            {
-                return true;
-            }
-
-            if (csharpCount >= visualBasicCount)
-            {
-                diagnostics.Add("Response file contains both C# and VB sources. Defaulting to C#.");
-                return true;
-            }
-
-            diagnostics.Add("Response file contains both C# and VB sources. Defaulting to VB.");
             return false;
-        }
-
-        static bool TryGetExtensionSuffix(ReadOnlySpan<char> arg, [NotNullWhen(true)] out ReadOnlySpan<char> extension)
-        {
-            extension = default;
-            var trimmed = arg.TrimEnd();
-            if (trimmed.Length < 3)
-            {
-                return false;
-            }
-
-            extension = trimmed[^3..];
-            return true;
         }
     }
 

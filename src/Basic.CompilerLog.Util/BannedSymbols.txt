@@ -2,3 +2,4 @@ M:Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference.GetAnalyzers(System.Strin
 M:Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference.GetAnalyzersForAllLanguages();
 M:Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference.GetGenerators(System.String); Use GetGenerators(string, List<Diagnostic>) instead
 M:Microsoft.CodeAnalysis.Diagnostics.AnalyzerReference.GetGeneratorsForAllLanguages();
+P:System.Environment.CurrentDirectory; Do not set this property as it's process wide, pass around a variable instead
