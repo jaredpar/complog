@@ -63,6 +63,21 @@ public sealed class CompilerCallReaderUtilTests : TestBase
         Assert.NotEmpty(compilerCalls);
     }
 
+    [Fact]
+    public void CreateFromResponseFile()
+    {
+        using var tempDir = new TempDir();
+        var sourcePath = Path.Combine(tempDir.DirectoryPath, "Program.cs");
+        File.WriteAllText(sourcePath, "class C { static void Main() { } }", DefaultEncoding);
+        var rspPath = Path.Combine(tempDir.DirectoryPath, "build.rsp");
+        File.WriteAllLines(rspPath, ["/noconfig", "/nostdlib+", "Program.cs"]);
+
+        using var reader = CompilerCallReaderUtil.Create(rspPath, BasicAnalyzerKind.None);
+        var compilerCall = Assert.Single(reader.ReadAllCompilerCalls());
+        Assert.True(compilerCall.IsCSharp);
+        Assert.Equal(rspPath, compilerCall.ProjectFilePath);
+    }
+
     [Theory]
     [MemberData(nameof(GetBasicAnalyzerKinds))]
     public void GetAllAnalyzerKinds(BasicAnalyzerKind basicAnalyzerKind)

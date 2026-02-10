@@ -19,4 +19,29 @@ public sealed class CompilerLogUtilTests : TestBase
     {
         Assert.Throws<ArgumentException>(() => CompilerCallReaderUtil.Create("file.bad"));
     }
+
+    [Fact]
+    public void TryConvertResponseFileMissingFile()
+    {
+        using var tempDir = new TempDir();
+        var rspPath = Path.Combine(tempDir.DirectoryPath, "missing.rsp");
+        var complogPath = Path.Combine(tempDir.DirectoryPath, "missing.complog");
+
+        var result = CompilerLogUtil.TryConvertResponseFile(rspPath, complogPath);
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Error reading response file", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void TryConvertResponseFileEmpty()
+    {
+        using var tempDir = new TempDir();
+        var rspPath = Path.Combine(tempDir.DirectoryPath, "empty.rsp");
+        File.WriteAllText(rspPath, string.Empty);
+        var complogPath = Path.Combine(tempDir.DirectoryPath, "empty.complog");
+
+        var result = CompilerLogUtil.TryConvertResponseFile(rspPath, complogPath);
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("Response file contains no arguments", StringComparison.OrdinalIgnoreCase));
+    }
 }
