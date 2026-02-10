@@ -1,6 +1,7 @@
 
 using System.Configuration;
 using System.Runtime.InteropServices;
+using System.Xml.Linq;
 using System.Windows.Markup;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
@@ -268,6 +269,39 @@ public sealed class UsingAllCompilerLogTests : TestBase
         }
 
         ExportRspUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
+    }
+
+    [Theory]
+    [MemberData(nameof(GetExportAndBuildData))]
+    public async Task ExportProject(bool excludeAnalyzers, string logDataName)
+    {
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        if (excludeAnalyzers && !logData.SupportsNoneHost)
+        {
+            return;
+        }
+
+        var kind = excludeAnalyzers ? BasicAnalyzerKind.None : BasicAnalyzerHost.DefaultKind;
+        using var reader = CompilerLogReader.Create(logData.CompilerLogPath, kind);
+        var compilerCalls = reader.ReadAllCompilerCalls();
+        using var tempDir = new TempDir();
+        var exportUtil = new ExportProjectUtil(reader, excludeAnalyzers);
+        exportUtil.ExportProject(compilerCalls, tempDir.DirectoryPath);
+
+        var solutionPath = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionPath));
+
+        var solution = XDocument.Load(solutionPath);
+        var projectEntries = solution.Descendants("Project")
+            .Select(element => element.Attribute("Path")?.Value)
+            .Where(value => value is not null)
+            .ToList();
+
+        var expectedCount = compilerCalls
+            .Select(call => call.ProjectFilePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        Assert.Equal(expectedCount, projectEntries.Count);
     }
 
     public static IEnumerable<object[]> GetLoadAllCoreData()
