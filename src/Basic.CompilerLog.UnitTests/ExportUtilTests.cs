@@ -502,15 +502,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void ExportProjectBasic()
     {
-        RunDotNet("new console --name example --output .");
-        RunDotNet("build -bl -nr:false");
-
-        var binlog = Path.Combine(RootDirectory, "msbuild.binlog");
-        var complog = Path.Combine(RootDirectory, "msbuild.complog");
-        var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
-        Assert.True(result.Succeeded);
-
-        using var reader = CompilerLogReader.Create(complog);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
         
         using var tempDir = new TempDir();
@@ -520,11 +512,14 @@ public sealed class ExportUtilTests : TestBase
         var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
         Assert.True(File.Exists(solutionFile), "Solution file should exist");
 
-        // Verify solution file format
+        // Verify solution file format with complete content
         var solutionContent = File.ReadAllText(solutionFile);
-        Assert.Contains("<Solution>", solutionContent);
-        Assert.Contains("<Project Path=", solutionContent);
-        Assert.Contains("</Solution>", solutionContent);
+        var expectedSolution = """
+            <Solution>
+              <Project Path="console-net9.0/console-net9.0.csproj" />
+            </Solution>
+            """;
+        Assert.Equal(expectedSolution, solutionContent.Trim());
 
         // Verify references directory exists
         var referencesDir = Path.Combine(tempDir.DirectoryPath, "references");
@@ -543,10 +538,13 @@ public sealed class ExportUtilTests : TestBase
         var projectFile = projectFiles[0];
         var projectContent = File.ReadAllText(projectFile);
         
-        // Verify project file format
+        // Verify project file format with key elements
         Assert.Contains("<Project Sdk=\"Microsoft.NET.Sdk\">", projectContent);
-        Assert.Contains("<TargetFramework>", projectContent);
-        Assert.Contains("<AssemblyName>", projectContent);
+        Assert.Contains("<TargetFramework>net9.0</TargetFramework>", projectContent);
+        Assert.Contains("<AssemblyName>console</AssemblyName>", projectContent);
+        Assert.Contains("<OutputType>Exe</OutputType>", projectContent);
+        Assert.Contains("<EnableDefaultCompileItems>false</EnableDefaultCompileItems>", projectContent);
+        Assert.Contains("<GenerateAssemblyInfo>false</GenerateAssemblyInfo>", projectContent);
 
         // Verify source files were copied
         var sourceFiles = Directory.GetFiles(projectDir, "*.cs");
@@ -572,24 +570,20 @@ public sealed class ExportUtilTests : TestBase
         TestOutputHelper.WriteLine("Solution content:");
         TestOutputHelper.WriteLine(solutionContent);
 
-        // For multi-target projects, we currently create separate projects per target framework
-        // Verify we have multiple projects in the solution
-        var projectCount = solutionContent.Split(new[] { "<Project Path=" }, StringSplitOptions.None).Length - 1;
-        Assert.True(projectCount >= 2, $"Should have at least 2 projects for multi-target, got {projectCount}");
+        // Verify complete solution content with both target frameworks
+        var expectedSolution = """
+            <Solution>
+              <Project Path="classlibmulti-net6.0/classlibmulti-net6.0.csproj" />
+              <Project Path="classlibmulti-net9.0/classlibmulti-net9.0.csproj" />
+            </Solution>
+            """;
+        Assert.Equal(expectedSolution, solutionContent.Trim());
     }
 
     [Fact]
     public void ExportProjectValidateFrameworkReferencesFiltered()
     {
-        RunDotNet("new console --name example --output .");
-        RunDotNet("build -bl -nr:false");
-
-        var binlog = Path.Combine(RootDirectory, "msbuild.binlog");
-        var complog = Path.Combine(RootDirectory, "msbuild.complog");
-        var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
-        Assert.True(result.Succeeded);
-
-        using var reader = CompilerLogReader.Create(complog);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
         
         using var tempDir = new TempDir();

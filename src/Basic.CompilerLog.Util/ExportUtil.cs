@@ -505,10 +505,10 @@ public sealed partial class ExportUtil
 
         predicate ??= static _ => true;
         
-        Directory.CreateDirectory(destinationDir);
+        _ = Directory.CreateDirectory(destinationDir);
         
         var referencesDir = Path.Combine(destinationDir, "references");
-        Directory.CreateDirectory(referencesDir);
+        _ = Directory.CreateDirectory(referencesDir);
         
         var projectInfos = new List<(int Index, CompilerCall CompilerCall, string ProjectDir, string ProjectFileName)>();
         var mvidToReferenceFile = new Dictionary<Guid, string>();
