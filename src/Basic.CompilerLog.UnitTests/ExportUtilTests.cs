@@ -514,9 +514,9 @@ public sealed class ExportUtilTests : TestBase
 
         // Verify solution file format with complete content
         var solutionContent = File.ReadAllText(solutionFile);
-        var expectedSolution = """
+        var expectedSolution = $$"""
             <Solution>
-              <Project Path="console-net9.0/console-net9.0.csproj" />
+              <Project Path="console-{{TestUtil.TestTargetFramework}}/console-{{TestUtil.TestTargetFramework}}.csproj" />
             </Solution>
             """;
         Assert.Equal(expectedSolution, solutionContent.Trim());
@@ -538,13 +538,36 @@ public sealed class ExportUtilTests : TestBase
         var projectFile = projectFiles[0];
         var projectContent = File.ReadAllText(projectFile);
         
-        // Verify project file format with key elements
-        Assert.Contains("<Project Sdk=\"Microsoft.NET.Sdk\">", projectContent);
-        Assert.Contains("<TargetFramework>net9.0</TargetFramework>", projectContent);
-        Assert.Contains("<AssemblyName>console</AssemblyName>", projectContent);
-        Assert.Contains("<OutputType>Exe</OutputType>", projectContent);
-        Assert.Contains("<EnableDefaultCompileItems>false</EnableDefaultCompileItems>", projectContent);
-        Assert.Contains("<GenerateAssemblyInfo>false</GenerateAssemblyInfo>", projectContent);
+        // Verify complete project file content
+        // The console project includes Program.cs and auto-generated files
+        var expectedProject = $$"""
+            <Project Sdk="Microsoft.NET.Sdk">
+
+              <PropertyGroup>
+                <TargetFramework>{{TestUtil.TestTargetFramework}}</TargetFramework>
+                <AssemblyName>console</AssemblyName>
+                <OutputType>Exe</OutputType>
+                <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+                <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+                <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+              </PropertyGroup>
+
+              <ItemGroup>
+                <Compile Include="Program.cs" />
+                <Compile Include="console.GlobalUsings.g.cs" />
+                <Compile Include=".NETCoreApp,Version=v9.0.AssemblyAttributes.cs" />
+                <Compile Include="console.AssemblyInfo.cs" />
+              </ItemGroup>
+
+              <ItemGroup>
+                <Reference Include="WindowsBase">
+                  <HintPath>../references/WindowsBase.dll</HintPath>
+                </Reference>
+              </ItemGroup>
+
+            </Project>
+            """;
+        Assert.Equal(expectedProject, projectContent.Trim());
 
         // Verify source files were copied
         var sourceFiles = Directory.GetFiles(projectDir, "*.cs");
@@ -594,11 +617,35 @@ public sealed class ExportUtilTests : TestBase
         Assert.NotEmpty(projectFiles);
 
         var projectContent = File.ReadAllText(projectFiles[0]);
-        TestOutputHelper.WriteLine("Project content:");
-        TestOutputHelper.WriteLine(projectContent);
+        
+        // Verify complete project file content - framework references should be filtered out
+        var expectedProject = $$"""
+            <Project Sdk="Microsoft.NET.Sdk">
 
-        // Verify that framework references like System.Runtime are NOT included
-        Assert.DoesNotContain("System.Runtime.dll", projectContent);
-        Assert.DoesNotContain("System.Private.CoreLib.dll", projectContent);
+              <PropertyGroup>
+                <TargetFramework>{{TestUtil.TestTargetFramework}}</TargetFramework>
+                <AssemblyName>console</AssemblyName>
+                <OutputType>Exe</OutputType>
+                <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+                <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+                <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+              </PropertyGroup>
+
+              <ItemGroup>
+                <Compile Include="Program.cs" />
+                <Compile Include="console.GlobalUsings.g.cs" />
+                <Compile Include=".NETCoreApp,Version=v9.0.AssemblyAttributes.cs" />
+                <Compile Include="console.AssemblyInfo.cs" />
+              </ItemGroup>
+
+              <ItemGroup>
+                <Reference Include="WindowsBase">
+                  <HintPath>../references/WindowsBase.dll</HintPath>
+                </Reference>
+              </ItemGroup>
+
+            </Project>
+            """;
+        Assert.Equal(expectedProject, projectContent.Trim());
     }
 }
