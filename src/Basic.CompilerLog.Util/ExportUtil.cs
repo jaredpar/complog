@@ -112,8 +112,6 @@ public sealed partial class ExportUtil
         }
 
         internal override bool IsPathRooted([NotNullWhen(true)] string? path) => PathNormalizationUtil.IsPathRooted(path);
-
-        internal override string RootFileName(string fileName) => PathNormalizationUtil.RootFileName(fileName);
     }
 
     public CompilerLogReader Reader { get; }

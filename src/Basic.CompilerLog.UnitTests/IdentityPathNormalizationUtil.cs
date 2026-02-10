@@ -10,6 +10,5 @@ namespace Basic.CompilerLog.UnitTests;
 internal sealed class IdentityPathNormalizationUtil : PathNormalizationUtil
 {
     internal override bool IsPathRooted([NotNullWhen(true)] string? path) => Empty.IsPathRooted(path);
-    internal override string RootFileName(string fileName) => Empty.RootFileName(fileName);
     internal override string? NormalizePath(string? path) => Empty.NormalizePath(path);
 }
