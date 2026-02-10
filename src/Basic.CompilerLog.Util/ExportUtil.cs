@@ -597,7 +597,11 @@ public sealed partial class ExportUtil
         // Need to disambiguate with MVID
         var nameWithoutExt = Path.GetFileNameWithoutExtension(baseFileName);
         var ext = Path.GetExtension(baseFileName);
+#if NET
+        var mvidPart = refData.Mvid.ToString("N")[..8];
+#else
         var mvidPart = refData.Mvid.ToString("N").Substring(0, 8);
+#endif
         return $"{nameWithoutExt}_{mvidPart}{ext}";
     }
     
@@ -711,7 +715,11 @@ public sealed partial class ExportUtil
             sb.AppendLine("  <ItemGroup>");
             foreach (var refPath in metadataReferences)
             {
-                sb.AppendLine($"    <Reference Include=\"{refPath}\" />");
+                var refFileName = Path.GetFileName(refPath);
+                var refNameWithoutExt = Path.GetFileNameWithoutExtension(refFileName);
+                sb.AppendLine($"    <Reference Include=\"{refNameWithoutExt}\">");
+                sb.AppendLine($"      <HintPath>{refPath}</HintPath>");
+                sb.AppendLine("    </Reference>");
             }
             sb.AppendLine("  </ItemGroup>");
             sb.AppendLine();
@@ -755,6 +763,20 @@ public sealed partial class ExportUtil
 #endif
     }
     
+    private static readonly string[] s_frameworkAssemblies = new[]
+    {
+        "System",
+        "System.Runtime",
+        "System.Private.CoreLib",
+        "System.Core",
+        "System.Data",
+        "System.Xml",
+        "System.Xml.Linq",
+        "System.Net.Http",
+        "netstandard",
+        "mscorlib",
+    };
+    
     private bool IsFrameworkReference(ReferenceData refData)
     {
         var assemblyName = refData.AssemblyIdentityData.AssemblyName;
@@ -763,22 +785,7 @@ public sealed partial class ExportUtil
             return false;
         }
         
-        // Common framework assemblies
-        var frameworkAssemblies = new[]
-        {
-            "System",
-            "System.Runtime",
-            "System.Private.CoreLib",
-            "System.Core",
-            "System.Data",
-            "System.Xml",
-            "System.Xml.Linq",
-            "System.Net.Http",
-            "netstandard",
-            "mscorlib",
-        };
-        
-        if (frameworkAssemblies.Contains(assemblyName, StringComparer.OrdinalIgnoreCase))
+        if (s_frameworkAssemblies.Contains(assemblyName, StringComparer.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -811,7 +818,8 @@ public sealed partial class ExportUtil
         foreach (var (_, _, projectDir, projectFileName) in projectInfos)
         {
             var relativePath = GetRelativePath(destinationDir, Path.Combine(projectDir, projectFileName));
-            // Normalize path separators for cross-platform compatibility
+            // .slnx files are XML-based and use forward slashes regardless of platform
+            // This ensures cross-platform compatibility of the solution file
             relativePath = relativePath.Replace('\\', '/');
             sb.AppendLine($"  <Project Path=\"{relativePath}\" />");
         }
