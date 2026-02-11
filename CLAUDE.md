@@ -13,16 +13,16 @@ Repository: https://github.com/jaredpar/complog
 ```bash
 # Restore, build, and test (the main workflow)
 dotnet build
-dotnet test
+dotnet test --framework net10.0
 
 # Build the full solution
 dotnet build BasicCompilerLog.slnx
 
 # Run tests (Linux: net10.0 only; Windows: net10.0 + net472)
-dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj
+dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
 
 # Run tests for a specific framework
-dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj -f net10.0
+dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
 
 # Build with binary log (used for CI and dogfooding)
 dotnet build -bl
