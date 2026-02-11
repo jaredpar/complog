@@ -553,7 +553,7 @@ public sealed class ExportUtilTests : TestBase
 
               <ItemGroup>
                 <Reference Include="WindowsBase">
-                  <HintPath>../references/WindowsBase.dll</HintPath>
+                  <HintPath>{{Path.Combine("..", "references", "WindowsBase.dll")}}</HintPath>
                 </Reference>
               </ItemGroup>
 
@@ -624,7 +624,7 @@ public sealed class ExportUtilTests : TestBase
 
               <ItemGroup>
                 <Reference Include="WindowsBase">
-                  <HintPath>../references/WindowsBase.dll</HintPath>
+                  <HintPath>{{Path.Combine("..", "references", "WindowsBase.dll")}}</HintPath>
                 </Reference>
               </ItemGroup>
 
