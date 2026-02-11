@@ -18,10 +18,10 @@ dotnet test --framework net10.0
 # Build the full solution
 dotnet build BasicCompilerLog.slnx
 
-# Run tests (Linux: net10.0 only; Windows: net10.0 + net472)
+# Run tests for net10.0 framework (AI agents should focus on this TFM)
 dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
 
-# Run tests for a specific framework
+# Run tests for net10.0 framework
 dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
 
 # Build with binary log (used for CI and dogfooding)
