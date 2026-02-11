@@ -539,7 +539,7 @@ public sealed class ExportUtilTests : TestBase
         var projectContent = File.ReadAllText(projectFile);
         
         // Verify complete project file content
-        // The console project includes Program.cs and auto-generated files
+        // The console project uses SDK default globbing for source files
         var expectedProject = $$"""
             <Project Sdk="Microsoft.NET.Sdk">
 
@@ -547,17 +547,9 @@ public sealed class ExportUtilTests : TestBase
                 <TargetFramework>{{TestUtil.TestTargetFramework}}</TargetFramework>
                 <AssemblyName>console</AssemblyName>
                 <OutputType>Exe</OutputType>
-                <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
                 <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
                 <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
               </PropertyGroup>
-
-              <ItemGroup>
-                <Compile Include="Program.cs" />
-                <Compile Include="console.GlobalUsings.g.cs" />
-                <Compile Include=".NETCoreApp,Version=v9.0.AssemblyAttributes.cs" />
-                <Compile Include="console.AssemblyInfo.cs" />
-              </ItemGroup>
 
               <ItemGroup>
                 <Reference Include="WindowsBase">
@@ -626,17 +618,9 @@ public sealed class ExportUtilTests : TestBase
                 <TargetFramework>{{TestUtil.TestTargetFramework}}</TargetFramework>
                 <AssemblyName>console</AssemblyName>
                 <OutputType>Exe</OutputType>
-                <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
                 <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
                 <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
               </PropertyGroup>
-
-              <ItemGroup>
-                <Compile Include="Program.cs" />
-                <Compile Include="console.GlobalUsings.g.cs" />
-                <Compile Include=".NETCoreApp,Version=v9.0.AssemblyAttributes.cs" />
-                <Compile Include="console.AssemblyInfo.cs" />
-              </ItemGroup>
 
               <ItemGroup>
                 <Reference Include="WindowsBase">

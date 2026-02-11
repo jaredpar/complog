@@ -647,9 +647,6 @@ public sealed partial class ExportUtil
             sb.AppendLine("    <OutputType>Library</OutputType>");
         }
         
-        // Disable default compile items since we're explicitly including source files
-        sb.AppendLine("    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>");
-        
         // Disable auto-generation of assembly info since we're including the original
         sb.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
         sb.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
@@ -657,22 +654,10 @@ public sealed partial class ExportUtil
         sb.AppendLine("  </PropertyGroup>");
         sb.AppendLine();
         
-        // Add source files
+        // Copy source files but don't add explicit Compile entries - let SDK default globbing handle them
         var sourceFiles = Reader.ReadAllSourceTextData(compilerCall)
             .Where(x => x.SourceTextKind == SourceTextKind.SourceCode)
             .ToList();
-        
-        if (sourceFiles.Count > 0)
-        {
-            sb.AppendLine("  <ItemGroup>");
-            foreach (var sourceFile in sourceFiles)
-            {
-                var fileName = Path.GetFileName(sourceFile.FilePath);
-                sb.AppendLine($"    <Compile Include=\"{fileName}\" />");
-            }
-            sb.AppendLine("  </ItemGroup>");
-            sb.AppendLine();
-        }
         
         // Add references
         var projectReferences = new List<string>();
