@@ -274,6 +274,55 @@ public sealed class UsingAllCompilerLogTests : TestBase
         ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
     }
 
+    [Theory]
+    [MemberData(nameof(GetExportAndBuildData))]
+    public async Task ExportSolutionAndBuild(bool excludeAnalyzers, string logDataName)
+    {
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        if (excludeAnalyzers && !logData.SupportsNoneHost)
+        {
+            return;
+        }
+
+        using var reader = CompilerLogReader.Create(logData.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers);
+        
+        using var tempDir = new TempDir();
+        exportUtil.ExportProject(tempDir.DirectoryPath);
+
+        // Verify solution file exists
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile), $"Solution file should exist for {logDataName}");
+
+        // Verify at least one project directory exists
+        var projectDirs = Directory.GetDirectories(tempDir.DirectoryPath)
+            .Where(d => !Path.GetFileName(d).Equals("references", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.NotEmpty(projectDirs);
+
+        // Build each project
+        foreach (var projectDir in projectDirs)
+        {
+            var projectFiles = Directory.GetFiles(projectDir, "*.csproj")
+                .Concat(Directory.GetFiles(projectDir, "*.vbproj"))
+                .ToList();
+            
+            if (projectFiles.Count > 0)
+            {
+                var projectFile = projectFiles[0];
+                TestOutputHelper.WriteLine($"Building {Path.GetFileName(projectFile)}");
+                
+                var result = DotnetUtil.Command($"build \"{projectFile}\"");
+                TestOutputHelper.WriteLine(result.StandardOut);
+                if (!result.Succeeded)
+                {
+                    TestOutputHelper.WriteLine(result.StandardError);
+                }
+                Assert.True(result.Succeeded, $"Build failed for {Path.GetFileName(projectFile)}: {result.StandardOut}");
+            }
+        }
+    }
+
     public static IEnumerable<object[]> GetLoadAllCoreData()
     {
         foreach (var logData in CompilerLogFixture.GetAllLogDataNames())

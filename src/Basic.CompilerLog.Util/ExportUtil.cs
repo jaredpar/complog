@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
@@ -635,6 +636,12 @@ public sealed partial class ExportUtil
         var assemblyName = Path.GetFileNameWithoutExtension(compilerCallData.AssemblyFileName);
         sb.AppendLine($"    <AssemblyName>{assemblyName}</AssemblyName>");
         
+        // For Visual Basic projects, set RootNamespace to avoid issues with hyphens in project name
+        if (compilerCall.IsVisualBasic)
+        {
+            sb.AppendLine($"    <RootNamespace>{assemblyName}</RootNamespace>");
+        }
+        
         // Determine output type
         if (compilerCallData.CompilationOptions.OutputKind == Microsoft.CodeAnalysis.OutputKind.ConsoleApplication ||
             compilerCallData.CompilationOptions.OutputKind == Microsoft.CodeAnalysis.OutputKind.WindowsApplication ||
@@ -660,8 +667,8 @@ public sealed partial class ExportUtil
             .ToList();
         
         // Add references
-        var projectReferences = new List<string>();
-        var metadataReferences = new List<string>();
+        var projectReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
+        var metadataReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
         
         foreach (var refData in Reader.ReadAllReferenceData(compilerCall))
         {
@@ -672,7 +679,7 @@ public sealed partial class ExportUtil
                 if (refProject != default)
                 {
                     var relativePath = GetRelativePath(Path.GetDirectoryName(projectFilePath)!, Path.Combine(refProject.ProjectDir, refProject.ProjectFileName));
-                    projectReferences.Add(relativePath);
+                    projectReferences.Add((relativePath, refData.Aliases));
                 }
             }
             else if (!IsFrameworkReference(refData))
@@ -680,16 +687,25 @@ public sealed partial class ExportUtil
                 // This is an external reference (not a framework reference)
                 var refFileName = mvidToReferenceFile[refData.Mvid];
                 var refPath = Path.Combine("..", "references", refFileName);
-                metadataReferences.Add(refPath);
+                metadataReferences.Add((refPath, refData.Aliases));
             }
         }
         
         if (projectReferences.Count > 0)
         {
             sb.AppendLine("  <ItemGroup>");
-            foreach (var refPath in projectReferences)
+            foreach (var (refPath, aliases) in projectReferences)
             {
-                sb.AppendLine($"    <ProjectReference Include=\"{refPath}\" />");
+                if (aliases.Length > 0)
+                {
+                    sb.AppendLine($"    <ProjectReference Include=\"{refPath}\">");
+                    sb.AppendLine($"      <Aliases>{string.Join(",", aliases)}</Aliases>");
+                    sb.AppendLine("    </ProjectReference>");
+                }
+                else
+                {
+                    sb.AppendLine($"    <ProjectReference Include=\"{refPath}\" />");
+                }
             }
             sb.AppendLine("  </ItemGroup>");
             sb.AppendLine();
@@ -698,13 +714,23 @@ public sealed partial class ExportUtil
         if (metadataReferences.Count > 0)
         {
             sb.AppendLine("  <ItemGroup>");
-            foreach (var refPath in metadataReferences)
+            foreach (var (refPath, aliases) in metadataReferences)
             {
                 var refFileName = Path.GetFileName(refPath);
                 var refNameWithoutExt = Path.GetFileNameWithoutExtension(refFileName);
-                sb.AppendLine($"    <Reference Include=\"{refNameWithoutExt}\">");
-                sb.AppendLine($"      <HintPath>{refPath}</HintPath>");
-                sb.AppendLine("    </Reference>");
+                if (aliases.Length > 0)
+                {
+                    sb.AppendLine($"    <Reference Include=\"{refNameWithoutExt}\">");
+                    sb.AppendLine($"      <HintPath>{refPath}</HintPath>");
+                    sb.AppendLine($"      <Aliases>{string.Join(",", aliases)}</Aliases>");
+                    sb.AppendLine("    </Reference>");
+                }
+                else
+                {
+                    sb.AppendLine($"    <Reference Include=\"{refNameWithoutExt}\">");
+                    sb.AppendLine($"      <HintPath>{refPath}</HintPath>");
+                    sb.AppendLine("    </Reference>");
+                }
             }
             sb.AppendLine("  </ItemGroup>");
             sb.AppendLine();
