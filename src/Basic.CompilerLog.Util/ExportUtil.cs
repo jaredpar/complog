@@ -505,15 +505,15 @@ public sealed partial class ExportUtil
         }
 
         predicate ??= static _ => true;
-        
+
         _ = Directory.CreateDirectory(destinationDir);
-        
+
         var referencesDir = Path.Combine(destinationDir, "references");
         _ = Directory.CreateDirectory(referencesDir);
-        
+
         var projectInfos = new List<(int Index, CompilerCall CompilerCall, string ProjectDir, string ProjectFileName)>();
         var mvidToReferenceFile = new Dictionary<Guid, string>();
-        
+
         // First pass: collect all projects and write DLLs
         for (int i = 0; i < Reader.Count; i++)
         {
@@ -522,7 +522,7 @@ public sealed partial class ExportUtil
             {
                 continue;
             }
-            
+
             var projectName = GetProjectName(compilerCall, i);
             var projectDir = Path.Combine(destinationDir, projectName);
             var projectFileName = $"{projectName}.csproj";
@@ -530,10 +530,10 @@ public sealed partial class ExportUtil
             {
                 projectFileName = $"{projectName}.vbproj";
             }
-            
+
             projectInfos.Add((i, compilerCall, projectDir, projectFileName));
         }
-        
+
         // Write all reference DLLs
         foreach (var (index, compilerCall, _, _) in projectInfos)
         {
@@ -543,29 +543,29 @@ public sealed partial class ExportUtil
                 {
                     var fileName = GetReferenceFileName(refData, mvidToReferenceFile);
                     var filePath = Path.Combine(referencesDir, fileName);
-                    
+
                     using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
                     Reader.CopyAssemblyBytes(refData.Mvid, fileStream);
-                    
+
                     mvidToReferenceFile[refData.Mvid] = fileName;
                 }
             }
         }
-        
+
         // Second pass: create project files
         foreach (var (index, compilerCall, projectDir, projectFileName) in projectInfos)
         {
             Directory.CreateDirectory(projectDir);
-            
+
             var projectFilePath = Path.Combine(projectDir, projectFileName);
             CreateProjectFile(index, compilerCall, projectFilePath, projectInfos, mvidToReferenceFile, destinationDir);
         }
-        
+
         // Create solution file
         var solutionFilePath = Path.Combine(destinationDir, "export.slnx");
         CreateSolutionFile(solutionFilePath, projectInfos, destinationDir);
     }
-    
+
     private string GetProjectName(CompilerCall compilerCall, int index)
     {
         var baseName = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
@@ -575,11 +575,11 @@ public sealed partial class ExportUtil
         }
         return baseName;
     }
-    
+
     private string GetReferenceFileName(ReferenceData refData, Dictionary<Guid, string> existingRefs)
     {
         var baseFileName = refData.FileName;
-        
+
         // Check if we already have a file with this name but different MVID
         var count = 0;
         foreach (var kvp in existingRefs)
@@ -589,12 +589,12 @@ public sealed partial class ExportUtil
                 count++;
             }
         }
-        
+
         if (count == 0)
         {
             return baseFileName;
         }
-        
+
         // Need to disambiguate with MVID
         var nameWithoutExt = Path.GetFileNameWithoutExtension(baseFileName);
         var ext = Path.GetExtension(baseFileName);
@@ -605,7 +605,7 @@ public sealed partial class ExportUtil
 #endif
         return $"{nameWithoutExt}_{mvidPart}{ext}";
     }
-    
+
     private void CreateProjectFile(
         int index,
         CompilerCall compilerCall,
@@ -616,11 +616,11 @@ public sealed partial class ExportUtil
     {
         var compilerCallData = Reader.ReadCompilerCallData(compilerCall);
         var sb = new StringBuilder();
-        
+
         sb.AppendLine("<Project Sdk=\"Microsoft.NET.Sdk\">");
         sb.AppendLine();
         sb.AppendLine("  <PropertyGroup>");
-        
+
         // Determine TargetFramework or TargetFrameworks
         var hasTargetFramework = !string.IsNullOrEmpty(compilerCall.TargetFramework);
         if (hasTargetFramework)
@@ -633,17 +633,17 @@ public sealed partial class ExportUtil
             sb.AppendLine("    <TargetFramework>net9.0</TargetFramework>");
             sb.AppendLine("    <NoStdLib>true</NoStdLib>");
         }
-        
+
         // Add assembly name
         var assemblyName = Path.GetFileNameWithoutExtension(compilerCallData.AssemblyFileName);
         sb.AppendLine($"    <AssemblyName>{assemblyName}</AssemblyName>");
-        
+
         // For Visual Basic projects, set RootNamespace to avoid issues with hyphens in project name
         if (compilerCall.IsVisualBasic)
         {
             sb.AppendLine($"    <RootNamespace>{assemblyName}</RootNamespace>");
         }
-        
+
         // Determine output type
         if (compilerCallData.CompilationOptions.OutputKind == Microsoft.CodeAnalysis.OutputKind.ConsoleApplication ||
             compilerCallData.CompilationOptions.OutputKind == Microsoft.CodeAnalysis.OutputKind.WindowsApplication ||
@@ -655,23 +655,23 @@ public sealed partial class ExportUtil
         {
             sb.AppendLine("    <OutputType>Library</OutputType>");
         }
-        
+
         // Disable auto-generation of assembly info since we're including the original
         sb.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
         sb.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
-        
+
         sb.AppendLine("  </PropertyGroup>");
         sb.AppendLine();
-        
+
         // Copy source files but don't add explicit Compile entries - let SDK default globbing handle them
         var sourceFiles = Reader.ReadAllSourceTextData(compilerCall)
             .Where(x => x.SourceTextKind == SourceTextKind.SourceCode)
             .ToList();
-        
+
         // Add references
         var projectReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
         var metadataReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
-        
+
         foreach (var refData in Reader.ReadAllReferenceData(compilerCall))
         {
             if (Reader.TryGetCompilerCallIndex(refData.Mvid, out var refIndex))
@@ -680,7 +680,7 @@ public sealed partial class ExportUtil
                 var refProject = allProjects.FirstOrDefault(p => p.Index == refIndex);
                 if (refProject != default)
                 {
-                    var relativePath = GetRelativePath(Path.GetDirectoryName(projectFilePath)!, Path.Combine(refProject.ProjectDir, refProject.ProjectFileName));
+                    var relativePath = Path.GetRelativePath(Path.GetDirectoryName(projectFilePath)!, Path.Combine(refProject.ProjectDir, refProject.ProjectFileName));
                     projectReferences.Add((relativePath, refData.Aliases));
                 }
             }
@@ -692,7 +692,7 @@ public sealed partial class ExportUtil
                 metadataReferences.Add((refPath, refData.Aliases));
             }
         }
-        
+
         if (projectReferences.Count > 0)
         {
             sb.AppendLine("  <ItemGroup>");
@@ -712,7 +712,7 @@ public sealed partial class ExportUtil
             sb.AppendLine("  </ItemGroup>");
             sb.AppendLine();
         }
-        
+
         if (metadataReferences.Count > 0)
         {
             sb.AppendLine("  <ItemGroup>");
@@ -737,11 +737,11 @@ public sealed partial class ExportUtil
             sb.AppendLine("  </ItemGroup>");
             sb.AppendLine();
         }
-        
+
         sb.AppendLine("</Project>");
-        
+
         File.WriteAllText(projectFilePath, sb.ToString());
-        
+
         // Copy source files to project directory
         var projectDir = Path.GetDirectoryName(projectFilePath)!;
         foreach (var sourceFile in sourceFiles)
@@ -752,31 +752,7 @@ public sealed partial class ExportUtil
             File.WriteAllText(destPath, sourceText.ToString());
         }
     }
-    
-    private static string GetRelativePath(string fromPath, string toPath)
-    {
-#if NET
-        return Path.GetRelativePath(fromPath, toPath);
-#else
-        // Simple implementation for older frameworks
-        var fromUri = new Uri(EnsureTrailingSeparator(Path.GetFullPath(fromPath)));
-        var toUri = new Uri(Path.GetFullPath(toPath));
-        var relativeUri = fromUri.MakeRelativeUri(toUri);
-        var relativePath = Uri.UnescapeDataString(relativeUri.ToString());
-        return relativePath.Replace('/', Path.DirectorySeparatorChar);
-        
-        static string EnsureTrailingSeparator(string path)
-        {
-            if (!path.EndsWith(Path.DirectorySeparatorChar.ToString()))
-            {
-                return path + Path.DirectorySeparatorChar;
-            }
-            return path;
-        }
-#endif
-    }
-    
-    
+
     private bool IsFrameworkReference(ReferenceData refData, CompilerCall compilerCall)
     {
         // If there's no target framework, we'll include all references explicitly
@@ -784,7 +760,7 @@ public sealed partial class ExportUtil
         {
             return false;
         }
-        
+
         // Check if the reference comes from a runtime or reference pack
         var filePath = refData.FilePath;
         if (filePath is not null)
@@ -797,7 +773,7 @@ public sealed partial class ExportUtil
             {
                 return true;
             }
-            
+
             // References from runtime directory are also framework references
             // e.g., /usr/share/dotnet/shared/Microsoft.NETCore.App/...
             if (filePath.Contains($"{Path.DirectorySeparatorChar}shared{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
@@ -806,7 +782,7 @@ public sealed partial class ExportUtil
                 return true;
             }
         }
-        
+
         // Fallback to name-based detection for references that don't have recognizable paths
         var assemblyName = refData.AssemblyIdentityData.AssemblyName;
         if (assemblyName is not null)
@@ -821,13 +797,13 @@ public sealed partial class ExportUtil
             {
                 return true;
             }
-            
+
             // Check for System.* prefix (BCL assemblies)
             if (assemblyName.StartsWith("System.", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
-            
+
             // Check for Microsoft.* BCL types
             if (assemblyName.StartsWith("Microsoft.CSharp", StringComparison.OrdinalIgnoreCase) ||
                 assemblyName.StartsWith("Microsoft.VisualBasic", StringComparison.OrdinalIgnoreCase) ||
@@ -836,28 +812,28 @@ public sealed partial class ExportUtil
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     private void CreateSolutionFile(
         string solutionFilePath,
         List<(int Index, CompilerCall CompilerCall, string ProjectDir, string ProjectFileName)> projectInfos,
         string destinationDir)
     {
         var sb = new StringBuilder();
-        
+
         sb.AppendLine("<Solution>");
         foreach (var (_, _, projectDir, projectFileName) in projectInfos)
         {
-            var relativePath = GetRelativePath(destinationDir, Path.Combine(projectDir, projectFileName));
+            var relativePath = Path.GetRelativePath(destinationDir, Path.Combine(projectDir, projectFileName));
             // .slnx files are XML-based and use forward slashes regardless of platform
             // This ensures cross-platform compatibility of the solution file
             relativePath = relativePath.Replace('\\', '/');
             sb.AppendLine($"  <Project Path=\"{relativePath}\" />");
         }
         sb.AppendLine("</Solution>");
-        
+
         File.WriteAllText(solutionFilePath, sb.ToString());
     }
 }
