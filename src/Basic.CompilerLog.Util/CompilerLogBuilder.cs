@@ -444,6 +444,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                 Kind = reference.Properties.Kind,
                 EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
                 Aliases = reference.Properties.Aliases,
+                FilePath = reference.Reference,
                 AssemblyName = assemblyName,
                 AssemblyInformationalVersion = assemblyInformationalVersion,
             };

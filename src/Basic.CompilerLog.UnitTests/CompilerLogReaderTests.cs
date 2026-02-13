@@ -702,6 +702,26 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
+    public void References_FilePath()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var compilerCall = reader.ReadCompilerCall(0);
+        var referenceDataList = reader.ReadAllReferenceData(compilerCall);
+        
+        // Verify that all references have FilePath set
+        Assert.All(referenceDataList, refData =>
+        {
+            Assert.NotNull(refData.FilePath);
+            Assert.NotEmpty(refData.FilePath);
+            // FilePath should end with .dll
+            Assert.EndsWith(".dll", refData.FilePath, StringComparison.OrdinalIgnoreCase);
+        });
+
+        // Verify at least some standard references exist
+        Assert.NotEmpty(referenceDataList);
+    }
+
+    [Fact]
     public void ProjectReferences_Corrupted()
     {
         RunDotNet($"new console --name example --output .", Root.DirectoryPath);
