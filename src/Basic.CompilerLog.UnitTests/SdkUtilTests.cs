@@ -101,8 +101,9 @@ public sealed class SdkUtilTests
         using var temp = new TempDir();
         var validSdkDir = temp.NewDirectory("sdk/9.0.100/Roslyn/bincore");
         
-        // Create a fake csc.exe (on any platform, just need the file to exist)
-        File.WriteAllText(Path.Combine(validSdkDir, "csc.exe"), "fake apphost");
+        // Create a fake apphost file using the platform-appropriate name
+        var appHostName = RoslynUtil.GetCompilerAppFileName(isCSharp: true);
+        File.WriteAllText(Path.Combine(validSdkDir, appHostName), "fake apphost");
         
         var sdks = SdkUtil.GetSdkDirectories(temp.DirectoryPath);
         

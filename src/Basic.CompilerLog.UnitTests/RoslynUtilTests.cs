@@ -615,12 +615,13 @@ public sealed class RoslynUtilTests
     }
 
     [Theory]
-    [InlineData(true, "csc.exe")]
-    [InlineData(false, "vbc.exe")]
-    public void TryGetCompilerInvocationAppHost(bool isCSharp, string appHostName)
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TryGetCompilerInvocationAppHost(bool isCSharp)
     {
         WithCompilerCopy(dir =>
         {
+            var appHostName = RoslynUtil.GetCompilerAppFileName(isCSharp);
             var appHostPath = Path.Combine(dir, appHostName);
             File.WriteAllText(appHostPath, "fake app host");
             
@@ -633,12 +634,13 @@ public sealed class RoslynUtilTests
     }
 
     [Theory]
-    [InlineData(true, "csc.exe")]
-    [InlineData(false, "vbc.exe")]
-    public void GetCompilerInvocationAppHost(bool isCSharp, string appHostName)
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GetCompilerInvocationAppHost(bool isCSharp)
     {
         WithCompilerCopy(dir =>
         {
+            var appHostName = RoslynUtil.GetCompilerAppFileName(isCSharp);
             var appHostPath = Path.Combine(dir, appHostName);
             File.WriteAllText(appHostPath, "fake app host");
             
