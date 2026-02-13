@@ -101,6 +101,7 @@ Solution file: `BasicCompilerLog.slnx`
 - Follow the naming style of nearby existing tests
 - Test resources are embedded in the test assembly (see `Resources/` directory)
 - Tests reference `Basic.Reference.Assemblies.Net90` for compilation scenarios
+- Tests should use existing projects on `CompilerLogFixture` for validation
 
 ## Build Configuration
 
