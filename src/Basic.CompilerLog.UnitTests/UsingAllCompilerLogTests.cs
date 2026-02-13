@@ -300,27 +300,12 @@ public sealed class UsingAllCompilerLogTests : TestBase
             .ToList();
         Assert.NotEmpty(projectDirs);
 
-        // Build each project
-        foreach (var projectDir in projectDirs)
-        {
-            var projectFiles = Directory.GetFiles(projectDir, "*.csproj")
-                .Concat(Directory.GetFiles(projectDir, "*.vbproj"))
-                .ToList();
-            
-            if (projectFiles.Count > 0)
-            {
-                var projectFile = projectFiles[0];
-                TestOutputHelper.WriteLine($"Building {Path.GetFileName(projectFile)}");
-                
-                var result = DotnetUtil.Command($"build \"{projectFile}\"");
-                TestOutputHelper.WriteLine(result.StandardOut);
-                if (!result.Succeeded)
-                {
-                    TestOutputHelper.WriteLine(result.StandardError);
-                }
-                Assert.True(result.Succeeded, $"Build failed for {Path.GetFileName(projectFile)}: {result.StandardOut}");
-            }
-        }
+        // Build the solution
+        TestOutputHelper.WriteLine($"Building solution for {logDataName}");
+        var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+        TestOutputHelper.WriteLine(result.StandardOut);
+        TestOutputHelper.WriteLine(result.StandardError);
+        Assert.True(result.Succeeded, $"Build failed for {logDataName}: {result.StandardOut}");
     }
 
     public static IEnumerable<object[]> GetLoadAllCoreData()

@@ -622,14 +622,16 @@ public sealed partial class ExportUtil
         sb.AppendLine("  <PropertyGroup>");
         
         // Determine TargetFramework or TargetFrameworks
-        if (!string.IsNullOrEmpty(compilerCall.TargetFramework))
+        var hasTargetFramework = !string.IsNullOrEmpty(compilerCall.TargetFramework);
+        if (hasTargetFramework)
         {
             sb.AppendLine($"    <TargetFramework>{compilerCall.TargetFramework}</TargetFramework>");
         }
         else
         {
-            // Use a default if not specified
+            // No target framework specified - use a default and disable standard lib
             sb.AppendLine("    <TargetFramework>net9.0</TargetFramework>");
+            sb.AppendLine("    <NoStdLib>true</NoStdLib>");
         }
         
         // Add assembly name
@@ -682,7 +684,7 @@ public sealed partial class ExportUtil
                     projectReferences.Add((relativePath, refData.Aliases));
                 }
             }
-            else if (!IsFrameworkReference(refData))
+            else if (!IsFrameworkReference(refData, compilerCall))
             {
                 // This is an external reference (not a framework reference)
                 var refFileName = mvidToReferenceFile[refData.Mvid];
@@ -774,45 +776,65 @@ public sealed partial class ExportUtil
 #endif
     }
     
-    private static readonly string[] s_frameworkAssemblies = new[]
-    {
-        "System",
-        "System.Runtime",
-        "System.Private.CoreLib",
-        "System.Core",
-        "System.Data",
-        "System.Xml",
-        "System.Xml.Linq",
-        "System.Net.Http",
-        "netstandard",
-        "mscorlib",
-    };
     
-    private bool IsFrameworkReference(ReferenceData refData)
+    private bool IsFrameworkReference(ReferenceData refData, CompilerCall compilerCall)
     {
-        var assemblyName = refData.AssemblyIdentityData.AssemblyName;
-        if (assemblyName is null)
+        // If there's no target framework, we'll include all references explicitly
+        if (string.IsNullOrEmpty(compilerCall.TargetFramework))
         {
             return false;
         }
         
-        if (s_frameworkAssemblies.Contains(assemblyName, StringComparer.OrdinalIgnoreCase))
+        // Check if the reference comes from a runtime or reference pack
+        var filePath = refData.FilePath;
+        if (filePath is not null)
         {
-            return true;
+            // References from packs directory are framework references
+            // e.g., /usr/share/dotnet/packs/Microsoft.NETCore.App.Ref/...
+            // or C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\...
+            if (filePath.Contains($"{Path.DirectorySeparatorChar}packs{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+                filePath.Contains($"{Path.AltDirectorySeparatorChar}packs{Path.AltDirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            
+            // References from runtime directory are also framework references
+            // e.g., /usr/share/dotnet/shared/Microsoft.NETCore.App/...
+            if (filePath.Contains($"{Path.DirectorySeparatorChar}shared{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+                filePath.Contains($"{Path.AltDirectorySeparatorChar}shared{Path.AltDirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
         }
         
-        // Check for System.* prefix
-        if (assemblyName.StartsWith("System.", StringComparison.OrdinalIgnoreCase))
+        // Fallback to name-based detection for references that don't have recognizable paths
+        var assemblyName = refData.AssemblyIdentityData.AssemblyName;
+        if (assemblyName is not null)
         {
-            return true;
-        }
-        
-        // Check for Microsoft.* BCL types (common framework assemblies)
-        if (assemblyName.StartsWith("Microsoft.CSharp", StringComparison.OrdinalIgnoreCase) ||
-            assemblyName.StartsWith("Microsoft.VisualBasic", StringComparison.OrdinalIgnoreCase) ||
-            assemblyName.StartsWith("Microsoft.Win32", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
+            // Common framework assemblies
+            if (assemblyName.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.Equals("System.Runtime", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.Equals("System.Core", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.Equals("netstandard", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            
+            // Check for System.* prefix (BCL assemblies)
+            if (assemblyName.StartsWith("System.", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            
+            // Check for Microsoft.* BCL types
+            if (assemblyName.StartsWith("Microsoft.CSharp", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.StartsWith("Microsoft.VisualBasic", StringComparison.OrdinalIgnoreCase) ||
+                assemblyName.StartsWith("Microsoft.Win32", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
         }
         
         return false;

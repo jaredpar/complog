@@ -562,8 +562,7 @@ public sealed class ExportUtilTests : TestBase
         Assert.Equal(expectedProject, projectContent.Trim());
 
         // Verify source files were copied
-        var sourceFiles = Directory.GetFiles(projectDir, "*.cs");
-        Assert.NotEmpty(sourceFiles);
+        Assert.NotEmpty(Directory.GetFiles(projectDir, "*.cs"));
     }
 
     [Fact]
