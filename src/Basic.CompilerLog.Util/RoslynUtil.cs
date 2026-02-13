@@ -1117,9 +1117,8 @@ public static class RoslynUtil
     /// </summary>
     internal static bool TryGetCompilerInvocation(string compilerDirectory, bool isCSharp, [NotNullWhen(true)] out string? invocation)
     {
-        var (appHostName, dllName) = isCSharp
-            ? ("csc.exe", "csc.dll")
-            : ("vbc.exe", "vbc.dll");
+        var appHostName = GetCompilerAppFileName(isCSharp);
+        var dllName = isCSharp ? "csc.dll" : "vbc.dll";
 
         var appHostPath = Path.Combine(compilerDirectory, appHostName);
         if (File.Exists(appHostPath))
