@@ -262,7 +262,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
     [Theory]
     [MemberData(nameof(GetExportAndBuildData))]
-    public async Task ExportAndBuild(bool excludeAnalyzers, string logDataName)
+    public async Task ExportRspAndBuild(bool excludeAnalyzers, string logDataName)
     {
         var list = new List<Task>();
         var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
@@ -275,18 +275,18 @@ public sealed class UsingAllCompilerLogTests : TestBase
     }
 
     [Theory]
-    [MemberData(nameof(GetExportAndBuildData))]
-    public async Task ExportSolutionAndBuild(bool excludeAnalyzers, string logDataName)
+    [MemberData(nameof(GetAllLogDataNames))]
+    public async Task ExportSolutionAndBuild(string logDataName)
     {
         var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
-        if (excludeAnalyzers && !logData.SupportsNoneHost)
+        if (!logData.SupportsNoneHost)
         {
             return;
         }
 
         using var reader = CompilerLogReader.Create(logData.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers);
-        
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
         using var tempDir = new TempDir();
         exportUtil.ExportProject(tempDir.DirectoryPath);
 

@@ -523,6 +523,11 @@ public sealed partial class ExportUtil
                 continue;
             }
 
+            if (compilerCall.Kind != CompilerCallKind.Regular)
+            {
+                continue;
+            }
+
             var projectName = GetProjectName(compilerCall, i);
             var projectDir = Path.Combine(destinationDir, projectName);
             var projectFileName = $"{projectName}.csproj";
@@ -641,7 +646,7 @@ public sealed partial class ExportUtil
         // For Visual Basic projects, set RootNamespace to avoid issues with hyphens in project name
         if (compilerCall.IsVisualBasic)
         {
-            sb.AppendLine($"    <RootNamespace>{assemblyName}</RootNamespace>");
+            sb.AppendLine($"    <RootNamespace>{assemblyName.Replace('-', '_')}</RootNamespace>");
         }
 
         // Determine output type
@@ -655,6 +660,17 @@ public sealed partial class ExportUtil
         {
             sb.AppendLine("    <OutputType>Library</OutputType>");
         }
+
+        var allReferences = Reader.ReadAllReferenceData(compilerCall);
+        if (UsesWpf(allReferences))
+        {
+            sb.AppendLine("    <UseWPF>true</UseWPF>");
+        }
+        else if (UsesWinForms(allReferences))
+        {
+            sb.AppendLine("    <UseWindowsForms>true</UseWindowsForms>");
+        }
+
 
         // Disable auto-generation of assembly info since we're including the original
         sb.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
@@ -750,6 +766,18 @@ public sealed partial class ExportUtil
             var destPath = Path.Combine(projectDir, fileName);
             var sourceText = Reader.ReadSourceText(sourceFile);
             File.WriteAllText(destPath, sourceText.ToString());
+        }
+
+        static bool UsesWinForms(IEnumerable<ReferenceData> references)
+        {
+            var p = Path.Combine("packs", "Microsoft.WindowsDesktop.App.Ref");
+            return references.Any(x => x.FilePath.Contains(p));
+        }
+
+        static bool UsesWpf(IEnumerable<ReferenceData> references)
+        {
+            var p = Path.Combine("packs", "Microsoft.WindowsDesktop.App.Ref");
+            return references.Any(x => x.FilePath.Contains(p) && x.FileName == "PresentationCore.dll");
         }
     }
 
