@@ -504,7 +504,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        
+
         using var tempDir = new TempDir();
         exportUtil.ExportProject(tempDir.DirectoryPath);
 
@@ -537,7 +537,7 @@ public sealed class ExportUtilTests : TestBase
 
         var projectFile = projectFiles[0];
         var projectContent = File.ReadAllText(projectFile);
-        
+
         // Verify complete project file content
         // The console project uses SDK default globbing for source files
         var expectedProject = $$"""
@@ -551,12 +551,6 @@ public sealed class ExportUtilTests : TestBase
                 <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
               </PropertyGroup>
 
-              <ItemGroup>
-                <Reference Include="WindowsBase">
-                  <HintPath>{{Path.Combine("..", "references", "WindowsBase.dll")}}</HintPath>
-                </Reference>
-              </ItemGroup>
-
             </Project>
             """;
         Assert.Equal(expectedProject, projectContent.Trim());
@@ -569,10 +563,10 @@ public sealed class ExportUtilTests : TestBase
     public void ExportProjectWithMultiTarget()
     {
         TestOutputHelper.WriteLine($"Testing multi-target project export from {Fixture.ClassLibMulti.Value.CompilerLogPath}");
-        
+
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        
+
         using var tempDir = new TempDir();
         exportUtil.ExportProject(tempDir.DirectoryPath);
 
@@ -599,7 +593,7 @@ public sealed class ExportUtilTests : TestBase
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        
+
         using var tempDir = new TempDir();
         exportUtil.ExportProject(tempDir.DirectoryPath);
 
@@ -608,7 +602,7 @@ public sealed class ExportUtilTests : TestBase
         Assert.NotEmpty(projectFiles);
 
         var projectContent = File.ReadAllText(projectFiles[0]);
-        
+
         // Verify complete project file content - framework references should be filtered out
         var expectedProject = $$"""
             <Project Sdk="Microsoft.NET.Sdk">
@@ -621,14 +615,28 @@ public sealed class ExportUtilTests : TestBase
                 <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
               </PropertyGroup>
 
-              <ItemGroup>
-                <Reference Include="WindowsBase">
-                  <HintPath>{{Path.Combine("..", "references", "WindowsBase.dll")}}</HintPath>
-                </Reference>
-              </ItemGroup>
-
             </Project>
             """;
         Assert.Equal(expectedProject, projectContent.Trim());
+    }
+
+    [WindowsTheory]
+    [InlineData(true, "net9.0", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
+    [InlineData(true, "net8.0", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
+    [InlineData(true, "net9.0", new[] { @"C:\Program Files\dotnet\shared\Microsoft.NETCore.App\9.0.0\System.Runtime.dll" })]
+    [InlineData(true, "net8.0", new[] { @"C:\Program Files\dotnet\shared\Microsoft.NETCore.App\9.0.0\System.Runtime.dll" })]
+    [InlineData(true, "net9.0", new[] { @"C:\Program Files\dotnet\packs\Microsoft.WindowsDesktop.App.Ref\9.0.0\ref\net9.0\WindowsBase.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\Users\user\.nuget\packages\newtonsoft.json\13.0.1\lib\net6.0\Newtonsoft.Json.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\src\MyProject\bin\Debug\net9.0\MyProject.dll" })]
+    [InlineData(false, null, new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
+    [InlineData(false, "", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\src\packs-tool\bin\Debug\net9.0\packs-tool.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\src\shared-lib\bin\Debug\net9.0\shared-lib.dll" })]
+    public void IsFrameworkReference(bool expected, string? targetFramework, string[] filePaths)
+    {
+        foreach (var filePath in filePaths)
+        {
+            Assert.Equal(expected, ExportUtil.IsFrameworkReference(filePath, targetFramework));
+        }
     }
 }

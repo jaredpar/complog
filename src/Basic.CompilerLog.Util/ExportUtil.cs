@@ -679,11 +679,6 @@ public sealed partial class ExportUtil
         sb.AppendLine("  </PropertyGroup>");
         sb.AppendLine();
 
-        // Copy source files but don't add explicit Compile entries - let SDK default globbing handle them
-        var sourceFiles = Reader.ReadAllSourceTextData(compilerCall)
-            .Where(x => x.SourceTextKind == SourceTextKind.SourceCode)
-            .ToList();
-
         // Add references
         var projectReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
         var metadataReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
@@ -700,7 +695,7 @@ public sealed partial class ExportUtil
                     projectReferences.Add((relativePath, refData.Aliases));
                 }
             }
-            else if (!IsFrameworkReference(refData, compilerCall))
+            else if (!IsFrameworkReference(refData.FilePath, compilerCall.TargetFramework))
             {
                 // This is an external reference (not a framework reference)
                 var refFileName = mvidToReferenceFile[refData.Mvid];
@@ -758,12 +753,33 @@ public sealed partial class ExportUtil
 
         File.WriteAllText(projectFilePath, sb.ToString());
 
-        // Copy source files to project directory
+        // Copy source files to project directory maintaining their relative paths
         var projectDir = Path.GetDirectoryName(projectFilePath)!;
-        foreach (var sourceFile in sourceFiles)
+        var originalProjectDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
+        var binStr = $"bin{Path.DirectorySeparatorChar}";
+        var objStr = $"obj{Path.DirectorySeparatorChar}";
+        foreach (var sourceFile in Reader.ReadAllSourceTextData(compilerCall))
         {
-            var fileName = Path.GetFileName(sourceFile.FilePath);
-            var destPath = Path.Combine(projectDir, fileName);
+            string destPath;
+            var normalizedSourcePath = Path.GetFullPath(sourceFile.FilePath);
+            if (normalizedSourcePath.StartsWith(originalProjectDir, PathUtil.Comparison))
+            {
+                var relativePath = Path.GetRelativePath(originalProjectDir, normalizedSourcePath);
+                if (relativePath.StartsWith(binStr, StringComparison.Ordinal) || relativePath.StartsWith(objStr, StringComparison.Ordinal))
+                {
+                    destPath = Path.Combine(projectDir, "external", Path.GetFileName(sourceFile.FilePath));
+                }
+                else
+                {
+                    destPath = Path.Combine(projectDir, relativePath);
+                }
+            }
+            else
+            {
+                destPath = Path.Combine(projectDir, "external", Path.GetFileName(sourceFile.FilePath));
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
             var sourceText = Reader.ReadSourceText(sourceFile);
             File.WriteAllText(destPath, sourceText.ToString());
         }
@@ -781,64 +797,18 @@ public sealed partial class ExportUtil
         }
     }
 
-    private bool IsFrameworkReference(ReferenceData refData, CompilerCall compilerCall)
+    internal static bool IsFrameworkReference(string filePath, string? targetFramework)
     {
-        // If there's no target framework, we'll include all references explicitly
-        if (string.IsNullOrEmpty(compilerCall.TargetFramework))
+        if (string.IsNullOrEmpty(targetFramework))
         {
             return false;
         }
 
-        // Check if the reference comes from a runtime or reference pack
-        var filePath = refData.FilePath;
-        if (filePath is not null)
+        var sep = Path.DirectorySeparatorChar;
+        if (filePath.Contains($"{sep}packs{sep}", StringComparison.OrdinalIgnoreCase) ||
+            filePath.Contains($"{sep}shared{sep}", StringComparison.OrdinalIgnoreCase))
         {
-            // References from packs directory are framework references
-            // e.g., /usr/share/dotnet/packs/Microsoft.NETCore.App.Ref/...
-            // or C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\...
-            if (filePath.Contains($"{Path.DirectorySeparatorChar}packs{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
-                filePath.Contains($"{Path.AltDirectorySeparatorChar}packs{Path.AltDirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            // References from runtime directory are also framework references
-            // e.g., /usr/share/dotnet/shared/Microsoft.NETCore.App/...
-            if (filePath.Contains($"{Path.DirectorySeparatorChar}shared{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
-                filePath.Contains($"{Path.AltDirectorySeparatorChar}shared{Path.AltDirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        // Fallback to name-based detection for references that don't have recognizable paths
-        var assemblyName = refData.AssemblyIdentityData.AssemblyName;
-        if (assemblyName is not null)
-        {
-            // Common framework assemblies
-            if (assemblyName.Equals("System", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.Equals("System.Runtime", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.Equals("System.Private.CoreLib", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.Equals("System.Core", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.Equals("netstandard", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            // Check for System.* prefix (BCL assemblies)
-            if (assemblyName.StartsWith("System.", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            // Check for Microsoft.* BCL types
-            if (assemblyName.StartsWith("Microsoft.CSharp", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.StartsWith("Microsoft.VisualBasic", StringComparison.OrdinalIgnoreCase) ||
-                assemblyName.StartsWith("Microsoft.Win32", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
+            return true;
         }
 
         return false;

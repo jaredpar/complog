@@ -284,6 +284,13 @@ public sealed class UsingAllCompilerLogTests : TestBase
             return;
         }
 
+        // This is a log file created with an old format that doesn't have the necessary information to 
+        // do an export to a solution
+        if (logData.BinaryLogPath is null)
+        {
+            return;
+        }
+
         using var reader = CompilerLogReader.Create(logData.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
 

@@ -61,7 +61,7 @@ public static class SdkUtil
             }
 
             var sdkDir = Path.Combine(dir, "Roslyn", "bincore");
-            if (Directory.Exists(sdkDir))
+            if (Directory.Exists(sdkDir) && RoslynUtil.TryGetCompilerInvocation(sdkDir, isCSharp:true, out _))
             {
                 sdks.Add((dir, version));
             }

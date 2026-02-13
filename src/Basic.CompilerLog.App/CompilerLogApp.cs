@@ -390,7 +390,7 @@ public sealed class CompilerLogApp(
             { "o|out=", "path to export build content", o => baseOutputPath = o },
             { "n|no-analyzers", "do not include analyzers in rsp", i => excludeAnalyzers = i is not null },
             { "vs", "use the csc.exe from installed Visual Studio instances", v => useVisualStudio = v is not null },
-            { "solution", "export as a full solution with project files", p => exportAsProject = p is not null },
+            { "solution", "export as a full solution with project files (EXPERIMENTAL)", p => exportAsProject = p is not null },
         };
 
         try
