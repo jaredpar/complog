@@ -295,7 +295,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
 
         using var tempDir = new TempDir();
-        exportUtil.ExportProject(tempDir.DirectoryPath);
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
 
         // Verify solution file exists
         var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");

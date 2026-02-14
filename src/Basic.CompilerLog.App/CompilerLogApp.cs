@@ -417,7 +417,7 @@ public sealed class CompilerLogApp(
             {
                 baseOutputPath = GetBaseOutputPath(baseOutputPath, ".complog/project");
                 WriteLine($"Exporting project to {baseOutputPath}");
-                exportUtil.ExportProject(baseOutputPath, options.FilterCompilerCalls);
+                exportUtil.ExportSolution(baseOutputPath, options.FilterCompilerCalls);
             }
             else
             {

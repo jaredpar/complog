@@ -495,7 +495,7 @@ public sealed partial class ExportUtil
     /// <summary>
     /// Export compilations as a full solution with project files that can be opened in VS or VS Code
     /// </summary>
-    public void ExportProject(string destinationDir, Func<CompilerCall, bool>? predicate = null)
+    public void ExportSolution(string destinationDir, Func<CompilerCall, bool>? predicate = null)
     {
         if (!Path.IsPathRooted(destinationDir))
         {

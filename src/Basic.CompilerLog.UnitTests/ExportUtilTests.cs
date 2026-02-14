@@ -500,13 +500,13 @@ public sealed class ExportUtilTests : TestBase
 #endif
 
     [Fact]
-    public void ExportProjectBasic()
+    public void ExportSolutionBasic()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
 
         using var tempDir = new TempDir();
-        exportUtil.ExportProject(tempDir.DirectoryPath);
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
 
         // Verify solution file exists
         var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
@@ -560,7 +560,7 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ExportProjectWithMultiTarget()
+    public void ExportSolutionWithMultiTarget()
     {
         TestOutputHelper.WriteLine($"Testing multi-target project export from {Fixture.ClassLibMulti.Value.CompilerLogPath}");
 
@@ -568,7 +568,7 @@ public sealed class ExportUtilTests : TestBase
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
 
         using var tempDir = new TempDir();
-        exportUtil.ExportProject(tempDir.DirectoryPath);
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
 
         // Verify solution file exists
         var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
@@ -589,13 +589,13 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ExportProjectValidateFrameworkReferencesFiltered()
+    public void ExportSolutionValidateFrameworkReferencesFiltered()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
 
         using var tempDir = new TempDir();
-        exportUtil.ExportProject(tempDir.DirectoryPath);
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
 
         // Find the project file
         var projectFiles = Directory.GetFiles(tempDir.DirectoryPath, "*.csproj", SearchOption.AllDirectories);
@@ -621,22 +621,22 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ExportProjectNonRootedPath()
+    public void ExportSolutionNonRootedPath()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
 
-        Assert.Throws<ArgumentException>(() => exportUtil.ExportProject("relative-path"));
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportSolution("relative-path"));
     }
 
     [Fact]
-    public void ExportProjectWithPredicate()
+    public void ExportSolutionWithPredicate()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
 
         using var tempDir = new TempDir();
-        exportUtil.ExportProject(tempDir.DirectoryPath, cc => cc.TargetFramework == "net9.0");
+        exportUtil.ExportSolution(tempDir.DirectoryPath, cc => cc.TargetFramework == "net9.0");
 
         var solutionContent = File.ReadAllText(Path.Combine(tempDir.DirectoryPath, "export.slnx"));
         var expectedSolution = """
@@ -653,13 +653,13 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ExportProjectWithAliasReference()
+    public void ExportSolutionWithAliasReference()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleWithAliasReference.Value.CompilerLogPath);
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
 
         using var tempDir = new TempDir();
-        exportUtil.ExportProject(tempDir.DirectoryPath);
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
 
         var projectFiles = Directory.GetFiles(tempDir.DirectoryPath, "*.csproj", SearchOption.AllDirectories);
         var consoleProject = projectFiles.Single(p => Path.GetFileName(p).Contains("console-with-alias-reference"));
@@ -670,7 +670,7 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ExportProjectNullTargetFramework()
+    public void ExportSolutionNullTargetFramework()
     {
         using var reader = ChangeCompilerCall(
             Fixture.Console.Value.BinaryLogPath!,
@@ -688,7 +688,7 @@ public sealed class ExportUtilTests : TestBase
 
         var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
         using var tempDir = new TempDir();
-        exportUtil.ExportProject(tempDir.DirectoryPath);
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
 
         var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
         Assert.True(File.Exists(solutionFile));
