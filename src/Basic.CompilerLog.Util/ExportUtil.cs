@@ -537,23 +537,7 @@ public sealed partial class ExportUtil
             projectInfos.Add((i, compilerCall, projectDir, projectFileName));
         }
 
-        // Write all reference DLLs
-        foreach (var (index, compilerCall, _, _) in projectInfos)
-        {
-            foreach (var refData in Reader.ReadAllReferenceData(compilerCall))
-            {
-                if (!mvidToReferenceFile.ContainsKey(refData.Mvid))
-                {
-                    var fileName = GetReferenceFileName(refData, mvidToReferenceFile);
-                    var filePath = Path.Combine(referencesDir, fileName);
-
-                    using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
-                    Reader.CopyAssemblyBytes(refData.Mvid, fileStream);
-
-                    mvidToReferenceFile[refData.Mvid] = fileName;
-                }
-            }
-        }
+        var refMvidToFilePathMap = WriteReferencesDirectory(projectInfos.Select(p => p.CompilerCall));
 
         // Second pass: create project files
         foreach (var (index, compilerCall, projectDir, projectFileName) in projectInfos)
@@ -561,12 +545,67 @@ public sealed partial class ExportUtil
             Directory.CreateDirectory(projectDir);
 
             var projectFilePath = Path.Combine(projectDir, projectFileName);
-            CreateProjectFile(index, compilerCall, projectFilePath, projectInfos, mvidToReferenceFile, destinationDir);
+            CreateProjectFile(index, compilerCall, projectFilePath, projectInfos, refMvidToFilePathMap);
         }
 
         // Create solution file
         var solutionFilePath = Path.Combine(destinationDir, "export.slnx");
         CreateSolutionFile(solutionFilePath, projectInfos, destinationDir);
+
+        Dictionary<Guid, string> WriteReferencesDirectory(IEnumerable<CompilerCall> compilerCalls)
+        {
+            var refList = new List<ReferenceData>();
+
+            // This tracks whether or not a name has been seen with multiple MVIDs. If so then we need to
+            // disambiguate by putting the files in separate folders by MVID. If not then we can just put
+            // the file directly in the references folder.
+            var nameMap = new Dictionary<string, bool>();
+            foreach (var compilerCall in compilerCalls)
+            {
+                foreach (var referenceData in Reader.ReadAllReferenceData(compilerCall))
+                {
+                    if (Reader.TryGetCompilerCallIndex(referenceData.Mvid, out _))
+                    {
+                        continue;
+                    }
+
+                    if (IsFrameworkReference(referenceData.FilePath, compilerCall.TargetFramework))
+                    {
+                        continue;
+                    }
+
+                    refList.Add(referenceData);
+
+                    var fileName = referenceData.FileName;
+                    if (!nameMap.ContainsKey(fileName))
+                    {
+                        nameMap[fileName] = false;
+                    }
+                    else
+                    {
+                        nameMap[fileName] = true;
+                    }
+                }
+            }
+
+            var map = new Dictionary<Guid, string>();
+            foreach (var refData in refList)
+            {
+                var fileName = refData.FileName;
+                var relativePath = nameMap[fileName]
+                    ? Path.Combine(fileName, refData.Mvid.ToString("N"), fileName)
+                    : fileName;
+
+                var filePath = Path.Combine(referencesDir, relativePath);
+                using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                Reader.CopyAssemblyBytes(refData.Mvid, fileStream);
+                fileStream.Close();
+
+                map[refData.Mvid] = relativePath;
+            }
+
+            return map;
+        }
     }
 
     private string GetProjectName(CompilerCall compilerCall, int index)
@@ -579,43 +618,12 @@ public sealed partial class ExportUtil
         return baseName;
     }
 
-    private string GetReferenceFileName(ReferenceData refData, Dictionary<Guid, string> existingRefs)
-    {
-        var baseFileName = refData.FileName;
-
-        // Check if we already have a file with this name but different MVID
-        var count = 0;
-        foreach (var kvp in existingRefs)
-        {
-            if (Path.GetFileName(kvp.Value).Equals(baseFileName, PathUtil.Comparison))
-            {
-                count++;
-            }
-        }
-
-        if (count == 0)
-        {
-            return baseFileName;
-        }
-
-        // Need to disambiguate with MVID
-        var nameWithoutExt = Path.GetFileNameWithoutExtension(baseFileName);
-        var ext = Path.GetExtension(baseFileName);
-#if NET
-        var mvidPart = refData.Mvid.ToString("N")[..8];
-#else
-        var mvidPart = refData.Mvid.ToString("N").Substring(0, 8);
-#endif
-        return $"{nameWithoutExt}_{mvidPart}{ext}";
-    }
-
     private void CreateProjectFile(
         int index,
         CompilerCall compilerCall,
         string projectFilePath,
         List<(int Index, CompilerCall CompilerCall, string ProjectDir, string ProjectFileName)> allProjects,
-        Dictionary<Guid, string> mvidToReferenceFile,
-        string destinationDir)
+        Dictionary<Guid, string> refMvidToFilePathMap)
     {
         var compilerCallData = Reader.ReadCompilerCallData(compilerCall);
         var sb = new StringBuilder();
@@ -696,7 +704,7 @@ public sealed partial class ExportUtil
             else if (!IsFrameworkReference(refData.FilePath, compilerCall.TargetFramework))
             {
                 // This is an external reference (not a framework reference)
-                var refFileName = mvidToReferenceFile[refData.Mvid];
+                var refFileName = refMvidToFilePathMap[refData.Mvid];
                 var refPath = Path.Combine("..", "references", refFileName);
                 metadataReferences.Add((refPath, refData.Aliases));
             }
