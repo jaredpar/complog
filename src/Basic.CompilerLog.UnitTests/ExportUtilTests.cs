@@ -24,7 +24,7 @@ public sealed class ExportUtilTests : TestBase
         Fixture = fixture;
     }
 
-    private void TestExport(
+    private void TestExportRsp(
         int expectedCount,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
@@ -40,7 +40,7 @@ public sealed class ExportUtilTests : TestBase
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
 
-        TestExport(
+        TestExportRsp(
             compilerLogFilePath,
             expectedCount,
             verifyExportCallback: verifyExportCallback,
@@ -48,14 +48,14 @@ public sealed class ExportUtilTests : TestBase
             verifyBuildResult: verifyBuildResult);
     }
 
-    private void TestExport(
+    private void TestExportRsp(
         string compilerLogFilePath,
         int? expectedCount,
         bool excludeAnalyzers = false,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
         Action<ProcessResult>? verifyBuildResult = null) =>
-        TestExport(
+        TestExportRsp(
             TestOutputHelper,
             compilerLogFilePath,
             expectedCount,
@@ -64,7 +64,7 @@ public sealed class ExportUtilTests : TestBase
             runBuild,
             verifyBuildResult);
 
-    internal static void TestExport(
+    internal static void TestExportRsp(
         ITestOutputHelper testOutputHelper,
         string compilerLogFilePath,
         int? expectedCount,
@@ -74,7 +74,7 @@ public sealed class ExportUtilTests : TestBase
         Action<ProcessResult>? verifyBuildResult = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
-        TestExport(
+        TestExportRsp(
             testOutputHelper,
             reader: reader,
             expectedCount,
@@ -84,7 +84,7 @@ public sealed class ExportUtilTests : TestBase
             verifyBuildResult);
     }
 
-    internal static void TestExport(
+    internal static void TestExportRsp(
         ITestOutputHelper testOutputHelper,
         CompilerLogReader reader,
         int? expectedCount,
@@ -141,13 +141,34 @@ public sealed class ExportUtilTests : TestBase
         }
     }
 
+    internal static void TestExportSolution(
+        ITestOutputHelper testOutputHelper,
+        CompilerLogReader reader,
+        bool excludeAnalyzers = false,
+        Action<ProcessResult>? verifyBuildResult = null)
+    {
+
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers);
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
+
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile));
+
+        var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+        verifyBuildResult?.Invoke(result);
+        testOutputHelper.WriteLine(result.StandardOut);
+        testOutputHelper.WriteLine(result.StandardError);
+        Assert.True(result.Succeeded, $"Build failed: {result.StandardOut}");
+    }
+
     /// <summary>
     /// Make sure that generated files are put into the generated directory
     /// </summary>
     [Fact]
     public void GeneratedText()
     {
-        TestExport(Fixture.Console.Value.CompilerLogPath, 1, verifyExportCallback: tempPath =>
+        TestExportRsp(Fixture.Console.Value.CompilerLogPath, 1, verifyExportCallback: tempPath =>
         {
             var generatedPath = Path.Combine(tempPath, "generated");
             var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
@@ -162,7 +183,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedTextExcludeAnalyzers()
     {
-        TestExport(Fixture.Console.Value.CompilerLogPath, 1, excludeAnalyzers: true, verifyExportCallback: tempPath =>
+        TestExportRsp(Fixture.Console.Value.CompilerLogPath, 1, excludeAnalyzers: true, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -188,7 +209,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GlobalConfigMapsPaths()
     {
-        TestExport(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
+        TestExportRsp(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
         {
             var configFilePath = Directory
                 .EnumerateFiles(path, "console-complex.GeneratedMSBuildEditorConfig.editorconfig", SearchOption.AllDirectories)
@@ -212,13 +233,13 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void ConsoleMultiTarget()
     {
-        TestExport(Fixture.ClassLibMulti.Value.CompilerLogPath, expectedCount: 2, runBuild: false);
+        TestExportRsp(Fixture.ClassLibMulti.Value.CompilerLogPath, expectedCount: 2, runBuild: false);
     }
 
     [Fact]
     public void ConsoleWithRuleset()
     {
-        TestExport(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
+        TestExportRsp(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
         {
             var found = false;
             var expected = $"/ruleset:{Path.Combine("src", "example.ruleset")}";
@@ -257,7 +278,7 @@ public sealed class ExportUtilTests : TestBase
             Assert.True(commandLineArgs.MetadataReferences.Any(x => x.Properties.EmbedInteropTypes));
         });
 
-        TestExport(TestOutputHelper, reader, expectedCount: 1, verifyExportCallback: tempPath =>
+        TestExportRsp(TestOutputHelper, reader, expectedCount: 1, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -277,7 +298,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void StrongNameKey()
     {
-        TestExport(Fixture.ConsoleSigned.Value.CompilerLogPath, expectedCount: 1, runBuild: false);
+        TestExportRsp(Fixture.ConsoleSigned.Value.CompilerLogPath, expectedCount: 1, runBuild: false);
     }
 
 #if NET
@@ -330,7 +351,7 @@ public sealed class ExportUtilTests : TestBase
         var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
         Assert.True(result.Succeeded);
 
-        TestExport(
+        TestExportRsp(
             compilerLogFilePath: complog,
             expectedCount: 1,
             excludeAnalyzers: true,
@@ -352,7 +373,7 @@ public sealed class ExportUtilTests : TestBase
         var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
         Assert.True(result.Succeeded);
 
-        TestExport(
+        TestExportRsp(
             compilerLogFilePath: complog,
             expectedCount: 1,
             excludeAnalyzers: true,
@@ -370,7 +391,7 @@ public sealed class ExportUtilTests : TestBase
         RunDotNet("new console --name example --output .");
         AddProjectProperty("<ErrorLog>my.example.sarif,version=1.0</ErrorLog>");
         RunDotNet("build -bl -nr:false");
-        TestExport(1);
+        TestExportRsp(1);
     }
 
     private void EmbedLineCore(string contentFilePath)
@@ -382,7 +403,7 @@ public sealed class ExportUtilTests : TestBase
         #line 42 "{contentFilePath}"
         """);
         RunDotNet("build -bl -nr:false");
-        TestExport(1);
+        TestExportRsp(1);
     }
 
     [Fact]
@@ -480,7 +501,7 @@ public sealed class ExportUtilTests : TestBase
     {
         var isWindows = OperatingSystem.IsWindows();
         var logData = isWindows ? Fixture.LinuxConsoleFromLog.Value : Fixture.WindowsConsoleFromLog.Value;
-        TestExport(logData.CompilerLogPath, expectedCount: 1, runBuild: true, verifyExportCallback: tempPath =>
+        TestExportRsp(logData.CompilerLogPath, expectedCount: 1, runBuild: true, verifyExportCallback: tempPath =>
         {
             var allCsPaths = Directory.GetFiles(Path.Join(tempPath, "src"), "*.cs", SearchOption.AllDirectories);
             Assert.NotEmpty(allCsPaths);
@@ -498,4 +519,249 @@ public sealed class ExportUtilTests : TestBase
         });
     }
 #endif
+
+    [Fact]
+    public void ExportSolutionBasic()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
+
+        // Verify solution file exists
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile), "Solution file should exist");
+
+        // Verify solution file format with complete content
+        var solutionContent = File.ReadAllText(solutionFile);
+        var expectedSolution = $$"""
+            <Solution>
+              <Project Path="console-{{TestUtil.TestTargetFramework}}/console-{{TestUtil.TestTargetFramework}}.csproj" />
+            </Solution>
+            """;
+        Assert.Equal(expectedSolution, solutionContent.Trim());
+
+        // Verify references directory exists
+        var referencesDir = Path.Combine(tempDir.DirectoryPath, "references");
+        Assert.True(Directory.Exists(referencesDir), "References directory should exist");
+
+        // Verify project directory and files exist
+        var projectDirs = Directory.GetDirectories(tempDir.DirectoryPath)
+            .Where(d => !Path.GetFileName(d).Equals("references", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.NotEmpty(projectDirs);
+
+        var projectDir = projectDirs[0];
+        var projectFiles = Directory.GetFiles(projectDir, "*.csproj");
+        Assert.NotEmpty(projectFiles);
+
+        var projectFile = projectFiles[0];
+        var projectContent = File.ReadAllText(projectFile);
+
+        // Verify complete project file content
+        // The console project uses SDK default globbing for source files
+        var expectedProject = $$"""
+            <Project Sdk="Microsoft.NET.Sdk">
+
+              <PropertyGroup>
+                <TargetFramework>{{TestUtil.TestTargetFramework}}</TargetFramework>
+                <AssemblyName>console</AssemblyName>
+                <OutputType>Exe</OutputType>
+                <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+                <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+              </PropertyGroup>
+
+            </Project>
+            """;
+        Assert.Equal(expectedProject, projectContent.Trim());
+
+        // Verify source files were copied
+        Assert.NotEmpty(Directory.GetFiles(projectDir, "*.cs"));
+    }
+
+    [Fact]
+    public void ExportSolutionWithMultiTarget()
+    {
+        TestOutputHelper.WriteLine($"Testing multi-target project export from {Fixture.ClassLibMulti.Value.CompilerLogPath}");
+
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
+
+        // Verify solution file exists
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile), "Solution file should exist");
+
+        var solutionContent = File.ReadAllText(solutionFile);
+        TestOutputHelper.WriteLine("Solution content:");
+        TestOutputHelper.WriteLine(solutionContent);
+
+        // Verify complete solution content with both target frameworks
+        var expectedSolution = """
+            <Solution>
+              <Project Path="classlibmulti-net6.0/classlibmulti-net6.0.csproj" />
+              <Project Path="classlibmulti-net9.0/classlibmulti-net9.0.csproj" />
+            </Solution>
+            """;
+        Assert.Equal(expectedSolution, solutionContent.Trim());
+    }
+
+    [Fact]
+    public void ExportSolutionValidateFrameworkReferencesFiltered()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
+
+        // Find the project file
+        var projectFiles = Directory.GetFiles(tempDir.DirectoryPath, "*.csproj", SearchOption.AllDirectories);
+        Assert.NotEmpty(projectFiles);
+
+        var projectContent = File.ReadAllText(projectFiles[0]);
+
+        // Verify complete project file content - framework references should be filtered out
+        var expectedProject = $$"""
+            <Project Sdk="Microsoft.NET.Sdk">
+
+              <PropertyGroup>
+                <TargetFramework>{{TestUtil.TestTargetFramework}}</TargetFramework>
+                <AssemblyName>console</AssemblyName>
+                <OutputType>Exe</OutputType>
+                <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+                <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+              </PropertyGroup>
+
+            </Project>
+            """;
+        Assert.Equal(expectedProject, projectContent.Trim());
+    }
+
+    [Fact]
+    public void ExportSolutionNonRootedPath()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportSolution("relative-path"));
+    }
+
+    [Fact]
+    public void ExportSolutionWithPredicate()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath, cc => cc.TargetFramework == "net9.0");
+
+        var solutionContent = File.ReadAllText(Path.Combine(tempDir.DirectoryPath, "export.slnx"));
+        var expectedSolution = """
+            <Solution>
+              <Project Path="classlibmulti-net9.0/classlibmulti-net9.0.csproj" />
+            </Solution>
+            """;
+        Assert.Equal(expectedSolution, solutionContent.Trim());
+
+        var projectDirs = Directory.GetDirectories(tempDir.DirectoryPath)
+            .Where(d => !Path.GetFileName(d).Equals("references", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.Single(projectDirs);
+    }
+
+    [Fact]
+    public void ExportSolutionWithAliasReference()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithAliasReference.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
+
+        var projectFiles = Directory.GetFiles(tempDir.DirectoryPath, "*.csproj", SearchOption.AllDirectories);
+        var consoleProject = projectFiles.Single(p => Path.GetFileName(p).Contains("console-with-alias-reference"));
+        var projectContent = File.ReadAllText(consoleProject);
+
+        Assert.Contains("<Aliases>Util</Aliases>", projectContent);
+        Assert.Contains("<ProjectReference", projectContent);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExportSolutionNullTargetFramework(bool excludeAnalyzers)
+    {
+        using var reader = ChangeCompilerCall(
+            Fixture.Console.Value.BinaryLogPath!,
+            x => x.ProjectFileName == "console.csproj",
+            (compilerCall, args) =>
+            {
+                var newCall = new CompilerCall(
+                    compilerCall.ProjectFilePath,
+                    compilerCall.Kind,
+                    targetFramework: null,
+                    compilerCall.IsCSharp,
+                    compilerCall.CompilerFilePath);
+                return (newCall, args);
+            });
+
+        TestExportSolution(TestOutputHelper, reader, excludeAnalyzers);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExportSolutionWithAlias(bool excludeAnalyzers)
+    {
+        using var reader = ChangeCompilerCall(
+            Fixture.Console.Value.BinaryLogPath!,
+            x => x.ProjectFileName == "console.csproj",
+            (compilerCall, args) =>
+            {
+                var newCall = new CompilerCall(
+                    compilerCall.ProjectFilePath,
+                    compilerCall.Kind,
+                    targetFramework: null,
+                    compilerCall.IsCSharp,
+                    compilerCall.CompilerFilePath);
+
+                foreach (var arg in args)
+                {
+                    if (arg.StartsWith("/reference:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var target = arg.Substring("/reference:".Length);
+                        args = [.. args, $"/reference:MyAlias={target}"];
+                        break;
+                    }
+                }
+
+                return (newCall, args);
+            });
+
+        TestExportSolution(TestOutputHelper, reader, excludeAnalyzers);
+    }
+
+    [WindowsTheory]
+    [InlineData(true, "net9.0", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
+    [InlineData(true, "net8.0", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
+    [InlineData(true, "net9.0", new[] { @"C:\Program Files\dotnet\shared\Microsoft.NETCore.App\9.0.0\System.Runtime.dll" })]
+    [InlineData(true, "net8.0", new[] { @"C:\Program Files\dotnet\shared\Microsoft.NETCore.App\9.0.0\System.Runtime.dll" })]
+    [InlineData(true, "net9.0", new[] { @"C:\Program Files\dotnet\packs\Microsoft.WindowsDesktop.App.Ref\9.0.0\ref\net9.0\WindowsBase.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\Users\user\.nuget\packages\newtonsoft.json\13.0.1\lib\net6.0\Newtonsoft.Json.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\src\MyProject\bin\Debug\net9.0\MyProject.dll" })]
+    [InlineData(false, null, new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
+    [InlineData(false, "", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\src\packs-tool\bin\Debug\net9.0\packs-tool.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\src\shared-lib\bin\Debug\net9.0\shared-lib.dll" })]
+    public void IsFrameworkReference(bool expected, string? targetFramework, string[] filePaths)
+    {
+        foreach (var filePath in filePaths)
+        {
+            Assert.Equal(expected, ExportUtil.IsFrameworkReference(filePath, targetFramework));
+        }
+    }
 }

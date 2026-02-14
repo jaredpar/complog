@@ -67,6 +67,8 @@ internal static class PolyfillExtensions
 
         public string[] Split(char separator, int count, StringSplitOptions options = StringSplitOptions.None) =>
             @this.Split(new char[] { separator }, count, options);
+
+        public bool EndsWith(char value) => @this.Length != 0 && @this[@this.Length - 1] == value;
     }
 
     extension (MemoryMarshal)
@@ -165,6 +167,33 @@ internal static class PolyfillExtensions
     {
         public bool IsMatch(ReadOnlySpan<char> input) =>
             @this.IsMatch(input.ToString());
+    }
+
+    extension (Path)
+    {
+        public static string GetRelativePath(string relativeTo, string path)
+        {
+            var relativeToUri = new Uri(AppendDirectorySeparatorChar(relativeTo));
+            var pathUri = new Uri(path);
+            if (relativeToUri.Scheme != pathUri.Scheme)
+            {
+                return path;
+            }
+
+            var relativeUri = relativeToUri.MakeRelativeUri(pathUri);
+            var relativePath = Uri.UnescapeDataString(relativeUri.ToString());
+            return relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+
+            static string AppendDirectorySeparatorChar(string path)
+            {
+                if (!path.EndsWith(Path.DirectorySeparatorChar))
+                {
+                    return path + Path.DirectorySeparatorChar;
+                }
+
+                return path;
+            }
+        }
     }
 
 #endif

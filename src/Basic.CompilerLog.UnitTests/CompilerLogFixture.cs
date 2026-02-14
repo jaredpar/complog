@@ -101,6 +101,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     internal Lazy<LogData>? WpfApp { get; }
 
+    internal Lazy<LogData>? WinFormsApp { get; }
+
     internal Lazy<LogData>? ConsoleWithNativePdb { get; }
 
     internal Lazy<LogData> LinuxConsoleFromLog { get; }
@@ -515,7 +517,13 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 RunDotnetCommand("build -bl -nr:false", scratchPath);
             });
 
-            ConsoleWithNativePdb = WithBuild("console-with-nativepdb.complog", void (string scratchPath) =>
+            WinFormsApp = WithBuild("winformsapp.complog", void (string scratchPath) =>
+            {
+                RunDotnetCommand("new winforms --name winformsapp --output .", scratchPath);
+                RunDotnetCommand("build -bl -nr:false", scratchPath);
+            });
+
+            ConsoleWithNativePdb= WithBuild("console-with-nativepdb.complog", void (string scratchPath) =>
             {
                 RunDotnetCommand($"new console --name console --output .", scratchPath);
                 var projectFileContent = $"""
@@ -771,6 +779,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             yield return nameof(WpfApp);
+            yield return nameof(WinFormsApp);
             yield return nameof(ConsoleWithNativePdb);
         }
     }
