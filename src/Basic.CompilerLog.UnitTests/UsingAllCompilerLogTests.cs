@@ -271,7 +271,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             return;
         }
 
-        ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
+        ExportUtilTests.TestExportRsp(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
     }
 
     [Theory]
@@ -284,7 +284,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
             return;
         }
 
-        // This is a log file created with an old format that doesn't have the necessary information to 
+        // This is a log file created with an old format that doesn't have the necessary information to
         // do an export to a solution
         if (logData.BinaryLogPath is null)
         {

@@ -24,7 +24,7 @@ public sealed class ExportUtilTests : TestBase
         Fixture = fixture;
     }
 
-    private void TestExport(
+    private void TestExportRsp(
         int expectedCount,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
@@ -40,7 +40,7 @@ public sealed class ExportUtilTests : TestBase
         // ensures our builds below don't succeed because old files are being referenced
         Root.EmptyDirectory();
 
-        TestExport(
+        TestExportRsp(
             compilerLogFilePath,
             expectedCount,
             verifyExportCallback: verifyExportCallback,
@@ -48,14 +48,14 @@ public sealed class ExportUtilTests : TestBase
             verifyBuildResult: verifyBuildResult);
     }
 
-    private void TestExport(
+    private void TestExportRsp(
         string compilerLogFilePath,
         int? expectedCount,
         bool excludeAnalyzers = false,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
         Action<ProcessResult>? verifyBuildResult = null) =>
-        TestExport(
+        TestExportRsp(
             TestOutputHelper,
             compilerLogFilePath,
             expectedCount,
@@ -64,7 +64,7 @@ public sealed class ExportUtilTests : TestBase
             runBuild,
             verifyBuildResult);
 
-    internal static void TestExport(
+    internal static void TestExportRsp(
         ITestOutputHelper testOutputHelper,
         string compilerLogFilePath,
         int? expectedCount,
@@ -74,7 +74,7 @@ public sealed class ExportUtilTests : TestBase
         Action<ProcessResult>? verifyBuildResult = null)
     {
         using var reader = CompilerLogReader.Create(compilerLogFilePath);
-        TestExport(
+        TestExportRsp(
             testOutputHelper,
             reader: reader,
             expectedCount,
@@ -84,7 +84,7 @@ public sealed class ExportUtilTests : TestBase
             verifyBuildResult);
     }
 
-    internal static void TestExport(
+    internal static void TestExportRsp(
         ITestOutputHelper testOutputHelper,
         CompilerLogReader reader,
         int? expectedCount,
@@ -147,7 +147,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedText()
     {
-        TestExport(Fixture.Console.Value.CompilerLogPath, 1, verifyExportCallback: tempPath =>
+        TestExportRsp(Fixture.Console.Value.CompilerLogPath, 1, verifyExportCallback: tempPath =>
         {
             var generatedPath = Path.Combine(tempPath, "generated");
             var files = Directory.GetFiles(generatedPath, "*.cs", SearchOption.AllDirectories);
@@ -162,7 +162,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedTextExcludeAnalyzers()
     {
-        TestExport(Fixture.Console.Value.CompilerLogPath, 1, excludeAnalyzers: true, verifyExportCallback: tempPath =>
+        TestExportRsp(Fixture.Console.Value.CompilerLogPath, 1, excludeAnalyzers: true, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -188,7 +188,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GlobalConfigMapsPaths()
     {
-        TestExport(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
+        TestExportRsp(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
         {
             var configFilePath = Directory
                 .EnumerateFiles(path, "console-complex.GeneratedMSBuildEditorConfig.editorconfig", SearchOption.AllDirectories)
@@ -212,13 +212,13 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void ConsoleMultiTarget()
     {
-        TestExport(Fixture.ClassLibMulti.Value.CompilerLogPath, expectedCount: 2, runBuild: false);
+        TestExportRsp(Fixture.ClassLibMulti.Value.CompilerLogPath, expectedCount: 2, runBuild: false);
     }
 
     [Fact]
     public void ConsoleWithRuleset()
     {
-        TestExport(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
+        TestExportRsp(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
         {
             var found = false;
             var expected = $"/ruleset:{Path.Combine("src", "example.ruleset")}";
@@ -257,7 +257,7 @@ public sealed class ExportUtilTests : TestBase
             Assert.True(commandLineArgs.MetadataReferences.Any(x => x.Properties.EmbedInteropTypes));
         });
 
-        TestExport(TestOutputHelper, reader, expectedCount: 1, verifyExportCallback: tempPath =>
+        TestExportRsp(TestOutputHelper, reader, expectedCount: 1, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -277,7 +277,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void StrongNameKey()
     {
-        TestExport(Fixture.ConsoleSigned.Value.CompilerLogPath, expectedCount: 1, runBuild: false);
+        TestExportRsp(Fixture.ConsoleSigned.Value.CompilerLogPath, expectedCount: 1, runBuild: false);
     }
 
 #if NET
@@ -330,7 +330,7 @@ public sealed class ExportUtilTests : TestBase
         var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
         Assert.True(result.Succeeded);
 
-        TestExport(
+        TestExportRsp(
             compilerLogFilePath: complog,
             expectedCount: 1,
             excludeAnalyzers: true,
@@ -352,7 +352,7 @@ public sealed class ExportUtilTests : TestBase
         var result = CompilerLogUtil.TryConvertBinaryLog(binlog, complog);
         Assert.True(result.Succeeded);
 
-        TestExport(
+        TestExportRsp(
             compilerLogFilePath: complog,
             expectedCount: 1,
             excludeAnalyzers: true,
@@ -370,7 +370,7 @@ public sealed class ExportUtilTests : TestBase
         RunDotNet("new console --name example --output .");
         AddProjectProperty("<ErrorLog>my.example.sarif,version=1.0</ErrorLog>");
         RunDotNet("build -bl -nr:false");
-        TestExport(1);
+        TestExportRsp(1);
     }
 
     private void EmbedLineCore(string contentFilePath)
@@ -382,7 +382,7 @@ public sealed class ExportUtilTests : TestBase
         #line 42 "{contentFilePath}"
         """);
         RunDotNet("build -bl -nr:false");
-        TestExport(1);
+        TestExportRsp(1);
     }
 
     [Fact]
@@ -480,7 +480,7 @@ public sealed class ExportUtilTests : TestBase
     {
         var isWindows = OperatingSystem.IsWindows();
         var logData = isWindows ? Fixture.LinuxConsoleFromLog.Value : Fixture.WindowsConsoleFromLog.Value;
-        TestExport(logData.CompilerLogPath, expectedCount: 1, runBuild: true, verifyExportCallback: tempPath =>
+        TestExportRsp(logData.CompilerLogPath, expectedCount: 1, runBuild: true, verifyExportCallback: tempPath =>
         {
             var allCsPaths = Directory.GetFiles(Path.Join(tempPath, "src"), "*.cs", SearchOption.AllDirectories);
             Assert.NotEmpty(allCsPaths);
@@ -667,6 +667,36 @@ public sealed class ExportUtilTests : TestBase
 
         Assert.Contains("<Aliases>Util</Aliases>", projectContent);
         Assert.Contains("<ProjectReference", projectContent);
+    }
+
+    [Fact]
+    public void ExportProjectNullTargetFramework()
+    {
+        using var reader = ChangeCompilerCall(
+            Fixture.Console.Value.BinaryLogPath!,
+            x => x.ProjectFileName == "console.csproj",
+            (compilerCall, args) =>
+            {
+                var newCall = new CompilerCall(
+                    compilerCall.ProjectFilePath,
+                    compilerCall.Kind,
+                    targetFramework: null,
+                    compilerCall.IsCSharp,
+                    compilerCall.CompilerFilePath);
+                return (newCall, args);
+            });
+
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        using var tempDir = new TempDir();
+        exportUtil.ExportProject(tempDir.DirectoryPath);
+
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile));
+
+        var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+        TestOutputHelper.WriteLine(result.StandardOut);
+        TestOutputHelper.WriteLine(result.StandardError);
+        Assert.True(result.Succeeded, $"Build failed: {result.StandardOut}");
     }
 
     [WindowsTheory]
