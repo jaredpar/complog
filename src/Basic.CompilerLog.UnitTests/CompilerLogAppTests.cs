@@ -851,6 +851,24 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     }
 
     [Fact]
+    public void ExportSolution()
+    {
+        RunWithBoth(Fixture.Console.Value, logPath =>
+        {
+            using var exportDir = new TempDir();
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"export --solution -o {exportDir.DirectoryPath} ""{logPath}""", RootDirectory));
+
+            var solutionFile = Path.Combine(exportDir.DirectoryPath, "export.slnx");
+            Assert.True(File.Exists(solutionFile));
+
+            var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+            TestOutputHelper.WriteLine(result.StandardOut);
+            TestOutputHelper.WriteLine(result.StandardError);
+            Assert.True(result.Succeeded, $"Build failed: {result.StandardOut}");
+        });
+    }
+
+    [Fact]
     public void ExportHelp()
     {
         var (exitCode, output) = RunCompLogEx($"export -h");
