@@ -141,6 +141,27 @@ public sealed class ExportUtilTests : TestBase
         }
     }
 
+    internal static void TestExportSolution(
+        ITestOutputHelper testOutputHelper,
+        CompilerLogReader reader,
+        bool excludeAnalyzers = false,
+        Action<ProcessResult>? verifyBuildResult = null)
+    {
+
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers);
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
+
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile));
+
+        var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+        verifyBuildResult?.Invoke(result);
+        testOutputHelper.WriteLine(result.StandardOut);
+        testOutputHelper.WriteLine(result.StandardError);
+        Assert.True(result.Succeeded, $"Build failed: {result.StandardOut}");
+    }
+
     /// <summary>
     /// Make sure that generated files are put into the generated directory
     /// </summary>
@@ -669,8 +690,10 @@ public sealed class ExportUtilTests : TestBase
         Assert.Contains("<ProjectReference", projectContent);
     }
 
-    [Fact]
-    public void ExportSolutionNullTargetFramework()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExportSolutionNullTargetFramework(bool excludeAnalyzers)
     {
         using var reader = ChangeCompilerCall(
             Fixture.Console.Value.BinaryLogPath!,
@@ -686,17 +709,40 @@ public sealed class ExportUtilTests : TestBase
                 return (newCall, args);
             });
 
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
-        using var tempDir = new TempDir();
-        exportUtil.ExportSolution(tempDir.DirectoryPath);
+        TestExportSolution(TestOutputHelper, reader, excludeAnalyzers);
+    }
 
-        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
-        Assert.True(File.Exists(solutionFile));
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExportSolutionWithAlias(bool excludeAnalyzers)
+    {
+        using var reader = ChangeCompilerCall(
+            Fixture.Console.Value.BinaryLogPath!,
+            x => x.ProjectFileName == "console.csproj",
+            (compilerCall, args) =>
+            {
+                var newCall = new CompilerCall(
+                    compilerCall.ProjectFilePath,
+                    compilerCall.Kind,
+                    targetFramework: null,
+                    compilerCall.IsCSharp,
+                    compilerCall.CompilerFilePath);
 
-        var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
-        TestOutputHelper.WriteLine(result.StandardOut);
-        TestOutputHelper.WriteLine(result.StandardError);
-        Assert.True(result.Succeeded, $"Build failed: {result.StandardOut}");
+                foreach (var arg in args)
+                {
+                    if (arg.StartsWith("/reference:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var target = arg.Substring("/reference:".Length);
+                        args = [.. args, $"/reference:MyAlias={target}"];
+                        break;
+                    }
+                }
+
+                return (newCall, args);
+            });
+
+        TestExportSolution(TestOutputHelper, reader, excludeAnalyzers);
     }
 
     [WindowsTheory]

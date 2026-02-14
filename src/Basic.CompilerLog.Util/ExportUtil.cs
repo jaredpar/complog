@@ -592,9 +592,17 @@ public sealed partial class ExportUtil
             foreach (var refData in refList)
             {
                 var fileName = refData.FileName;
-                var relativePath = nameMap[fileName]
-                    ? Path.Combine(fileName, refData.Mvid.ToString("N"), fileName)
-                    : fileName;
+                string relativePath;
+                if (!nameMap[fileName])
+                {
+                    relativePath = fileName;
+                }
+                else
+                {
+                    relativePath = Path.Combine(fileName, refData.Mvid.ToString("N"));
+                    _ = Directory.CreateDirectory(Path.Combine(referencesDir, relativePath));
+                    relativePath = Path.Combine(relativePath, fileName);
+                }
 
                 var filePath = Path.Combine(referencesDir, relativePath);
                 using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
