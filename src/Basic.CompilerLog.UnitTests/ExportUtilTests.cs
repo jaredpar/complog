@@ -620,6 +620,55 @@ public sealed class ExportUtilTests : TestBase
         Assert.Equal(expectedProject, projectContent.Trim());
     }
 
+    [Fact]
+    public void ExportProjectNonRootedPath()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        Assert.Throws<ArgumentException>(() => exportUtil.ExportProject("relative-path"));
+    }
+
+    [Fact]
+    public void ExportProjectWithPredicate()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportProject(tempDir.DirectoryPath, cc => cc.TargetFramework == "net9.0");
+
+        var solutionContent = File.ReadAllText(Path.Combine(tempDir.DirectoryPath, "export.slnx"));
+        var expectedSolution = """
+            <Solution>
+              <Project Path="classlibmulti-net9.0/classlibmulti-net9.0.csproj" />
+            </Solution>
+            """;
+        Assert.Equal(expectedSolution, solutionContent.Trim());
+
+        var projectDirs = Directory.GetDirectories(tempDir.DirectoryPath)
+            .Where(d => !Path.GetFileName(d).Equals("references", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.Single(projectDirs);
+    }
+
+    [Fact]
+    public void ExportProjectWithAliasReference()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithAliasReference.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportProject(tempDir.DirectoryPath);
+
+        var projectFiles = Directory.GetFiles(tempDir.DirectoryPath, "*.csproj", SearchOption.AllDirectories);
+        var consoleProject = projectFiles.Single(p => Path.GetFileName(p).Contains("console-with-alias-reference"));
+        var projectContent = File.ReadAllText(consoleProject);
+
+        Assert.Contains("<Aliases>Util</Aliases>", projectContent);
+        Assert.Contains("<ProjectReference", projectContent);
+    }
+
     [WindowsTheory]
     [InlineData(true, "net9.0", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
     [InlineData(true, "net8.0", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
