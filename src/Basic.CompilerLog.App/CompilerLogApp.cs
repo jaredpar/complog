@@ -384,13 +384,13 @@ public sealed class CompilerLogApp(
         var baseOutputPath = "";
         var excludeAnalyzers = false;
         var useVisualStudio = false;
-        var exportAsProject = false;
+        var exportAsSolution = false;
         var options = new FilterOptionSet()
         {
             { "o|out=", "path to export build content", o => baseOutputPath = o },
             { "n|no-analyzers", "do not include analyzers in rsp", i => excludeAnalyzers = i is not null },
             { "vs", "use the csc.exe from installed Visual Studio instances", v => useVisualStudio = v is not null },
-            { "solution", "export as a full solution with project files (EXPERIMENTAL)", p => exportAsProject = p is not null },
+            { "solution", "export as a full solution with project files (EXPERIMENTAL)", p => exportAsSolution = p is not null },
         };
 
         try
@@ -413,9 +413,9 @@ public sealed class CompilerLogApp(
             using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None);
             var exportUtil = new ExportUtil(reader, excludeAnalyzers);
 
-            if (exportAsProject)
+            if (exportAsSolution)
             {
-                baseOutputPath = GetBaseOutputPath(baseOutputPath, ".complog/project");
+                baseOutputPath = GetBaseOutputPath(baseOutputPath, "solution");
                 WriteLine($"Exporting project to {baseOutputPath}");
                 exportUtil.ExportSolution(baseOutputPath, options.FilterCompilerCalls);
             }
