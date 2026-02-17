@@ -300,7 +300,7 @@ internal static partial class CompilerCommandLineUtil
 
         static string NormalizePathList(ReadOnlySpan<char> path, ReadOnlySpan<char> optionName, NormalizePathFunc normalizePathFunc)
         {
-            var commaIndex = path.IndexOf(',');
+            var commaIndex = IndexOfUnquotedComma(path);
             if (commaIndex < 0)
             {
                 return NormalizePath(path.ToString(), optionName, normalizePathFunc);
@@ -312,11 +312,30 @@ internal static partial class CompilerCommandLineUtil
                 builder.Append(NormalizePath(path[..commaIndex].ToString(), optionName, normalizePathFunc));
                 builder.Append(',');
                 path = path[(commaIndex + 1)..];
-                commaIndex = path.IndexOf(",");
+                commaIndex = IndexOfUnquotedComma(path);
             } while (commaIndex >= 0);
 
             builder.Append(NormalizePath(path.ToString(), optionName, normalizePathFunc));
             return builder.ToString();
+        }
+
+        // Finds the index of the first comma not inside a quoted string.
+        static int IndexOfUnquotedComma(ReadOnlySpan<char> span)
+        {
+            bool inQuotes = false;
+            for (int i = 0; i < span.Length; i++)
+            {
+                if (span[i] == '"')
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (span[i] == ',' && !inQuotes)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
         }
 
         static string NormalizeOptionWithPath(OptionParts option, NormalizePathFunc normalizePathFunc)

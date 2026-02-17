@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -17,10 +16,17 @@ public sealed partial class ExportUtil
         private PathNormalizationUtil PathNormalizationUtil { get; }
 
         /// <summary>
-        /// This is the original source directory where the compilation occurred. This is after it went through
+        /// This is the root most directory where the compilation occurred. This can be more root than <see cref="ProjectDirectory"/> 
+        /// when there are .editorconfig files that are above the project directory. This path is after going through
         /// <see cref="PathNormalizationUtil.NormalizePath(string?)"/>.
         /// </summary>
         internal string SourceDirectory { get; }
+
+        /// <summary>
+        /// This is the original project directory where the compilation occurred. This is after it went through
+        /// <see cref="PathNormalizationUtil.NormalizePath(string?)"/>.
+        /// </summary>
+        internal string ProjectDirectory { get; }
 
         /// <summary>
         /// The destination directory where all of the content is being written
@@ -37,11 +43,12 @@ public sealed partial class ExportUtil
         internal ResilientDirectory GeneratedCodeDirectory { get; }
         internal ResilientDirectory BuildOutput { get; }
 
-        internal ContentBuilder(string destinationDirectory, string originalSourceDirectory, PathNormalizationUtil pathNormalizationUtil)
+        internal ContentBuilder(string destinationDirectory, string originalSourceDirectory, string projectDirectory, PathNormalizationUtil pathNormalizationUtil)
         {
             PathNormalizationUtil = pathNormalizationUtil;
             DestinationDirectory = destinationDirectory;
             SourceDirectory = originalSourceDirectory;
+            ProjectDirectory = projectDirectory;
             SourceOutputDirectory = Path.Combine(destinationDirectory, "src");
             EmbeddedResourceDirectory = Path.Combine(destinationDirectory, "resources");
             MiscDirectory = new(Path.Combine(destinationDirectory, "misc"));
@@ -63,14 +70,13 @@ public sealed partial class ExportUtil
             // Normalize out all of the ..\ and .\ in the path to the current platform.
             var normalizedPath = PathNormalizationUtil.NormalizePath(path);
 
-            // If the path isn't rooted then it's relative to the working directory. Need to
-            // make it relative to the new working directory
-            if (!Path.IsPathRooted(normalizedPath))
-            {
-                return Path.Combine(Path.GetFileName(SourceOutputDirectory)!, normalizedPath);
-            }
+            // If the path isn't rooted then it was relative to the project directory when it was recorded.
+            var normalizedFullPath = Path.IsPathRooted(normalizedPath)
+                ? normalizedPath
+                : Path.Combine(ProjectDirectory, normalizedPath);
 
-            var normalizedFullPath = Path.GetFullPath(normalizedPath);
+            // Try and remove any relative elements from the paths to make it a bit cleaner.
+            normalizedFullPath = Path.GetFullPath(normalizedFullPath);
 
             if (normalizedFullPath.StartsWith(SourceDirectory, PathUtil.Comparison))
             {
@@ -154,7 +160,11 @@ public sealed partial class ExportUtil
         }
 
         var originalSourceDirectory = GetSourceDirectory(Reader, compilerCall);
-        var builder = new ContentBuilder(destinationDir, originalSourceDirectory, PathNormalizationUtil);
+        var builder = new ContentBuilder(
+            destinationDir,
+            originalSourceDirectory,
+            PathNormalizationUtil.NormalizePath(compilerCall.ProjectDirectory),
+            PathNormalizationUtil);
         bool hasNoConfigOption = false;
         var checksumAlgorithm = Reader.GetChecksumAlgorithm(compilerCall);
 

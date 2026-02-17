@@ -29,8 +29,8 @@ using Basic.CompilerLog.App;
 #pragma warning disable 8321
 
 //using var reader = CompilerLogReader.Create(zipFilePath);
-var filePath = @"/home/jaredpar/code/dotnet/artifacts/log/Release/roslyn/msca.complog";
-RunComplog($"hash export {filePath}");
+var filePath = @"C:\Users\jaredpar\Downloads\msbuild.zip";
+RunComplog($@"export {filePath} --project Microsoft.DotNet.ProjectTools -o C:\Users\jaredpar\temp\export");
 Console.WriteLine("done");
 /*
 using var reader = CompilerLogReader.Create(filePath);
