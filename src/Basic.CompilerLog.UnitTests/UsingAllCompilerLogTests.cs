@@ -262,7 +262,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
     [Theory]
     [MemberData(nameof(GetExportAndBuildData))]
-    public async Task ExportAndBuild(bool excludeAnalyzers, string logDataName)
+    public async Task ExportRspAndBuild(bool excludeAnalyzers, string logDataName)
     {
         var list = new List<Task>();
         var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
@@ -271,7 +271,48 @@ public sealed class UsingAllCompilerLogTests : TestBase
             return;
         }
 
-        ExportUtilTests.TestExport(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
+        ExportUtilTests.TestExportRsp(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
+    }
+
+    [Theory]
+    [MemberData(nameof(GetAllLogDataNames))]
+    public async Task ExportSolutionAndBuild(string logDataName)
+    {
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        if (!logData.SupportsNoneHost)
+        {
+            return;
+        }
+
+        // This is a log file created with an old format that doesn't have the necessary information to
+        // do an export to a solution
+        if (logData.BinaryLogPath is null)
+        {
+            return;
+        }
+
+        using var reader = CompilerLogReader.Create(logData.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
+
+        // Verify solution file exists
+        var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
+        Assert.True(File.Exists(solutionFile), $"Solution file should exist for {logDataName}");
+
+        // Verify at least one project directory exists
+        var projectDirs = Directory.GetDirectories(tempDir.DirectoryPath)
+            .Where(d => !Path.GetFileName(d).Equals("references", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.NotEmpty(projectDirs);
+
+        // Build the solution
+        TestOutputHelper.WriteLine($"Building solution for {logDataName}");
+        var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+        TestOutputHelper.WriteLine(result.StandardOut);
+        TestOutputHelper.WriteLine(result.StandardError);
+        Assert.True(result.Succeeded, $"Build failed for {logDataName}: {result.StandardOut}");
     }
 
     public static IEnumerable<object[]> GetLoadAllCoreData()

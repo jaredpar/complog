@@ -384,11 +384,13 @@ public sealed class CompilerLogApp(
         var baseOutputPath = "";
         var excludeAnalyzers = false;
         var useVisualStudio = false;
+        var exportAsSolution = false;
         var options = new FilterOptionSet()
         {
             { "o|out=", "path to export build content", o => baseOutputPath = o },
             { "n|no-analyzers", "do not include analyzers in rsp", i => excludeAnalyzers = i is not null },
             { "vs", "use the csc.exe from installed Visual Studio instances", v => useVisualStudio = v is not null },
+            { "solution", "export as a full solution with project files (EXPERIMENTAL)", p => exportAsSolution = p is not null },
         };
 
         try
@@ -409,21 +411,30 @@ public sealed class CompilerLogApp(
 
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
             using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None);
-            var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var exportUtil = new ExportUtil(reader, excludeAnalyzers);
 
-            baseOutputPath = GetBaseOutputPath(baseOutputPath, "export");
-            WriteLine($"Exporting to {baseOutputPath}");
-            Directory.CreateDirectory(baseOutputPath);
-
-            var compilerDirectories = useVisualStudio
-                ? VisualStudioUtil.GetCompilerDirectories()
-                : SdkUtil.GetSdkCompilerDirectories();
-
-            foreach (var (name, compilerCall) in namedCompilerCalls)
+            if (exportAsSolution)
             {
-                var exportDir = Path.Combine(baseOutputPath, name);
-                exportUtil.Export(compilerCall, exportDir, compilerDirectories);
+                baseOutputPath = GetBaseOutputPath(baseOutputPath, "solution");
+                WriteLine($"Exporting project to {baseOutputPath}");
+                exportUtil.ExportSolution(baseOutputPath, options.FilterCompilerCalls);
+            }
+            else
+            {
+                var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
+                baseOutputPath = GetBaseOutputPath(baseOutputPath, "export");
+                WriteLine($"Exporting to {baseOutputPath}");
+                Directory.CreateDirectory(baseOutputPath);
+
+                var compilerDirectories = useVisualStudio
+                    ? VisualStudioUtil.GetCompilerDirectories()
+                    : SdkUtil.GetSdkCompilerDirectories();
+
+                foreach (var (name, compilerCall) in namedCompilerCalls)
+                {
+                    var exportDir = Path.Combine(baseOutputPath, name);
+                    exportUtil.Export(compilerCall, exportDir, compilerDirectories);
+                }
             }
 
             return ExitSuccess;

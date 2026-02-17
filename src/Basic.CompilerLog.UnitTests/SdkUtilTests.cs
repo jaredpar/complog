@@ -1,6 +1,7 @@
 using Basic.CompilerLog.Util;
 using Xunit;
 using Xunit.Sdk;
+using static Basic.CompilerLog.Util.RoslynUtil;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -16,19 +17,9 @@ public sealed class SdkUtilTests
     public void SdkVersions()
     {
         using var temp = new TempDir();
-        var aDir = temp.NewDirectory("sdk/9.0.100/Roslyn/bincore");
-        var bDir = temp.NewDirectory("sdk/10.0.100-rc.2.25502.107/Roslyn/bincore");
-        
-        // Add valid compiler files to make these valid SDK directories
-        var realSdkDirectory = SdkUtil.GetLatestSdkDirectory().SdkDirectory;
-        var roslynDir = Path.Combine(realSdkDirectory, "Roslyn", "bincore");
-        var cscPath = Path.Combine(roslynDir, "csc.dll");
-        File.Copy(cscPath, Path.Combine(aDir, "csc.dll"));
-        File.Copy(cscPath, Path.Combine(bDir, "csc.dll"));
-        
-        var a = Path.GetFullPath(Path.Combine(aDir, "../.."));
-        var b = Path.GetFullPath(Path.Combine(bDir, "../.."));
-        temp.NewDirectory("sdk/invalid-version");
+        var a = MakeSdk("9.0.100");
+        var b = MakeSdk("10.0.100-rc.2.25502.107");
+        var c = temp.NewDirectory("sdk/invalid-version");
         var sdks = SdkUtil.GetSdkDirectories(temp.DirectoryPath);
         Assert.Equal(
             [
@@ -39,6 +30,16 @@ public sealed class SdkUtilTests
 
         var latestSdk = SdkUtil.GetLatestSdkDirectory(temp.DirectoryPath);
         Assert.Equal((b, new SdkVersion(10, 0, 100, "rc.2.25502.107")), latestSdk);
+
+        string MakeSdk(string version)
+        {
+            var sdkPath = Path.Combine(temp.DirectoryPath, "sdk", version);
+            var compilerPath = Path.Combine(sdkPath, "Roslyn", "bincore");
+            _ = Directory.CreateDirectory(compilerPath);
+            File.WriteAllLines(Path.Combine(compilerPath, GetCompilerAppFileName(isCSharp: true)), []);
+            File.WriteAllLines(Path.Combine(compilerPath, GetCompilerAppFileName(isCSharp: false)), []);
+            return sdkPath;
+        }
     }
 
     [Fact]
