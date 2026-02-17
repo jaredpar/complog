@@ -39,7 +39,7 @@ jobs:
           user: ${{ secrets.NUGET_PROFILE }}
 
       - name: Publish NuPkg Files
-        run: dotnet nuget push "artifacts/nupkg/*.nupkg" --api-key ${{steps.nuget_login.outputs.NUGET_API_KEY}}} -s https://api.nuget.org/v3/index.json
+        run: dotnet nuget push "artifacts/nupkg/*.nupkg" --api-key ${{steps.nuget_login.outputs.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json
 
       - name: Create Tag and Release
         id: create_release
