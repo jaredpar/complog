@@ -31,7 +31,6 @@ internal sealed class MiscDirectory(string baseDirectory)
         }
 
         var newParent = GetNewFilePath(parent);
-        _ = Directory.CreateDirectory(newParent);
         newPath = Path.Combine(newParent, Path.GetFileName(path));
         Map.Add(path, newPath);
         return newPath;

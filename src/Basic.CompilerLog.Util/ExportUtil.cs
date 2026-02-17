@@ -81,7 +81,6 @@ public sealed partial class ExportUtil
             if (normalizedFullPath.StartsWith(SourceDirectory, PathUtil.Comparison))
             {
                 var exportFilePath = PathUtil.ReplacePathStart(normalizedFullPath, SourceDirectory, SourceOutputDirectory);
-                _ = Directory.CreateDirectory(Path.GetDirectoryName(exportFilePath)!);
                 return exportFilePath;
             }
             else
@@ -407,6 +406,7 @@ public sealed partial class ExportUtil
                 if (rawContent.ContentHash is not null)
                 {
                     var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                    _ = Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                     using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
                     contentStream.WriteTo(filePath);
                 }
