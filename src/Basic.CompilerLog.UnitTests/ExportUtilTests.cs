@@ -394,6 +394,24 @@ public sealed class ExportUtilTests : TestBase
         TestExportRsp(1);
     }
 
+    [Fact]
+    public void Export_Subdir()
+    {
+        var proj = Path.Combine(RootDirectory, "src", "project");
+        Directory.CreateDirectory(proj);
+        RunDotNet("new console --name example --output .", proj);
+
+        var subdir = Path.Combine(proj, "subdir");
+        Directory.CreateDirectory(subdir);
+        File.Move(Path.Combine(proj, "Program.cs"), Path.Combine(subdir, "Program.cs"));
+
+        // Make sure the compilation includes a file outside the project directory.
+        File.WriteAllText(Path.Combine(RootDirectory, ".editorconfig"), "");
+
+        RunDotNet("build src/project -bl -nr:false");
+        TestExportRsp(1);
+    }
+
     private void EmbedLineCore(string contentFilePath)
     {
         RunDotNet($"new console --name example --output .");
@@ -488,9 +506,11 @@ public sealed class ExportUtilTests : TestBase
     public void ContentBuilder_NormalizePathNull()
     {
         using var temp = new TempDir();
+        var src = temp.NewDirectory("src");
         var builder = new ExportUtil.ContentBuilder(
             destinationDirectory: temp.NewDirectory("dest"),
-            originalSourceDirectory: temp.NewDirectory("src"),
+            originalSourceDirectory: src,
+            projectDirectory: src,
             PathNormalizationUtil.Empty);
         Assert.Null(builder.NormalizePath(null));
     }
