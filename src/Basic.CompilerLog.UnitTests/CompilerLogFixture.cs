@@ -409,6 +409,28 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         {
             RunDotnetCommand("new sln -n ConsoleWithProjectRef", scratchPath);
 
+            File.WriteAllText(Path.Combine(scratchPath, ".editorconfig"), """
+                # This file is the top-most EditorConfig file
+                root = true
+
+                # All Files
+                [*]
+                charset = utf-8
+                indent_style = space
+                indent_size = 4
+                insert_final_newline = true
+                trim_trailing_whitespace = true
+
+                [*.{cs,vb,}]
+                # Default Severity for all .NET Code Style rules below
+                dotnet_analyzer_diagnostic.severity = warning
+
+                dotnet_style_qualification_for_field = true:warning
+                dotnet_style_qualification_for_property = true:warning
+                dotnet_style_qualification_for_method = true:warning
+                dotnet_style_qualification_for_event = true:warning
+                """);
+
             // Create a class library for referencing
             var classLibPath = Path.Combine(scratchPath, "classlib");
             _ = Directory.CreateDirectory(classLibPath);
