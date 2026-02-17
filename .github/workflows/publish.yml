@@ -13,8 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # enable GitHub OIDC token issuance for this job
+      contents: write  # needed to create tags and releases
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
@@ -42,14 +43,9 @@ jobs:
         run: dotnet nuget push "artifacts/nupkg/*.nupkg" --api-key ${{steps.nuget_login.outputs.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json
 
       - name: Create Tag and Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.event.inputs.version }}
-          release_name: Release v${{ github.event.inputs.version }}
+          name: Release v${{ github.event.inputs.version }}
           body: |
             Create release ${{ github.event.inputs.version }}
-          draft: false
-          prerelease: false
