@@ -16,11 +16,16 @@ public sealed partial class ExportUtil
         private PathNormalizationUtil PathNormalizationUtil { get; }
 
         /// <summary>
-        /// This is the original source directory where the compilation occurred. This is after it went through
+        /// This is the root most directory where the compilation occurred. This can be more root than <see cref="ProjectDirectory"/> 
+        /// when there are .editorconfig files that are above the project directory. This path is after going through
         /// <see cref="PathNormalizationUtil.NormalizePath(string?)"/>.
         /// </summary>
         internal string SourceDirectory { get; }
 
+        /// <summary>
+        /// This is the original project directory where the compilation occurred. This is after it went through
+        /// <see cref="PathNormalizationUtil.NormalizePath(string?)"/>.
+        /// </summary>
         internal string ProjectDirectory { get; }
 
         /// <summary>
@@ -65,11 +70,13 @@ public sealed partial class ExportUtil
             // Normalize out all of the ..\ and .\ in the path to the current platform.
             var normalizedPath = PathNormalizationUtil.NormalizePath(path);
 
-            // If the path isn't rooted then it's relative to the project directory. Need to
-            // make it relative to the new working directory
-            var normalizedFullPath = !Path.IsPathRooted(normalizedPath)
-                ? Path.Combine(ProjectDirectory, normalizedPath)
-                : Path.GetFullPath(normalizedPath);
+            // If the path isn't rooted then it was relative to the project directory when it was recorded.
+            var normalizedFullPath = Path.IsPathRooted(normalizedPath)
+                ? normalizedPath
+                : Path.Combine(ProjectDirectory, normalizedPath);
+
+            // Try and remove any relative elements from the paths to make it a bit cleaner.
+            normalizedFullPath = Path.GetFullPath(normalizedFullPath);
 
             if (normalizedFullPath.StartsWith(SourceDirectory, PathUtil.Comparison))
             {
@@ -156,7 +163,7 @@ public sealed partial class ExportUtil
         var builder = new ContentBuilder(
             destinationDir,
             originalSourceDirectory,
-            compilerCall.ProjectDirectory,
+            PathNormalizationUtil.NormalizePath(compilerCall.ProjectDirectory),
             PathNormalizationUtil);
         bool hasNoConfigOption = false;
         var checksumAlgorithm = Reader.GetChecksumAlgorithm(compilerCall);

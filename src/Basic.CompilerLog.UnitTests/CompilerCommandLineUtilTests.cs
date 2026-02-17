@@ -271,6 +271,9 @@ public sealed class CompilerCommandLineUtilTests
     [InlineData(@"/reference:a,b", "a-b-")]
     [InlineData(@"/reference:a,""b c""", "a-b c-")]
     [InlineData(@"/reference:a,""b c"",d", "a-b c-d-")]
+    [InlineData(@"/reference:""a,b""", "a,b-")]
+    [InlineData(@"/reference:""a,b"",c", "a,b-c-")]
+    [InlineData(@"/reference:a,""b,c"",d", "a-b,c-d-")]
     public void NormalizeArgument_PathList(string optionText, string expected)
     {
         var builder = new StringBuilder(expected.Length);
