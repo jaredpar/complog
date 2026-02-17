@@ -16,7 +16,7 @@ dotnet build
 dotnet test --framework net10.0
 
 # Build the full solution
-dotnet build BasicCompilerLog.slnx
+dotnet build Basic.CompilerLog.slnx
 
 # Run tests for net10.0 framework (AI agents should focus on this TFM)
 dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
@@ -35,7 +35,7 @@ Build warnings are treated as errors in CI (`-warnaserror`). The restore step al
 
 ## Solution Structure
 
-Solution file: `BasicCompilerLog.slnx`
+Solution file: `Basic.CompilerLog.slnx`
 
 | Project | Purpose | Target Frameworks |
 |---------|---------|-------------------|
