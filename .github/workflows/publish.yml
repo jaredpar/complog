@@ -11,6 +11,8 @@ jobs:
   publish:
     name: Publish NuGet
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # enable GitHub OIDC token issuance for this job
     steps:
       - uses: actions/checkout@v2
       - name: Setup .NET
@@ -22,18 +24,22 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      # Need to pass PackageVersion because it's embedded into the DLL.
       - name: Build
-        # Need to pass PackageVersion because it's embedded into the DLL.
         run: dotnet build -c Release -p:PackageVersion="${{ github.event.inputs.version }}"
 
-      - name: Pack Basic.CompilerLog.Util
-        run: dotnet pack --no-build -p:IncludeSymbols=false -p:RepositoryCommit=${GITHUB_SHA} -p:PackageVersion="${{ github.event.inputs.version }}" -c Release src/Basic.CompilerLog.Util/Basic.CompilerLog.Util.csproj -o .
+      - name: Pack
+        run: dotnet pack --no-build -p:IncludeSymbols=false -p:RepositoryCommit=${GITHUB_SHA} -p:PackageVersion="${{ github.event.inputs.version }}" -c Release Basic.CompilerLog.slnx -o artifacts/nupkg
 
-      - name: Pack Basic.CompilerLog
-        run: dotnet pack --no-build -p:IncludeSymbols=false -p:RepositoryCommit=${GITHUB_SHA} -p:PackageVersion="${{ github.event.inputs.version }}" -c Release src/Basic.CompilerLog/Basic.CompilerLog.csproj -o .
+      # Get a short-lived NuGet API key for the publish step
+      - name: NuGet Login
+        uses: NuGet/login@v1
+        id: nuget_login
+        with:
+          user: ${{ secrets.NUGET_PROFILE }}
 
       - name: Publish NuPkg Files
-        run: dotnet nuget push "*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+        run: dotnet nuget push "artifacts/nupkg/*.nupkg" --api-key ${{steps.nuget_login.outputs.NUGET_API_KEY}}} -s https://api.nuget.org/v3/index.json
 
       - name: Create Tag and Release
         id: create_release

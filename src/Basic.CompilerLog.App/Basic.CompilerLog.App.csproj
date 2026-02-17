@@ -7,10 +7,10 @@
     <EmbedAllSources>true</EmbedAllSources>
     <NoWarn>$(NoWarn);RS2008;CS1591</NoWarn>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
 
     <!-- Mono.Options is not signed -->
     <NoWarn>$(NoWarn);CS8002</NoWarn>
-
   </PropertyGroup>
 
   <ItemGroup>
