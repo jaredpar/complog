@@ -5,13 +5,13 @@
     <!-- We are not using package source mapping. -->
     <NoWarn>$(NoWarn);NU1507</NoWarn>
     <_RoslynVersion>5.0.0</_RoslynVersion>
-    <_RuntimeVersion>10.0.2</_RuntimeVersion>
+    <_RuntimeVersion>10.0.3</_RuntimeVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Basic.Reference.Assemblies.Net90" Version="1.8.4" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
-    <PackageVersion Include="coverlet.msbuild" Version="6.0.4" />
+    <PackageVersion Include="coverlet.msbuild" Version="8.0.0" />
     <PackageVersion Include="MessagePack" Version="3.1.4" />
     <PackageVersion Include="Microsoft.Bcl.Memory" Version="$(_RuntimeVersion)" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0">
@@ -23,7 +23,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.VisualBasic" Version="$(_RoslynVersion)" />
     <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="$(_RuntimeVersion)" />
     <PackageVersion Include="Microsoft.NET.Test.SDK" Version="18.0.1" />
-    <PackageVersion Include="Microsoft.VisualStudio.Setup.Configuration.Interop" Version="3.3.2180" />
+    <PackageVersion Include="Microsoft.VisualStudio.Setup.Configuration.Interop" Version="3.14.2075" />
     <PackageVersion Include="Mono.Options" Version="6.12.0.148" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.113" />
     <PackageVersion Include="NuGet.Versioning" Version="6.14.0" />
