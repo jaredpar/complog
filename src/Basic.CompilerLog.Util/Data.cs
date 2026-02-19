@@ -25,7 +25,8 @@ public sealed class ReferenceData(
     AssemblyIdentityData assemblyIdentityData,
     string filePath,
     ImmutableArray<string> aliases,
-    bool embedInteropTypes)
+    bool embedInteropTypes,
+    bool isImplicit = false)
 {
     public AssemblyIdentityData AssemblyIdentityData { get; } = assemblyIdentityData;
 
@@ -33,6 +34,7 @@ public sealed class ReferenceData(
     public string FilePath { get; } = filePath;
     public ImmutableArray<string> Aliases { get; } = aliases;
     public bool EmbedInteropTypes { get; } = embedInteropTypes;
+    public bool IsImplicit { get; } = isImplicit;
 
     public AssemblyData AssemblyData => new(Mvid, FilePath);
     public Guid Mvid => AssemblyIdentityData.Mvid;

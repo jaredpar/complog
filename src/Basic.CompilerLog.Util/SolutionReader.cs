@@ -125,6 +125,11 @@ public sealed class SolutionReader : IDisposable
             var metadataReferences = new List<MetadataReference>();
             foreach (var referenceData in Reader.ReadAllReferenceData(compilerCall))
             {
+                if (referenceData.IsImplicit)
+                {
+                    continue;
+                }
+
                 if (!hashSet.Add(referenceData.Mvid))
                 {
                     continue;

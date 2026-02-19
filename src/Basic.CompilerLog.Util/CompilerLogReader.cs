@@ -550,6 +550,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var list = new List<MetadataReference>(capacity: referencePacks.Count);
             foreach (var referencePack in referencePacks)
             {
+                if (referencePack.IsImplicit)
+                {
+                    continue;
+                }
+
                 var mdRef = ReadMetadataReference(referencePack.Mvid).With(referencePack.Aliases, referencePack.EmbedInteropTypes);
                 list.Add(mdRef);
             }
@@ -632,7 +637,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 referencePack.AssemblyName,
                 referencePack.AssemblyInformationalVersion);
 
-            var data = new ReferenceData(assemblyIdentityData, filePath, referencePack.Aliases, referencePack.EmbedInteropTypes);
+            var data = new ReferenceData(assemblyIdentityData, filePath, referencePack.Aliases, referencePack.EmbedInteropTypes, referencePack.IsImplicit);
             list.Add(data);
         }
 

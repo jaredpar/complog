@@ -435,8 +435,10 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)
     {
+        var explicitPaths = new HashSet<string>(PathUtil.Comparer);
         foreach (var reference in args.MetadataReferences)
         {
+            explicitPaths.Add(reference.Reference);
             var (mvid, assemblyName, assemblyInformationalVersion) = AddAssembly(reference.Reference);
             var pack = new ReferencePack()
             {
@@ -449,6 +451,62 @@ internal sealed class CompilerLogBuilder : IDisposable
                 AssemblyInformationalVersion = assemblyInformationalVersion,
             };
             dataPack.References.Add(pack);
+        }
+
+        AddImplicitReferences(dataPack, explicitPaths);
+    }
+
+    /// <summary>
+    /// Some assemblies like System.EnterpriseServices.* require all sibling DLLs
+    /// to be present on disk even though only one is explicitly referenced. This
+    /// method discovers those siblings and adds them as implicit references.
+    /// </summary>
+    private void AddImplicitReferences(CompilationDataPack dataPack, HashSet<string> explicitPaths)
+    {
+        var directories = new HashSet<string>(PathUtil.Comparer);
+        foreach (var path in explicitPaths)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(path);
+            if (fileName.StartsWith("System.EnterpriseServices", StringComparison.OrdinalIgnoreCase))
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (dir is not null)
+                {
+                    directories.Add(dir);
+                }
+            }
+        }
+
+        foreach (var dir in directories)
+        {
+            foreach (var filePath in Directory.EnumerateFiles(dir, "System.EnterpriseServices.*.dll"))
+            {
+                if (explicitPaths.Contains(filePath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var (mvid, assemblyName, assemblyInformationalVersion) = AddAssembly(filePath);
+                    var pack = new ReferencePack()
+                    {
+                        Mvid = mvid,
+                        Kind = MetadataImageKind.Assembly,
+                        EmbedInteropTypes = false,
+                        Aliases = [],
+                        FilePath = filePath,
+                        AssemblyName = assemblyName,
+                        AssemblyInformationalVersion = assemblyInformationalVersion,
+                        IsImplicit = true,
+                    };
+                    dataPack.References.Add(pack);
+                }
+                catch (Exception)
+                {
+                    Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(filePath));
+                }
+            }
         }
     }
 

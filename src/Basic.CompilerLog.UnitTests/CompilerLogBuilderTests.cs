@@ -1,4 +1,7 @@
 using Basic.CompilerLog.Util;
+using Basic.Reference.Assemblies;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -128,5 +131,112 @@ public sealed class CompilerLogBuilderTests : TestBase
             builder.AddFromDisk(compilerCall, arguments);
             Assert.Equal([RoslynUtil.GetDiagnosticMissingCommitHash(compilerCall.CompilerFilePath!)], builder.Diagnostics);
         });
+    }
+
+    [Fact]
+    public void ImplicitReferencesDiscovered()
+    {
+        var refDir = Path.Combine(RootDirectory, "refs");
+        Directory.CreateDirectory(refDir);
+        CreateFakeAssembly(refDir, "System.EnterpriseServices.dll");
+        CreateFakeAssembly(refDir, "System.EnterpriseServices.Wrapper.dll");
+        CreateFakeAssembly(refDir, "System.EnterpriseServices.Thunk.dll");
+
+        var explicitPath = Path.Combine(refDir, "System.EnterpriseServices.dll");
+
+        WithCompilerCall((builder, compilerCall, arguments) =>
+        {
+            var args = arguments.Append($"/reference:{explicitPath}").ToArray();
+            builder.AddFromDisk(compilerCall, args);
+        }, out var complogStream);
+
+        complogStream.Position = 0;
+        using var reader = CompilerLogReader.Create(complogStream, leaveOpen: false);
+        var call = reader.ReadCompilerCall(0);
+        var refs = reader.ReadAllReferenceData(call);
+
+        var enterpriseRefs = refs.Where(r => Path.GetFileName(r.FilePath).StartsWith("System.EnterpriseServices", StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.Equal(3, enterpriseRefs.Count);
+
+        var explicitRef = enterpriseRefs.Single(r => Path.GetFileName(r.FilePath) == "System.EnterpriseServices.dll");
+        Assert.False(explicitRef.IsImplicit);
+
+        var implicitRefs = enterpriseRefs.Where(r => r.IsImplicit).ToList();
+        Assert.Equal(2, implicitRefs.Count);
+        Assert.All(implicitRefs, r => Assert.True(r.IsImplicit));
+    }
+
+    [Fact]
+    public void ImplicitReferencesNotInCompilation()
+    {
+        var refDir = Path.Combine(RootDirectory, "refs");
+        Directory.CreateDirectory(refDir);
+        CreateFakeAssembly(refDir, "System.EnterpriseServices.dll");
+        CreateFakeAssembly(refDir, "System.EnterpriseServices.Wrapper.dll");
+
+        var explicitPath = Path.Combine(refDir, "System.EnterpriseServices.dll");
+
+        WithCompilerCall((builder, compilerCall, arguments) =>
+        {
+            var args = arguments.Append($"/reference:{explicitPath}").ToArray();
+            builder.AddFromDisk(compilerCall, args);
+        }, out var complogStream);
+
+        complogStream.Position = 0;
+        using var reader = CompilerLogReader.Create(complogStream, leaveOpen: false);
+        var call = reader.ReadCompilerCall(0);
+        var compilationData = reader.ReadCompilationData(call);
+        var compilation = compilationData.GetCompilationAfterGenerators(CancellationToken);
+
+        // The implicit reference should NOT be in the compilation's references
+        var compilationRefNames = compilation
+            .References
+            .OfType<PortableExecutableReference>()
+            .Select(r => Path.GetFileName(r.FilePath))
+            .ToList();
+
+        Assert.Contains("System.EnterpriseServices.dll", compilationRefNames);
+        Assert.DoesNotContain("System.EnterpriseServices.Wrapper.dll", compilationRefNames);
+    }
+
+    [Fact]
+    public void NoImplicitReferencesWithoutEnterpriseServices()
+    {
+        WithCompilerCall((builder, compilerCall, arguments) =>
+        {
+            builder.AddFromDisk(compilerCall, arguments.ToArray());
+        }, out var complogStream);
+
+        complogStream.Position = 0;
+        using var reader = CompilerLogReader.Create(complogStream, leaveOpen: false);
+        var call = reader.ReadCompilerCall(0);
+        var refs = reader.ReadAllReferenceData(call);
+        Assert.All(refs, r => Assert.False(r.IsImplicit));
+    }
+
+    private void WithCompilerCall(Action<CompilerLogBuilder, CompilerCall, IReadOnlyCollection<string>> action, out MemoryStream complogStream)
+    {
+        complogStream = new MemoryStream();
+        using var builder = new CompilerLogBuilder(complogStream, new());
+        using var binlogReader = BinaryLogReader.Create(Fixture.SolutionBinaryLogPath);
+
+        var compilerCall = binlogReader
+            .ReadAllCompilerCalls(x => x.ProjectFileName == Fixture.ConsoleProjectName)
+            .Single();
+        action(builder, compilerCall, binlogReader.ReadArguments(compilerCall));
+    }
+
+    private static void CreateFakeAssembly(string directory, string fileName)
+    {
+        var assemblyName = Path.GetFileNameWithoutExtension(fileName);
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            [CSharpSyntaxTree.ParseText($"// {assemblyName}")],
+            Net90.References.All,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var filePath = Path.Combine(directory, fileName);
+        var result = compilation.Emit(filePath);
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
     }
 }

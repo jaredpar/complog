@@ -189,6 +189,8 @@ public class ReferencePack
     public string? AssemblyName { get; set; }
     [Key(6)]
     public string? AssemblyInformationalVersion { get; set; }
+    [Key(7)]
+    public bool IsImplicit { get; set; }
 }
 
 [MessagePackObject]

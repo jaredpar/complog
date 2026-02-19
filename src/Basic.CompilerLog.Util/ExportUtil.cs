@@ -329,6 +329,12 @@ public sealed partial class ExportUtil
                 using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
                 Reader.CopyAssemblyBytes(mvid, fileStream);
 
+                // Implicit references are written to disk but not passed to the compiler
+                if (pack.IsImplicit)
+                {
+                    continue;
+                }
+
                 if (pack.Aliases.Length > 0)
                 {
                     foreach (var alias in pack.Aliases)
@@ -709,6 +715,12 @@ public sealed partial class ExportUtil
 
         foreach (var refData in Reader.ReadAllReferenceData(compilerCall))
         {
+            // Implicit references are on disk but not passed to the compiler
+            if (refData.IsImplicit)
+            {
+                continue;
+            }
+
             if (Reader.TryGetCompilerCallIndex(refData.Mvid, out var refIndex))
             {
                 // This is a project reference
