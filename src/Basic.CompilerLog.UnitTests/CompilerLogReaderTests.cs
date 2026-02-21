@@ -707,7 +707,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
         var compilerCall = reader.ReadCompilerCall(0);
         var referenceDataList = reader.ReadAllReferenceData(compilerCall);
-        
+
         // Verify that all references have FilePath set
         Assert.All(referenceDataList, refData =>
         {
@@ -719,6 +719,60 @@ public sealed class CompilerLogReaderTests : TestBase
 
         // Verify at least some standard references exist
         Assert.NotEmpty(referenceDataList);
+    }
+
+    [WindowsFact]
+    public void References_NetModule()
+    {
+        Assert.NotNull(Fixture.ConsoleWithNetModule);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithNetModule.Value.CompilerLogPath);
+        var compilerCall = reader.ReadCompilerCall(0);
+        var referenceDataList = reader.ReadAllReferenceData(compilerCall);
+
+        // There should be at least one reference with netmodules
+        var refsWithNetModules = referenceDataList.Where(r => r.HasNetModules).ToList();
+        Assert.Single(refsWithNetModules);
+
+        // The NetModules collection should contain the netmodule ReferenceData
+        var parentRef = refsWithNetModules[0];
+        Assert.NotEmpty(parentRef.NetModules);
+
+        // There should be at least one implicit reference
+        var implicitRefs = referenceDataList.Where(r => r.IsImplicit).ToList();
+        Assert.NotEmpty(implicitRefs);
+
+        // Implicit references should not have netmodules
+        Assert.All(implicitRefs, r => Assert.False(r.HasNetModules));
+
+        // Verify the compilation can be reconstructed successfully
+        var data = reader.ReadCompilationData(compilerCall);
+        var compilation = data.GetCompilationAfterGenerators(CancellationToken);
+        var diagnostics = compilation.GetDiagnostics();
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+    }
+
+    [WindowsFact]
+    public void References_ExplicitModule()
+    {
+        Assert.NotNull(Fixture.ConsoleWithExplicitModule);
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleWithExplicitModule.Value.CompilerLogPath);
+        var compilerCall = reader.ReadCompilerCall(0);
+        var referenceDataList = reader.ReadAllReferenceData(compilerCall);
+
+        // There should be an explicit module reference (Kind=Module, not implicit)
+        var explicitModules = referenceDataList.Where(r => r.Kind == MetadataImageKind.Module && !r.IsImplicit).ToList();
+        Assert.Single(explicitModules);
+        Assert.Contains("module", explicitModules[0].FileName, StringComparison.OrdinalIgnoreCase);
+
+        // The explicit module should not be duplicated as an implicit reference
+        var implicitWithSameMvid = referenceDataList.Where(r => r.IsImplicit && r.Mvid == explicitModules[0].Mvid).ToList();
+        Assert.Empty(implicitWithSameMvid);
+
+        // Verify the compilation can be reconstructed successfully
+        var data = reader.ReadCompilationData(compilerCall);
+        var compilation = data.GetCompilationAfterGenerators(CancellationToken);
+        var diagnostics = compilation.GetDiagnostics();
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
     }
 
     [Fact]

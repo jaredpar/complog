@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using Basic.CompilerLog.Util.Impl;
 using MessagePack.Formatters;
 using Microsoft.Build.Logging.StructuredLogger;
@@ -413,7 +415,10 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     {
         if (!_assemblyIdentityDataMap.TryGetValue(filePath, out var assemblyIdentityData))
         {
-            assemblyIdentityData = RoslynUtil.ReadAssemblyIdentityData(filePath);
+            using var stream = RoslynUtil.OpenBuildFileForRead(filePath);
+            using var peReader = new PEReader(stream);
+            var metadataReader = peReader.GetMetadataReader();
+            assemblyIdentityData = RoslynUtil.ReadAssemblyIdentityData(metadataReader);
             _assemblyIdentityDataMap[filePath] = assemblyIdentityData;
         }
 
@@ -429,6 +434,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             var data = new ReferenceData(
                 identityData,
                 commandLineReference.Reference,
+                commandLineReference.Properties.Kind,
                 commandLineReference.Properties.Aliases,
                 commandLineReference.Properties.EmbedInteropTypes);
 

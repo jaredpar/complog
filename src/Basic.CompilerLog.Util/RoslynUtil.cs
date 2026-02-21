@@ -849,16 +849,40 @@ public static class RoslynUtil
         return MetadataReader.GetAssemblyName(assemblyFilePath).Name;
     }
 
-    internal static AssemblyIdentityData ReadAssemblyIdentityData(string assemblyFilePath)
+    internal static AssemblyIdentityData ReadAssemblyIdentityData(MetadataReader metadataReader)
     {
-        using var stream = OpenBuildFileForRead(assemblyFilePath);
-        using var peReader = new PEReader(stream);
-        var metadataReader = peReader.GetMetadataReader();
         var def = metadataReader.GetAssemblyDefinition();
         var assemblyName = def.GetAssemblyName().Name;
         var mvid = ReadMvid(metadataReader);
         var assemblyInformationalVersion = ReadStringAssemblyAttribute(metadataReader, nameof(AssemblyInformationalVersionAttribute));
         return new(mvid, assemblyName, assemblyInformationalVersion);
+    }
+
+    /// <summary>
+    /// Get the file names of netmodules referenced by the assembly at the given path.
+    /// Returns empty list if the assembly has no netmodule references.
+    /// </summary>
+    internal static ImmutableArray<string> GetNetModuleFileNames(MetadataReader metadataReader)
+    {
+        if (metadataReader.AssemblyFiles.Count == 0)
+        {
+            return [];
+        }
+
+        var builder = ImmutableArray.CreateBuilder<string>(metadataReader.AssemblyFiles.Count);
+        foreach (var handle in metadataReader.AssemblyFiles)
+        {
+            var assemblyFile = metadataReader.GetAssemblyFile(handle);
+            if (assemblyFile.ContainsMetadata)
+            {
+                var name = metadataReader.GetString(assemblyFile.Name);
+                builder.Add(name);
+            }
+        }
+
+        return builder.Count == 0
+            ? []
+            : builder.ToImmutable();
     }
 
     /// <summary>
