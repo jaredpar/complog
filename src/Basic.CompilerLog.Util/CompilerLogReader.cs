@@ -558,8 +558,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 }
 
                 MetadataReference mdRef = ReadMetadataReference(
-                    referencePack.Mvid,
-                    referencePack.NetModuleMvids.IsDefault ? [] : referencePack.NetModuleMvids);
+                        referencePack.Mvid,
+                        referencePack.NetModuleMvids.IsDefault ? [] : referencePack.NetModuleMvids);
                 mdRef = mdRef.With(referencePack.Aliases, referencePack.EmbedInteropTypes);
                 list.Add(mdRef);
             }
@@ -642,7 +642,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 referencePack.Mvid,
                 referencePack.AssemblyName,
                 referencePack.AssemblyInformationalVersion);
-            var data = new ReferenceData(assemblyIdentityData, filePath, referencePack.Aliases, referencePack.EmbedInteropTypes, referencePack.IsImplicit, referencePack.NetModuleMvids);
+            var data = new ReferenceData(assemblyIdentityData, filePath, referencePack.Kind, referencePack.Aliases, referencePack.EmbedInteropTypes, referencePack.IsImplicit, referencePack.NetModuleMvids);
             list.Add(data);
         }
 

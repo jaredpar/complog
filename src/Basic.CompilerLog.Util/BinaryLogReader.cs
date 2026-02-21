@@ -434,6 +434,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             var data = new ReferenceData(
                 identityData,
                 commandLineReference.Reference,
+                commandLineReference.Properties.Kind,
                 commandLineReference.Properties.Aliases,
                 commandLineReference.Properties.EmbedInteropTypes);
 

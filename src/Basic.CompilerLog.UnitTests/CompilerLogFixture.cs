@@ -107,6 +107,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     internal Lazy<LogData>? ConsoleWithNetModule { get; }
 
+    internal Lazy<LogData>? ConsoleWithExplicitModule { get; }
+
     internal Lazy<LogData> LinuxConsoleFromLog { get; }
 
     internal Lazy<LogData> WindowsConsoleFromLog  { get; }
@@ -609,6 +611,58 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
                 RunDotnetCommand("build -bl -nr:false", scratchPath);
             });
+
+            ConsoleWithExplicitModule = WithBuild("console-with-explicit-module.complog", void (string scratchPath) =>
+            {
+                // Build a netmodule in a separate directory to avoid SDK globbing conflicts
+                var modulePath = Path.Combine(ScratchDirectory, "explicit-module-build");
+                _ = Directory.CreateDirectory(modulePath);
+                File.WriteAllText(Path.Combine(modulePath, "module.csproj"), """
+                    <Project Sdk="Microsoft.NET.Sdk">
+                      <PropertyGroup>
+                        <TargetFramework>net472</TargetFramework>
+                        <OutputType>Module</OutputType>
+                        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+                      </PropertyGroup>
+                    </Project>
+                    """, TestBase.DefaultEncoding);
+                File.WriteAllText(Path.Combine(modulePath, "ModuleClass.cs"), """
+                    public static class ModuleHelper
+                    {
+                        public static string GetMessage() => "Hello from module";
+                    }
+                    """, TestBase.DefaultEncoding);
+                RunDotnetCommand("build -nr:false", modulePath);
+
+                // Find the built netmodule
+                var netmoduleFile = Directory.GetFiles(modulePath, "*.netmodule", SearchOption.AllDirectories)
+                    .First(f => f.Contains("bin"));
+
+                // Now build a console app that references it via /addmodule
+                File.WriteAllText(Path.Combine(scratchPath, "console-with-explicit-module.csproj"), $"""
+                    <Project Sdk="Microsoft.NET.Sdk">
+                      <PropertyGroup>
+                        <OutputType>Exe</OutputType>
+                        <TargetFramework>net472</TargetFramework>
+                      </PropertyGroup>
+                      <ItemGroup>
+                        <AddModules Include="{netmoduleFile}" />
+                      </ItemGroup>
+                    </Project>
+                    """, TestBase.DefaultEncoding);
+                File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), """
+                    using System;
+
+                    class Program
+                    {
+                        static void Main()
+                        {
+                            Console.WriteLine(ModuleHelper.GetMessage());
+                        }
+                    }
+                    """, TestBase.DefaultEncoding);
+                RunDotnetCommand("build -bl -nr:false", scratchPath);
+            });
         }
 
         LinuxConsoleFromLog = WithResource("linux-console.complog");
@@ -838,6 +892,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             yield return nameof(WinFormsApp);
             yield return nameof(ConsoleWithNativePdb);
             yield return nameof(ConsoleWithNetModule);
+            yield return nameof(ConsoleWithExplicitModule);
         }
     }
 

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.CodeAnalysis;
 
 namespace Basic.CompilerLog.Util;
 
@@ -270,6 +271,12 @@ public sealed partial class ExportUtil
                             referenceLines.Clear();
                             continue;
                         }
+                        case "addmodule":
+                        {
+                            newLines.AddRange(referenceLines);
+                            referenceLines.Clear();
+                            continue;
+                        }
                         case "analyzer" or "a":
                         {
                             newLines.AddRange(analyzerLines);
@@ -335,7 +342,12 @@ public sealed partial class ExportUtil
                     continue;
                 }
 
-                if (pack.Aliases.Length > 0)
+                if (pack.Kind == MetadataImageKind.Module)
+                {
+                    var arg = $@"/addmodule:{FormatPathArgument(filePath)}";
+                    list.Add(arg);
+                }
+                else if (pack.Aliases.Length > 0)
                 {
                     foreach (var alias in pack.Aliases)
                     {
@@ -712,6 +724,7 @@ public sealed partial class ExportUtil
         // Add references
         var projectReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
         var metadataReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
+        var addModuleReferences = new List<string>();
 
         foreach (var refData in Reader.ReadAllReferenceData(compilerCall))
         {
@@ -721,7 +734,16 @@ public sealed partial class ExportUtil
                 continue;
             }
 
-            if (Reader.TryGetCompilerCallIndex(refData.Mvid, out var refIndex))
+            if (refData.Kind == MetadataImageKind.Module)
+            {
+                if (!IsFrameworkReference(refData.FilePath, compilerCall.TargetFramework))
+                {
+                    var refFileName = refMvidToFilePathMap[refData.Mvid];
+                    var refPath = Path.Combine("..", "references", refFileName);
+                    addModuleReferences.Add(refPath);
+                }
+            }
+            else if (Reader.TryGetCompilerCallIndex(refData.Mvid, out var refIndex))
             {
                 // This is a project reference
                 var refProject = allProjects.FirstOrDefault(p => p.Index == refIndex);
@@ -780,6 +802,17 @@ public sealed partial class ExportUtil
                     sb.AppendLine($"      <HintPath>{refPath}</HintPath>");
                     sb.AppendLine("    </Reference>");
                 }
+            }
+            sb.AppendLine("  </ItemGroup>");
+            sb.AppendLine();
+        }
+
+        if (addModuleReferences.Count > 0)
+        {
+            sb.AppendLine("  <ItemGroup>");
+            foreach (var refPath in addModuleReferences)
+            {
+                sb.AppendLine($"    <AddModules Include=\"{refPath}\" />");
             }
             sb.AppendLine("  </ItemGroup>");
             sb.AppendLine();

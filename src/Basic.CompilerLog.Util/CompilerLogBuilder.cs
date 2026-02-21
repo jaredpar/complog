@@ -436,8 +436,35 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)
     {
+        // First pass: track MVIDs of netmodules explicitly passed via /addmodule
+        // so we don't add them again as implicit netmodules when processing /reference assemblies
+        var explicitModuleMvids = new HashSet<Guid>();
         foreach (var reference in args.MetadataReferences)
         {
+            if (reference.Properties.Kind == MetadataImageKind.Module)
+            {
+                var mvid = AddNetModule(reference.Reference);
+                explicitModuleMvids.Add(mvid);
+                var pack = new ReferencePack()
+                {
+                    Mvid = mvid,
+                    Kind = MetadataImageKind.Module,
+                    Aliases = reference.Properties.Aliases,
+                    EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
+                    FilePath = reference.Reference,
+                };
+                dataPack.References.Add(pack);
+            }
+        }
+
+        // Second pass: process assembly references and their implicit netmodules
+        foreach (var reference in args.MetadataReferences)
+        {
+            if (reference.Properties.Kind == MetadataImageKind.Module)
+            {
+                continue;
+            }
+
             var (mvid, assemblyName, assemblyInformationalVersion, netModuleNames) = AddAssembly(reference.Reference);
             var netModuleMvids = ImmutableArray<Guid>.Empty;
 
@@ -457,14 +484,20 @@ internal sealed class CompilerLogBuilder : IDisposable
 
                     var netModuleMvid = AddNetModule(netModulePath);
                     mvidBuilder.Add(netModuleMvid);
-                    var netModulePack = new ReferencePack()
+
+                    // Don't add an implicit entry if this netmodule was already passed explicitly
+                    // via /addmodule
+                    if (!explicitModuleMvids.Contains(netModuleMvid))
                     {
-                        Mvid = netModuleMvid,
-                        Kind = MetadataImageKind.Module,
-                        FilePath = netModulePath,
-                        IsImplicit = true,
-                    };
-                    dataPack.References.Add(netModulePack);
+                        var netModulePack = new ReferencePack()
+                        {
+                            Mvid = netModuleMvid,
+                            Kind = MetadataImageKind.Module,
+                            FilePath = netModulePath,
+                            IsImplicit = true,
+                        };
+                        dataPack.References.Add(netModulePack);
+                    }
                 }
                 netModuleMvids = mvidBuilder.ToImmutable();
             }

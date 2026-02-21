@@ -24,6 +24,7 @@ public readonly struct AssemblyData(Guid mvid, string filePath)
 public sealed class ReferenceData(
     AssemblyIdentityData assemblyIdentityData,
     string filePath,
+    MetadataImageKind kind,
     ImmutableArray<string> aliases,
     bool embedInteropTypes,
     bool isImplicit = false,
@@ -33,6 +34,7 @@ public sealed class ReferenceData(
 
     /// <inheritdoc cref="AssemblyData.FilePath"/>
     public string FilePath { get; } = filePath;
+    public MetadataImageKind Kind { get; } = kind;
     public ImmutableArray<string> Aliases { get; } = aliases;
     public bool EmbedInteropTypes { get; } = embedInteropTypes;
     public bool IsImplicit { get; } = isImplicit;
