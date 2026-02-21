@@ -557,7 +557,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                     continue;
                 }
 
-                MetadataReference mdRef = ReadMetadataReference(referencePack.Mvid, referencePack.NetModuleMvids);
+                MetadataReference mdRef = ReadMetadataReference(
+                    referencePack.Mvid,
+                    referencePack.NetModuleMvids.IsDefault ? [] : referencePack.NetModuleMvids);
                 mdRef = mdRef.With(referencePack.Aliases, referencePack.EmbedInteropTypes);
                 list.Add(mdRef);
             }
