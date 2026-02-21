@@ -16,7 +16,7 @@ public sealed partial class ExportUtil
         private PathNormalizationUtil PathNormalizationUtil { get; }
 
         /// <summary>
-        /// This is the root most directory where the compilation occurred. This can be more root than <see cref="ProjectDirectory"/> 
+        /// This is the root most directory where the compilation occurred. This can be more root than <see cref="ProjectDirectory"/>
         /// when there are .editorconfig files that are above the project directory. This path is after going through
         /// <see cref="PathNormalizationUtil.NormalizePath(string?)"/>.
         /// </summary>
@@ -328,6 +328,12 @@ public sealed partial class ExportUtil
 
                 using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
                 Reader.CopyAssemblyBytes(mvid, fileStream);
+
+                // Implicit references (typically netmodules) need to be on disk but not on the command line
+                if (pack.IsImplicit)
+                {
+                    continue;
+                }
 
                 if (pack.Aliases.Length > 0)
                 {
@@ -709,6 +715,12 @@ public sealed partial class ExportUtil
 
         foreach (var refData in Reader.ReadAllReferenceData(compilerCall))
         {
+            // Implicit references (netmodules) should not appear as project or metadata references
+            if (refData.IsImplicit)
+            {
+                continue;
+            }
+
             if (Reader.TryGetCompilerCallIndex(refData.Mvid, out var refIndex))
             {
                 // This is a project reference

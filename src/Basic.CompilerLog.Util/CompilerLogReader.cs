@@ -12,9 +12,11 @@ using Microsoft.CodeAnalysis.VisualBasic;
 using Microsoft.CodeAnalysis.VisualBasic.Syntax;
 using Microsoft.VisualBasic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml;
@@ -550,7 +552,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var list = new List<MetadataReference>(capacity: referencePacks.Count);
             foreach (var referencePack in referencePacks)
             {
-                var mdRef = ReadMetadataReference(referencePack.Mvid).With(referencePack.Aliases, referencePack.EmbedInteropTypes);
+                if (referencePack.IsImplicit)
+                {
+                    continue;
+                }
+
+                MetadataReference mdRef = ReadMetadataReference(referencePack.Mvid, referencePack.NetModuleMvids);
+                mdRef = mdRef.With(referencePack.Aliases, referencePack.EmbedInteropTypes);
                 list.Add(mdRef);
             }
             return list;
@@ -621,7 +629,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     {
         var index = GetIndex(compilerCall);
         var dataPack = GetOrReadCompilationDataPack(index);
-        var list = new List<ReferenceData>(dataPack.References.Count);
+        var list = new List<ReferenceData>(capacity: dataPack.References.Count);
+
         foreach (var referencePack in dataPack.References)
         {
             var filePath = referencePack.FilePath is string fp
@@ -631,8 +640,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 referencePack.Mvid,
                 referencePack.AssemblyName,
                 referencePack.AssemblyInformationalVersion);
-
-            var data = new ReferenceData(assemblyIdentityData, filePath, referencePack.Aliases, referencePack.EmbedInteropTypes);
+            var data = new ReferenceData(assemblyIdentityData, filePath, referencePack.Aliases, referencePack.EmbedInteropTypes, referencePack.IsImplicit, referencePack.NetModuleMvids);
             list.Add(data);
         }
 
@@ -742,28 +750,51 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         throw new ArgumentException($"{mvid} is not a valid MVID");
     }
 
-    /// <summary>
-    /// Reads a <see cref="MetadataReference"/> with the given <paramref name="mvid" />. This
-    /// does not include extra metadata properties like alias, embedded interop types, etc ...
-    /// </summary>
-    internal MetadataReference ReadMetadataReference(Guid mvid)
-    {
-        if (_refMap.TryGetValue(mvid, out var metadataReference))
-        {
-            return metadataReference;
-        }
-
-        var bytes = GetAssemblyBytes(mvid);
-        var tuple = _mvidToRefInfoMap[mvid];
-        metadataReference = MetadataReference.CreateFromStream(new MemoryStream(bytes), filePath: tuple.FileName);
-        _refMap.Add(mvid, metadataReference);
-        return metadataReference;
-    }
-
     public MetadataReference ReadMetadataReference(ReferenceData referenceData)
     {
-        var mdRef = ReadMetadataReference(referenceData.Mvid);
+        var mdRef = ReadMetadataReference(referenceData.Mvid, referenceData.NetModules);
         return mdRef.With(referenceData.Aliases, referenceData.EmbedInteropTypes);
+    }
+
+    /// <summary>
+    /// Reads a <see cref="MetadataReference"/> for the given <paramref name="mvid"/>
+    /// and <paramref name="netModuleMvids"/>. This does not include extra metadata properties
+    /// like alias, embedded interop types, etc ...
+    ///
+    /// The same set of <paramref name="netModuleMvids"/> must be provided for the same
+    /// <paramref name="mvid"/> across calls in order to get the same reference instance back.
+    /// This is because references with netmodules are cached together. Really it's a single key.
+    /// </summary>
+    private MetadataReference ReadMetadataReference(Guid mvid, ImmutableArray<Guid> netModuleMvids)
+    {
+        Debug.Assert(!netModuleMvids.IsDefault);
+        if (!_refMap.TryGetValue(mvid, out var metadataReference))
+        {
+            metadataReference = CreateMetadataReference(mvid, netModuleMvids);
+            _refMap.Add(mvid, metadataReference);
+        }
+
+        return metadataReference;
+
+        MetadataReference CreateMetadataReference(Guid mvid, ImmutableArray<Guid> netModuleMvids)
+        {
+            var bytes = GetAssemblyBytes(mvid);
+            var tuple = _mvidToRefInfoMap[mvid];
+            if (netModuleMvids.Length == 0)
+            {
+                return MetadataReference.CreateFromStream(new MemoryStream(bytes), filePath: tuple.FileName);
+            }
+
+            var modules = new ModuleMetadata[1 + netModuleMvids.Length];
+            modules[0] = ModuleMetadata.CreateFromImage(bytes);
+            for (int i = 0; i < netModuleMvids.Length; i++)
+            {
+                modules[i + 1] = ModuleMetadata.CreateFromImage(GetAssemblyBytes(netModuleMvids[i]));
+            }
+
+            var assemblyMetadata = AssemblyMetadata.Create(modules);
+            return assemblyMetadata.GetReference(filePath: tuple.FileName);
+        }
     }
 
     internal T GetContentPack<T>(string contentHash)

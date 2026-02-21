@@ -15,7 +15,7 @@ public readonly struct AssemblyData(Guid mvid, string filePath)
     /// The file path for the given assembly
     /// </summary>
     /// <remarks>
-    /// This path is only valid on the machine where the log was generated. It's 
+    /// This path is only valid on the machine where the log was generated. It's
     /// generally only useful for informational diagnostics.
     /// </remarks>
     public string FilePath { get; } = filePath;
@@ -25,7 +25,9 @@ public sealed class ReferenceData(
     AssemblyIdentityData assemblyIdentityData,
     string filePath,
     ImmutableArray<string> aliases,
-    bool embedInteropTypes)
+    bool embedInteropTypes,
+    bool isImplicit = false,
+    ImmutableArray<Guid> netModules = default)
 {
     public AssemblyIdentityData AssemblyIdentityData { get; } = assemblyIdentityData;
 
@@ -33,6 +35,9 @@ public sealed class ReferenceData(
     public string FilePath { get; } = filePath;
     public ImmutableArray<string> Aliases { get; } = aliases;
     public bool EmbedInteropTypes { get; } = embedInteropTypes;
+    public bool IsImplicit { get; } = isImplicit;
+    public ImmutableArray<Guid> NetModules { get; } = netModules.IsDefault ? [] : netModules;
+    public bool HasNetModules => NetModules.Length > 0;
 
     public AssemblyData AssemblyData => new(Mvid, FilePath);
     public Guid Mvid => AssemblyIdentityData.Mvid;

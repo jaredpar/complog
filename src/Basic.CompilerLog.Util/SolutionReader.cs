@@ -130,6 +130,12 @@ public sealed class SolutionReader : IDisposable
                     continue;
                 }
 
+                // Implicit references (netmodules) should not appear as workspace references
+                if (referenceData.IsImplicit)
+                {
+                    continue;
+                }
+
                 if (Reader.TryGetCompilerCallIndex(referenceData.Mvid, out var refCompilerCallIndex))
                 {
                     var refProjectId = _indexToProjectDataMap[refCompilerCallIndex].ProjectId;

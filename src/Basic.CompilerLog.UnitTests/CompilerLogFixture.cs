@@ -105,6 +105,8 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     internal Lazy<LogData>? ConsoleWithNativePdb { get; }
 
+    internal Lazy<LogData>? ConsoleWithNetModule { get; }
+
     internal Lazy<LogData> LinuxConsoleFromLog { get; }
 
     internal Lazy<LogData> WindowsConsoleFromLog  { get; }
@@ -575,6 +577,38 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
                 RunDotnetCommand("build -bl -nr:false", scratchPath);
             }, supportsNoneHost: false);
+
+            ConsoleWithNetModule = WithBuild("console-with-netmodule.complog", void (string scratchPath) =>
+            {
+                RunDotnetCommand($"new console --name console-with-netmodule --output .", scratchPath);
+                var projectFileContent = """
+                    <Project Sdk="Microsoft.NET.Sdk">
+                      <PropertyGroup>
+                        <OutputType>Exe</OutputType>
+                        <TargetFramework>net472</TargetFramework>
+                      </PropertyGroup>
+                      <ItemGroup>
+                        <Reference Include="System.EnterpriseServices" />
+                      </ItemGroup>
+                    </Project>
+                    """;
+                File.WriteAllText(Path.Combine(scratchPath, "console-with-netmodule.csproj"), projectFileContent, TestBase.DefaultEncoding);
+                var program = """
+                    using System;
+                    using System.EnterpriseServices.Internal;
+
+                    class Program
+                    {
+                        static void Main()
+                        {
+                            var util = new SoapUtility();
+                            Console.WriteLine(util.GetType().Name);
+                        }
+                    }
+                    """;
+                File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), program, TestBase.DefaultEncoding);
+                RunDotnetCommand("build -bl -nr:false", scratchPath);
+            });
         }
 
         LinuxConsoleFromLog = WithResource("linux-console.complog");
@@ -803,6 +837,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
             yield return nameof(WpfApp);
             yield return nameof(WinFormsApp);
             yield return nameof(ConsoleWithNativePdb);
+            yield return nameof(ConsoleWithNetModule);
         }
     }
 
