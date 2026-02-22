@@ -20,6 +20,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
 using static Basic.CompilerLog.Util.CommonUtil;
+using BuilderAssemblyData = (System.Guid Mvid, string? AssemblyName, string? AssemblyInformationalVersion, System.Collections.Immutable.ImmutableArray<string> NetModuleNames);
 
 namespace Basic.CompilerLog.Util;
 
@@ -36,7 +37,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     }
 
     private readonly Dictionary<Guid, (string FileName, string AssemblyName)> _mvidToRefInfoMap = new();
-    private readonly Dictionary<string, (Guid Mvid, string? AssemblyName, string? AssemblyInformationVersion)> _assemblyPathToMvidMap = new(PathUtil.Comparer);
+    private readonly Dictionary<string, BuilderAssemblyData> _assemblyPathToMvidMap = new(PathUtil.Comparer);
     private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, (AssemblyName AssemblyName, string? CommitHash)> _compilerInfoMap = new(PathUtil.Comparer);
     private readonly List<(int CompilerCallIndex, bool IsRefAssembly, Guid Mvid)> _compilerCallMvidList = new();
@@ -435,20 +436,84 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)
     {
+        var explicitModuleSet = new HashSet<Guid>();
+        var implicitModuleList = new List<(string, Guid)>();
+
         foreach (var reference in args.MetadataReferences)
         {
-            var (mvid, assemblyName, assemblyInformationalVersion) = AddAssembly(reference.Reference);
-            var pack = new ReferencePack()
+            if (reference.Properties.Kind == MetadataImageKind.Assembly)
             {
-                Mvid = mvid,
-                Kind = reference.Properties.Kind,
-                EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
-                Aliases = reference.Properties.Aliases,
-                FilePath = reference.Reference,
-                AssemblyName = assemblyName,
-                AssemblyInformationalVersion = assemblyInformationalVersion,
-            };
-            dataPack.References.Add(pack);
+                var (mvid, assemblyName, assemblyInformationalVersion, netModuleNames) = AddAssembly(reference.Reference);
+
+                var netModuleMvids = ImmutableArray<Guid>.Empty;
+                if (netModuleNames.Length > 0)
+                {
+                    var mvidBuilder = ImmutableArray.CreateBuilder<Guid>(netModuleNames.Length);
+                    var assemblyDir = Path.GetDirectoryName(reference.Reference)!;
+                    foreach (var netModuleName in netModuleNames)
+                    {
+                        var netModulePath = Path.Combine(assemblyDir, netModuleName);
+                        if (!File.Exists(netModulePath))
+                        {
+                            Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(netModulePath));
+                            continue;
+                        }
+
+                        var netModuleMvid = AddNetModule(netModulePath);
+                        mvidBuilder.Add(netModuleMvid);
+                        implicitModuleList.Add((netModulePath, netModuleMvid));
+                    }
+                    netModuleMvids = mvidBuilder.ToImmutable();
+                }
+
+                var pack = new ReferencePack()
+                {
+                    Mvid = mvid,
+                    Kind = reference.Properties.Kind,
+                    EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
+                    Aliases = reference.Properties.Aliases,
+                    FilePath = reference.Reference,
+                    AssemblyName = assemblyName,
+                    AssemblyInformationalVersion = assemblyInformationalVersion,
+                    NetModuleMvids = netModuleMvids,
+                };
+                dataPack.References.Add(pack);
+            }
+            else
+            {
+                Debug.Assert(reference.Properties.Kind == MetadataImageKind.Module);
+                Debug.Assert(reference.Properties.Aliases.IsEmpty);
+                Debug.Assert(!reference.Properties.EmbedInteropTypes);
+
+                 var mvid = AddNetModule(reference.Reference);
+                 var pack = new ReferencePack()
+                 {
+                     Mvid = mvid,
+                     Kind = MetadataImageKind.Module,
+                     Aliases = [],
+                     FilePath = reference.Reference,
+                 };
+                 dataPack.References.Add(pack);
+                 explicitModuleSet.Add(mvid);
+            }
+        }
+
+        // Now that all the explicit items are added and in the proper order, lets go back
+        // and add any implicit netmodules that weren't already added as explicit references.
+        foreach (var (netModulePath, netModuleMvid) in implicitModuleList)
+        {
+            if (explicitModuleSet.Add(netModuleMvid))
+            {
+                var pack = new ReferencePack()
+                {
+                    Mvid = netModuleMvid,
+                    Kind = MetadataImageKind.Module,
+                    FilePath = netModulePath,
+                    Aliases = [],
+                    IsImplicit = true,
+                };
+                dataPack.References.Add(pack);
+            }
         }
     }
 
@@ -560,7 +625,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var analyzer in args.AnalyzerReferences)
         {
-            var (mvid, assemblyName, assemblyInformationalVersion) = AddAssembly(analyzer.FilePath);
+            var (mvid, assemblyName, assemblyInformationalVersion, _) = AddAssembly(analyzer.FilePath);
             var pack = new AnalyzerPack()
             {
                 Mvid = mvid,
@@ -575,7 +640,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// <summary>
     /// Add the assembly into the storage and return tis MVID
     /// </summary>
-    private (Guid mvid, string? assemblyName, string? assemblyInformationalVersion) AddAssembly(string filePath)
+    private BuilderAssemblyData AddAssembly(string filePath)
     {
         if (_assemblyPathToMvidMap.TryGetValue(filePath, out var info))
         {
@@ -583,11 +648,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return info;
         }
 
-        var identityData = RoslynUtil.ReadAssemblyIdentityData(filePath);
-        info.Mvid = identityData.Mvid;
-        info.AssemblyName = identityData.AssemblyName;
-        info.AssemblyInformationVersion = identityData.AssemblyInformationalVersion;
-
+        info = ReadBuilderAssemblyData(filePath);
         _assemblyPathToMvidMap[filePath] = info;
 
         // If the assembly was already loaded from a different path then no more
@@ -609,6 +670,45 @@ internal sealed class CompilerLogBuilder : IDisposable
         var assemblyName = AssemblyName.GetAssemblyName(filePath);
         _mvidToRefInfoMap[info.Mvid] = (Path.GetFileName(filePath), assemblyName.ToString());
         return info;
+
+        BuilderAssemblyData ReadBuilderAssemblyData(string filePath)
+        {
+            using var stream = RoslynUtil.OpenBuildFileForRead(filePath);
+            using var peReader = new PEReader(stream);
+            var metadataReader = peReader.GetMetadataReader();
+            var identityData = RoslynUtil.ReadAssemblyIdentityData(metadataReader);
+            var netModuleNames = RoslynUtil.GetNetModuleFileNames(metadataReader);
+            return (identityData.Mvid, identityData.AssemblyName, identityData.AssemblyInformationalVersion, netModuleNames);
+        }
+    }
+
+    /// <summary>
+    /// Add a netmodule into storage and return its MVID. Netmodules don't have an assembly
+    /// manifest so they need different handling than assemblies.
+    /// </summary>
+    private Guid AddNetModule(string filePath)
+    {
+        if (_assemblyPathToMvidMap.TryGetValue(filePath, out var info))
+        {
+            return info.Mvid;
+        }
+
+        var mvid = RoslynUtil.ReadMvid(filePath);
+        info.Mvid = mvid;
+        _assemblyPathToMvidMap[filePath] = info;
+
+        if (_mvidToRefInfoMap.ContainsKey(mvid))
+        {
+            return mvid;
+        }
+
+        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Fastest);
+        using var entryStream = entry.Open();
+        using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
+        fileStream.CopyTo(entryStream);
+
+        _mvidToRefInfoMap[mvid] = (Path.GetFileName(filePath), Path.GetFileNameWithoutExtension(filePath));
+        return mvid;
     }
 
     public void Dispose()

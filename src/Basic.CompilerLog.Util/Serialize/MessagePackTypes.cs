@@ -189,6 +189,10 @@ public class ReferencePack
     public string? AssemblyName { get; set; }
     [Key(6)]
     public string? AssemblyInformationalVersion { get; set; }
+    [Key(7)]
+    public bool IsImplicit { get; set; }
+    [Key(8)]
+    public ImmutableArray<Guid> NetModuleMvids { get; set; }
 }
 
 [MessagePackObject]

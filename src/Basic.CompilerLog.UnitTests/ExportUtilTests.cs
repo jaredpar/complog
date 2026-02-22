@@ -1,5 +1,6 @@
 using Basic.CompilerLog.Util;
 using Basic.Reference.Assemblies;
+using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
@@ -763,6 +764,69 @@ public sealed class ExportUtilTests : TestBase
             });
 
         TestExportSolution(TestOutputHelper, reader, excludeAnalyzers);
+    }
+
+    [WindowsFact]
+    public void ExportRsp_NetModule()
+    {
+        Assert.NotNull(Fixture.ConsoleWithNetModule);
+        TestExportRsp(
+            Fixture.ConsoleWithNetModule.Value.CompilerLogPath,
+            expectedCount: 1,
+            verifyExportCallback: tempPath =>
+            {
+                var refDir = Path.Combine(tempPath, "ref");
+                var refFiles = Directory.GetFiles(refDir, "*.*");
+
+                // The netmodule files should be on disk
+                Assert.True(refFiles.Length > 0);
+
+                // Read the RSP file and verify implicit refs are not in /reference: args
+                var rspFile = Path.Combine(tempPath, "build.rsp");
+                var rspContent = File.ReadAllText(rspFile);
+
+                // The RSP should not contain references to netmodule files
+                using var reader = CompilerLogReader.Create(Fixture.ConsoleWithNetModule!.Value.CompilerLogPath);
+                var compilerCall = reader.ReadCompilerCall(0);
+                var implicitRefs = reader.ReadAllReferenceData(compilerCall).Where(r => r.IsImplicit);
+                foreach (var implicitRef in implicitRefs)
+                {
+                    var fileName = implicitRef.FileName;
+                    // The implicit ref should not appear as a /reference: argument
+                    Assert.DoesNotContain($"/reference:{fileName}", rspContent, StringComparison.OrdinalIgnoreCase);
+                    // But the file should exist on disk
+                    Assert.True(File.Exists(Path.Combine(refDir, fileName)));
+                }
+            },
+            runBuild: false);
+    }
+
+    [WindowsFact]
+    public void ExportRsp_ExplicitModule()
+    {
+        Assert.NotNull(Fixture.ConsoleWithExplicitModule);
+        TestExportRsp(
+            Fixture.ConsoleWithExplicitModule.Value.CompilerLogPath,
+            expectedCount: 1,
+            verifyExportCallback: tempPath =>
+            {
+                var rspFile = Path.Combine(tempPath, "build.rsp");
+                var rspContent = File.ReadAllText(rspFile);
+
+                // The RSP should contain /addmodule: for the explicit module
+                Assert.Contains("/addmodule:", rspContent, StringComparison.OrdinalIgnoreCase);
+
+                // The RSP should NOT contain /reference: for the module
+                using var reader = CompilerLogReader.Create(Fixture.ConsoleWithExplicitModule!.Value.CompilerLogPath);
+                var compilerCall = reader.ReadCompilerCall(0);
+                var moduleRefs = reader.ReadAllReferenceData(compilerCall)
+                    .Where(r => r.Kind == MetadataImageKind.Module && !r.IsImplicit);
+                foreach (var moduleRef in moduleRefs)
+                {
+                    Assert.DoesNotContain($"/reference:{moduleRef.FileName}", rspContent, StringComparison.OrdinalIgnoreCase);
+                }
+            },
+            runBuild: false);
     }
 
     [WindowsTheory]

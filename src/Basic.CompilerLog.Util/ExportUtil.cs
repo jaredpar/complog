@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.CodeAnalysis;
 
 namespace Basic.CompilerLog.Util;
 
@@ -16,7 +17,7 @@ public sealed partial class ExportUtil
         private PathNormalizationUtil PathNormalizationUtil { get; }
 
         /// <summary>
-        /// This is the root most directory where the compilation occurred. This can be more root than <see cref="ProjectDirectory"/> 
+        /// This is the root most directory where the compilation occurred. This can be more root than <see cref="ProjectDirectory"/>
         /// when there are .editorconfig files that are above the project directory. This path is after going through
         /// <see cref="PathNormalizationUtil.NormalizePath(string?)"/>.
         /// </summary>
@@ -270,6 +271,12 @@ public sealed partial class ExportUtil
                             referenceLines.Clear();
                             continue;
                         }
+                        case "addmodule":
+                        {
+                            newLines.AddRange(referenceLines);
+                            referenceLines.Clear();
+                            continue;
+                        }
                         case "analyzer" or "a":
                         {
                             newLines.AddRange(analyzerLines);
@@ -329,7 +336,18 @@ public sealed partial class ExportUtil
                 using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
                 Reader.CopyAssemblyBytes(mvid, fileStream);
 
-                if (pack.Aliases.Length > 0)
+                // Implicit references (typically netmodules) need to be on disk but not on the command line
+                if (pack.IsImplicit)
+                {
+                    continue;
+                }
+
+                if (pack.Kind == MetadataImageKind.Module)
+                {
+                    var arg = $@"/addmodule:{FormatPathArgument(filePath)}";
+                    list.Add(arg);
+                }
+                else if (pack.Aliases.Length > 0)
                 {
                     foreach (var alias in pack.Aliases)
                     {
@@ -706,10 +724,26 @@ public sealed partial class ExportUtil
         // Add references
         var projectReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
         var metadataReferences = new List<(string Path, ImmutableArray<string> Aliases)>();
+        var addModuleReferences = new List<string>();
 
         foreach (var refData in Reader.ReadAllReferenceData(compilerCall))
         {
-            if (Reader.TryGetCompilerCallIndex(refData.Mvid, out var refIndex))
+            // Implicit references (netmodules) should not appear as project or metadata references
+            if (refData.IsImplicit)
+            {
+                continue;
+            }
+
+            if (refData.Kind == MetadataImageKind.Module)
+            {
+                if (!IsFrameworkReference(refData.FilePath, compilerCall.TargetFramework))
+                {
+                    var refFileName = refMvidToFilePathMap[refData.Mvid];
+                    var refPath = Path.Combine("..", "references", refFileName);
+                    addModuleReferences.Add(refPath);
+                }
+            }
+            else if (Reader.TryGetCompilerCallIndex(refData.Mvid, out var refIndex))
             {
                 // This is a project reference
                 var refProject = allProjects.FirstOrDefault(p => p.Index == refIndex);
@@ -768,6 +802,17 @@ public sealed partial class ExportUtil
                     sb.AppendLine($"      <HintPath>{refPath}</HintPath>");
                     sb.AppendLine("    </Reference>");
                 }
+            }
+            sb.AppendLine("  </ItemGroup>");
+            sb.AppendLine();
+        }
+
+        if (addModuleReferences.Count > 0)
+        {
+            sb.AppendLine("  <ItemGroup>");
+            foreach (var refPath in addModuleReferences)
+            {
+                sb.AppendLine($"    <AddModules Include=\"{refPath}\" />");
             }
             sb.AppendLine("  </ItemGroup>");
             sb.AppendLine();
