@@ -382,13 +382,14 @@ public sealed class CompilerLogApp(
     internal int RunExport(IEnumerable<string> args)
     {
         var baseOutputPath = "";
-        var excludeAnalyzers = false;
+        var exportOptions = ExportOptions.None;
         var useVisualStudio = false;
         var exportAsSolution = false;
         var options = new FilterOptionSet()
         {
             { "o|out=", "path to export build content", o => baseOutputPath = o },
-            { "n|no-analyzers", "do not include analyzers in rsp", i => excludeAnalyzers = i is not null },
+            { "n|no-analyzers", "do not include analyzers in rsp", i => { if (i is not null) exportOptions |= ExportOptions.ExcludeAnalyzers; } },
+            { "no-config", "do not include config files (analyzerconfig, rulesets, additional files)", i => { if (i is not null) exportOptions |= ExportOptions.ExcludeConfigs; } },
             { "vs", "use the csc.exe from installed Visual Studio instances", v => useVisualStudio = v is not null },
             { "solution", "export as a full solution with project files (EXPERIMENTAL)", p => exportAsSolution = p is not null },
         };
@@ -411,7 +412,7 @@ public sealed class CompilerLogApp(
 
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
             using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None);
-            var exportUtil = new ExportUtil(reader, excludeAnalyzers);
+            var exportUtil = new ExportUtil(reader, exportOptions);
 
             if (exportAsSolution)
             {

@@ -85,6 +85,12 @@ Solution file: `Basic.CompilerLog.slnx`
 | Type parameters | `TPascalCase` | `TResult` |
 | Parameters/locals | `camelCase` | `filePath` |
 
+### Comparing strings
+
+- Use `PathUtil.Comparison` for file paths
+- Use `StringComparison.OrdinalIgnoreCase` for compiler arguments
+- Use `StringComparison.Ordinal` for all other string comparisons
+
 ### Formatting
 
 - 4-space indentation (no tabs)

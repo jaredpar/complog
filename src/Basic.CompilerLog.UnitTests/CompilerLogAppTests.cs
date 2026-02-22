@@ -790,6 +790,28 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         });
     }
 
+    [Fact]
+    public void ExportCompilerLogNoConfig()
+    {
+        RunWithBoth(Fixture.ConsoleComplex.Value, logPath =>
+        {
+            using var exportDir = new TempDir();
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"export --no-config -o {exportDir.DirectoryPath} ""{logPath}"" ", RootDirectory));
+
+            var exportPath = Path.Combine(exportDir.DirectoryPath, "console-complex");
+            var rspLines = File.ReadAllLines(Path.Combine(exportPath, "build.rsp"));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/ruleset:", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/additionalfile:", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/analyzerconfig:", StringComparison.OrdinalIgnoreCase));
+
+            // Config files should not be written to disk
+            var allFiles = Directory.GetFiles(exportPath, "*", SearchOption.AllDirectories);
+            Assert.DoesNotContain(allFiles, f => f.EndsWith(".ruleset", PathUtil.Comparison));
+            Assert.DoesNotContain(allFiles, f => f.EndsWith(".editorconfig", PathUtil.Comparison));
+            Assert.DoesNotContain(allFiles, f => Path.GetFileName(f) == "additional.txt");
+        });
+    }
+
     [WindowsFact]
     public void ExportCompilerLogVs()
     {

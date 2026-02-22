@@ -52,7 +52,7 @@ public sealed class ExportUtilTests : TestBase
     private void TestExportRsp(
         string compilerLogFilePath,
         int? expectedCount,
-        bool excludeAnalyzers = false,
+        ExportOptions exportOptions = ExportOptions.None,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
         Action<ProcessResult>? verifyBuildResult = null) =>
@@ -60,7 +60,7 @@ public sealed class ExportUtilTests : TestBase
             TestOutputHelper,
             compilerLogFilePath,
             expectedCount,
-            excludeAnalyzers,
+            exportOptions,
             verifyExportCallback,
             runBuild,
             verifyBuildResult);
@@ -69,7 +69,7 @@ public sealed class ExportUtilTests : TestBase
         ITestOutputHelper testOutputHelper,
         string compilerLogFilePath,
         int? expectedCount,
-        bool excludeAnalyzers = false,
+        ExportOptions exportOptions = ExportOptions.None,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
         Action<ProcessResult>? verifyBuildResult = null)
@@ -79,7 +79,7 @@ public sealed class ExportUtilTests : TestBase
             testOutputHelper,
             reader: reader,
             expectedCount,
-            excludeAnalyzers,
+            exportOptions,
             verifyExportCallback,
             runBuild,
             verifyBuildResult);
@@ -89,7 +89,7 @@ public sealed class ExportUtilTests : TestBase
         ITestOutputHelper testOutputHelper,
         CompilerLogReader reader,
         int? expectedCount,
-        bool excludeAnalyzers = false,
+        ExportOptions exportOptions = ExportOptions.None,
         Action<string>? verifyExportCallback = null,
         bool runBuild = true,
         Action<ProcessResult>? verifyBuildResult = null)
@@ -99,7 +99,7 @@ public sealed class ExportUtilTests : TestBase
 #else
         var compilerDirectories = SdkUtil.GetSdkCompilerDirectories(@"c:\Program Files\dotnet");
 #endif
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers);
+        var exportUtil = new ExportUtil(reader, exportOptions);
         var count = 0;
         foreach (var compilerCall in reader.ReadAllCompilerCalls())
         {
@@ -145,11 +145,11 @@ public sealed class ExportUtilTests : TestBase
     internal static void TestExportSolution(
         ITestOutputHelper testOutputHelper,
         CompilerLogReader reader,
-        bool excludeAnalyzers = false,
+        ExportOptions exportOptions = ExportOptions.None,
         Action<ProcessResult>? verifyBuildResult = null)
     {
 
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers);
+        var exportUtil = new ExportUtil(reader, exportOptions);
         using var tempDir = new TempDir();
         exportUtil.ExportSolution(tempDir.DirectoryPath);
 
@@ -184,7 +184,7 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void GeneratedTextExcludeAnalyzers()
     {
-        TestExportRsp(Fixture.Console.Value.CompilerLogPath, 1, excludeAnalyzers: true, verifyExportCallback: tempPath =>
+        TestExportRsp(Fixture.Console.Value.CompilerLogPath, 1, ExportOptions.ExcludeAnalyzers, verifyExportCallback: tempPath =>
         {
             var rspPath = Path.Combine(tempPath, "build.rsp");
             var foundPath = false;
@@ -257,6 +257,26 @@ public sealed class ExportUtilTests : TestBase
         }, runBuild: false);
     }
 
+    [Fact]
+    public void ConsoleComplexExcludeConfigs()
+    {
+        TestExportRsp(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, exportOptions: ExportOptions.ExcludeAll, verifyExportCallback: void (string path) =>
+        {
+            var rspLines = File.ReadAllLines(Path.Combine(path, "build.rsp"));
+
+            // Config options should not appear in the rsp
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/ruleset:", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/additionalfile:", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/analyzerconfig:", StringComparison.OrdinalIgnoreCase));
+
+            // Config files should not be written to disk
+            var allFiles = Directory.GetFiles(path, "*", SearchOption.AllDirectories);
+            Assert.DoesNotContain(allFiles, f => f.EndsWith(".ruleset", PathUtil.Comparison));
+            Assert.DoesNotContain(allFiles, f => f.EndsWith(".editorconfig", PathUtil.Comparison));
+            Assert.DoesNotContain(allFiles, f => Path.GetFileName(f) == "additional.txt");
+        }, runBuild: false);
+    }
+
     /// <summary>
     /// Make sure that we can round trip a /link argument. That is a reference that we are embedding
     /// interop types for.
@@ -307,7 +327,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportAll()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
         exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkCompilerDirectories());
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "1")));
@@ -317,7 +337,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportAllBadPath()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
         Assert.Throws<ArgumentException>(() => exportUtil.ExportAll(@"relative/path", SdkUtil.GetSdkCompilerDirectories()));
     }
 #endif
@@ -355,7 +375,7 @@ public sealed class ExportUtilTests : TestBase
         TestExportRsp(
             compilerLogFilePath: complog,
             expectedCount: 1,
-            excludeAnalyzers: true,
+            exportOptions: ExportOptions.ExcludeAnalyzers,
             runBuild: true);
     }
 
@@ -377,7 +397,7 @@ public sealed class ExportUtilTests : TestBase
         TestExportRsp(
             compilerLogFilePath: complog,
             expectedCount: 1,
-            excludeAnalyzers: true,
+            exportOptions: ExportOptions.ExcludeAnalyzers,
             runBuild: true,
             verifyBuildResult: static result =>
             {
@@ -498,7 +518,7 @@ public sealed class ExportUtilTests : TestBase
 
 #if NET
         using var scratchDir = new TempDir("export test");
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: false);
+        var exportUtil = new ExportUtil(reader, ExportOptions.None);
         exportUtil.ExportAll(scratchDir.DirectoryPath, SdkUtil.GetSdkCompilerDirectories());
 #endif
     }
@@ -545,7 +565,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportSolutionBasic()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         using var tempDir = new TempDir();
         exportUtil.ExportSolution(tempDir.DirectoryPath);
@@ -607,7 +627,7 @@ public sealed class ExportUtilTests : TestBase
         TestOutputHelper.WriteLine($"Testing multi-target project export from {Fixture.ClassLibMulti.Value.CompilerLogPath}");
 
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         using var tempDir = new TempDir();
         exportUtil.ExportSolution(tempDir.DirectoryPath);
@@ -634,7 +654,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportSolutionValidateFrameworkReferencesFiltered()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         using var tempDir = new TempDir();
         exportUtil.ExportSolution(tempDir.DirectoryPath);
@@ -666,7 +686,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportSolutionNonRootedPath()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         Assert.Throws<ArgumentException>(() => exportUtil.ExportSolution("relative-path"));
     }
@@ -675,7 +695,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportSolutionWithPredicate()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         using var tempDir = new TempDir();
         exportUtil.ExportSolution(tempDir.DirectoryPath, cc => cc.TargetFramework == "net9.0");
@@ -698,7 +718,7 @@ public sealed class ExportUtilTests : TestBase
     public void ExportSolutionWithAliasReference()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleWithAliasReference.Value.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         using var tempDir = new TempDir();
         exportUtil.ExportSolution(tempDir.DirectoryPath);
@@ -712,9 +732,9 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void ExportSolutionNullTargetFramework(bool excludeAnalyzers)
+    [InlineData(ExportOptions.ExcludeAnalyzers)]
+    [InlineData(ExportOptions.None)]
+    public void ExportSolutionNullTargetFramework(ExportOptions exportOptions)
     {
         using var reader = ChangeCompilerCall(
             Fixture.Console.Value.BinaryLogPath!,
@@ -730,13 +750,13 @@ public sealed class ExportUtilTests : TestBase
                 return (newCall, args);
             });
 
-        TestExportSolution(TestOutputHelper, reader, excludeAnalyzers);
+        TestExportSolution(TestOutputHelper, reader, exportOptions);
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void ExportSolutionWithAlias(bool excludeAnalyzers)
+    [InlineData(ExportOptions.ExcludeAnalyzers)]
+    [InlineData(ExportOptions.None)]
+    public void ExportSolutionWithAlias(ExportOptions exportOptions)
     {
         using var reader = ChangeCompilerCall(
             Fixture.Console.Value.BinaryLogPath!,
@@ -763,7 +783,7 @@ public sealed class ExportUtilTests : TestBase
                 return (newCall, args);
             });
 
-        TestExportSolution(TestOutputHelper, reader, excludeAnalyzers);
+        TestExportSolution(TestOutputHelper, reader, exportOptions);
     }
 
     [WindowsFact]

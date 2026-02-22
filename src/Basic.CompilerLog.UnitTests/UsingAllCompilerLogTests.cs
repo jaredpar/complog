@@ -255,23 +255,23 @@ public sealed class UsingAllCompilerLogTests : TestBase
     {
         foreach (var logData in CompilerLogFixture.GetAllLogDataNames())
         {
-            yield return [true, logData];
-            yield return [false, logData];
+            yield return [ExportOptions.ExcludeAnalyzers, logData];
+            yield return [ExportOptions.None, logData];
         }
     }
 
     [Theory]
     [MemberData(nameof(GetExportAndBuildData))]
-    public async Task ExportRspAndBuild(bool excludeAnalyzers, string logDataName)
+    public async Task ExportRspAndBuild(ExportOptions exportOptions, string logDataName)
     {
         var list = new List<Task>();
         var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
-        if (excludeAnalyzers && !logData.SupportsNoneHost)
+        if ((exportOptions & ExportOptions.ExcludeAnalyzers) != 0 && !logData.SupportsNoneHost)
         {
             return;
         }
 
-        ExportUtilTests.TestExportRsp(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, excludeAnalyzers, runBuild: true);
+        ExportUtilTests.TestExportRsp(TestOutputHelper, logData.CompilerLogPath, expectedCount: null, exportOptions, runBuild: true);
     }
 
     [Theory]
@@ -292,7 +292,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         }
 
         using var reader = CompilerLogReader.Create(logData.CompilerLogPath);
-        var exportUtil = new ExportUtil(reader, excludeAnalyzers: true);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         using var tempDir = new TempDir();
         exportUtil.ExportSolution(tempDir.DirectoryPath);
