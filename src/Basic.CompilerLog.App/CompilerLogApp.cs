@@ -390,6 +390,7 @@ public sealed class CompilerLogApp(
             { "o|out=", "path to export build content", o => baseOutputPath = o },
             { "n|no-analyzers", "do not include analyzers in rsp", i => { if (i is not null) exportOptions |= ExportOptions.ExcludeAnalyzers; } },
             { "no-config", "do not include config files (analyzerconfig, rulesets, additional files)", i => { if (i is not null) exportOptions |= ExportOptions.ExcludeConfigs; } },
+            { "simple", "create the simplest possible export (excludes analyzers and config)", i => { if (i is not null) exportOptions |= ExportOptions.ExcludeAll; } },
             { "vs", "use the csc.exe from installed Visual Studio instances", v => useVisualStudio = v is not null },
             { "solution", "export as a full solution with project files (EXPERIMENTAL)", p => exportAsSolution = p is not null },
         };

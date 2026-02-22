@@ -812,6 +812,23 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         });
     }
 
+    [Fact]
+    public void ExportCompilerLogSimple()
+    {
+        RunWithBoth(Fixture.ConsoleComplex.Value, logPath =>
+        {
+            using var exportDir = new TempDir();
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"export --simple -o {exportDir.DirectoryPath} ""{logPath}"" ", RootDirectory));
+
+            var exportPath = Path.Combine(exportDir.DirectoryPath, "console-complex");
+            var rspLines = File.ReadAllLines(Path.Combine(exportPath, "build.rsp"));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/analyzer:", StringComparison.Ordinal));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/ruleset:", StringComparison.Ordinal));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/additionalfile:", StringComparison.Ordinal));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/analyzerconfig:", StringComparison.Ordinal));
+        });
+    }
+
     [WindowsFact]
     public void ExportCompilerLogVs()
     {
