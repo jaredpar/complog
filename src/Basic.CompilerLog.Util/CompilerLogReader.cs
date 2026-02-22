@@ -559,6 +559,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
                 MetadataReference mdRef = ReadMetadataReference(
                         referencePack.Mvid,
+                        referencePack.Kind,
                         referencePack.NetModuleMvids.IsDefault ? [] : referencePack.NetModuleMvids);
                 mdRef = mdRef.With(referencePack.Aliases, referencePack.EmbedInteropTypes);
                 list.Add(mdRef);
@@ -754,7 +755,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     public MetadataReference ReadMetadataReference(ReferenceData referenceData)
     {
-        var mdRef = ReadMetadataReference(referenceData.Mvid, referenceData.NetModules);
+        var mdRef = ReadMetadataReference(referenceData.Mvid, referenceData.Kind, referenceData.NetModules);
         return mdRef.With(referenceData.Aliases, referenceData.EmbedInteropTypes);
     }
 
@@ -763,28 +764,31 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     /// and <paramref name="netModuleMvids"/>. This does not include extra metadata properties
     /// like alias, embedded interop types, etc ...
     ///
-    /// The same set of <paramref name="netModuleMvids"/> must be provided for the same
-    /// <paramref name="mvid"/> across calls in order to get the same reference instance back.
+    /// The same <paramref name="kind"/> and set of <paramref name="netModuleMvids"/> must be provided
+    /// for the same <paramref name="mvid"/> across calls in order to get the same reference instance back.
     /// This is because references with netmodules are cached together. Really it's a single key.
     /// </summary>
-    private MetadataReference ReadMetadataReference(Guid mvid, ImmutableArray<Guid> netModuleMvids)
+    private MetadataReference ReadMetadataReference(Guid mvid, MetadataImageKind kind, ImmutableArray<Guid> netModuleMvids)
     {
         Debug.Assert(!netModuleMvids.IsDefault);
         if (!_refMap.TryGetValue(mvid, out var metadataReference))
         {
-            metadataReference = CreateMetadataReference(mvid, netModuleMvids);
+            metadataReference = CreateMetadataReference(mvid, kind, netModuleMvids);
             _refMap.Add(mvid, metadataReference);
         }
 
         return metadataReference;
 
-        MetadataReference CreateMetadataReference(Guid mvid, ImmutableArray<Guid> netModuleMvids)
+        MetadataReference CreateMetadataReference(Guid mvid, MetadataImageKind kind, ImmutableArray<Guid> netModuleMvids)
         {
             var bytes = GetAssemblyBytes(mvid);
             var tuple = _mvidToRefInfoMap[mvid];
             if (netModuleMvids.Length == 0)
             {
-                return MetadataReference.CreateFromStream(new MemoryStream(bytes), filePath: tuple.FileName);
+                return MetadataReference.CreateFromStream(
+                    new MemoryStream(bytes),
+                    new MetadataReferenceProperties(kind),
+                    filePath: tuple.FileName);
             }
 
             var modules = new ModuleMetadata[1 + netModuleMvids.Length];

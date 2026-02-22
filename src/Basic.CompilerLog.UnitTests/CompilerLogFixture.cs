@@ -105,8 +105,15 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     internal Lazy<LogData>? ConsoleWithNativePdb { get; }
 
+    /// <summary>
+    /// Console application which uses an implicit netmodule reference.
+    /// </summary>
     internal Lazy<LogData>? ConsoleWithNetModule { get; }
 
+    /// <summary>
+    /// Console application which uses an explicit netmodule reference that is also available
+    /// implicitly.
+    /// </summary>
     internal Lazy<LogData>? ConsoleWithExplicitModule { get; }
 
     internal Lazy<LogData> LinuxConsoleFromLog { get; }
@@ -647,16 +654,20 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                       </PropertyGroup>
                       <ItemGroup>
                         <AddModules Include="{netmoduleFile}" />
+                        <Reference Include="System.EnterpriseServices" />
                       </ItemGroup>
                     </Project>
                     """, TestBase.DefaultEncoding);
                 File.WriteAllText(Path.Combine(scratchPath, "Program.cs"), """
                     using System;
+                    using System.EnterpriseServices.Internal;
 
                     class Program
                     {
                         static void Main()
                         {
+                            var util = new SoapUtility();
+                            Console.WriteLine(util.GetType().Name);
                             Console.WriteLine(ModuleHelper.GetMessage());
                         }
                     }

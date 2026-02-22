@@ -436,84 +436,82 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)
     {
-        // First pass: track MVIDs of netmodules explicitly passed via /addmodule
-        // so we don't add them again as implicit netmodules when processing /reference assemblies
-        var explicitModuleMvids = new HashSet<Guid>();
+        var explicitModuleSet = new HashSet<Guid>();
+        var implicitModuleList = new List<(string, Guid)>();
+
         foreach (var reference in args.MetadataReferences)
         {
-            if (reference.Properties.Kind == MetadataImageKind.Module)
+            if (reference.Properties.Kind == MetadataImageKind.Assembly)
             {
-                var mvid = AddNetModule(reference.Reference);
-                explicitModuleMvids.Add(mvid);
+                var (mvid, assemblyName, assemblyInformationalVersion, netModuleNames) = AddAssembly(reference.Reference);
+
+                var netModuleMvids = ImmutableArray<Guid>.Empty;
+                if (netModuleNames.Length > 0)
+                {
+                    var mvidBuilder = ImmutableArray.CreateBuilder<Guid>(netModuleNames.Length);
+                    var assemblyDir = Path.GetDirectoryName(reference.Reference)!;
+                    foreach (var netModuleName in netModuleNames)
+                    {
+                        var netModulePath = Path.Combine(assemblyDir, netModuleName);
+                        if (!File.Exists(netModulePath))
+                        {
+                            Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(netModulePath));
+                            continue;
+                        }
+
+                        var netModuleMvid = AddNetModule(netModulePath);
+                        mvidBuilder.Add(netModuleMvid);
+                        implicitModuleList.Add((netModulePath, netModuleMvid));
+                    }
+                    netModuleMvids = mvidBuilder.ToImmutable();
+                }
+
                 var pack = new ReferencePack()
                 {
                     Mvid = mvid,
-                    Kind = MetadataImageKind.Module,
-                    Aliases = reference.Properties.Aliases,
+                    Kind = reference.Properties.Kind,
                     EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
+                    Aliases = reference.Properties.Aliases,
                     FilePath = reference.Reference,
+                    AssemblyName = assemblyName,
+                    AssemblyInformationalVersion = assemblyInformationalVersion,
+                    NetModuleMvids = netModuleMvids,
                 };
                 dataPack.References.Add(pack);
             }
+            else
+            {
+                Debug.Assert(reference.Properties.Kind == MetadataImageKind.Module);
+                Debug.Assert(reference.Properties.Aliases.IsDefaultOrEmpty);
+                Debug.Assert(!reference.Properties.EmbedInteropTypes);
+
+                 var mvid = AddNetModule(reference.Reference);
+                 var pack = new ReferencePack()
+                 {
+                     Mvid = mvid,
+                     Kind = MetadataImageKind.Module,
+                     FilePath = reference.Reference,
+                 };
+                 dataPack.References.Add(pack);
+                 explicitModuleSet.Add(mvid);
+            }
         }
 
-        // Second pass: process assembly references and their implicit netmodules
-        foreach (var reference in args.MetadataReferences)
+        // Now that all the explicit items are added and in the proper order, lets go back
+        // and add any implicit netmodules that weren't already added as explicit references.
+        foreach (var (netModulePath, netModuleMvid) in implicitModuleList)
         {
-            if (reference.Properties.Kind == MetadataImageKind.Module)
+            if (explicitModuleSet.Add(netModuleMvid))
             {
-                continue;
-            }
-
-            var (mvid, assemblyName, assemblyInformationalVersion, netModuleNames) = AddAssembly(reference.Reference);
-            var netModuleMvids = ImmutableArray<Guid>.Empty;
-
-            // Add implicit references for netmodules that must be deployed alongside the assembly
-            if (netModuleNames.Length > 0)
-            {
-                var mvidBuilder = ImmutableArray.CreateBuilder<Guid>(netModuleNames.Length);
-                var assemblyDir = Path.GetDirectoryName(reference.Reference)!;
-                foreach (var netModuleName in netModuleNames)
+                var pack = new ReferencePack()
                 {
-                    var netModulePath = Path.Combine(assemblyDir, netModuleName);
-                    if (!File.Exists(netModulePath))
-                    {
-                        Diagnostics.Add(RoslynUtil.GetDiagnosticMissingFile(netModulePath));
-                        continue;
-                    }
-
-                    var netModuleMvid = AddNetModule(netModulePath);
-                    mvidBuilder.Add(netModuleMvid);
-
-                    // Don't add an implicit entry if this netmodule was already passed explicitly
-                    // via /addmodule
-                    if (!explicitModuleMvids.Contains(netModuleMvid))
-                    {
-                        var netModulePack = new ReferencePack()
-                        {
-                            Mvid = netModuleMvid,
-                            Kind = MetadataImageKind.Module,
-                            FilePath = netModulePath,
-                            IsImplicit = true,
-                        };
-                        dataPack.References.Add(netModulePack);
-                    }
-                }
-                netModuleMvids = mvidBuilder.ToImmutable();
+                    Mvid = netModuleMvid,
+                    Kind = MetadataImageKind.Module,
+                    FilePath = netModulePath,
+                    IsImplicit = true,
+                };
+                dataPack.References.Add(pack);
             }
-
-            var pack = new ReferencePack()
-            {
-                Mvid = mvid,
-                Kind = reference.Properties.Kind,
-                EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
-                Aliases = reference.Properties.Aliases,
-                FilePath = reference.Reference,
-                AssemblyName = assemblyName,
-                AssemblyInformationalVersion = assemblyInformationalVersion,
-                NetModuleMvids = netModuleMvids,
-            };
-            dataPack.References.Add(pack);
         }
     }
 
