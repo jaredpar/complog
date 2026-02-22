@@ -482,7 +482,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             else
             {
                 Debug.Assert(reference.Properties.Kind == MetadataImageKind.Module);
-                Debug.Assert(reference.Properties.Aliases.IsDefaultOrEmpty);
+                Debug.Assert(reference.Properties.Aliases.IsEmpty);
                 Debug.Assert(!reference.Properties.EmbedInteropTypes);
 
                  var mvid = AddNetModule(reference.Reference);
@@ -490,6 +490,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                  {
                      Mvid = mvid,
                      Kind = MetadataImageKind.Module,
+                     Aliases = [],
                      FilePath = reference.Reference,
                  };
                  dataPack.References.Add(pack);
@@ -508,6 +509,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                     Mvid = netModuleMvid,
                     Kind = MetadataImageKind.Module,
                     FilePath = netModulePath,
+                    Aliases = [],
                     IsImplicit = true,
                 };
                 dataPack.References.Add(pack);
