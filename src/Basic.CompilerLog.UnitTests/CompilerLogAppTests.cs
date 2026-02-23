@@ -790,6 +790,36 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         });
     }
 
+    [Fact]
+    public void ExportCompilerLogNoConfig()
+    {
+        RunWithBoth(Fixture.ConsoleComplex.Value, logPath =>
+        {
+            using var exportDir = new TempDir();
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"export --no-config -o {exportDir.DirectoryPath} ""{logPath}"" ", RootDirectory));
+
+            var exportPath = Path.Combine(exportDir.DirectoryPath, "console-complex");
+            var rspLines = File.ReadAllLines(Path.Combine(exportPath, "build.rsp"));
+            ExportUtilTests.AssertNoConfigOptionsInRsp(rspLines);
+            ExportUtilTests.AssertNoConfigFilesOnDisk(exportPath);
+        });
+    }
+
+    [Fact]
+    public void ExportCompilerLogSimple()
+    {
+        RunWithBoth(Fixture.ConsoleComplex.Value, logPath =>
+        {
+            using var exportDir = new TempDir();
+            Assert.Equal(Constants.ExitSuccess, RunCompLog($@"export --simple -o {exportDir.DirectoryPath} ""{logPath}"" ", RootDirectory));
+
+            var exportPath = Path.Combine(exportDir.DirectoryPath, "console-complex");
+            var rspLines = File.ReadAllLines(Path.Combine(exportPath, "build.rsp"));
+            Assert.DoesNotContain(rspLines, l => l.StartsWith("/analyzer:", StringComparison.Ordinal));
+            ExportUtilTests.AssertNoConfigOptionsInRsp(rspLines);
+        });
+    }
+
     [WindowsFact]
     public void ExportCompilerLogVs()
     {

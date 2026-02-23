@@ -122,13 +122,15 @@ public sealed partial class ExportUtil
     }
 
     public CompilerLogReader Reader { get; }
-    public bool ExcludeAnalyzers { get; }
+    public ExportOptions Options { get; }
+    public bool ExcludeAnalyzers => (Options & ExportOptions.ExcludeAnalyzers) != 0;
+    public bool ExcludeConfigs => (Options & ExportOptions.ExcludeConfigs) != 0;
     internal PathNormalizationUtil PathNormalizationUtil => Reader.PathNormalizationUtil;
 
-    public ExportUtil(CompilerLogReader reader, bool excludeAnalyzers = true)
+    public ExportUtil(CompilerLogReader reader, ExportOptions options = ExportOptions.None)
     {
         Reader = reader;
-        ExcludeAnalyzers = excludeAnalyzers;
+        Options = options;
     }
 
     internal void ExportAll(
@@ -283,6 +285,14 @@ public sealed partial class ExportUtil
                             analyzerLines.Clear();
                             continue;
                         }
+                        case "additionalfile" or "analyzerconfig" or "ruleset":
+                        {
+                            if (ExcludeConfigs)
+                            {
+                                continue;
+                            }
+                            break;
+                        }
                         case "resource" or "res" or "linkresource" or "linkres":
                         {
                             newLines.AddRange(resourceLines);
@@ -423,6 +433,11 @@ public sealed partial class ExportUtil
             {
                 if (rawContent.ContentHash is not null)
                 {
+                    if (ExcludeConfigs && IsConfigRawContentKind(rawContent.Kind))
+                    {
+                        continue;
+                    }
+
                     var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
                     _ = Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                     using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
@@ -483,6 +498,12 @@ public sealed partial class ExportUtil
         return arg;
     }
 
+    internal static bool IsConfigRawContentKind(RawContentKind kind) => kind is
+        RawContentKind.AnalyzerConfig or
+        RawContentKind.AdditionalText or
+        RawContentKind.RuleSet or
+        RawContentKind.RuleSetInclude;
+
     /// <summary>
     /// This will return the logical source root for the given compilation. This is the prefix
     /// for files that do _not_ need to be replicated during export. Replicating the rest of the
@@ -493,6 +514,12 @@ public sealed partial class ExportUtil
         Debug.Assert(object.ReferenceEquals(reader.DefaultPathNormalizationUtil, reader.PathNormalizationUtil));
 
         var sourceRootDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
+
+        if (ExcludeConfigs)
+        {
+            return sourceRootDir;
+        }
+
         var checksumAlgorithm = reader.GetChecksumAlgorithm(compilerCall);
         foreach (var content in reader.ReadAllRawContent(compilerCall, RawContentKind.AnalyzerConfig))
         {
@@ -829,6 +856,11 @@ public sealed partial class ExportUtil
         var objStr = $"obj{Path.DirectorySeparatorChar}";
         foreach (var sourceFile in Reader.ReadAllSourceTextData(compilerCall))
         {
+            if (ExcludeConfigs && sourceFile.SourceTextKind is SourceTextKind.AnalyzerConfig or SourceTextKind.AdditionalText)
+            {
+                continue;
+            }
+
             string destPath;
             var normalizedSourcePath = Path.GetFullPath(sourceFile.FilePath);
             if (normalizedSourcePath.StartsWith(originalProjectDir, PathUtil.Comparison))
