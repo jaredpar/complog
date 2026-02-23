@@ -433,7 +433,7 @@ public sealed partial class ExportUtil
             {
                 if (rawContent.ContentHash is not null)
                 {
-                    if (ExcludeConfigs && IsConfigContentKind(rawContent.Kind))
+                    if (ExcludeConfigs && IsConfigRawContentKind(rawContent.Kind))
                     {
                         continue;
                     }
