@@ -498,7 +498,7 @@ public sealed partial class ExportUtil
         return arg;
     }
 
-    internal static bool IsConfigContentKind(RawContentKind kind) => kind is
+    internal static bool IsConfigRawContentKind(RawContentKind kind) => kind is
         RawContentKind.AnalyzerConfig or
         RawContentKind.AdditionalText or
         RawContentKind.RuleSet or
@@ -856,6 +856,11 @@ public sealed partial class ExportUtil
         var objStr = $"obj{Path.DirectorySeparatorChar}";
         foreach (var sourceFile in Reader.ReadAllSourceTextData(compilerCall))
         {
+            if (ExcludeConfigs && sourceFile.SourceTextKind is SourceTextKind.AnalyzerConfig or SourceTextKind.AdditionalText)
+            {
+                continue;
+            }
+
             string destPath;
             var normalizedSourcePath = Path.GetFullPath(sourceFile.FilePath);
             if (normalizedSourcePath.StartsWith(originalProjectDir, PathUtil.Comparison))

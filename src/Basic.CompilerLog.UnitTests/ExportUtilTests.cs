@@ -163,6 +163,21 @@ public sealed class ExportUtilTests : TestBase
         Assert.True(result.Succeeded, $"Build failed: {result.StandardOut}");
     }
 
+    internal static void AssertNoConfigFilesOnDisk(string directory)
+    {
+        var allFiles = Directory.GetFiles(directory, "*", SearchOption.AllDirectories);
+        Assert.DoesNotContain(allFiles, f => f.EndsWith(".ruleset", PathUtil.Comparison));
+        Assert.DoesNotContain(allFiles, f => f.EndsWith(".editorconfig", PathUtil.Comparison));
+        Assert.DoesNotContain(allFiles, f => Path.GetFileName(f) == "additional.txt");
+    }
+
+    internal static void AssertNoConfigOptionsInRsp(string[] rspLines)
+    {
+        Assert.DoesNotContain(rspLines, l => l.StartsWith("/ruleset:", StringComparison.Ordinal));
+        Assert.DoesNotContain(rspLines, l => l.StartsWith("/additionalfile:", StringComparison.Ordinal));
+        Assert.DoesNotContain(rspLines, l => l.StartsWith("/analyzerconfig:", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// Make sure that generated files are put into the generated directory
     /// </summary>
@@ -263,17 +278,8 @@ public sealed class ExportUtilTests : TestBase
         TestExportRsp(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, exportOptions: ExportOptions.ExcludeAll, verifyExportCallback: void (string path) =>
         {
             var rspLines = File.ReadAllLines(Path.Combine(path, "build.rsp"));
-
-            // Config options should not appear in the rsp
-            Assert.DoesNotContain(rspLines, l => l.StartsWith("/ruleset:", StringComparison.OrdinalIgnoreCase));
-            Assert.DoesNotContain(rspLines, l => l.StartsWith("/additionalfile:", StringComparison.OrdinalIgnoreCase));
-            Assert.DoesNotContain(rspLines, l => l.StartsWith("/analyzerconfig:", StringComparison.OrdinalIgnoreCase));
-
-            // Config files should not be written to disk
-            var allFiles = Directory.GetFiles(path, "*", SearchOption.AllDirectories);
-            Assert.DoesNotContain(allFiles, f => f.EndsWith(".ruleset", PathUtil.Comparison));
-            Assert.DoesNotContain(allFiles, f => f.EndsWith(".editorconfig", PathUtil.Comparison));
-            Assert.DoesNotContain(allFiles, f => Path.GetFileName(f) == "additional.txt");
+            AssertNoConfigOptionsInRsp(rspLines);
+            AssertNoConfigFilesOnDisk(path);
         }, runBuild: false);
     }
 
@@ -680,6 +686,38 @@ public sealed class ExportUtilTests : TestBase
             </Project>
             """;
         Assert.Equal(expectedProject, projectContent.Trim());
+    }
+
+    [Fact]
+    public void ExportSolutionExcludeConfigs()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
+        var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers | ExportOptions.ExcludeConfigs);
+
+        using var tempDir = new TempDir();
+        exportUtil.ExportSolution(tempDir.DirectoryPath);
+
+        // Verify project file has no config-related items
+        var projectFiles = Directory.GetFiles(tempDir.DirectoryPath, "*.csproj", SearchOption.AllDirectories);
+        Assert.Single(projectFiles);
+
+        var projectContent = File.ReadAllText(projectFiles[0]);
+        var expectedProject = $$"""
+            <Project Sdk="Microsoft.NET.Sdk">
+
+              <PropertyGroup>
+                <TargetFramework>{{TestUtil.TestTargetFramework}}</TargetFramework>
+                <AssemblyName>console-complex</AssemblyName>
+                <OutputType>Exe</OutputType>
+                <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+                <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+              </PropertyGroup>
+
+            </Project>
+            """;
+        Assert.Equal(expectedProject, projectContent.Trim());
+
+        AssertNoConfigFilesOnDisk(tempDir.DirectoryPath);
     }
 
     [Fact]
