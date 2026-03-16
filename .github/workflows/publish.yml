@@ -6,16 +6,43 @@ on:
         description: 'Package Version'
         required: true
         default: ''
+  workflow_run:
+    workflows: ["Build and Test"]
+    branches: [main]
+    types: [completed]
 
 jobs:
   publish:
     name: Publish NuGet
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     permissions:
       id-token: write  # enable GitHub OIDC token issuance for this job
       contents: write  # needed to create tags and releases
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed to access tags for version computation
+
+      - name: Compute version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            LATEST_TAG=$(git tag --sort=-v:refname | grep '^v' | head -n 1)
+            VERSION=${LATEST_TAG#v}
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f2)
+            PATCH=$(echo $VERSION | cut -d. -f3)
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          fi
+          echo "Resolved version: $(cat $GITHUB_OUTPUT | grep version | cut -d= -f2)"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
@@ -27,10 +54,10 @@ jobs:
 
       # Need to pass PackageVersion because it's embedded into the DLL.
       - name: Build
-        run: dotnet build -c Release -p:PackageVersion="${{ github.event.inputs.version }}"
+        run: dotnet build -c Release -p:PackageVersion="${{ steps.version.outputs.version }}"
 
       - name: Pack
-        run: dotnet pack --no-build -p:IncludeSymbols=false -p:RepositoryCommit=${GITHUB_SHA} -p:PackageVersion="${{ github.event.inputs.version }}" -c Release Basic.CompilerLog.slnx -o artifacts/nupkg
+        run: dotnet pack --no-build -p:IncludeSymbols=false -p:RepositoryCommit=${GITHUB_SHA} -p:PackageVersion="${{ steps.version.outputs.version }}" -c Release Basic.CompilerLog.slnx -o artifacts/nupkg
 
       # Get a short-lived NuGet API key for the publish step
       - name: NuGet Login
@@ -45,7 +72,7 @@ jobs:
       - name: Create Tag and Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.event.inputs.version }}
-          name: Release v${{ github.event.inputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
           body: |
-            Create release ${{ github.event.inputs.version }}
+            Create release ${{ steps.version.outputs.version }}
