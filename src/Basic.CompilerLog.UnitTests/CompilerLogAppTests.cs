@@ -1224,7 +1224,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         var (exitCode, output) = RunCompLogEx($@"print ""{Fixture.Console.Value.BinaryLogPath}"" -c");
         Assert.Equal(Constants.ExitSuccess, exitCode);
 
-        using var reader = CompilerLogReader.Create(ClassFixture.ConsoleWithDiagnostics.Value.BinaryLogPath);
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.BinaryLogPath!, BasicAnalyzerKind.None);
         var tuple = reader.ReadAllCompilerAssemblies().Single();
         Assert.Contains($"""
             Compilers
