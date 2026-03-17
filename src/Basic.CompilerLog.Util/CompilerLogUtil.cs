@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Microsoft.CodeAnalysis;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
@@ -64,6 +65,62 @@ public static class CompilerLogUtil
             var logStream = ReadLogFromZip(zipFilePath, out var isComplog);
             return isComplog ? logStream : ConvertBinaryLogStream(logStream);
         }
+    }
+
+    /// <summary>
+    /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>.
+    /// </summary>
+    /// <param name="workspace">The workspace whose projects to include</param>
+    /// <param name="compilerLogFilePath">Path to the output .complog file</param>
+    /// <param name="predicate">Optional filter for which projects to include</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of diagnostic messages produced during conversion</returns>
+    public static List<string> CreateFromWorkspace(
+        Workspace workspace,
+        string compilerLogFilePath,
+        Func<Project, bool>? predicate = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        return CreateFromWorkspace(workspace, compilerLogStream, predicate, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>.
+    /// </summary>
+    /// <param name="workspace">The workspace whose projects to include</param>
+    /// <param name="compilerLogStream">Stream to write the compiler log to</param>
+    /// <param name="predicate">Optional filter for which projects to include</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of diagnostic messages produced during conversion</returns>
+    public static List<string> CreateFromWorkspace(
+        Workspace workspace,
+        Stream compilerLogStream,
+        Func<Project, bool>? predicate = null,
+        CancellationToken cancellationToken = default)
+    {
+        var diagnostics = new List<string>();
+        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics);
+
+        var projects = workspace.CurrentSolution.Projects;
+        if (predicate is not null)
+        {
+            projects = projects.Where(predicate);
+        }
+
+        foreach (var project in projects)
+        {
+            try
+            {
+                builder.AddFromWorkspace(project, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                diagnostics.Add($"Error adding {project.Name}: {ex.Message}");
+            }
+        }
+
+        return diagnostics;
     }
 
     public static List<string> ConvertBinaryLog(string binaryLogFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
