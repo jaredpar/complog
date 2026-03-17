@@ -402,7 +402,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
         ClassLib = WithBuild("classlib.complog", void (string scratchPath) =>
         {
-            RunDotnetCommand($"new classlib --name classlib --output . --framework net8.0", scratchPath);
+            RunDotnetCommand($"new classlib --name classlib --output . --framework {TestUtil.TestTargetFramework}", scratchPath);
             var program = """
                 using System;
                 using System.Text.RegularExpressions;

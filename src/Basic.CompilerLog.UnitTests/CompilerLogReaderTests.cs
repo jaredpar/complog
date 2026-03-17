@@ -346,7 +346,7 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ClassLib.Value.CompilerLogPath);
         var list = reader.ReadAllCompilationData();
         Assert.Single(list);
-        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == "net8.0"));
+        Assert.NotNull(list.Single(x => x.CompilerCall.TargetFramework == TestUtil.TestTargetFramework));
     }
 
     [Fact]

@@ -628,6 +628,18 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
+    public void ExportSolutionBasicReferences()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        var csharpReference = reader
+            .ReadAllReferenceData(compilerCall)
+            .Single(x => x.FileName == "Microsoft.CSharp.dll");
+        TestOutputHelper.WriteLine($"Testing reference {csharpReference.FilePath} for target framework {compilerCall.TargetFramework}");
+        Assert.True(ExportUtil.IsFrameworkReference(csharpReference.FilePath, compilerCall.TargetFramework));
+    }
+
+    [Fact]
     public void ExportSolutionWithMultiTarget()
     {
         TestOutputHelper.WriteLine($"Testing multi-target project export from {Fixture.ClassLibMulti.Value.CompilerLogPath}");
