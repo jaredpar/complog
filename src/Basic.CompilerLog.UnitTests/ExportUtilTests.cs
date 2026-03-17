@@ -911,6 +911,10 @@ public sealed class ExportUtilTests : TestBase
     [InlineData(false, "", new[] { @"C:\Program Files\dotnet\packs\Microsoft.NETCore.App.Ref\9.0.0\ref\net9.0\System.Runtime.dll" })]
     [InlineData(false, "net9.0", new[] { @"C:\src\packs-tool\bin\Debug\net9.0\packs-tool.dll" })]
     [InlineData(false, "net9.0", new[] { @"C:\src\shared-lib\bin\Debug\net9.0\shared-lib.dll" })]
+    [InlineData(true, "net9.0", new[] { @"C:\Users\runner\.nuget\packages\microsoft.netcore.app.ref\9.0.12\ref\net9.0\Microsoft.CSharp.dll" })]
+    [InlineData(true, "net8.0", new[] { @"C:\Users\runner\.nuget\packages\microsoft.netcore.app.ref\8.0.5\ref\net8.0\System.Runtime.dll" })]
+    [InlineData(false, "net8.0", new[] { @"C:\Users\runner\.nuget\packages\microsoft.netcore.app.ref\9.0.12\ref\net9.0\Microsoft.CSharp.dll" })]
+    [InlineData(false, "net9.0", new[] { @"C:\Users\runner\.nuget\packages\some.other.package\1.0.0\ref\net9.0\Something.dll" })]
     public void IsFrameworkReference(bool expected, string? targetFramework, string[] filePaths)
     {
         foreach (var filePath in filePaths)

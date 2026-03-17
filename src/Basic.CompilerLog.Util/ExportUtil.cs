@@ -912,6 +912,14 @@ public sealed partial class ExportUtil
             return true;
         }
 
+        // NuGet-restored framework reference packs
+        // e.g., /home/runner/.nuget/packages/microsoft.netcore.app.ref/9.0.12/ref/net9.0/Microsoft.CSharp.dll
+        if (filePath.Contains($"{sep}microsoft.netcore.app.ref{sep}", StringComparison.OrdinalIgnoreCase) &&
+            filePath.Contains($"{sep}{targetFramework}{sep}", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         return false;
     }
 
