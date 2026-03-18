@@ -68,6 +68,14 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     internal Metadata Metadata { get; }
 
     /// <summary>
+    /// When <see langword="true"/>, ReadyToRun (R2R) analyzer assemblies are always stripped to
+    /// IL-only even on the platform that matches the R2R native code. This is primarily useful
+    /// for testing to ensure the IL stripping code path is exercised on the CI machine's native
+    /// platform.
+    /// </summary>
+    public bool ForceStripReadyToRun { get; set; }
+
+    /// <summary>
     /// This is the default path normalization util that was created based on the log metadata. It cannot
     /// be changed after creation.
     /// </summary>
@@ -1003,7 +1011,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
 
         var bytes = GetAssemblyBytes(mvid);
-        if (R2RUtil.IsReadyToRun(bytes))
+        if (ForceStripReadyToRun || R2RUtil.IsReadyToRun(bytes))
         {
             bytes = R2RUtil.StripReadyToRun(bytes);
         }

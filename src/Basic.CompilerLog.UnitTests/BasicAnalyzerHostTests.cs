@@ -131,11 +131,8 @@ public sealed class BasicAnalyzerHostTests : TestBase
             .Where(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)))
             .ToList();
 
-        // If no R2R analyzers are present (e.g., built with an older SDK), skip the rest
-        if (r2rData.Count == 0)
-        {
-            return;
-        }
+        // We build with .NET 10 SDK which always produces R2R analyzers
+        Assert.NotEmpty(r2rData);
 
         // When retrieved through the data provider interface, they should be IL-only
         var provider = (IBasicAnalyzerHostDataProvider)reader;
@@ -162,12 +159,8 @@ public sealed class BasicAnalyzerHostTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.InMemory);
         var analyzerDataList = reader.ReadAllAnalyzerData(0);
 
-        // Check if there are any R2R analyzers to strip
-        var hasR2R = analyzerDataList.Any(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)));
-        if (!hasR2R)
-        {
-            return;
-        }
+        // We build with .NET 10 SDK which always produces R2R analyzers
+        Assert.Contains(analyzerDataList, a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)));
 
         // Load all analyzers through the host (which strips R2R automatically) and run them
         using var host = new BasicAnalyzerHostInMemory(reader, analyzerDataList);
@@ -198,10 +191,8 @@ public sealed class BasicAnalyzerHostTests : TestBase
             .Where(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)))
             .ToList();
 
-        if (r2rData.Count == 0)
-        {
-            return;
-        }
+        // We build with .NET 10 SDK which always produces R2R analyzers
+        Assert.NotEmpty(r2rData);
 
         var provider = (IBasicAnalyzerHostDataProvider)reader;
         var analyzerData = r2rData[0];
@@ -212,6 +203,32 @@ public sealed class BasicAnalyzerHostTests : TestBase
         // Same reference should be returned from the cache
         Assert.Same(bytes1, bytes2);
     }
+
+#if NET
+    /// <summary>
+    /// Verify that when <see cref="CompilerLogReader.ForceStripReadyToRun"/> is set, R2R analyzer
+    /// assemblies are stripped and generators that actually execute during compilation still
+    /// produce correct output. The Console fixture uses [GeneratedRegex] which requires the
+    /// RegexGenerator source generator to run.
+    /// </summary>
+    [Fact]
+    public void ForceStripReadyToRunGeneratorsExecute()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.InMemory);
+        reader.ForceStripReadyToRun = true;
+
+        var data = reader.ReadCompilationData(0);
+        var compilation = data.GetCompilationAfterGenerators(out var diagnostics, CancellationToken);
+
+        Assert.Empty(diagnostics);
+
+        // The Console fixture uses [GeneratedRegex], so RegexGenerator must have run and
+        // produced the REGEX_DEFAULT_MATCH_TIMEOUT field in the generated source.
+        Assert.Contains(compilation.SyntaxTrees, t => t.ToString().Contains("REGEX_DEFAULT_MATCH_TIMEOUT"));
+
+        data.BasicAnalyzerHost.Dispose();
+    }
+#endif
 
 #if NETFRAMEWORK
     [Fact]
