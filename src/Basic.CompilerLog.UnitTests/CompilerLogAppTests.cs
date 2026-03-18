@@ -1252,6 +1252,16 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         Assert.Contains("Command Line:", output);
     }
 
+    [Fact]
+    public void PrintMSBuildNoData()
+    {
+        // LinuxConsoleFromLog is an old-format complog that has no MSBuildData stored.
+        var (exitCode, output) = RunCompLogEx($@"print ""{Fixture.LinuxConsoleFromLog.Value.CompilerLogPath}"" -m");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("MSBuild", output);
+        Assert.Contains("No MSBuild invocation info available", output);
+    }
+
     /// <summary>
     /// Ensure that print can run without the code being present
     /// </summary>
