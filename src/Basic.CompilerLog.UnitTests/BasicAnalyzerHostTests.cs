@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit.Runner.Common;
 using Microsoft.CodeAnalysis;
+using System.Reflection.PortableExecutable;
 
 
 
@@ -113,6 +114,105 @@ public sealed class BasicAnalyzerHostTests : TestBase
         Assert.Empty(list);
     }
 
+    /// <summary>
+    /// Verify that ReadyToRun analyzers stored in a compiler log are automatically stripped to
+    /// IL-only when retrieved through the <see cref="IBasicAnalyzerHostDataProvider"/> interface.
+    /// .NET 10+ SDK analyzers are ReadyToRun, so the Console fixture (built with .NET 10 SDK)
+    /// contains R2R analyzer assemblies.
+    /// </summary>
+    [Fact]
+    public void ReadyToRunAnalyzersAreStripped()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var analyzerDataList = reader.ReadAllAnalyzerData(0);
+
+        // Find at least one R2R analyzer in the stored log bytes
+        var r2rData = analyzerDataList
+            .Where(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)))
+            .ToList();
+
+        // If no R2R analyzers are present (e.g., built with an older SDK), skip the rest
+        if (r2rData.Count == 0)
+        {
+            return;
+        }
+
+        // When retrieved through the data provider interface, they should be IL-only
+        var provider = (IBasicAnalyzerHostDataProvider)reader;
+        foreach (var analyzerData in r2rData)
+        {
+            var strippedBytes = provider.GetAssemblyBytes(analyzerData.AssemblyData);
+            Assert.False(R2RUtil.IsReadyToRun(strippedBytes), $"{analyzerData.FileName} should be IL-only after stripping");
+
+            // Verify that the CopyAssemblyBytes path also produces stripped bytes
+            using var ms = new MemoryStream();
+            provider.CopyAssemblyBytes(analyzerData.AssemblyData, ms);
+            Assert.False(R2RUtil.IsReadyToRun(ms.ToArray()), $"{analyzerData.FileName} CopyAssemblyBytes should produce IL-only output");
+        }
+    }
+
+    /// <summary>
+    /// Verify that R2R stripping produces a valid, loadable assembly that retains its analyzer
+    /// functionality. Stripped analyzers must still execute correctly.
+    /// </summary>
+#if NET
+    [Fact]
+    public void ReadyToRunAnalyzersStillWork()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.InMemory);
+        var analyzerDataList = reader.ReadAllAnalyzerData(0);
+
+        // Check if there are any R2R analyzers to strip
+        var hasR2R = analyzerDataList.Any(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)));
+        if (!hasR2R)
+        {
+            return;
+        }
+
+        // Load all analyzers through the host (which strips R2R automatically) and run them
+        using var host = new BasicAnalyzerHostInMemory(reader, analyzerDataList);
+        Assert.NotEmpty(host.AnalyzerReferences);
+
+        var diagnostics = new List<Diagnostic>();
+        foreach (var reference in host.AnalyzerReferences)
+        {
+            reference.AsBasicAnalyzerReference().GetAnalyzers(LanguageNames.CSharp, diagnostics);
+        }
+
+        // The .NET SDK analyzers contain real analyzers, so we expect non-empty results
+        Assert.NotEmpty(host.AnalyzerReferences.SelectMany(r => r.GetAnalyzers(LanguageNames.CSharp)));
+    }
+#endif
+
+    /// <summary>
+    /// Verify that the stripped analyzer byte cache is populated when bytes are retrieved,
+    /// and that subsequent calls return the cached (already-stripped) result.
+    /// </summary>
+    [Fact]
+    public void ReadyToRunStrippedAnalyzerBytesAreCached()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var analyzerDataList = reader.ReadAllAnalyzerData(0);
+
+        var r2rData = analyzerDataList
+            .Where(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)))
+            .ToList();
+
+        if (r2rData.Count == 0)
+        {
+            return;
+        }
+
+        var provider = (IBasicAnalyzerHostDataProvider)reader;
+        var analyzerData = r2rData[0];
+
+        var bytes1 = provider.GetAssemblyBytes(analyzerData.AssemblyData);
+        var bytes2 = provider.GetAssemblyBytes(analyzerData.AssemblyData);
+
+        // Same reference should be returned from the cache
+        Assert.Same(bytes1, bytes2);
+    }
+
 #if NETFRAMEWORK
     [Fact]
     public void InMemory()
@@ -125,3 +225,4 @@ public sealed class BasicAnalyzerHostTests : TestBase
     }
 #endif
 }
+

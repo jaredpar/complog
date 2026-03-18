@@ -46,6 +46,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
 
     /// <summary>
+    /// Cache of analyzer assembly bytes that have been stripped of ReadyToRun native code.
+    /// Keyed by MVID. This avoids re-stripping the same assembly multiple times when multiple
+    /// compilations share the same analyzer.
+    /// </summary>
+    private readonly Dictionary<Guid, byte[]> _strippedAnalyzerCache = new();
+
+    /// <summary>
     /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
     /// produced it. This is useful for building up items like a project reference map.
     /// </summary>
@@ -981,6 +988,27 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
     }
 
-    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(AssemblyData data, Stream stream) => CopyAssemblyBytes(data.Mvid, stream);
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) => GetAssemblyBytes(data.Mvid);
+    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(AssemblyData data, Stream stream)
+    {
+        var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAssemblyBytes(data);
+        stream.Write(bytes, 0, bytes.Length);
+    }
+
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data)
+    {
+        var mvid = data.Mvid;
+        if (_strippedAnalyzerCache.TryGetValue(mvid, out var cachedBytes))
+        {
+            return cachedBytes;
+        }
+
+        var bytes = GetAssemblyBytes(mvid);
+        if (R2RUtil.IsReadyToRun(bytes))
+        {
+            bytes = R2RUtil.StripReadyToRun(bytes);
+        }
+
+        _strippedAnalyzerCache[mvid] = bytes;
+        return bytes;
+    }
 }
