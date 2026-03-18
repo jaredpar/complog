@@ -147,7 +147,7 @@ public static class BinaryLogUtil
             .Select(data => data.CompilerCall)
             .ToList();
 
-    internal static (List<CompilerTaskData> CompilerTaskDataList, MSBuildInvocationData? MSBuildData) ReadAllData(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
+    internal static (List<CompilerTaskData> CompilerTaskDataList, MSBuildData? MSBuildData) ReadAllData(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
     {
         // https://github.com/KirillOsenkov/MSBuildStructuredLog/issues/752
         Microsoft.Build.Logging.StructuredLogger.Strings.Initialize();
@@ -174,22 +174,10 @@ public static class BinaryLogUtil
             if (!msbuildInfoComplete && record.Args is BuildMessageEventArgs { Importance: MessageImportance.High } bme)
             {
                 var msg = bme.Message ?? "";
-                if (msg.StartsWith("Process = ", StringComparison.Ordinal))
-                {
-                    processPath = ExtractQuotedValue(msg, "Process = ");
-                }
-                else if (msg.StartsWith("MSBuild executable path = ", StringComparison.Ordinal))
-                {
-                    msbuildPath = ExtractQuotedValue(msg, "MSBuild executable path = ");
-                }
-                else if (msg.StartsWith("Command line arguments = ", StringComparison.Ordinal))
-                {
-                    commandLine = ExtractQuotedValue(msg, "Command line arguments = ");
-                }
-                else if (msg.StartsWith("MSBuild version = ", StringComparison.Ordinal))
-                {
-                    msbuildVersion = ExtractQuotedValue(msg, "MSBuild version = ");
-                }
+                processPath ??= TryExtractValue(msg, "Process = ");
+                msbuildPath ??= TryExtractValue(msg, "MSBuild executable path = ");
+                commandLine ??= TryExtractValue(msg, "Command line arguments = ");
+                msbuildVersion ??= TryExtractValue(msg, "MSBuild version = ");
             }
 
             if (record.Args is not { BuildEventContext: { } context })
@@ -282,25 +270,24 @@ public static class BinaryLogUtil
 
         var msbuildData = (processPath is null && msbuildPath is null && commandLine is null && msbuildVersion is null)
             ? null
-            : new MSBuildInvocationData
-            {
-                ProcessPath = processPath,
-                MSBuildPath = msbuildPath,
-                CommandLine = commandLine,
-                MSBuildVersion = msbuildVersion,
-            };
+            : new MSBuildData(processPath, msbuildPath, commandLine, msbuildVersion);
 
         return (list, msbuildData);
 
-        static string? ExtractQuotedValue(string message, string prefix)
+        static string? TryExtractValue(string message, string prefix)
         {
-            var value = message.Substring(prefix.Length);
-            if (value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"')
+            if (!message.StartsWith(prefix, StringComparison.Ordinal))
             {
-                return value.Substring(1, value.Length - 2);
+                return null;
             }
 
-            return value;
+            var value = message.AsSpan(prefix.Length);
+            if (value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"')
+            {
+                return value.Slice(1, value.Length - 2).ToString();
+            }
+
+            return value.ToString();
         }
 
         MSBuildProjectContextData GetOrCreateContextData(BuildEventContext context, string projecFile)

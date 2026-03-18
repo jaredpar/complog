@@ -49,7 +49,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     internal int MetadataVersion { get; }
     internal List<string> Diagnostics { get; }
     internal ZipArchive ZipArchive { get; private set; }
-    internal MSBuildInvocationData? MSBuildInvocationData { get; set; }
+    internal MSBuildData? MSBuildData { get; set; }
 
     internal bool IsOpen => !_closed;
     internal bool IsClosed => _closed;
@@ -245,7 +245,15 @@ internal sealed class CompilerLogBuilder : IDisposable
             {
                 CompilerCallMvidList = _compilerCallMvidList,
                 MvidToReferenceInfoMap = _mvidToRefInfoMap,
-                MSBuildData = MSBuildInvocationData,
+                MSBuildData = MSBuildData is { } d
+                    ? new MSBuildDataPack
+                    {
+                        ProcessPath = d.ProcessPath,
+                        MSBuildPath = d.MSBuildPath,
+                        CommandLine = d.CommandLine,
+                        MSBuildVersion = d.MSBuildVersion,
+                    }
+                    : null,
             };
             var contentHash = WriteContentMessagePack(pack);
             var entry = ZipArchive.CreateEntry(LogInfoFileName, CompressionLevel.Fastest);

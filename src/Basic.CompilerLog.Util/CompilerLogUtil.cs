@@ -110,7 +110,7 @@ public static class CompilerLogUtil
 
         var success = true;
         var list = new List<BinaryLogUtil.CompilerTaskData>();
-        MSBuildInvocationData? msbuildData = null;
+        MSBuildData? msbuildData = null;
         try
         {
             (list, msbuildData) = BinaryLogUtil.ReadAllData(binaryLogStream, predicate);
@@ -122,7 +122,7 @@ public static class CompilerLogUtil
         }
 
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
-        builder.MSBuildInvocationData = msbuildData;
+        builder.MSBuildData = msbuildData;
         foreach (var compilerTaskData in list)
         {
             try

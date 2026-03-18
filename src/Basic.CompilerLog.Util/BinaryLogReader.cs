@@ -103,15 +103,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         _compilerCalls = new();
         _stream.Position = 0;
         var (list, msbuildData) = BinaryLogUtil.ReadAllData(_stream, ownerState: this);
-
-        if (msbuildData is not null)
-        {
-            _msbuildData = new MSBuildData(
-                msbuildData.ProcessPath,
-                msbuildData.MSBuildPath,
-                msbuildData.CommandLine,
-                msbuildData.MSBuildVersion);
-        }
+        _msbuildData = msbuildData;
 
         foreach (var compilerTaskData in list)
         {

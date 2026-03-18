@@ -44,7 +44,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoPackMap = new();
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
-    private MSBuildInvocationData? _msbuildInvocationData;
+    private MSBuildDataPack? _msbuildDataPack;
 
     /// <summary>
     /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
@@ -132,7 +132,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             {
                 _mvidToCompilerCallIndexMap[tuple.Mvid] = tuple.CompilerCallIndex;
             }
-            _msbuildInvocationData = pack.MSBuildData;
+            _msbuildDataPack = pack.MSBuildData;
         }
     }
 
@@ -332,16 +332,16 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     /// </summary>
     public MSBuildData? ReadMSBuildData()
     {
-        if (_msbuildInvocationData is null)
+        if (_msbuildDataPack is null)
         {
             return null;
         }
 
         return new MSBuildData(
-            _msbuildInvocationData.ProcessPath,
-            _msbuildInvocationData.MSBuildPath,
-            _msbuildInvocationData.CommandLine,
-            _msbuildInvocationData.MSBuildVersion);
+            _msbuildDataPack.ProcessPath,
+            _msbuildDataPack.MSBuildPath,
+            _msbuildDataPack.CommandLine,
+            _msbuildDataPack.MSBuildVersion);
     }
 
     public IReadOnlyCollection<string> ReadRawArguments(CompilerCall compilerCall)
