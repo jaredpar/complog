@@ -113,8 +113,7 @@ public static class CompilerLogUtil
         MsbuildInfoPack? msbuildInfo = null;
         try
         {
-            list = BinaryLogUtil.ReadAllCompilerTaskData(binaryLogStream, predicate);
-            msbuildInfo = BinaryLogUtil.ReadMSBuildInfo(binaryLogStream);
+            list = BinaryLogUtil.ReadAllCompilerTaskData(binaryLogStream, out msbuildInfo, predicate);
         }
         catch (EndOfStreamException ex)
         {

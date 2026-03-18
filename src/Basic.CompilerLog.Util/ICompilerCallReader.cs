@@ -36,6 +36,12 @@ public interface ICompilerCallReader : IDisposable
     /// </summary>
     public List<CompilerAssemblyData> ReadAllCompilerAssemblies();
 
+    /// <summary>
+    /// Read the MSBuild invocation info captured when this log was created.
+    /// Returns null if the information is not present (e.g., for logs created from older versions).
+    /// </summary>
+    public MSBuildInfo? ReadMSBuildInfo();
+
     public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall);
 
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex);

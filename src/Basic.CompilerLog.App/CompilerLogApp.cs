@@ -279,12 +279,7 @@ public sealed class CompilerLogApp(
 
             if (msbuild)
             {
-                MSBuildInfo? msbuildInfo = reader switch
-                {
-                    CompilerLogReader logReader => logReader.ReadMSBuildInfo(),
-                    BinaryLogReader binlogReader => binlogReader.ReadMSBuildInfo(),
-                    _ => null,
-                };
+                var msbuildInfo = reader.ReadMSBuildInfo();
 
                 WriteLine("MSBuild");
                 if (msbuildInfo is null)

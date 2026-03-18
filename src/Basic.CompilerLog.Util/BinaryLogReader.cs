@@ -29,7 +29,6 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     private List<CompilerCall>? _compilerCalls;
     private readonly Lazy<Dictionary<Guid, int>> _lazyMvidToCompilerCallIndexMap;
     private MSBuildInfo? _msbuildInfo;
-    private bool _msbuildInfoRead;
 
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
@@ -103,7 +102,16 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
         _compilerCalls = new();
         _stream.Position = 0;
-        var list = BinaryLogUtil.ReadAllCompilerTaskData(_stream, ownerState: this);
+        var list = BinaryLogUtil.ReadAllCompilerTaskData(_stream, out var msbuildInfoPack, ownerState: this);
+
+        if (msbuildInfoPack is not null)
+        {
+            _msbuildInfo = new MSBuildInfo(
+                msbuildInfoPack.ProcessPath,
+                msbuildInfoPack.MSBuildPath,
+                msbuildInfoPack.CommandLine,
+                msbuildInfoPack.MSBuildVersion);
+        }
 
         foreach (var compilerTaskData in list)
         {
@@ -378,20 +386,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     /// </summary>
     public MSBuildInfo? ReadMSBuildInfo()
     {
-        if (!_msbuildInfoRead)
-        {
-            _msbuildInfoRead = true;
-            var pack = BinaryLogUtil.ReadMSBuildInfo(_stream);
-            if (pack is not null)
-            {
-                _msbuildInfo = new MSBuildInfo(
-                    pack.ProcessPath,
-                    pack.MSBuildPath,
-                    pack.CommandLine,
-                    pack.MSBuildVersion);
-            }
-        }
-
+        // MSBuildInfo is populated during GetOrLoadCompilerCalls, so ensure the data is loaded.
+        GetOrLoadCompilerCalls();
         return _msbuildInfo;
     }
 
