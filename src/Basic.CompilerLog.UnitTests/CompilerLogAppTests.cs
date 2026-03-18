@@ -1234,6 +1234,24 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
             """, output);
     }
 
+    [Fact]
+    public void PrintMSBuild()
+    {
+        var (exitCode, output) = RunCompLogEx($@"print ""{Fixture.Console.Value.BinaryLogPath}"" -m");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("MSBuild", output);
+        Assert.Contains("Command Line:", output);
+    }
+
+    [Fact]
+    public void PrintMSBuildFromComplog()
+    {
+        var (exitCode, output) = RunCompLogEx($@"print ""{Fixture.Console.Value.CompilerLogPath}"" -m");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("MSBuild", output);
+        Assert.Contains("Command Line:", output);
+    }
+
     /// <summary>
     /// Ensure that print can run without the code being present
     /// </summary>

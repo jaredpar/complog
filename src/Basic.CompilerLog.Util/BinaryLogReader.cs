@@ -28,6 +28,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     private readonly Dictionary<CompilerCall, string[]> _argumentsMap = new();
     private List<CompilerCall>? _compilerCalls;
     private readonly Lazy<Dictionary<Guid, int>> _lazyMvidToCompilerCallIndexMap;
+    private MSBuildInfo? _msbuildInfo;
+    private bool _msbuildInfoRead;
 
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
@@ -368,6 +370,29 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             .OrderBy(x => x.Key, PathUtil.Comparer)
             .Select(x => new CompilerAssemblyData(x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
+    }
+
+    /// <summary>
+    /// Read the MSBuild invocation info from the binary log.
+    /// Returns null if the information is not present in the log.
+    /// </summary>
+    public MSBuildInfo? ReadMSBuildInfo()
+    {
+        if (!_msbuildInfoRead)
+        {
+            _msbuildInfoRead = true;
+            var pack = BinaryLogUtil.ReadMSBuildInfo(_stream);
+            if (pack is not null)
+            {
+                _msbuildInfo = new MSBuildInfo(
+                    pack.ProcessPath,
+                    pack.MSBuildPath,
+                    pack.CommandLine,
+                    pack.MSBuildVersion);
+            }
+        }
+
+        return _msbuildInfo;
     }
 
     /// <inheritdoc cref="ICompilerCallReader.HasAllGeneratedFileContent(CompilerCall)"/>

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Basic.CompilerLog.Util.Serialize;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
@@ -109,9 +110,11 @@ public static class CompilerLogUtil
 
         var success = true;
         var list = new List<BinaryLogUtil.CompilerTaskData>();
+        MsbuildInfoPack? msbuildInfo = null;
         try
         {
             list = BinaryLogUtil.ReadAllCompilerTaskData(binaryLogStream, predicate);
+            msbuildInfo = BinaryLogUtil.ReadMSBuildInfo(binaryLogStream);
         }
         catch (EndOfStreamException ex)
         {
@@ -120,6 +123,7 @@ public static class CompilerLogUtil
         }
 
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
+        builder.MSBuildInfo = msbuildInfo;
         foreach (var compilerTaskData in list)
         {
             try

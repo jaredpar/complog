@@ -44,6 +44,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoPackMap = new();
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
+    private MsbuildInfoPack? _msbuildInfoPack;
 
     /// <summary>
     /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
@@ -131,6 +132,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             {
                 _mvidToCompilerCallIndexMap[tuple.Mvid] = tuple.CompilerCallIndex;
             }
+            _msbuildInfoPack = pack.MSBuildInfo;
         }
     }
 
@@ -321,6 +323,25 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .OrderBy(x => x.Key, PathUtil.Comparer)
             .Select(x => new CompilerAssemblyData(x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
+    }
+
+    /// <summary>
+    /// Read the MSBuild invocation info that was captured when this compiler log was created.
+    /// Returns null if the information is not present (e.g., for logs created from an older version
+    /// or created without a binary log source).
+    /// </summary>
+    public MSBuildInfo? ReadMSBuildInfo()
+    {
+        if (_msbuildInfoPack is null)
+        {
+            return null;
+        }
+
+        return new MSBuildInfo(
+            _msbuildInfoPack.ProcessPath,
+            _msbuildInfoPack.MSBuildPath,
+            _msbuildInfoPack.CommandLine,
+            _msbuildInfoPack.MSBuildVersion);
     }
 
     public IReadOnlyCollection<string> ReadRawArguments(CompilerCall compilerCall)

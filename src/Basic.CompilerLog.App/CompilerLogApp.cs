@@ -228,10 +228,12 @@ public sealed class CompilerLogApp(
     {
         var compilers = false;
         var analyzers = false;
+        var msbuild = false;
         var options = new FilterOptionSet()
         {
             { "c|compilers", "include compiler summary", c => compilers = c is not null },
             { "a|analyzers", "include analyzer summary", a => analyzers = a is not null },
+            { "m|msbuild", "include msbuild invocation info", m => msbuild = m is not null },
         };
 
         try
@@ -272,6 +274,29 @@ public sealed class CompilerLogApp(
                     WriteLine($"\tFile Path: {tuple.FilePath}");
                     WriteLine($"\tAssembly Name: {tuple.AssemblyName}");
                     WriteLine($"\tCommit Hash: {tuple.CommitHash}");
+                }
+            }
+
+            if (msbuild)
+            {
+                MSBuildInfo? msbuildInfo = reader switch
+                {
+                    CompilerLogReader logReader => logReader.ReadMSBuildInfo(),
+                    BinaryLogReader binlogReader => binlogReader.ReadMSBuildInfo(),
+                    _ => null,
+                };
+
+                WriteLine("MSBuild");
+                if (msbuildInfo is null)
+                {
+                    WriteLine("\tNo MSBuild invocation info available");
+                }
+                else
+                {
+                    WriteLine($"\tProcess: {msbuildInfo.ProcessPath ?? "<null>"}");
+                    WriteLine($"\tMSBuild Path: {msbuildInfo.MSBuildPath ?? "<null>"}");
+                    WriteLine($"\tCommand Line: {msbuildInfo.CommandLine ?? "<null>"}");
+                    WriteLine($"\tVersion: {msbuildInfo.MSBuildVersion ?? "<null>"}");
                 }
             }
 
