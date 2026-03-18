@@ -110,10 +110,10 @@ public static class CompilerLogUtil
 
         var success = true;
         var list = new List<BinaryLogUtil.CompilerTaskData>();
-        MsbuildInfoPack? msbuildInfo = null;
+        MSBuildInvocationData? msbuildData = null;
         try
         {
-            list = BinaryLogUtil.ReadAllCompilerTaskData(binaryLogStream, out msbuildInfo, predicate);
+            (list, msbuildData) = BinaryLogUtil.ReadAllData(binaryLogStream, predicate);
         }
         catch (EndOfStreamException ex)
         {
@@ -122,7 +122,7 @@ public static class CompilerLogUtil
         }
 
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics, metadataVersion);
-        builder.MSBuildInfo = msbuildInfo;
+        builder.MSBuildInvocationData = msbuildData;
         foreach (var compilerTaskData in list)
         {
             try

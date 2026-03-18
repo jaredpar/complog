@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Basic.CompilerLog.Util;
 
-public sealed class MSBuildInfo(string? processPath, string? msbuildPath, string? commandLine, string? msbuildVersion)
+public sealed class MSBuildData(string? processPath, string? msbuildPath, string? commandLine, string? msbuildVersion)
 {
     public string? ProcessPath { get; } = processPath;
     public string? MSBuildPath { get; } = msbuildPath;

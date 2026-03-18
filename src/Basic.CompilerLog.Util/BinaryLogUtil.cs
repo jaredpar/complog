@@ -142,11 +142,12 @@ public static class BinaryLogUtil
     }
 
     public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
-        => ReadAllCompilerTaskData(stream, out _, predicate, ownerState)
+        => ReadAllData(stream, predicate, ownerState)
+            .CompilerTaskDataList
             .Select(data => data.CompilerCall)
             .ToList();
 
-    internal static List<CompilerTaskData> ReadAllCompilerTaskData(Stream stream, out MsbuildInfoPack? msbuildInfo, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
+    internal static (List<CompilerTaskData> CompilerTaskDataList, MSBuildInvocationData? MSBuildData) ReadAllData(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
     {
         // https://github.com/KirillOsenkov/MSBuildStructuredLog/issues/752
         Microsoft.Build.Logging.StructuredLogger.Strings.Initialize();
@@ -279,9 +280,9 @@ public static class BinaryLogUtil
             }
         }
 
-        msbuildInfo = (processPath is null && msbuildPath is null && commandLine is null && msbuildVersion is null)
+        var msbuildData = (processPath is null && msbuildPath is null && commandLine is null && msbuildVersion is null)
             ? null
-            : new MsbuildInfoPack
+            : new MSBuildInvocationData
             {
                 ProcessPath = processPath,
                 MSBuildPath = msbuildPath,
@@ -289,7 +290,7 @@ public static class BinaryLogUtil
                 MSBuildVersion = msbuildVersion,
             };
 
-        return list;
+        return (list, msbuildData);
 
         static string? ExtractQuotedValue(string message, string prefix)
         {

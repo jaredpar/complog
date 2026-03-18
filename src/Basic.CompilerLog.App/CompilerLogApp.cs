@@ -279,7 +279,7 @@ public sealed class CompilerLogApp(
 
             if (msbuild)
             {
-                var msbuildInfo = reader.ReadMSBuildInfo();
+                var msbuildInfo = reader.ReadMSBuildData();
 
                 WriteLine("MSBuild");
                 if (msbuildInfo is null)

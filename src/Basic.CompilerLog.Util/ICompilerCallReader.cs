@@ -40,7 +40,7 @@ public interface ICompilerCallReader : IDisposable
     /// Read the MSBuild invocation info captured when this log was created.
     /// Returns null if the information is not present (e.g., for logs created from older versions).
     /// </summary>
-    public MSBuildInfo? ReadMSBuildInfo();
+    public MSBuildData? ReadMSBuildData();
 
     public BasicAnalyzerHost CreateBasicAnalyzerHost(CompilerCall compilerCall);
 

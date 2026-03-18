@@ -28,7 +28,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     private readonly Dictionary<CompilerCall, string[]> _argumentsMap = new();
     private List<CompilerCall>? _compilerCalls;
     private readonly Lazy<Dictionary<Guid, int>> _lazyMvidToCompilerCallIndexMap;
-    private MSBuildInfo? _msbuildInfo;
+    private MSBuildData? _msbuildData;
 
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
@@ -102,15 +102,15 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
         _compilerCalls = new();
         _stream.Position = 0;
-        var list = BinaryLogUtil.ReadAllCompilerTaskData(_stream, out var msbuildInfoPack, ownerState: this);
+        var (list, msbuildData) = BinaryLogUtil.ReadAllData(_stream, ownerState: this);
 
-        if (msbuildInfoPack is not null)
+        if (msbuildData is not null)
         {
-            _msbuildInfo = new MSBuildInfo(
-                msbuildInfoPack.ProcessPath,
-                msbuildInfoPack.MSBuildPath,
-                msbuildInfoPack.CommandLine,
-                msbuildInfoPack.MSBuildVersion);
+            _msbuildData = new MSBuildData(
+                msbuildData.ProcessPath,
+                msbuildData.MSBuildPath,
+                msbuildData.CommandLine,
+                msbuildData.MSBuildVersion);
         }
 
         foreach (var compilerTaskData in list)
@@ -384,11 +384,11 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     /// Read the MSBuild invocation info from the binary log.
     /// Returns null if the information is not present in the log.
     /// </summary>
-    public MSBuildInfo? ReadMSBuildInfo()
+    public MSBuildData? ReadMSBuildData()
     {
-        // MSBuildInfo is populated during GetOrLoadCompilerCalls, so ensure the data is loaded.
+        // MSBuildData is populated during GetOrLoadCompilerCalls, so ensure the data is loaded.
         GetOrLoadCompilerCalls();
-        return _msbuildInfo;
+        return _msbuildData;
     }
 
     /// <inheritdoc cref="ICompilerCallReader.HasAllGeneratedFileContent(CompilerCall)"/>

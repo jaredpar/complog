@@ -179,23 +179,23 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
-    public void ReadMSBuildInfo()
+    public void ReadMSBuildData()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
-        var info = reader.ReadMSBuildInfo();
-        Assert.NotNull(info);
-        Assert.NotNull(info.CommandLine);
-        Assert.False(string.IsNullOrWhiteSpace(info.CommandLine));
+        var data = reader.ReadMSBuildData();
+        Assert.NotNull(data);
+        Assert.NotNull(data.CommandLine);
+        Assert.False(string.IsNullOrWhiteSpace(data.CommandLine));
     }
 
     [Theory]
     [InlineData("MetadataVersion2.console.complog")]
-    public void ReadMSBuildInfoLegacy(string resourceName)
+    public void ReadMSBuildDataLegacy(string resourceName)
     {
         using var stream = ResourceLoader.GetResourceStream(resourceName);
         using var reader = CompilerLogReader.Create(stream);
-        // Older logs don't have MSBuild info
-        Assert.Null(reader.ReadMSBuildInfo());
+        // Older logs don't have MSBuild data
+        Assert.Null(reader.ReadMSBuildData());
     }
 
     [Fact]
