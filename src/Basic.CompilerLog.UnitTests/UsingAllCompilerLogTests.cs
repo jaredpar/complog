@@ -426,4 +426,24 @@ public sealed class UsingAllCompilerLogTests : TestBase
                 .WithSyntaxTreeOptionsProvider(null);
         }
     }
+
+    [Fact]
+    public async Task ReadMSBuildDataAllBinaryLogs()
+    {
+        await foreach (var logData in Fixture.GetAllLogData(TestOutputHelper))
+        {
+            if (logData.BinaryLogPath is not { } binaryLogPath)
+            {
+                continue;
+            }
+
+            using var reader = BinaryLogReader.Create(binaryLogPath);
+            var data = reader.ReadMSBuildData();
+            Assert.NotNull(data);
+            Assert.NotNull(data.ProcessPath);
+            Assert.NotNull(data.MSBuildPath);
+            Assert.NotNull(data.CommandLine);
+            Assert.NotNull(data.MSBuildVersion);
+        }
+    }
 }

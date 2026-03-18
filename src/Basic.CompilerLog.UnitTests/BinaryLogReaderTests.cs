@@ -239,8 +239,10 @@ public sealed class BinaryLogReaderTests : TestBase
         using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!);
         var data = reader.ReadMSBuildData();
         Assert.NotNull(data);
+        Assert.NotNull(data.ProcessPath);
+        Assert.NotNull(data.MSBuildPath);
         Assert.NotNull(data.CommandLine);
-        Assert.False(string.IsNullOrWhiteSpace(data.CommandLine));
+        Assert.NotNull(data.MSBuildVersion);
     }
 
     [Fact]

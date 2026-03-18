@@ -379,7 +379,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     public MSBuildData? ReadMSBuildData()
     {
         // MSBuildData is populated during GetOrLoadCompilerCalls, so ensure the data is loaded.
-        GetOrLoadCompilerCalls();
+        _ = GetOrLoadCompilerCalls();
         return _msbuildData;
     }
 
