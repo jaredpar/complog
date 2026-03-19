@@ -49,6 +49,13 @@ public sealed class LogReaderState : IDisposable
 
     public bool IsDisposed { get; private set;}
 
+    /// <summary>
+    /// When <see langword="true"/> (the default), ReadyToRun (R2R) analyzer assemblies that target
+    /// a different architecture than the current process are stripped to IL-only before use. Set to
+    /// <see langword="false"/> to disable stripping entirely and load assemblies as stored in the log.
+    /// </summary>
+    public bool StripReadyToRun { get; set; } = true;
+
     internal List<BasicAnalyzerHost> BasicAnalyzerHosts { get; } = new();
 
 #if NET

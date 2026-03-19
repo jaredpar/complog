@@ -21,6 +21,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 {
     private Stream _stream;
     private readonly bool _leaveOpen;
+    private readonly Dictionary<Guid, byte[]> _strippedAnalyzerCache = new();
 
     private readonly Dictionary<string, PortableExecutableReference> _metadataReferenceMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, AssemblyIdentityData> _assemblyIdentityDataMap = new(PathUtil.Comparer);
@@ -503,12 +504,27 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     public void CopyAssemblyBytes(AssemblyData data, Stream stream)
     {
-        using var fileStream = RoslynUtil.OpenBuildFileForRead(data.FilePath);
-        fileStream.CopyTo(stream);
+        var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAssemblyBytes(data);
+        stream.Write(bytes, 0, bytes.Length);
     }
 
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
-        File.ReadAllBytes(data.FilePath);
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data)
+    {
+        if (_strippedAnalyzerCache.TryGetValue(data.Mvid, out var cachedBytes))
+        {
+            return cachedBytes;
+        }
+
+        var bytes = File.ReadAllBytes(data.FilePath);
+        if (!LogReaderState.StripReadyToRun || !R2RUtil.NeedsStripping(bytes))
+        {
+            return bytes;
+        }
+
+        bytes = R2RUtil.StripReadyToRun(bytes);
+        _strippedAnalyzerCache[data.Mvid] = bytes;
+        return bytes;
+    }
 
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)
     {
