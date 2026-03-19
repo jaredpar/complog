@@ -57,26 +57,29 @@ internal static class R2RUtil
         new MetadataCopier(metadataReader, metadataBuilder, peReader, methodBodyEncoder, mappedFieldData, managedResources).CopyAll();
 
         var metadataRootBuilder = new MetadataRootBuilder(metadataBuilder);
+        var sourcePEHeader = peReader.PEHeaders.PEHeader!;
+        var sourceCoffHeader = peReader.PEHeaders.CoffHeader;
         var header = new PEHeaderBuilder(
+            // R2R images are architecture-specific; the stripped output must be IL-only (AnyCPU).
             machine: Machine.Unknown,
-            sectionAlignment: 8192,         // 0x2000: standard in-memory section alignment for CLI images (ECMA-335 §II.25.2.3.1)
-            fileAlignment: 512,             // 0x200:  standard on-disk file alignment for CLI images (ECMA-335 §II.25.2.3.1)
-            imageBase: 4194304uL,           // 0x400000: default PE image base address (ECMA-335 §II.25.2.3.2)
-            majorLinkerVersion: 48,         // 0x30: major linker version emitted by the Roslyn compiler for managed assemblies
-            minorLinkerVersion: 0,
-            majorOperatingSystemVersion: 4,
-            minorOperatingSystemVersion: 0,
-            majorImageVersion: 0,
-            minorImageVersion: 0,
-            majorSubsystemVersion: 4,
-            minorSubsystemVersion: 0,
-            subsystem: Subsystem.WindowsCui,
-            dllCharacteristics: DllCharacteristics.DynamicBase | DllCharacteristics.NxCompatible | DllCharacteristics.NoSeh | DllCharacteristics.TerminalServerAware,
-            imageCharacteristics: Characteristics.ExecutableImage | Characteristics.Dll,
-            sizeOfStackReserve: 1048576uL,  // 0x100000: 1 MB stack reservation (ECMA-335 §II.25.2.3.2 default)
-            sizeOfStackCommit: 4096uL,      // 0x1000:  4 KB initial committed stack (one memory page; ECMA-335 §II.25.2.3.2 default)
-            sizeOfHeapReserve: 1048576uL,   // 0x100000: 1 MB heap reservation (ECMA-335 §II.25.2.3.2 default)
-            sizeOfHeapCommit: 4096uL);      // 0x1000:  4 KB initial committed heap (one memory page; ECMA-335 §II.25.2.3.2 default)
+            sectionAlignment: sourcePEHeader.SectionAlignment,
+            fileAlignment: sourcePEHeader.FileAlignment,
+            imageBase: sourcePEHeader.ImageBase,
+            majorLinkerVersion: sourcePEHeader.MajorLinkerVersion,
+            minorLinkerVersion: sourcePEHeader.MinorLinkerVersion,
+            majorOperatingSystemVersion: sourcePEHeader.MajorOperatingSystemVersion,
+            minorOperatingSystemVersion: sourcePEHeader.MinorOperatingSystemVersion,
+            majorImageVersion: sourcePEHeader.MajorImageVersion,
+            minorImageVersion: sourcePEHeader.MinorImageVersion,
+            majorSubsystemVersion: sourcePEHeader.MajorSubsystemVersion,
+            minorSubsystemVersion: sourcePEHeader.MinorSubsystemVersion,
+            subsystem: sourcePEHeader.Subsystem,
+            dllCharacteristics: sourcePEHeader.DllCharacteristics,
+            imageCharacteristics: sourceCoffHeader.Characteristics,
+            sizeOfStackReserve: sourcePEHeader.SizeOfStackReserve,
+            sizeOfStackCommit: sourcePEHeader.SizeOfStackCommit,
+            sizeOfHeapReserve: sourcePEHeader.SizeOfHeapReserve,
+            sizeOfHeapCommit: sourcePEHeader.SizeOfHeapCommit);
 
         var entryPoint = default(MethodDefinitionHandle);
         var corHeader = peReader.PEHeaders.CorHeader;
