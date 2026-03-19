@@ -23,6 +23,12 @@ internal static class R2RUtil
         return IsReadyToRun(peReader);
     }
 
+    // ECMA-335 §II.25.3.3 defines the COR header ManagedNativeHeader field as: "Always 0 in managed
+    // PE files. Holds a RVA and size of native header data when a managed PE file is compiled to
+    // native by a compiler that targets native." The ReadyToRun format places its
+    // READYTORUN_HEADER structure at that RVA:
+    // https://github.com/dotnet/runtime/blob/main/docs/design/coreclr/botr/readytorun-format.md
+    // A non-zero RVA is therefore the authoritative signal that the image contains R2R native code.
     internal static bool IsReadyToRun(PEReader peReader) =>
         peReader.PEHeaders.CorHeader?.ManagedNativeHeaderDirectory.RelativeVirtualAddress != 0;
 
@@ -53,10 +59,10 @@ internal static class R2RUtil
         var metadataRootBuilder = new MetadataRootBuilder(metadataBuilder);
         var header = new PEHeaderBuilder(
             machine: Machine.Unknown,
-            sectionAlignment: 8192,
-            fileAlignment: 512,
-            imageBase: 4194304uL,
-            majorLinkerVersion: 48,
+            sectionAlignment: 8192,         // 0x2000: standard in-memory section alignment for CLI images (ECMA-335 §II.25.2.3.1)
+            fileAlignment: 512,             // 0x200:  standard on-disk file alignment for CLI images (ECMA-335 §II.25.2.3.1)
+            imageBase: 4194304uL,           // 0x400000: default PE image base address (ECMA-335 §II.25.2.3.2)
+            majorLinkerVersion: 48,         // 0x30: major linker version emitted by the Roslyn compiler for managed assemblies
             minorLinkerVersion: 0,
             majorOperatingSystemVersion: 4,
             minorOperatingSystemVersion: 0,
@@ -67,10 +73,10 @@ internal static class R2RUtil
             subsystem: Subsystem.WindowsCui,
             dllCharacteristics: DllCharacteristics.DynamicBase | DllCharacteristics.NxCompatible | DllCharacteristics.NoSeh | DllCharacteristics.TerminalServerAware,
             imageCharacteristics: Characteristics.ExecutableImage | Characteristics.Dll,
-            sizeOfStackReserve: 1048576uL,
-            sizeOfStackCommit: 4096uL,
-            sizeOfHeapReserve: 1048576uL,
-            sizeOfHeapCommit: 4096uL);
+            sizeOfStackReserve: 1048576uL,  // 0x100000: 1 MB stack reservation (ECMA-335 §II.25.2.3.2 default)
+            sizeOfStackCommit: 4096uL,      // 0x1000:  4 KB initial committed stack (one memory page; ECMA-335 §II.25.2.3.2 default)
+            sizeOfHeapReserve: 1048576uL,   // 0x100000: 1 MB heap reservation (ECMA-335 §II.25.2.3.2 default)
+            sizeOfHeapCommit: 4096uL);      // 0x1000:  4 KB initial committed heap (one memory page; ECMA-335 §II.25.2.3.2 default)
 
         var entryPoint = default(MethodDefinitionHandle);
         var corHeader = peReader.PEHeaders.CorHeader;
@@ -91,6 +97,9 @@ internal static class R2RUtil
             managedResources,
             nativeResources: null,
             debugDirectoryBuilder: null,
+            // 128 bytes = 1024 bits: the size of an RSA-1024 strong name signature, which is the
+            // standard key length used by the .NET toolchain. ManagedPEBuilder reserves a zeroed-out
+            // placeholder blob of this size in the output PE's strong name signature directory.
             strongNameSignatureSize: 128,
             entryPoint: entryPoint,
             flags: CorFlags.ILOnly,
