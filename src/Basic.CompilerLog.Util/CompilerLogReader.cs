@@ -45,12 +45,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoPackMap = new();
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
 
-    /// <summary>
-    /// Cache of analyzer assembly bytes that have been stripped of ReadyToRun native code.
-    /// Keyed by MVID. This avoids re-stripping the same assembly multiple times when multiple
-    /// compilations share the same analyzer.
-    /// </summary>
-    private readonly Dictionary<Guid, byte[]> _strippedAnalyzerCache = new();
+    private readonly AnalyzerByteCache _analyzerByteCache = new();
 
     /// <summary>
     /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
@@ -66,15 +61,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     public BasicAnalyzerKind BasicAnalyzerKind { get; }
     public LogReaderState LogReaderState { get; }
     internal Metadata Metadata { get; }
-
-    /// <summary>
-    /// When <see langword="true"/>, ReadyToRun (R2R) analyzer assemblies are always stripped to
-    /// IL-only, regardless of whether their machine type matches the current process architecture
-    /// and regardless of the value of <see cref="LogReaderState.StripReadyToRun"/>. This is primarily useful
-    /// for testing to ensure the IL stripping code path is exercised on the CI machine's native
-    /// platform.
-    /// </summary>
-    public bool ForceStripReadyToRun { get; set; }
 
     /// <summary>
     /// This is the default path normalization util that was created based on the log metadata. It cannot
@@ -1003,44 +989,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data)
-    {
-        var mvid = data.Mvid;
-        if (_strippedAnalyzerCache.TryGetValue(mvid, out var cachedBytes))
-        {
-            return cachedBytes;
-        }
-
-        var bytes = GetAssemblyBytes(mvid);
-
-        // ForceStripReadyToRun bypasses the StripReadyToRun setting and always strips any R2R assembly.
-        // This is used in tests to exercise the stripping path on the native platform.
-        // For the tri-state StripReadyToRun:
-        //   null (default): strip only when the R2R native code targets a different architecture
-        //   true: always strip R2R assemblies
-        //   false: never strip
-        bool needsStrip;
-        if (ForceStripReadyToRun)
-        {
-            needsStrip = R2RUtil.IsReadyToRun(bytes);
-        }
-        else
-        {
-            needsStrip = LogReaderState.StripReadyToRun switch
-            {
-                true => R2RUtil.IsReadyToRun(bytes),
-                false => false,
-                null => R2RUtil.NeedsStripping(bytes),
-            };
-        }
-
-        if (!needsStrip)
-        {
-            return bytes;
-        }
-
-        bytes = R2RUtil.StripReadyToRun(bytes);
-        _strippedAnalyzerCache[mvid] = bytes;
-        return bytes;
-    }
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
+        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => GetAssemblyBytes(data.Mvid));
 }

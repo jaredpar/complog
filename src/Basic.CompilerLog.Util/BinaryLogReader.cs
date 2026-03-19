@@ -21,7 +21,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 {
     private Stream _stream;
     private readonly bool _leaveOpen;
-    private readonly Dictionary<Guid, byte[]> _strippedAnalyzerCache = new();
+    private readonly AnalyzerByteCache _analyzerByteCache = new();
 
     private readonly Dictionary<string, PortableExecutableReference> _metadataReferenceMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, AssemblyIdentityData> _assemblyIdentityDataMap = new(PathUtil.Comparer);
@@ -508,29 +508,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data)
-    {
-        if (_strippedAnalyzerCache.TryGetValue(data.Mvid, out var cachedBytes))
-        {
-            return cachedBytes;
-        }
-
-        var bytes = File.ReadAllBytes(data.FilePath);
-        bool needsStrip = LogReaderState.StripReadyToRun switch
-        {
-            true => R2RUtil.IsReadyToRun(bytes),
-            false => false,
-            null => R2RUtil.NeedsStripping(bytes),
-        };
-        if (!needsStrip)
-        {
-            return bytes;
-        }
-
-        bytes = R2RUtil.StripReadyToRun(bytes);
-        _strippedAnalyzerCache[data.Mvid] = bytes;
-        return bytes;
-    }
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
+        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => File.ReadAllBytes(data.FilePath));
 
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)
     {
