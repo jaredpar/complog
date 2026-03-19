@@ -1013,14 +1013,26 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         var bytes = GetAssemblyBytes(mvid);
 
-        // ForceStripReadyToRun bypasses the architecture check and strips any R2R assembly,
-        // regardless of whether its machine type matches the current process. This is used in
-        // tests to exercise the stripping path on the native platform.
-        // When StripReadyToRun is true (the default), only strip assemblies whose R2R native
-        // code targets a different architecture — same-arch assemblies load fine as-is.
-        bool needsStrip = ForceStripReadyToRun
-            ? R2RUtil.IsReadyToRun(bytes)
-            : LogReaderState.StripReadyToRun && R2RUtil.NeedsStripping(bytes);
+        // ForceStripReadyToRun bypasses the StripReadyToRun setting and always strips any R2R assembly.
+        // This is used in tests to exercise the stripping path on the native platform.
+        // For the tri-state StripReadyToRun:
+        //   null (default): strip only when the R2R native code targets a different architecture
+        //   true: always strip R2R assemblies
+        //   false: never strip
+        bool needsStrip;
+        if (ForceStripReadyToRun)
+        {
+            needsStrip = R2RUtil.IsReadyToRun(bytes);
+        }
+        else
+        {
+            needsStrip = LogReaderState.StripReadyToRun switch
+            {
+                true => R2RUtil.IsReadyToRun(bytes),
+                false => false,
+                null => R2RUtil.NeedsStripping(bytes),
+            };
+        }
 
         if (!needsStrip)
         {

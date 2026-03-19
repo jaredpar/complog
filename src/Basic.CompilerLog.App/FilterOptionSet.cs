@@ -8,7 +8,7 @@ internal sealed class FilterOptionSet : OptionSet
     private string? _customCompilerFilePath;
     private bool _hasAnalyzerOptions;
     private BasicAnalyzerKind _basicAnalyzerKind;
-    private bool _stripReadyToRun = true;
+    private bool? _stripReadyToRun;
 
     internal List<string> TargetFrameworks { get; } = new();
     internal bool IncludeAllKinds { get; set; }
@@ -46,11 +46,11 @@ internal sealed class FilterOptionSet : OptionSet
     }
 
     /// <summary>
-    /// When <see langword="true"/> (the default), ReadyToRun (R2R) analyzer assemblies that target
-    /// a different architecture than the current process are stripped to IL-only. Set via
-    /// <c>--no-strip</c> to <see langword="false"/> to disable stripping entirely.
+    /// Controls stripping of ReadyToRun (R2R) native code from analyzer assemblies. See
+    /// <see cref="LogReaderState.StripReadyToRun"/> for the semantics of each value.
+    /// Configured via <c>--strip=auto|always|never</c>.
     /// </summary>
-    internal bool StripReadyToRun
+    internal bool? StripReadyToRun
     {
         get
         {
@@ -73,7 +73,13 @@ internal sealed class FilterOptionSet : OptionSet
             Add("a|analyzers=", "analyzer load strategy: none, ondisk, inmemory", void (BasicAnalyzerKind k) => _basicAnalyzerKind = k);
             Add("n|none", "Do not run analyzers", i => { if (i is not null) _basicAnalyzerKind = BasicAnalyzerKind.None; }, hidden: true);
             Add("c|compiler=", "path to compiler to use for replay", void (string c) => _customCompilerFilePath = c);
-            Add("no-strip", "do not strip ReadyToRun native code from analyzer assemblies", i => { if (i is not null) _stripReadyToRun = false; });
+            Add("strip=", "strip R2R native code from analyzers: auto (default), always, never", void (string s) => _stripReadyToRun = s.ToLowerInvariant() switch
+            {
+                "auto" => null,
+                "always" => true,
+                "never" => false,
+                _ => throw new OptionException($"Unknown strip value '{s}': expected auto, always, or never", "strip"),
+            });
         }
     }
 

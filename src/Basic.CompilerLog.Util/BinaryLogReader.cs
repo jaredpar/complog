@@ -516,7 +516,13 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         }
 
         var bytes = File.ReadAllBytes(data.FilePath);
-        if (!LogReaderState.StripReadyToRun || !R2RUtil.NeedsStripping(bytes))
+        bool needsStrip = LogReaderState.StripReadyToRun switch
+        {
+            true => R2RUtil.IsReadyToRun(bytes),
+            false => false,
+            null => R2RUtil.NeedsStripping(bytes),
+        };
+        if (!needsStrip)
         {
             return bytes;
         }
