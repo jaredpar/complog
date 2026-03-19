@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 
 namespace Basic.CompilerLog.Util;
 
@@ -31,6 +32,39 @@ internal static class R2RUtil
     // A non-zero RVA is therefore the authoritative signal that the image contains R2R native code.
     internal static bool IsReadyToRun(PEReader peReader) =>
         peReader.PEHeaders.CorHeader?.ManagedNativeHeaderDirectory.RelativeVirtualAddress != 0;
+
+    /// <summary>
+    /// Returns true if the assembly should be stripped to IL-only before use. Stripping is needed
+    /// only when the assembly contains R2R native code targeting a different architecture than the
+    /// current process: on the matching architecture the runtime can execute the native code directly,
+    /// while on a mismatched architecture the R2R sections are unusable and the assembly must be
+    /// reduced to IL-only so the JIT can handle it.
+    /// </summary>
+    internal static bool NeedsStripping(byte[] assemblyBytes)
+    {
+        using var stream = assemblyBytes.AsSimpleMemoryStream(writable: false);
+        using var peReader = new PEReader(stream);
+
+        if (!IsReadyToRun(peReader))
+        {
+            return false;
+        }
+
+        // Only strip when the R2R native code targets a different architecture. Same-arch assemblies
+        // load fine without stripping and should be left alone to preserve their strong-name identity.
+        var machine = peReader.PEHeaders.CoffHeader.Machine;
+        return !IsCurrentArchitecture(machine);
+    }
+
+    private static bool IsCurrentArchitecture(Machine machine) =>
+        RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => machine == Machine.Amd64,
+            Architecture.X86 => machine == Machine.I386,
+            Architecture.Arm64 => machine == Machine.Arm64,
+            Architecture.Arm => machine is Machine.Arm or Machine.ArmThumb2,
+            _ => false,
+        };
 
     /// <summary>
     /// Strips ReadyToRun native code from an assembly, producing an IL-only version with all
@@ -100,10 +134,10 @@ internal static class R2RUtil
             managedResources,
             nativeResources: null,
             debugDirectoryBuilder: null,
-            // 128 bytes = 1024 bits: the size of an RSA-1024 strong name signature, which is the
-            // standard key length used by the .NET toolchain. ManagedPEBuilder reserves a zeroed-out
-            // placeholder blob of this size in the output PE's strong name signature directory.
-            strongNameSignatureSize: 128,
+            // 0: the stripped output has no strong-name public key, so no signature placeholder
+            // is needed. Removing both the public key and the signature avoids strong-name
+            // verification failures when the assembly is loaded on .NET Framework.
+            strongNameSignatureSize: 0,
             entryPoint: entryPoint,
             flags: CorFlags.ILOnly,
             deterministicIdProvider: _ => new BlobContentId(Guid.NewGuid(), 0x04034B50));
@@ -234,15 +268,15 @@ file sealed class MetadataCopier(
     private void CopyAssembly()
     {
         var assembly = reader.GetAssemblyDefinition();
-        var publicKey = assembly.PublicKey.IsNil
-            ? default
-            : builder.GetOrAddBlob(reader.GetBlobBytes(assembly.PublicKey));
+        // Clear the public key so the stripped assembly is unsigned. Re-signing would require the
+        // original private key, which is not available here. Producing an unsigned output avoids
+        // strong-name verification failures when the stripped assembly is loaded on .NET Framework.
         builder.AddAssembly(
             builder.GetOrAddString(reader.GetString(assembly.Name)),
             assembly.Version,
             builder.GetOrAddString(reader.GetString(assembly.Culture)),
-            publicKey,
-            assembly.Flags,
+            default,
+            assembly.Flags & ~AssemblyFlags.PublicKey,
             assembly.HashAlgorithm);
     }
 

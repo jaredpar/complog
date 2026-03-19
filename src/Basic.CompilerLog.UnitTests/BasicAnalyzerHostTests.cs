@@ -115,15 +115,18 @@ public sealed class BasicAnalyzerHostTests : TestBase
     }
 
     /// <summary>
-    /// Verify that ReadyToRun analyzers stored in a compiler log are automatically stripped to
-    /// IL-only when retrieved through the <see cref="IBasicAnalyzerHostDataProvider"/> interface.
-    /// .NET 10+ SDK analyzers are ReadyToRun, so the Console fixture (built with .NET 10 SDK)
-    /// contains R2R analyzer assemblies.
+    /// Verify that ReadyToRun analyzers stored in a compiler log are stripped to IL-only when
+    /// <see cref="CompilerLogReader.ForceStripReadyToRun"/> is set. This exercises the stripping
+    /// code path unconditionally, regardless of whether the stored R2R native code matches the
+    /// current process architecture.
     /// </summary>
     [Fact]
     public void ReadyToRunAnalyzersAreStripped()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        // Force stripping so this test exercises the stripping path on every CI platform,
+        // including those whose architecture matches the R2R native code in the log.
+        reader.ForceStripReadyToRun = true;
         var analyzerDataList = reader.ReadAllAnalyzerData(0);
 
         // Find at least one R2R analyzer in the stored log bytes
@@ -145,6 +148,41 @@ public sealed class BasicAnalyzerHostTests : TestBase
             using var ms = new MemoryStream();
             provider.CopyAssemblyBytes(analyzerData.AssemblyData, ms);
             Assert.False(R2RUtil.IsReadyToRun(ms.ToArray()), $"{analyzerData.FileName} CopyAssemblyBytes should produce IL-only output");
+        }
+    }
+
+    /// <summary>
+    /// Verify that R2R analyzer assemblies whose machine type matches the current process
+    /// architecture are NOT automatically stripped. Same-arch assemblies execute natively and
+    /// must be left intact to preserve their strong-name identity and avoid unnecessary overhead.
+    /// </summary>
+    [Fact]
+    public void ReadyToRunNotStrippedOnSameArchitecture()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        var analyzerDataList = reader.ReadAllAnalyzerData(0);
+
+        // Find R2R assemblies that do NOT need stripping (i.e. same-arch as current process)
+        var sameArchR2rData = analyzerDataList
+            .Where(a =>
+            {
+                var bytes = reader.GetAssemblyBytes(a.Mvid);
+                return R2RUtil.IsReadyToRun(bytes) && !R2RUtil.NeedsStripping(bytes);
+            })
+            .ToList();
+
+        if (sameArchR2rData.Count == 0)
+        {
+            // No same-arch R2R assemblies present (e.g. running on a different architecture
+            // than the build machine). Nothing to verify.
+            return;
+        }
+
+        var provider = (IBasicAnalyzerHostDataProvider)reader;
+        foreach (var analyzerData in sameArchR2rData)
+        {
+            var bytes = provider.GetAssemblyBytes(analyzerData.AssemblyData);
+            Assert.True(R2RUtil.IsReadyToRun(bytes), $"{analyzerData.FileName} should not be stripped when architecture matches");
         }
     }
 
@@ -185,6 +223,8 @@ public sealed class BasicAnalyzerHostTests : TestBase
     public void ReadyToRunStrippedAnalyzerBytesAreCached()
     {
         using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        // Force stripping so the cache is exercised regardless of the current architecture.
+        reader.ForceStripReadyToRun = true;
         var analyzerDataList = reader.ReadAllAnalyzerData(0);
 
         var r2rData = analyzerDataList

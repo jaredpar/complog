@@ -575,6 +575,10 @@ public sealed class CompilerLogApp(
             }
 
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
+            if (reader is CompilerLogReader compilerLogReader)
+            {
+                compilerLogReader.StripReadyToRun = options.StripReadyToRun;
+            }
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allSucceeded = true;
 
@@ -661,6 +665,10 @@ public sealed class CompilerLogApp(
             WriteLine($"Outputting to {baseOutputPath}");
 
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
+            if (reader is CompilerLogReader compilerLogReaderGenerated)
+            {
+                compilerLogReaderGenerated.StripReadyToRun = options.StripReadyToRun;
+            }
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var succeeded = true;
 

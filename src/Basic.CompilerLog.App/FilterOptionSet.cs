@@ -8,6 +8,7 @@ internal sealed class FilterOptionSet : OptionSet
     private string? _customCompilerFilePath;
     private bool _hasAnalyzerOptions;
     private BasicAnalyzerKind _basicAnalyzerKind;
+    private bool _stripReadyToRun = true;
 
     internal List<string> TargetFrameworks { get; } = new();
     internal bool IncludeAllKinds { get; set; }
@@ -44,6 +45,20 @@ internal sealed class FilterOptionSet : OptionSet
         }
     }
 
+    /// <summary>
+    /// When <see langword="true"/> (the default), ReadyToRun (R2R) analyzer assemblies that target
+    /// a different architecture than the current process are stripped to IL-only. Set via
+    /// <c>--no-strip</c> to <see langword="false"/> to disable stripping entirely.
+    /// </summary>
+    internal bool StripReadyToRun
+    {
+        get
+        {
+            CheckHasAnalyzerOptions();
+            return _stripReadyToRun;
+        }
+    }
+
     internal FilterOptionSet(bool analyzers = false)
     {
         Add("all", "include all compilation kinds", i => { if (i is not null) IncludeAllKinds = true; });
@@ -58,6 +73,7 @@ internal sealed class FilterOptionSet : OptionSet
             Add("a|analyzers=", "analyzer load strategy: none, ondisk, inmemory", void (BasicAnalyzerKind k) => _basicAnalyzerKind = k);
             Add("n|none", "Do not run analyzers", i => { if (i is not null) _basicAnalyzerKind = BasicAnalyzerKind.None; }, hidden: true);
             Add("c|compiler=", "path to compiler to use for replay", void (string c) => _customCompilerFilePath = c);
+            Add("no-strip", "do not strip ReadyToRun native code from analyzer assemblies", i => { if (i is not null) _stripReadyToRun = false; });
         }
     }
 

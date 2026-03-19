@@ -69,11 +69,19 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     /// <summary>
     /// When <see langword="true"/>, ReadyToRun (R2R) analyzer assemblies are always stripped to
-    /// IL-only even on the platform that matches the R2R native code. This is primarily useful
+    /// IL-only, regardless of whether their machine type matches the current process architecture
+    /// and regardless of the value of <see cref="StripReadyToRun"/>. This is primarily useful
     /// for testing to ensure the IL stripping code path is exercised on the CI machine's native
     /// platform.
     /// </summary>
     public bool ForceStripReadyToRun { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/> (the default), ReadyToRun (R2R) analyzer assemblies that target
+    /// a different architecture than the current process are stripped to IL-only before use. Set to
+    /// <see langword="false"/> to disable stripping entirely and load assemblies as stored in the log.
+    /// </summary>
+    public bool StripReadyToRun { get; set; } = true;
 
     /// <summary>
     /// This is the default path normalization util that was created based on the log metadata. It cannot
@@ -1011,11 +1019,22 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
 
         var bytes = GetAssemblyBytes(mvid);
-        if (ForceStripReadyToRun || R2RUtil.IsReadyToRun(bytes))
+
+        // ForceStripReadyToRun bypasses the architecture check and strips any R2R assembly,
+        // regardless of whether its machine type matches the current process. This is used in
+        // tests to exercise the stripping path on the native platform.
+        // When StripReadyToRun is true (the default), only strip assemblies whose R2R native
+        // code targets a different architecture — same-arch assemblies load fine as-is.
+        bool needsStrip = ForceStripReadyToRun
+            ? R2RUtil.IsReadyToRun(bytes)
+            : StripReadyToRun && R2RUtil.NeedsStripping(bytes);
+
+        if (!needsStrip)
         {
-            bytes = R2RUtil.StripReadyToRun(bytes);
+            return bytes;
         }
 
+        bytes = R2RUtil.StripReadyToRun(bytes);
         _strippedAnalyzerCache[mvid] = bytes;
         return bytes;
     }
