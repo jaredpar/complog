@@ -23,18 +23,18 @@ internal sealed class AnalyzerByteCache
     ///   <item><description><see langword="false"/>: never strip.</description></item>
     /// </list>
     /// </param>
-    /// <param name="rawBytesFactory">
+    /// <param name="getBytesFunc">
     /// Invoked to read the raw assembly bytes from disk or from an archive entry. Only called
     /// when the result is not already in the cache.
     /// </param>
-    internal byte[] GetOrStrip(Guid mvid, bool? stripSetting, Func<byte[]> rawBytesFactory)
+    internal byte[] GetOrStrip(Guid mvid, bool? stripSetting, Func<byte[]> getBytesFunc)
     {
         if (_cache.TryGetValue(mvid, out var cachedBytes))
         {
             return cachedBytes;
         }
 
-        var rawBytes = rawBytesFactory();
+        var rawBytes = getBytesFunc();
         bool needsStrip = stripSetting switch
         {
             true => R2RUtil.IsReadyToRun(rawBytes),

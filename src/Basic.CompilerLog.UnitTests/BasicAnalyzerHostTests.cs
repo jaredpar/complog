@@ -13,7 +13,6 @@ using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit.Runner.Common;
 using Microsoft.CodeAnalysis;
-using System.Reflection.PortableExecutable;
 
 
 
@@ -126,4 +125,3 @@ public sealed class BasicAnalyzerHostTests : TestBase
     }
 #endif
 }
-

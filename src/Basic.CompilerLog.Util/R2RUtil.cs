@@ -134,9 +134,11 @@ internal static class R2RUtil
             managedResources,
             nativeResources: null,
             debugDirectoryBuilder: null,
-            // 0: the stripped output has no strong-name public key, so no signature placeholder
-            // is needed. Removing both the public key and the signature avoids strong-name
-            // verification failures when the assembly is loaded on .NET Framework.
+            // strongNameSignatureSize: 0 — we keep the original public key in the assembly
+            // definition above, but we cannot re-sign without the private key.  Setting this to 0
+            // omits the signature placeholder section from the PE entirely.  The .NET (Core)
+            // runtime does not enforce strong-name signature verification, so the assembly loads
+            // normally and its public-key identity (used for InternalsVisibleTo, etc.) is intact.
             strongNameSignatureSize: 0,
             entryPoint: entryPoint,
             flags: CorFlags.ILOnly,
@@ -268,15 +270,20 @@ file sealed class MetadataCopier(
     private void CopyAssembly()
     {
         var assembly = reader.GetAssemblyDefinition();
-        // Clear the public key so the stripped assembly is unsigned. Re-signing would require the
-        // original private key, which is not available here. Producing an unsigned output avoids
-        // strong-name verification failures when the stripped assembly is loaded on .NET Framework.
+        // Preserve the public key so the stripped assembly keeps its original identity.
+        // InternalsVisibleTo grants, type-equivalence checks, and assembly-identity comparisons
+        // all depend on the public key token.  On .NET (Core), strong-name verification is not
+        // enforced, so an assembly that carries a public key but has no valid signature loads
+        // without error.  Re-signing is impossible here because the private key is not available.
+        var publicKey = assembly.PublicKey.IsNil
+            ? default
+            : builder.GetOrAddBlob(reader.GetBlobBytes(assembly.PublicKey));
         builder.AddAssembly(
             builder.GetOrAddString(reader.GetString(assembly.Name)),
             assembly.Version,
             builder.GetOrAddString(reader.GetString(assembly.Culture)),
-            default,
-            assembly.Flags & ~AssemblyFlags.PublicKey,
+            publicKey,
+            assembly.Flags,
             assembly.HashAlgorithm);
     }
 
