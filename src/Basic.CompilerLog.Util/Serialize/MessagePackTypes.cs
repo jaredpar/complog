@@ -278,6 +278,22 @@ public class CompilationDataPack
 }
 
 /// <summary>
+/// This stores information about the MSBuild invocation that was used to generate the binary log.
+/// </summary>
+[MessagePackObject]
+public class MSBuildDataPack
+{
+    [Key(0)]
+    public string? ProcessPath { get; set; }
+    [Key(1)]
+    public string? MSBuildPath { get; set; }
+    [Key(2)]
+    public string? CommandLine { get; set; }
+    [Key(3)]
+    public string? MSBuildVersion { get; set; }
+}
+
+/// <summary>
 /// This stores information that is relevant to all compiler calls.
 /// </summary>
 [MessagePackObject]
@@ -287,4 +303,6 @@ public class LogInfoPack
     public List<(int CompilerCallIndex, bool IsRefAssembly, Guid Mvid)> CompilerCallMvidList { get; set; }
     [Key(1)]
     public Dictionary<Guid, (string FileName, string AssemblyName)> MvidToReferenceInfoMap { get; set; }
+    [Key(2)]
+    public MSBuildDataPack? MSBuildData { get; set; }
 }

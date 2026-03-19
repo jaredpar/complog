@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Web;
+using Basic.CompilerLog.Util.Serialize;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
@@ -141,11 +142,12 @@ public static class BinaryLogUtil
     }
 
     public static List<CompilerCall> ReadAllCompilerCalls(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
-        => ReadAllCompilerTaskData(stream, predicate, ownerState)
+        => ReadAllData(stream, predicate, ownerState)
+            .CompilerTaskDataList
             .Select(data => data.CompilerCall)
             .ToList();
 
-    internal static List<CompilerTaskData> ReadAllCompilerTaskData(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
+    internal static (List<CompilerTaskData> CompilerTaskDataList, MSBuildData? MSBuildData) ReadAllData(Stream stream, Func<CompilerCall, bool>? predicate = null, object? ownerState = null)
     {
         // https://github.com/KirillOsenkov/MSBuildStructuredLog/issues/752
         Microsoft.Build.Logging.StructuredLogger.Strings.Initialize();
@@ -157,8 +159,27 @@ public static class BinaryLogUtil
         var contextMap = new Dictionary<int, MSBuildProjectContextData>();
         var evaluationMap = new Dictionary<int, MSBuildProjectEvaluationData>();
 
+        string? processPath = null;
+        string? msbuildPath = null;
+        string? commandLine = null;
+        string? msbuildVersion = null;
+        // MSBuild info messages appear before any project events so we only need to check until
+        // the first project event has been seen.
+        var msbuildInfoComplete = false;
+
         foreach (var record in records)
         {
+            // Capture MSBuild invocation info from the early high-importance messages that appear
+            // before any project events begin.
+            if (!msbuildInfoComplete && record.Args is BuildMessageEventArgs { Importance: MessageImportance.High } bme)
+            {
+                var msg = bme.Message ?? "";
+                processPath ??= TryExtractValue(msg, "Process = ");
+                msbuildPath ??= TryExtractValue(msg, "MSBuild executable path = ");
+                commandLine ??= TryExtractValue(msg, "Command line arguments = ");
+                msbuildVersion ??= TryExtractValue(msg, "MSBuild version = ");
+            }
+
             if (record.Args is not { BuildEventContext: { } context })
             {
                 continue;
@@ -168,6 +189,7 @@ public static class BinaryLogUtil
             {
                 case ProjectStartedEventArgs { ProjectFile: not null } e:
                     {
+                        msbuildInfoComplete = true;
                         var contextData = GetOrCreateContextData(context, e.ProjectFile);
                         SetTargetFramework(ref contextData.TargetFramework, e.GlobalProperties);
                         SetTargetFramework(ref contextData.TargetFramework, e.Properties);
@@ -246,7 +268,27 @@ public static class BinaryLogUtil
             }
         }
 
-        return list;
+        var msbuildData = (processPath is null && msbuildPath is null && commandLine is null && msbuildVersion is null)
+            ? null
+            : new MSBuildData(processPath, msbuildPath, commandLine, msbuildVersion);
+
+        return (list, msbuildData);
+
+        static string? TryExtractValue(string message, string prefix)
+        {
+            if (!message.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var value = message.AsSpan(prefix.Length);
+            if (value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"')
+            {
+                return value.Slice(1, value.Length - 2).ToString();
+            }
+
+            return value.ToString();
+        }
 
         MSBuildProjectContextData GetOrCreateContextData(BuildEventContext context, string projecFile)
         {

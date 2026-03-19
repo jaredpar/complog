@@ -232,4 +232,25 @@ public sealed class BinaryLogReaderTests : TestBase
             Assert.Empty(compilationData.CreationDiagnostics);
         }
     }
+
+    [Fact]
+    public void ReadMSBuildData()
+    {
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!);
+        var data = reader.ReadMSBuildData();
+        Assert.NotNull(data);
+        Assert.NotNull(data.ProcessPath);
+        Assert.NotNull(data.MSBuildPath);
+        Assert.NotNull(data.CommandLine);
+        Assert.NotNull(data.MSBuildVersion);
+    }
+
+    [Fact]
+    public void ReadMSBuildDataCached()
+    {
+        using var reader = BinaryLogReader.Create(Fixture.Console.Value.BinaryLogPath!);
+        var data1 = reader.ReadMSBuildData();
+        var data2 = reader.ReadMSBuildData();
+        Assert.Same(data1, data2);
+    }
 }

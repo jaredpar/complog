@@ -44,6 +44,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<Guid, (string FileName, AssemblyName AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoPackMap = new();
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
+    private readonly MSBuildDataPack? _msbuildDataPack;
 
     /// <summary>
     /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
@@ -103,7 +104,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
         else
         {
-            ReadLogInfo();
+            _msbuildDataPack = ReadLogInfo();
         }
 
         void ReadAssemblyInfo()
@@ -118,7 +119,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             }
         }
 
-        void ReadLogInfo()
+        MSBuildDataPack? ReadLogInfo()
         {
             using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(LogInfoFileName), ContentEncoding, leaveOpen: false);
             var hash = reader.ReadLine();
@@ -131,6 +132,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             {
                 _mvidToCompilerCallIndexMap[tuple.Mvid] = tuple.CompilerCallIndex;
             }
+            return pack.MSBuildData;
         }
     }
 
@@ -321,6 +323,25 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             .OrderBy(x => x.Key, PathUtil.Comparer)
             .Select(x => new CompilerAssemblyData(x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
+    }
+
+    /// <summary>
+    /// Read the MSBuild invocation info that was captured when this compiler log was created.
+    /// Returns null if the information is not present (e.g., for logs created from an older version
+    /// or created without a binary log source).
+    /// </summary>
+    public MSBuildData? ReadMSBuildData()
+    {
+        if (_msbuildDataPack is null)
+        {
+            return null;
+        }
+
+        return new MSBuildData(
+            _msbuildDataPack.ProcessPath,
+            _msbuildDataPack.MSBuildPath,
+            _msbuildDataPack.CommandLine,
+            _msbuildDataPack.MSBuildVersion);
     }
 
     public IReadOnlyCollection<string> ReadRawArguments(CompilerCall compilerCall)

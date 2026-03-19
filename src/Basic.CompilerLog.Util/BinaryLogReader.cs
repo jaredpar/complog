@@ -28,6 +28,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     private readonly Dictionary<CompilerCall, string[]> _argumentsMap = new();
     private List<CompilerCall>? _compilerCalls;
     private readonly Lazy<Dictionary<Guid, int>> _lazyMvidToCompilerCallIndexMap;
+    private MSBuildData? _msbuildData;
 
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
@@ -101,7 +102,8 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
         _compilerCalls = new();
         _stream.Position = 0;
-        var list = BinaryLogUtil.ReadAllCompilerTaskData(_stream, ownerState: this);
+        var (list, msbuildData) = BinaryLogUtil.ReadAllData(_stream, ownerState: this);
+        _msbuildData = msbuildData;
 
         foreach (var compilerTaskData in list)
         {
@@ -368,6 +370,17 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
             .OrderBy(x => x.Key, PathUtil.Comparer)
             .Select(x => new CompilerAssemblyData(x.Key, x.Value.Item1, x.Value.Item2))
             .ToList();
+    }
+
+    /// <summary>
+    /// Read the MSBuild invocation info from the binary log.
+    /// Returns null if the information is not present in the log.
+    /// </summary>
+    public MSBuildData? ReadMSBuildData()
+    {
+        // MSBuildData is populated during GetOrLoadCompilerCalls, so ensure the data is loaded.
+        _ = GetOrLoadCompilerCalls();
+        return _msbuildData;
     }
 
     /// <inheritdoc cref="ICompilerCallReader.HasAllGeneratedFileContent(CompilerCall)"/>
