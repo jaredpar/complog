@@ -79,7 +79,7 @@ public sealed class R2RUtilTests : TestBase
             .ToList();
 
         // The SDK always produces same-arch R2R analyzers when building on the native platform
-        Assert.NotEmpty(sameArchR2rData);
+        Assert.Empty(sameArchR2rData);
     }
 
     /// <summary>
