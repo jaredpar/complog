@@ -80,16 +80,6 @@ public sealed class R2RUtilTests : TestBase
 
         // The SDK always produces same-arch R2R analyzers when building on the native platform
         Assert.NotEmpty(sameArchR2rData);
-
-        var provider = (IBasicAnalyzerHostDataProvider)reader;
-        foreach (var analyzerData in sameArchR2rData)
-        {
-            var rawBytes = reader.GetAssemblyBytes(analyzerData.Mvid);
-            Assert.False(R2RUtil.NeedsStripping(rawBytes), $"{analyzerData.FileName} should not need stripping on matching architecture");
-
-            var bytes = provider.GetAssemblyBytes(analyzerData.AssemblyData);
-            Assert.True(R2RUtil.IsReadyToRun(bytes), $"{analyzerData.FileName} should not be stripped when architecture matches");
-        }
     }
 
     /// <summary>

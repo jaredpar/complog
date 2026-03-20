@@ -44,7 +44,9 @@ internal sealed class AnalyzerByteCache
 
         if (!needsStrip)
         {
-            _cache[mvid] = rawBytes;
+            // Do not cache non-stripped bytes: the IL and R2R versions of the same DLL share the
+            // same MVID. Caching the first result would make subsequent lookups return whichever
+            // version (R2R or IL) happened to arrive first, causing non-deterministic behavior.
             return rawBytes;
         }
 
