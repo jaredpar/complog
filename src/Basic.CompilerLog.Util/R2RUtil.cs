@@ -59,12 +59,31 @@ internal static class R2RUtil
     private static bool IsCurrentArchitecture(Machine machine) =>
         RuntimeInformation.ProcessArchitecture switch
         {
-            Architecture.X64 => machine == Machine.Amd64,
+            Architecture.X64 => machine == Machine.Amd64 || IsCurrentOsNativeR2R(machine),
             Architecture.X86 => machine == Machine.I386,
-            Architecture.Arm64 => machine == Machine.Arm64,
+            Architecture.Arm64 => machine == Machine.Arm64 || IsCurrentOsNativeR2R(machine),
             Architecture.Arm => machine is Machine.Arm or Machine.ArmThumb2,
             _ => false,
         };
+
+    // On non-Windows platforms, crossgen2 writes an OS-specific sentinel into the COFF Machine
+    // field rather than a standard CPU-architecture identifier. For example, on Linux every R2R
+    // image—whether x64 or ARM64—carries 0xFD1D (IMAGE_FILE_MACHINE_NATIVE_OS_OVERRIDE for
+    // Linux). Because the value encodes only the target OS and not the CPU architecture, the
+    // only reliable inference is: "this image was built for this OS, so it was built for this
+    // host's CPU architecture." That inference is safe in practice because the .NET SDK always
+    // produces R2R code for the current host platform.
+    private static bool IsCurrentOsNativeR2R(Machine machine)
+    {
+        var m = (ushort)machine;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return m == 0xFD1D;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            return m == 0x4644;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Create("FREEBSD")))
+            return m == 0xADC4;
+        return false;
+    }
 
     /// <summary>
     /// Strips ReadyToRun native code from an assembly, producing an IL-only version with all
