@@ -70,6 +70,7 @@ Solution file: `Basic.CompilerLog.slnx`
 - Use `is null` / `is not null` instead of `== null` / `!= null`
 - No `#region` directives
 - Comments explain **why**, not **what**
+- Use XML documentation comments (`/// <summary>`) on all methods and types; plain `//` comments on the line immediately before a declaration are not acceptable
 - Nested types should be grouped at the top of the type
 
 ### Naming (enforced via .editorconfig)

@@ -24,12 +24,13 @@ internal static class R2RUtil
         return IsReadyToRun(peReader);
     }
 
-    // ECMA-335 §II.25.3.3 defines the COR header ManagedNativeHeader field as: "Always 0 in managed
-    // PE files. Holds a RVA and size of native header data when a managed PE file is compiled to
-    // native by a compiler that targets native." The ReadyToRun format places its
-    // READYTORUN_HEADER structure at that RVA:
-    // https://github.com/dotnet/runtime/blob/main/docs/design/coreclr/botr/readytorun-format.md
-    // A non-zero RVA is therefore the authoritative signal that the image contains R2R native code.
+    /// <summary>
+    /// Returns true if the provided <see cref="PEReader"/> represents a ReadyToRun image.
+    /// ECMA-335 §II.25.3.3 defines the COR header ManagedNativeHeader field as zero for all
+    /// managed PE files; the ReadyToRun format places its READYTORUN_HEADER structure at that RVA
+    /// (<see href="https://github.com/dotnet/runtime/blob/main/docs/design/coreclr/botr/readytorun-format.md"/>).
+    /// A non-zero RVA is therefore the authoritative signal that the image contains R2R native code.
+    /// </summary>
     internal static bool IsReadyToRun(PEReader peReader) =>
         peReader.PEHeaders.CorHeader?.ManagedNativeHeaderDirectory.RelativeVirtualAddress != 0;
 
@@ -66,13 +67,14 @@ internal static class R2RUtil
             _ => false,
         };
 
-    // On non-Windows platforms, crossgen2 writes an OS-specific sentinel into the COFF Machine
-    // field rather than a standard CPU-architecture identifier. For example, on Linux every R2R
-    // image—whether x64 or ARM64—carries 0xFD1D (IMAGE_FILE_MACHINE_NATIVE_OS_OVERRIDE for
-    // Linux). Because the value encodes only the target OS and not the CPU architecture, the
-    // only reliable inference is: "this image was built for this OS, so it was built for this
-    // host's CPU architecture." That inference is safe in practice because the .NET SDK always
-    // produces R2R code for the current host platform.
+    /// <summary>
+    /// Returns true when <paramref name="machine"/> matches the sentinel value that crossgen2 writes
+    /// into the COFF Machine field for the current OS on non-Windows platforms. On Linux every R2R
+    /// image carries <c>0xFD1D</c>, on macOS <c>0x4644</c>, and on FreeBSD <c>0xADC4</c>, regardless
+    /// of CPU architecture. Because the value encodes only the target OS, the only safe inference is
+    /// that the image was built for this host's CPU architecture—an assumption that holds because the
+    /// .NET SDK always produces R2R code for the current host platform.
+    /// </summary>
     private static bool IsCurrentOsNativeR2R(Machine machine)
     {
         var m = (ushort)machine;
