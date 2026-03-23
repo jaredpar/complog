@@ -1,7 +1,9 @@
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
+using System.Reflection;
 using System.Reflection.PortableExecutable;
+using System.Threading;
 using Xunit;
 
 #if NET
@@ -115,7 +117,7 @@ public sealed class R2RUtilTests : TestBase
 #endif
 
     /// <summary>
-    /// Verify that the stripped analyzer byte cache is populated when bytes are retrieved,
+    /// Verifies that the stripped analyzer byte cache is populated when bytes are retrieved,
     /// and that subsequent calls return the cached (already-stripped) result.
     /// </summary>
     [Fact]
