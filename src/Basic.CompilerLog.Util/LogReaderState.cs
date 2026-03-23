@@ -49,6 +49,17 @@ public sealed class LogReaderState : IDisposable
 
     public bool IsDisposed { get; private set;}
 
+    /// <summary>
+    /// Controls whether ReadyToRun (R2R) native code is stripped from analyzer assemblies before use.
+    /// <list type="bullet">
+    ///   <item><description><see langword="null"/> (default): strip only when the assembly targets a
+    ///     different architecture than the current process.</description></item>
+    ///   <item><description><see langword="true"/>: always strip R2R native code.</description></item>
+    ///   <item><description><see langword="false"/>: never strip; load assemblies as stored in the log.</description></item>
+    /// </list>
+    /// </summary>
+    public bool? StripReadyToRun { get; set; }
+
     internal List<BasicAnalyzerHost> BasicAnalyzerHosts { get; } = new();
 
 #if NET
@@ -63,8 +74,9 @@ public sealed class LogReaderState : IDisposable
     /// <param name="compilerLoadContext">The <see cref="AssemblyLoadContext"/> that should be used to load
     /// <param name="cacheAnalyzers">Should analyzers be cached</param>
     /// analyzers</param>
-    public LogReaderState(AssemblyLoadContext? compilerLoadContext, string? baseDir = null, bool cacheAnalyzers = true)
-        : this(baseDir)
+    /// <param name="stripReadyToRun">See <see cref="StripReadyToRun"/></param>
+    public LogReaderState(AssemblyLoadContext? compilerLoadContext, string? baseDir = null, bool cacheAnalyzers = true, bool? stripReadyToRun = null)
+        : this(baseDir, cacheAnalyzers, stripReadyToRun)
     {
         CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(compilerLoadContext);
     }
@@ -77,11 +89,13 @@ public sealed class LogReaderState : IDisposable
     /// <param name="baseDir">The base path that should be used to create <see cref="CryptoKeyFileDirectory"/>
     /// and <see cref="AnalyzerDirectory"/> paths</param>
     /// <param name="cacheAnalyzers">Should analyzers be cached</param>
-    public LogReaderState(string? baseDir = null, bool cacheAnalyzers = true)
+    /// <param name="stripReadyToRun">See <see cref="StripReadyToRun"/></param>
+    public LogReaderState(string? baseDir = null, bool cacheAnalyzers = true, bool? stripReadyToRun = null)
     {
         BaseDirectory = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
         CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");
         AnalyzerDirectory = Path.Combine(BaseDirectory, "Analyzers");
+        StripReadyToRun = stripReadyToRun;
 #if NET
         CompilerLoadContext = CommonUtil.GetAssemblyLoadContext(null);
 #endif

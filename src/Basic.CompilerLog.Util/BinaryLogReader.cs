@@ -21,6 +21,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 {
     private Stream _stream;
     private readonly bool _leaveOpen;
+    private readonly AnalyzerByteCache _analyzerByteCache = new();
 
     private readonly Dictionary<string, PortableExecutableReference> _metadataReferenceMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, AssemblyIdentityData> _assemblyIdentityDataMap = new(PathUtil.Comparer);
@@ -516,12 +517,12 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     public void CopyAssemblyBytes(AssemblyData data, Stream stream)
     {
-        using var fileStream = RoslynUtil.OpenBuildFileForRead(data.FilePath);
-        fileStream.CopyTo(stream);
+        var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAssemblyBytes(data);
+        stream.Write(bytes, 0, bytes.Length);
     }
 
     byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
-        File.ReadAllBytes(data.FilePath);
+        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => File.ReadAllBytes(data.FilePath));
 
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)
     {

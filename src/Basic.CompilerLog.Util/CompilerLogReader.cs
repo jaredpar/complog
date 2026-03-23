@@ -46,6 +46,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
     private readonly MSBuildDataPack? _msbuildDataPack;
 
+    private readonly AnalyzerByteCache _analyzerByteCache = new();
+
     /// <summary>
     /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
     /// produced it. This is useful for building up items like a project reference map.
@@ -1002,6 +1004,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
     }
 
-    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(AssemblyData data, Stream stream) => CopyAssemblyBytes(data.Mvid, stream);
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) => GetAssemblyBytes(data.Mvid);
+    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(AssemblyData data, Stream stream)
+    {
+        var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAssemblyBytes(data);
+        stream.Write(bytes, 0, bytes.Length);
+    }
+
+    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
+        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => GetAssemblyBytes(data.Mvid));
 }
