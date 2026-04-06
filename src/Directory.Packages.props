@@ -11,7 +11,7 @@
     <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.4" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
-    <PackageVersion Include="coverlet.msbuild" Version="6.0.4" />
+    <PackageVersion Include="coverlet.msbuild" Version="8.0.1" />
     <PackageVersion Include="MessagePack" Version="3.1.4" />
     <PackageVersion Include="Microsoft.Bcl.Memory" Version="$(_RuntimeVersion)" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0">
@@ -25,7 +25,7 @@
     <PackageVersion Include="Microsoft.NET.Test.SDK" Version="18.3.0" />
     <PackageVersion Include="Microsoft.VisualStudio.Setup.Configuration.Interop" Version="3.14.2075" />
     <PackageVersion Include="Mono.Options" Version="6.12.0.148" />
-    <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.113" />
+    <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.154" />
     <PackageVersion Include="NuGet.Versioning" Version="6.14.0" />
     <PackageVersion Include="System.Buffers" Version="4.6.1" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
