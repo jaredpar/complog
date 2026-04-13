@@ -668,7 +668,8 @@ public sealed class RoslynUtilTests
         var result = RoslynUtil.TryGetCompilerInvocation(dirWithSpaces, isCSharp, out var invocation);
         Assert.True(result);
         Assert.NotNull(invocation);
-        Assert.Contains("\"", invocation);
-        Assert.Contains(dllName, invocation);
+
+        var expectedDllPath = Path.Combine(dirWithSpaces, dllName);
+        Assert.Equal($@"dotnet exec ""{expectedDllPath}""", invocation);
     }
 }
