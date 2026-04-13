@@ -1154,7 +1154,7 @@ public static class RoslynUtil
         var dllPath = Path.Combine(compilerDirectory, dllName);
         if (File.Exists(dllPath))
         {
-            invocation = $@"dotnet exec ""{MaybeQuote(dllPath)}""";
+            invocation = $@"dotnet exec ""{dllPath}""";
             return true;
         }
 
