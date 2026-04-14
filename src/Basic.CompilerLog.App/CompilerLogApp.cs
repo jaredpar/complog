@@ -165,10 +165,12 @@ public sealed class CompilerLogApp(
     {
         var includeTypes = false;
         var includePath = false;
+        bool? stripReadyToRun = null;
         var options = new FilterOptionSet()
         {
             { "t|types", "include type names", o => includeTypes = o is not null },
             { "path", "include analyzer file path", o => includePath = o is not null },
+            { "strip=", "strip R2R native code from analyzers: auto (default), always, never", void (string s) => stripReadyToRun = FilterOptionSet.ParseStripReadyToRun(s) },
         };
 
         try
@@ -180,7 +182,7 @@ public sealed class CompilerLogApp(
                 return ExitSuccess;
             }
 
-            using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
+            using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None, state: new(stripReadyToRun: stripReadyToRun));
             var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
             foreach (var compilerCall in compilerCalls)
             {

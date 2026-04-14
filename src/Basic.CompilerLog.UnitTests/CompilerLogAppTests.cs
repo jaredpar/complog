@@ -199,6 +199,24 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     }
 
     /// <summary>
+    /// The <c>--strip</c> option is defined in both <c>analyzers</c> and <c>replay</c> commands
+    /// independently. Verify the help text stays in sync.
+    /// </summary>
+    [Fact]
+    public void AnalyzersStripHelpMatchesReplay()
+    {
+        var (_, analyzersHelp) = RunCompLogEx("analyzers -h");
+        var (_, replayHelp) = RunCompLogEx("replay -h");
+
+        var stripLine = (string output) => output
+            .Split('\n')
+            .Select(l => l.Trim())
+            .First(l => l.StartsWith("--strip"));
+
+        Assert.Equal(stripLine(analyzersHelp), stripLine(replayHelp));
+    }
+
+    /// <summary>
     /// The analyzers can still be listed if the project file is deleted as long as the
     /// analyzers are still on disk
     /// </summary>
