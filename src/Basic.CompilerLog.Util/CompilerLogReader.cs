@@ -955,6 +955,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     public void CopyAssemblyBytes(AssemblyData assemblyData, Stream destination) =>
         CopyAssemblyBytes(assemblyData.Mvid, destination);
 
+    public void CopyAnalyzerBytes(AnalyzerData analyzerData, Stream destination) =>
+        ((IBasicAnalyzerHostDataProvider)this).CopyAnalyzerBytes(analyzerData, destination);
+
     internal void CopyAssemblyBytes(Guid mvid, Stream destination)
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
@@ -983,12 +986,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
     }
 
-    void IBasicAnalyzerHostDataProvider.CopyAnalyzerBytes(AssemblyData data, Stream stream)
+    void IBasicAnalyzerHostDataProvider.CopyAnalyzerBytes(AnalyzerData data, Stream stream)
     {
         var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAnalyzerBytes(data);
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AssemblyData data) =>
+    byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AnalyzerData data) =>
         _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => GetAssemblyBytes(data.Mvid));
 }

@@ -46,7 +46,7 @@ internal sealed class BasicAnalyzerHostOnDisk : BasicAnalyzerHost, IAnalyzerAsse
         {
             var path = Path.Combine(Loader.LoaderDirectory, data.FileName);
             using var fileStream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-            provider.CopyAnalyzerBytes(data.AssemblyData, fileStream);
+            provider.CopyAnalyzerBytes(data, fileStream);
             fileStream.Dispose();
 
             builder.Add(new AnalyzerFileReference(path, this));

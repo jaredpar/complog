@@ -132,7 +132,7 @@ public static class Extensions
         };
 
         var stream = new MemoryStream();
-        compilerCallReader.CopyAssemblyBytes(analyzerData.AssemblyData, stream);
+        compilerCallReader.CopyAnalyzerBytes(analyzerData, stream);
         stream.Position = 0;
         using var peReader = new PEReader(stream);
         var metadataReader = peReader.GetMetadataReader();

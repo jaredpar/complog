@@ -6,8 +6,8 @@ namespace Basic.CompilerLog.Util;
 internal interface IBasicAnalyzerHostDataProvider
 {
     public LogReaderState LogReaderState { get; }
-    public void CopyAnalyzerBytes(AssemblyData data, Stream stream);
-    public byte[] GetAnalyzerBytes(AssemblyData data);
+    public void CopyAnalyzerBytes(AnalyzerData data, Stream stream);
+    public byte[] GetAnalyzerBytes(AnalyzerData data);
 
     /// <inheritdoc cref="ICompilerCallReader.ReadAllAnalyzerData(CompilerCall)"/>
     public List<AnalyzerData> ReadAllAnalyzerData(CompilerCall compilerCall);

@@ -50,12 +50,12 @@ public sealed class R2RUtilTests : TestBase
         var provider = (IBasicAnalyzerHostDataProvider)reader;
         foreach (var analyzerData in r2rData)
         {
-            var strippedBytes = provider.GetAnalyzerBytes(analyzerData.AssemblyData);
+            var strippedBytes = provider.GetAnalyzerBytes(analyzerData);
             Assert.False(R2RUtil.IsReadyToRun(strippedBytes), $"{analyzerData.FileName} should be IL-only after stripping");
 
             // Verify that the CopyAnalyzerBytes path also produces stripped bytes
             using var ms = new MemoryStream();
-            provider.CopyAnalyzerBytes(analyzerData.AssemblyData, ms);
+            provider.CopyAnalyzerBytes(analyzerData, ms);
             Assert.False(R2RUtil.IsReadyToRun(ms.ToArray()), $"{analyzerData.FileName} CopyAnalyzerBytes should produce IL-only output");
         }
     }
@@ -139,8 +139,8 @@ public sealed class R2RUtilTests : TestBase
         var provider = (IBasicAnalyzerHostDataProvider)reader;
         var analyzerData = r2rData[0];
 
-        var bytes1 = provider.GetAnalyzerBytes(analyzerData.AssemblyData);
-        var bytes2 = provider.GetAnalyzerBytes(analyzerData.AssemblyData);
+        var bytes1 = provider.GetAnalyzerBytes(analyzerData);
+        var bytes2 = provider.GetAnalyzerBytes(analyzerData);
 
         // Same reference should be returned from the cache
         Assert.Same(bytes1, bytes2);

@@ -508,13 +508,16 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    void IBasicAnalyzerHostDataProvider.CopyAnalyzerBytes(AssemblyData data, Stream stream)
+    public void CopyAnalyzerBytes(AnalyzerData data, Stream stream) =>
+        ((IBasicAnalyzerHostDataProvider)this).CopyAnalyzerBytes(data, stream);
+
+    void IBasicAnalyzerHostDataProvider.CopyAnalyzerBytes(AnalyzerData data, Stream stream)
     {
         var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAnalyzerBytes(data);
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AssemblyData data) =>
+    byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AnalyzerData data) =>
         _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => File.ReadAllBytes(data.FilePath));
 
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)

@@ -322,7 +322,7 @@ public sealed class CompilerLogApp(
                 foreach (var data in reader.ReadAllReferenceData(compilerCall))
                 {
                     var filePath = Path.Combine(refDirPath, data.FileName);
-                    WriteTo(data.AssemblyData, filePath);
+                    WithStream(filePath, stream => reader.CopyAssemblyBytes(data.AssemblyData, stream));
                 }
 
                 var analyzerDirPath = Path.Combine(baseOutputPath, name, "analyzers");
@@ -331,7 +331,7 @@ public sealed class CompilerLogApp(
                 {
                     var groupDir = GetGroupDirectoryPath();
                     var filePath = Path.Combine(groupDir, data.FileName);
-                    WriteTo(data.AssemblyData, filePath);
+                    WithStream(filePath, stream => reader.CopyAnalyzerBytes(data, stream));
 
                     string GetGroupDirectoryPath()
                     {
@@ -356,10 +356,10 @@ public sealed class CompilerLogApp(
                     }
                 }
 
-                void WriteTo(AssemblyData referenceData, string filePath)
+                void WithStream(string filePath, Action<Stream> action)
                 {
                     using var stream = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
-                    reader.CopyAssemblyBytes(referenceData, stream);
+                    action(stream);
                 }
             }
 
