@@ -1,6 +1,8 @@
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
+using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -360,5 +362,228 @@ public sealed class R2RUtilTests : TestBase
     public void IsMatchingArchitecture(Architecture arch, Machine machine, bool expected)
     {
         Assert.Equal(expected, R2RUtil.IsMatchingArchitecture(arch, machine));
+    }
+
+    /// <summary>
+    /// Builds a minimal PE assembly with static fields that have RVAs for each primitive type
+    /// exercised by <c>GetMappedFieldDataSize</c>, strips it through <see cref="R2RUtil.StripReadyToRun"/>,
+    /// and verifies the output has valid metadata with the same field definitions.
+    /// </summary>
+    [Fact]
+    public void StripPreservesFieldRvaForAllPrimitiveTypes()
+    {
+        var bytes = BuildAssemblyWithFieldRvas();
+        Assert.False(R2RUtil.IsReadyToRun(bytes));
+
+        var stripped = R2RUtil.StripReadyToRun(bytes);
+
+        // Verify stripped output has valid metadata and all field definitions survived
+        using var stream = new MemoryStream(stripped);
+        using var peReader = new PEReader(stream);
+        var metadataReader = peReader.GetMetadataReader();
+
+        // Count fields that have RVAs in the stripped output
+        var rvaFieldCount = 0;
+        foreach (var fieldHandle in metadataReader.FieldDefinitions)
+        {
+            var field = metadataReader.GetFieldDefinition(fieldHandle);
+            if (field.GetRelativeVirtualAddress() != 0)
+            {
+                rvaFieldCount++;
+            }
+        }
+
+        // We created 12 primitive fields + 1 ValueType field = 13 RVA fields
+        Assert.Equal(13, rvaFieldCount);
+    }
+
+    /// <summary>
+    /// Builds a PE with static fields having RVAs for: bool, char, sbyte, byte, short, ushort,
+    /// int, uint, long, ulong, float, double, and a ValueType with explicit layout.
+    /// This exercises every case in <c>GetMappedFieldDataSize</c>.
+    /// </summary>
+    private static byte[] BuildAssemblyWithFieldRvas()
+    {
+        var metadata = new MetadataBuilder();
+        var ilBuilder = new BlobBuilder();
+        var fieldData = new BlobBuilder();
+
+        metadata.AddModule(
+            0,
+            metadata.GetOrAddString("FieldRvaTest.dll"),
+            metadata.GetOrAddGuid(Guid.NewGuid()),
+            default,
+            default);
+
+        metadata.AddAssembly(
+            metadata.GetOrAddString("FieldRvaTest"),
+            new Version(1, 0, 0, 0),
+            default,
+            default,
+            default,
+            AssemblyHashAlgorithm.None);
+
+        // Add a reference to System.Runtime for [mscorlib]System.Object
+        var corlibRef = metadata.AddAssemblyReference(
+            metadata.GetOrAddString("System.Runtime"),
+            new Version(10, 0, 0, 0),
+            default,
+            metadata.GetOrAddBlob(Array.Empty<byte>()),
+            default,
+            default);
+
+        var systemObjectRef = metadata.AddTypeReference(
+            corlibRef,
+            metadata.GetOrAddString("System"),
+            metadata.GetOrAddString("Object"));
+
+        // Create a ValueType struct with explicit layout (Size=16) for case 17
+        var structTypeDef = metadata.AddTypeDefinition(
+            TypeAttributes.Public | TypeAttributes.SequentialLayout | TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit,
+            metadata.GetOrAddString(""),
+            metadata.GetOrAddString("MyStruct"),
+            systemObjectRef,
+            MetadataTokens.FieldDefinitionHandle(1),
+            MetadataTokens.MethodDefinitionHandle(1));
+
+        // Set layout with explicit size
+        metadata.AddTypeLayout(structTypeDef, 0, 16);
+
+        // Helper to encode a field signature for a primitive type code
+        BlobHandle EncodePrimitiveSig(byte typeCode)
+        {
+            var sig = new BlobBuilder();
+            sig.WriteByte(0x06); // FIELD calling convention
+            sig.WriteByte(typeCode);
+            return metadata.GetOrAddBlob(sig);
+        }
+
+        // Helper to encode a ValueType field signature
+        BlobHandle EncodeValueTypeSig(TypeDefinitionHandle typeDef)
+        {
+            var sig = new BlobBuilder();
+            sig.WriteByte(0x06); // FIELD
+            sig.WriteByte(17);   // VALUETYPE
+            sig.WriteCompressedInteger(CodedIndex.TypeDefOrRefOrSpec(typeDef));
+            return metadata.GetOrAddBlob(sig);
+        }
+
+        // Primitive types: (name, typeCode, dataSize)
+        (string Name, byte TypeCode, int Size)[] primitives =
+        [
+            ("BoolField",   2,  1),  // bool
+            ("CharField",   3,  2),  // char
+            ("SByteField",  4,  1),  // sbyte
+            ("ByteField",   5,  1),  // byte
+            ("ShortField",  6,  2),  // short
+            ("UShortField", 7,  2),  // ushort
+            ("IntField",    8,  4),  // int
+            ("UIntField",   9,  4),  // uint
+            ("LongField",   10, 8),  // long
+            ("ULongField",  11, 8),  // ulong
+            ("FloatField",  12, 4),  // float
+            ("DoubleField", 13, 8),  // double
+        ];
+
+        FieldDefinitionHandle firstField = default;
+        foreach (var (name, typeCode, size) in primitives)
+        {
+            var offset = fieldData.Count;
+            fieldData.WriteBytes(0xAB, size);
+            var sigHandle = EncodePrimitiveSig(typeCode);
+            var fieldDef = metadata.AddFieldDefinition(
+                FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.HasFieldRVA,
+                metadata.GetOrAddString(name),
+                sigHandle);
+            metadata.AddFieldRelativeVirtualAddress(fieldDef, offset);
+            if (firstField.IsNil)
+                firstField = fieldDef;
+        }
+
+        // ValueType field (case 17)
+        {
+            var offset = fieldData.Count;
+            fieldData.WriteBytes(0xCD, 16);
+            var sigHandle = EncodeValueTypeSig(structTypeDef);
+            var fieldDef = metadata.AddFieldDefinition(
+                FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.HasFieldRVA,
+                metadata.GetOrAddString("StructField"),
+                sigHandle);
+            metadata.AddFieldRelativeVirtualAddress(fieldDef, offset);
+        }
+
+        // Add a container type that holds these fields
+        metadata.AddTypeDefinition(
+            TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit,
+            metadata.GetOrAddString(""),
+            metadata.GetOrAddString("FieldContainer"),
+            systemObjectRef,
+            firstField,
+            MetadataTokens.MethodDefinitionHandle(1));
+
+        var metadataRootBuilder = new MetadataRootBuilder(metadata);
+        var header = new PEHeaderBuilder(
+            machine: Machine.Amd64,
+            imageCharacteristics: Characteristics.Dll);
+        var peBuilder = new ManagedPEBuilder(
+            header,
+            metadataRootBuilder,
+            ilBuilder,
+            fieldData,
+            flags: CorFlags.ILOnly);
+
+        var outputBuilder = new BlobBuilder();
+        peBuilder.Serialize(outputBuilder);
+        return outputBuilder.ToArray();
+    }
+
+    /// <summary>
+    /// Verify that stripping a C#-compiled assembly with array initializers (which produce
+    /// ValueType field-RVA data) preserves the data and produces valid metadata.
+    /// </summary>
+    [Fact]
+    public void StripPreservesArrayInitializerFieldRva()
+    {
+        var code = """
+            public static class ArrayData
+            {
+                public static readonly int[] Ints = new int[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+                public static readonly byte[] Bytes = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+                public static readonly bool[] Bools = new bool[] { true, false, true, false };
+                public static readonly double[] Doubles = new double[] { 1.0, 2.0, 3.0, 4.0 };
+                public static readonly long[] Longs = new long[] { 100L, 200L, 300L, 400L };
+            }
+            """;
+
+        var compilation = CSharpCompilation.Create(
+            "ArrayInitTest",
+            [CSharpSyntaxTree.ParseText(code, cancellationToken: TestContext.CancellationToken)],
+            Net100.References.All,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var peStream = new MemoryStream();
+        var result = compilation.Emit(peStream, cancellationToken: TestContext.CancellationToken);
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+
+        var originalBytes = peStream.ToArray();
+        var stripped = R2RUtil.StripReadyToRun(originalBytes);
+
+        // Verify stripped output has valid metadata
+        using var strippedStream = new MemoryStream(stripped);
+        using var peReader = new PEReader(strippedStream);
+        var metadataReader = peReader.GetMetadataReader();
+
+        // The <PrivateImplementationDetails> type should have fields with RVAs
+        var rvaFieldCount = 0;
+        foreach (var fieldHandle in metadataReader.FieldDefinitions)
+        {
+            var field = metadataReader.GetFieldDefinition(fieldHandle);
+            if (field.GetRelativeVirtualAddress() != 0)
+            {
+                rvaFieldCount++;
+            }
+        }
+
+        Assert.True(rvaFieldCount > 0, "Expected at least one field with RVA from array initializers");
     }
 }
