@@ -518,7 +518,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     }
 
     byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AnalyzerData data) =>
-        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => File.ReadAllBytes(data.FilePath));
+        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, File.ReadAllBytes(data.FilePath));
 
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)
     {

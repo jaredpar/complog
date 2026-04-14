@@ -27,18 +27,14 @@ internal sealed class AnalyzerByteCache
     ///   <item><description><see langword="false"/>: never strip.</description></item>
     /// </list>
     /// </param>
-    /// <param name="getBytesFunc">
-    /// Invoked to read the raw assembly bytes from disk or from an archive entry.
-    /// </param>
-    internal byte[] GetOrStrip(Guid mvid, bool? stripSetting, Func<byte[]> getBytesFunc)
+    /// <param name="bytes">The raw assembly bytes.</param>
+    internal byte[] GetOrStrip(Guid mvid, bool? stripSetting, byte[] bytes)
     {
-        var rawBytes = getBytesFunc();
-
         // Read the machine type from the PE header to form a complete cache key.
         // AMD64 and ARM64 R2R images may share the same MVID yet yield different IL bytes
         // after stripping, so both MVID and architecture are required.
         Machine machine;
-        using (var stream = rawBytes.AsSimpleMemoryStream(writable: false))
+        using (var stream = bytes.AsSimpleMemoryStream(writable: false))
         using (var peReader = new PEReader(stream))
         {
             machine = peReader.PEHeaders.CoffHeader.Machine;
@@ -52,9 +48,9 @@ internal sealed class AnalyzerByteCache
 
         bool needsStrip = stripSetting switch
         {
-            true => R2RUtil.IsReadyToRun(rawBytes),
+            true => R2RUtil.IsReadyToRun(bytes),
             false => false,
-            null => R2RUtil.NeedsStripping(rawBytes),
+            null => R2RUtil.NeedsStripping(bytes),
         };
 
         if (!needsStrip)
@@ -62,10 +58,10 @@ internal sealed class AnalyzerByteCache
             // Do not cache non-stripped bytes: the IL and R2R versions of the same DLL share the
             // same MVID. Caching the first result would make subsequent lookups return whichever
             // version (R2R or IL) happened to arrive first, causing non-deterministic behavior.
-            return rawBytes;
+            return bytes;
         }
 
-        var strippedBytes = R2RUtil.StripReadyToRun(rawBytes);
+        var strippedBytes = R2RUtil.StripReadyToRun(bytes);
         _cache[key] = strippedBytes;
         return strippedBytes;
     }

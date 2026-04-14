@@ -993,5 +993,5 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     }
 
     byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AnalyzerData data) =>
-        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => GetAssemblyBytes(data.Mvid));
+        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, GetAssemblyBytes(data.Mvid));
 }
