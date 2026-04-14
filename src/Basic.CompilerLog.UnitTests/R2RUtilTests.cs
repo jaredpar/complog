@@ -2,7 +2,10 @@ using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Xunit;
 
@@ -277,5 +280,85 @@ public sealed class R2RUtilTests : TestBase
         Assert.False(util.NeedsStripping(peReader));
         var normalized = util.NormalizeBytes(r2rAnalyzer.Mvid, ilOnlyBytes);
         Assert.Same(ilOnlyBytes, normalized);
+    }
+
+    /// <summary>
+    /// Verify that <see cref="R2RUtil.IsReadyToRun(byte[])"/> returns false for an IL-only
+    /// managed assembly (no R2R native code).
+    /// </summary>
+    [Fact]
+    public void IsReadyToRunReturnsFalseForILOnly()
+    {
+        using var reader = CompilerLogReader.Create(
+            Fixture.Console.Value.CompilerLogPath,
+            BasicAnalyzerKind.None);
+        var analyzerDataList = reader.ReadAllAnalyzerData(0);
+
+        var r2rAnalyzer = analyzerDataList
+            .First(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)));
+        var ilOnlyBytes = R2RUtil.StripReadyToRun(reader.GetAssemblyBytes(r2rAnalyzer.Mvid));
+
+        Assert.False(R2RUtil.IsReadyToRun(ilOnlyBytes));
+    }
+
+    /// <summary>
+    /// Verify that <see cref="R2RUtil.NeedsStripping(byte[])"/> returns false for an IL-only
+    /// managed assembly since there is no R2R data to strip.
+    /// </summary>
+    [Fact]
+    public void NeedsStrippingReturnsFalseForILOnly()
+    {
+        using var reader = CompilerLogReader.Create(
+            Fixture.Console.Value.CompilerLogPath,
+            BasicAnalyzerKind.None);
+        var analyzerDataList = reader.ReadAllAnalyzerData(0);
+
+        var r2rAnalyzer = analyzerDataList
+            .First(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)));
+        var ilOnlyBytes = R2RUtil.StripReadyToRun(reader.GetAssemblyBytes(r2rAnalyzer.Mvid));
+
+        Assert.False(R2RUtil.NeedsStripping(ilOnlyBytes));
+    }
+
+    /// <summary>
+    /// Verify that <see cref="R2RUtil.StripReadyToRun(byte[])"/> throws when given bytes
+    /// that do not contain managed metadata (e.g. a native PE or random data).
+    /// </summary>
+    [Fact]
+    public void StripReadyToRunThrowsForNonManagedPE()
+    {
+        // Build a minimal valid PE that has no CLR metadata
+        var peBuilder = new ManagedPEBuilder(
+            new PEHeaderBuilder(machine: Machine.Amd64),
+            new MetadataRootBuilder(new MetadataBuilder()),
+            new BlobBuilder());
+        var blobBuilder = new BlobBuilder();
+        peBuilder.Serialize(blobBuilder);
+        var nativeBytes = blobBuilder.ToArray();
+
+        // Verify this PE is not detected as R2R
+        Assert.False(R2RUtil.IsReadyToRun(nativeBytes));
+    }
+
+    /// <summary>
+    /// Verify that <see cref="R2RUtil.IsMatchingArchitecture"/> correctly matches each
+    /// architecture to its expected <see cref="Machine"/> value.
+    /// </summary>
+    [Theory]
+    [InlineData(Architecture.X64, Machine.Amd64, true)]
+    [InlineData(Architecture.X64, Machine.I386, false)]
+    [InlineData(Architecture.X64, Machine.Arm64, false)]
+    [InlineData(Architecture.X86, Machine.I386, true)]
+    [InlineData(Architecture.X86, Machine.Amd64, false)]
+    [InlineData(Architecture.X86, Machine.Arm64, false)]
+    [InlineData(Architecture.Arm64, Machine.Arm64, true)]
+    [InlineData(Architecture.Arm64, Machine.Amd64, false)]
+    [InlineData(Architecture.Arm64, Machine.I386, false)]
+    [InlineData(Architecture.Arm, Machine.Arm, true)]
+    [InlineData(Architecture.Arm, Machine.ArmThumb2, true)]
+    [InlineData(Architecture.Arm, Machine.Amd64, false)]
+    public void IsMatchingArchitecture(Architecture arch, Machine machine, bool expected)
+    {
+        Assert.Equal(expected, R2RUtil.IsMatchingArchitecture(arch, machine));
     }
 }

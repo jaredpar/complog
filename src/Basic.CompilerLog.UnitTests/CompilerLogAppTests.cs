@@ -270,6 +270,32 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         }
     }
 
+    /// <summary>
+    /// Verify that <c>complog analyzers --strip=always</c> and <c>--strip=never</c> are
+    /// accepted and produce successful output.
+    /// </summary>
+    [Theory]
+    [InlineData("always")]
+    [InlineData("never")]
+    [InlineData("auto")]
+    public void AnalyzersStripOption(string stripValue)
+    {
+        var (exitCode, output) = RunCompLogEx($@"analyzers --strip={stripValue} ""{Fixture.Console.Value.BinaryLogPath}""");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+    }
+
+    /// <summary>
+    /// Verify that <c>complog analyzers --strip=bad</c> produces a failure.
+    /// </summary>
+    [Fact]
+    public void AnalyzersStripBadValue()
+    {
+        var (exitCode, output) = RunCompLogEx($@"analyzers --strip=bad ""{Fixture.Console.Value.BinaryLogPath}""");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains("Unknown strip value", output);
+    }
+
     [Fact]
     public void BadCommand()
     {

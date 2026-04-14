@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -64,7 +65,15 @@ internal static class R2RUtil
     }
 
     private static bool IsCurrentArchitecture(Machine machine) =>
-        RuntimeInformation.ProcessArchitecture switch
+        IsMatchingArchitecture(RuntimeInformation.ProcessArchitecture, machine);
+
+    /// <summary>
+    /// Returns true when <paramref name="machine"/> matches the expected PE machine type for
+    /// the given <paramref name="processArchitecture"/>, including OS-specific R2R sentinel
+    /// values on non-Windows platforms.
+    /// </summary>
+    internal static bool IsMatchingArchitecture(Architecture processArchitecture, Machine machine) =>
+        processArchitecture switch
         {
             Architecture.X64 => machine == Machine.Amd64 || IsCurrentOsNativeR2R(machine),
             Architecture.X86 => machine == Machine.I386,
@@ -110,10 +119,7 @@ internal static class R2RUtil
     /// </summary>
     internal static byte[] StripReadyToRun(PEReader peReader)
     {
-        if (!peReader.HasMetadata)
-        {
-            throw new InvalidOperationException("Input does not contain managed metadata");
-        }
+        Debug.Assert(peReader.HasMetadata);
 
         var metadataReader = peReader.GetMetadataReader();
 
@@ -151,14 +157,17 @@ internal static class R2RUtil
             sizeOfHeapCommit: sourcePEHeader.SizeOfHeapCommit);
 
         var entryPoint = default(MethodDefinitionHandle);
-        var corHeader = peReader.PEHeaders.CorHeader;
-        if (corHeader is not null && corHeader.EntryPointTokenOrRelativeVirtualAddress != 0)
+
+        // CorHeader is always non-null when HasMetadata is true
+        var corHeader = peReader.PEHeaders.CorHeader!;
+        if (corHeader.EntryPointTokenOrRelativeVirtualAddress != 0)
         {
             var entityHandle = MetadataTokens.EntityHandle(corHeader.EntryPointTokenOrRelativeVirtualAddress);
-            if (entityHandle.Kind == HandleKind.MethodDefinition)
-            {
-                entryPoint = (MethodDefinitionHandle)entityHandle;
-            }
+
+            // R2R is not supported for mixed-mode (C++/CLI) assemblies, so the entry point
+            // should always be a MethodDefinition token, never a native RVA.
+            Debug.Assert(entityHandle.Kind == HandleKind.MethodDefinition);
+            entryPoint = (MethodDefinitionHandle)entityHandle;
         }
 
         var managedPEBuilder = new ManagedPEBuilder(
