@@ -45,14 +45,20 @@ internal static class R2RUtil
     {
         using var stream = assemblyBytes.AsSimpleMemoryStream(writable: false);
         using var peReader = new PEReader(stream);
+        return NeedsStripping(peReader);
+    }
 
+    /// <summary>
+    /// Returns true if the assembly represented by <paramref name="peReader"/> should be stripped
+    /// to IL-only before use. See <see cref="NeedsStripping(byte[])"/> for details.
+    /// </summary>
+    internal static bool NeedsStripping(PEReader peReader)
+    {
         if (!IsReadyToRun(peReader))
         {
             return false;
         }
 
-        // Only strip when the R2R native code targets a different architecture. Same-arch assemblies
-        // load fine without stripping and should be left alone to preserve their strong-name identity.
         var machine = peReader.PEHeaders.CoffHeader.Machine;
         return !IsCurrentArchitecture(machine);
     }
@@ -95,7 +101,15 @@ internal static class R2RUtil
     {
         using var inputStream = assemblyBytes.AsSimpleMemoryStream(writable: false);
         using var peReader = new PEReader(inputStream);
+        return StripReadyToRun(peReader);
+    }
 
+    /// <summary>
+    /// Strips ReadyToRun native code from the assembly represented by <paramref name="peReader"/>,
+    /// producing an IL-only version. See <see cref="StripReadyToRun(byte[])"/> for details.
+    /// </summary>
+    internal static byte[] StripReadyToRun(PEReader peReader)
+    {
         if (!peReader.HasMetadata)
         {
             throw new InvalidOperationException("Input does not contain managed metadata");

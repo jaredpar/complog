@@ -194,7 +194,8 @@ public sealed class R2RUtilTests : TestBase
         foreach (var data in r2rData)
         {
             var rawBytes = reader.GetAssemblyBytes(data.Mvid);
-            Assert.True(util.NeedsStripping(rawBytes));
+            using var peReader = new PEReader(rawBytes.AsSimpleMemoryStream(writable: false));
+            Assert.True(util.NeedsStripping(peReader));
             var normalized = util.NormalizeBytes(data.Mvid, rawBytes);
             Assert.False(R2RUtil.IsReadyToRun(normalized));
         }
@@ -220,7 +221,8 @@ public sealed class R2RUtilTests : TestBase
         foreach (var data in r2rData)
         {
             var rawBytes = reader.GetAssemblyBytes(data.Mvid);
-            Assert.False(util.NeedsStripping(rawBytes));
+            using var peReader = new PEReader(rawBytes.AsSimpleMemoryStream(writable: false));
+            Assert.False(util.NeedsStripping(peReader));
             var normalized = util.NormalizeBytes(data.Mvid, rawBytes);
             Assert.Same(rawBytes, normalized);
         }
@@ -271,7 +273,8 @@ public sealed class R2RUtilTests : TestBase
         // The "always" util should see NeedsStripping == false for IL-only bytes
         // and return them unchanged
         var util = AnalyzerNormalizationUtil.Create(true);
-        Assert.False(util.NeedsStripping(ilOnlyBytes));
+        using var peReader = new PEReader(ilOnlyBytes.AsSimpleMemoryStream(writable: false));
+        Assert.False(util.NeedsStripping(peReader));
         var normalized = util.NormalizeBytes(r2rAnalyzer.Mvid, ilOnlyBytes);
         Assert.Same(ilOnlyBytes, normalized);
     }

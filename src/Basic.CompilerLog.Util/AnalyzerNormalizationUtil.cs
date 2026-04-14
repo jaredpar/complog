@@ -28,9 +28,10 @@ internal abstract class AnalyzerNormalizationUtil
     };
 
     /// <summary>
-    /// Determines whether the given assembly bytes need to be stripped of R2R native code.
+    /// Determines whether the assembly represented by <paramref name="peReader"/> needs to be
+    /// stripped of R2R native code.
     /// </summary>
-    internal abstract bool NeedsStripping(byte[] bytes);
+    internal abstract bool NeedsStripping(PEReader peReader);
 
     /// <summary>
     /// Returns the normalized bytes for the assembly identified by <paramref name="mvid"/>. When
@@ -40,23 +41,17 @@ internal abstract class AnalyzerNormalizationUtil
     /// </summary>
     internal virtual byte[] NormalizeBytes(Guid mvid, byte[] bytes)
     {
-        // Read the machine type from the PE header to form a complete cache key.
-        // AMD64 and ARM64 R2R images may share the same MVID yet yield different IL bytes
-        // after stripping, so both MVID and architecture are required.
-        Machine machine;
-        using (var stream = bytes.AsSimpleMemoryStream(writable: false))
-        using (var peReader = new PEReader(stream))
-        {
-            machine = peReader.PEHeaders.CoffHeader.Machine;
-        }
+        using var stream = bytes.AsSimpleMemoryStream(writable: false);
+        using var peReader = new PEReader(stream);
 
+        var machine = peReader.PEHeaders.CoffHeader.Machine;
         var key = (mvid, machine);
         if (_cache.TryGetValue(key, out var cachedBytes))
         {
             return cachedBytes;
         }
 
-        if (!NeedsStripping(bytes))
+        if (!NeedsStripping(peReader))
         {
             // Do not cache non-stripped bytes: the IL and R2R versions of the same DLL share the
             // same MVID. Caching the first result would make subsequent lookups return whichever
@@ -64,7 +59,7 @@ internal abstract class AnalyzerNormalizationUtil
             return bytes;
         }
 
-        var strippedBytes = R2RUtil.StripReadyToRun(bytes);
+        var strippedBytes = R2RUtil.StripReadyToRun(peReader);
         _cache[key] = strippedBytes;
         return strippedBytes;
     }
@@ -72,19 +67,19 @@ internal abstract class AnalyzerNormalizationUtil
 
 file sealed class DefaultAnalyzerNormalizationUtil : AnalyzerNormalizationUtil
 {
-    internal override bool NeedsStripping(byte[] bytes) => R2RUtil.NeedsStripping(bytes);
+    internal override bool NeedsStripping(PEReader peReader) => R2RUtil.NeedsStripping(peReader);
 }
 
 file sealed class AlwaysAnalyzerNormalizationUtil : AnalyzerNormalizationUtil
 {
-    internal override bool NeedsStripping(byte[] bytes) => R2RUtil.IsReadyToRun(bytes);
+    internal override bool NeedsStripping(PEReader peReader) => R2RUtil.IsReadyToRun(peReader);
 }
 
 file sealed class NeverAnalyzerNormalizationUtil : AnalyzerNormalizationUtil
 {
     internal static NeverAnalyzerNormalizationUtil Instance { get; } = new();
 
-    internal override bool NeedsStripping(byte[] bytes) => false;
+    internal override bool NeedsStripping(PEReader peReader) => false;
 
     internal override byte[] NormalizeBytes(Guid mvid, byte[] bytes) => bytes;
 }
