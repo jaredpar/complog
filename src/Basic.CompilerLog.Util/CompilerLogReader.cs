@@ -983,12 +983,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
     }
 
-    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(AssemblyData data, Stream stream)
+    void IBasicAnalyzerHostDataProvider.CopyAnalyzerBytes(AssemblyData data, Stream stream)
     {
-        var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAssemblyBytes(data);
+        var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAnalyzerBytes(data);
         stream.Write(bytes, 0, bytes.Length);
     }
 
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
+    byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AssemblyData data) =>
         _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, () => GetAssemblyBytes(data.Mvid));
 }
