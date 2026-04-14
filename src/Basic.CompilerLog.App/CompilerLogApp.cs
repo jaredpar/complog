@@ -165,10 +165,12 @@ public sealed class CompilerLogApp(
     {
         var includeTypes = false;
         var includePath = false;
+        bool? stripReadyToRun = null;
         var options = new FilterOptionSet()
         {
             { "t|types", "include type names", o => includeTypes = o is not null },
             { "path", "include analyzer file path", o => includePath = o is not null },
+            { "strip=", "strip R2R native code from analyzers: auto (default), always, never", void (string s) => stripReadyToRun = FilterOptionSet.ParseStripReadyToRun(s) },
         };
 
         try
@@ -180,7 +182,7 @@ public sealed class CompilerLogApp(
                 return ExitSuccess;
             }
 
-            using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None);
+            using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None, state: new(stripReadyToRun: stripReadyToRun));
             var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
             foreach (var compilerCall in compilerCalls)
             {
@@ -342,7 +344,7 @@ public sealed class CompilerLogApp(
                 foreach (var data in reader.ReadAllReferenceData(compilerCall))
                 {
                     var filePath = Path.Combine(refDirPath, data.FileName);
-                    WriteTo(data.AssemblyData, filePath);
+                    WithStream(filePath, stream => reader.CopyAssemblyBytes(data.AssemblyData, stream));
                 }
 
                 var analyzerDirPath = Path.Combine(baseOutputPath, name, "analyzers");
@@ -351,7 +353,7 @@ public sealed class CompilerLogApp(
                 {
                     var groupDir = GetGroupDirectoryPath();
                     var filePath = Path.Combine(groupDir, data.FileName);
-                    WriteTo(data.AssemblyData, filePath);
+                    WithStream(filePath, stream => reader.CopyAnalyzerBytes(data, stream));
 
                     string GetGroupDirectoryPath()
                     {
@@ -376,10 +378,10 @@ public sealed class CompilerLogApp(
                     }
                 }
 
-                void WriteTo(AssemblyData referenceData, string filePath)
+                void WithStream(string filePath, Action<Stream> action)
                 {
                     using var stream = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
-                    reader.CopyAssemblyBytes(referenceData, stream);
+                    action(stream);
                 }
             }
 
@@ -594,7 +596,7 @@ public sealed class CompilerLogApp(
                 WriteLine($"Outputting to {baseOutputPath}");
             }
 
-            using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true));
+            using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true, stripReadyToRun: options.StripReadyToRun));
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allSucceeded = true;
 
@@ -680,7 +682,7 @@ public sealed class CompilerLogApp(
             baseOutputPath = GetBaseOutputPath(baseOutputPath, "generated");
             WriteLine($"Outputting to {baseOutputPath}");
 
-            using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true);
+            using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new LogReaderState(stripReadyToRun: options.StripReadyToRun));
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var succeeded = true;
 

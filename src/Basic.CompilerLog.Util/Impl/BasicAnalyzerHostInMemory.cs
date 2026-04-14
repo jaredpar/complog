@@ -67,7 +67,7 @@ internal sealed class InMemoryLoader : AssemblyLoadContext
         foreach (var analyzer in analyzers)
         {
             var simpleName = Path.GetFileNameWithoutExtension(analyzer.FileName);
-            var bytes = provider.GetAssemblyBytes(analyzer.AssemblyData);
+            var bytes = provider.GetAnalyzerBytes(analyzer);
             _map[simpleName] = bytes;
             builder.Add(new BasicAnalyzerReference(new AssemblyName(simpleName), bytes, this));
         }
@@ -125,7 +125,7 @@ internal sealed class InMemoryLoader
         var builder = ImmutableArray.CreateBuilder<AnalyzerReference>(analyzers.Count);
         foreach (var analyzer in analyzers)
         {
-            var bytes = provider.GetAssemblyBytes(analyzer.AssemblyData);
+            var bytes = provider.GetAnalyzerBytes(analyzer);
             builder.Add(new BasicAnalyzerReference(new AssemblyName(analyzer.AssemblyIdentityData.AssemblyName), bytes, this));
         }
 

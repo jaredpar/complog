@@ -46,6 +46,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
     private readonly MSBuildDataPack? _msbuildDataPack;
 
+    private readonly AnalyzerNormalizationUtil _analyzerNormalizationUtil;
+
     /// <summary>
     /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
     /// produced it. This is useful for building up items like a project reference map.
@@ -87,6 +89,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         OwnsLogReaderState = state is null;
         LogReaderState = state ?? new LogReaderState();
         Metadata = metadata;
+        _analyzerNormalizationUtil = AnalyzerNormalizationUtil.Create(LogReaderState.StripReadyToRun);
 
         DefaultPathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
         {
@@ -974,6 +977,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     public void CopyAssemblyBytes(AssemblyData assemblyData, Stream destination) =>
         CopyAssemblyBytes(assemblyData.Mvid, destination);
 
+    public void CopyAnalyzerBytes(AnalyzerData analyzerData, Stream destination) =>
+        ((IBasicAnalyzerHostDataProvider)this).CopyAnalyzerBytes(analyzerData, destination);
+
     internal void CopyAssemblyBytes(Guid mvid, Stream destination)
     {
         using var stream = ZipArchive.OpenEntryOrThrow(GetAssemblyEntryName(mvid));
@@ -1002,6 +1008,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
     }
 
-    void IBasicAnalyzerHostDataProvider.CopyAssemblyBytes(AssemblyData data, Stream stream) => CopyAssemblyBytes(data.Mvid, stream);
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) => GetAssemblyBytes(data.Mvid);
+    void IBasicAnalyzerHostDataProvider.CopyAnalyzerBytes(AnalyzerData data, Stream stream)
+    {
+        var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAnalyzerBytes(data);
+        stream.Write(bytes, 0, bytes.Length);
+    }
+
+    byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AnalyzerData data) =>
+        _analyzerNormalizationUtil.NormalizeBytes(data.Mvid, GetAssemblyBytes(data.Mvid));
 }

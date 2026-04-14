@@ -8,6 +8,7 @@ internal sealed class FilterOptionSet : OptionSet
     private string? _customCompilerFilePath;
     private bool _hasAnalyzerOptions;
     private BasicAnalyzerKind _basicAnalyzerKind;
+    private bool? _stripReadyToRun;
 
     internal List<string> TargetFrameworks { get; } = new();
     internal bool IncludeAllKinds { get; set; }
@@ -44,6 +45,20 @@ internal sealed class FilterOptionSet : OptionSet
         }
     }
 
+    /// <summary>
+    /// Controls stripping of ReadyToRun (R2R) native code from analyzer assemblies. See
+    /// <see cref="LogReaderState.StripReadyToRun"/> for the semantics of each value.
+    /// Configured via <c>--strip=auto|always|never</c>.
+    /// </summary>
+    internal bool? StripReadyToRun
+    {
+        get
+        {
+            CheckHasAnalyzerOptions();
+            return _stripReadyToRun;
+        }
+    }
+
     internal FilterOptionSet(bool analyzers = false)
     {
         Add("all", "include all compilation kinds", i => { if (i is not null) IncludeAllKinds = true; });
@@ -58,8 +73,20 @@ internal sealed class FilterOptionSet : OptionSet
             Add("a|analyzers=", "analyzer load strategy: none, ondisk, inmemory", void (BasicAnalyzerKind k) => _basicAnalyzerKind = k);
             Add("n|none", "Do not run analyzers", i => { if (i is not null) _basicAnalyzerKind = BasicAnalyzerKind.None; }, hidden: true);
             Add("c|compiler=", "path to compiler to use for replay", void (string c) => _customCompilerFilePath = c);
+            Add("strip=", "strip R2R native code from analyzers: auto (default), always, never", void (string s) => _stripReadyToRun = ParseStripReadyToRun(s));
         }
     }
+
+    /// <summary>
+    /// Parse the value of the <c>--strip</c> option into the corresponding <see cref="LogReaderState.StripReadyToRun"/> value.
+    /// </summary>
+    internal static bool? ParseStripReadyToRun(string value) => value.ToLowerInvariant() switch
+    {
+        "auto" => null,
+        "always" => true,
+        "never" => false,
+        _ => throw new OptionException($"Unknown strip value '{value}': expected auto, always, or never", "strip"),
+    };
 
     private void CheckHasAnalyzerOptions()
     {

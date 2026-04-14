@@ -47,6 +47,13 @@ public interface ICompilerCallReader : IDisposable
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex);
 
     /// <summary>
+    /// Copy the bytes of the <paramref name="analyzerData"/> to the provided <paramref name="stream"/>. The
+    /// bytes may be stripped of ReadyToRun data depending on the <see cref="LogReaderState.StripReadyToRun"/>
+    /// setting.
+    /// </summary>
+    public void CopyAnalyzerBytes(AnalyzerData analyzerData, Stream stream);
+
+    /// <summary>
     /// Copy the bytes of the <paramref name="referenceData"/> to the provided <paramref name="stream"/>
     /// </summary>
     public void CopyAssemblyBytes(AssemblyData referenceData, Stream stream);

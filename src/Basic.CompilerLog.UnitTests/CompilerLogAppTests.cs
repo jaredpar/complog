@@ -199,6 +199,24 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     }
 
     /// <summary>
+    /// The <c>--strip</c> option is defined in both <c>analyzers</c> and <c>replay</c> commands
+    /// independently. Verify the help text stays in sync.
+    /// </summary>
+    [Fact]
+    public void AnalyzersStripHelpMatchesReplay()
+    {
+        var (_, analyzersHelp) = RunCompLogEx("analyzers -h");
+        var (_, replayHelp) = RunCompLogEx("replay -h");
+
+        var stripLine = (string output) => output
+            .Split('\n')
+            .Select(l => l.Trim())
+            .First(l => l.StartsWith("--strip"));
+
+        Assert.Equal(stripLine(analyzersHelp), stripLine(replayHelp));
+    }
+
+    /// <summary>
     /// The analyzers can still be listed if the project file is deleted as long as the
     /// analyzers are still on disk
     /// </summary>
@@ -250,6 +268,32 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         {
             Assert.DoesNotContain($"{Path.DirectorySeparatorChar}Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
         }
+    }
+
+    /// <summary>
+    /// Verify that <c>complog analyzers --strip=always</c> and <c>--strip=never</c> are
+    /// accepted and produce successful output.
+    /// </summary>
+    [Theory]
+    [InlineData("always")]
+    [InlineData("never")]
+    [InlineData("auto")]
+    public void AnalyzersStripOption(string stripValue)
+    {
+        var (exitCode, output) = RunCompLogEx($@"analyzers --strip={stripValue} ""{Fixture.Console.Value.BinaryLogPath}""");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("Microsoft.CodeAnalysis.NetAnalyzers.dll", output);
+    }
+
+    /// <summary>
+    /// Verify that <c>complog analyzers --strip=bad</c> produces a failure.
+    /// </summary>
+    [Fact]
+    public void AnalyzersStripBadValue()
+    {
+        var (exitCode, output) = RunCompLogEx($@"analyzers --strip=bad ""{Fixture.Console.Value.BinaryLogPath}""");
+        Assert.Equal(Constants.ExitFailure, exitCode);
+        Assert.Contains("Unknown strip value", output);
     }
 
     [Fact]

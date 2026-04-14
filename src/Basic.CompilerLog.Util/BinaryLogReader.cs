@@ -21,6 +21,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 {
     private Stream _stream;
     private readonly bool _leaveOpen;
+    private readonly AnalyzerNormalizationUtil _analyzerNormalizationUtil;
 
     private readonly Dictionary<string, PortableExecutableReference> _metadataReferenceMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, AssemblyIdentityData> _assemblyIdentityDataMap = new(PathUtil.Comparer);
@@ -43,6 +44,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         LogReaderState = state ?? new LogReaderState();
         _leaveOpen = leaveOpen;
         _lazyMvidToCompilerCallIndexMap = new(() => BuildMvidToCompilerCallIndexMap());
+        _analyzerNormalizationUtil = AnalyzerNormalizationUtil.Create(LogReaderState.StripReadyToRun);
     }
 
     public static BinaryLogReader Create(
@@ -516,12 +518,21 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 
     public void CopyAssemblyBytes(AssemblyData data, Stream stream)
     {
-        using var fileStream = RoslynUtil.OpenBuildFileForRead(data.FilePath);
-        fileStream.CopyTo(stream);
+        var bytes = File.ReadAllBytes(data.FilePath);
+        stream.Write(bytes, 0, bytes.Length);
     }
 
-    byte[] IBasicAnalyzerHostDataProvider.GetAssemblyBytes(AssemblyData data) =>
-        File.ReadAllBytes(data.FilePath);
+    public void CopyAnalyzerBytes(AnalyzerData data, Stream stream) =>
+        ((IBasicAnalyzerHostDataProvider)this).CopyAnalyzerBytes(data, stream);
+
+    void IBasicAnalyzerHostDataProvider.CopyAnalyzerBytes(AnalyzerData data, Stream stream)
+    {
+        var bytes = ((IBasicAnalyzerHostDataProvider)this).GetAnalyzerBytes(data);
+        stream.Write(bytes, 0, bytes.Length);
+    }
+
+    byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AnalyzerData data) =>
+        _analyzerNormalizationUtil.NormalizeBytes(data.Mvid, File.ReadAllBytes(data.FilePath));
 
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)
     {
