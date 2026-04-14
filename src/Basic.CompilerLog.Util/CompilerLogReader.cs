@@ -45,7 +45,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private readonly Dictionary<int, CompilationInfoPack> _compilationInfoPackMap = new();
     private readonly Dictionary<int, CompilationDataPack> _compilationDataPackMap = new();
 
-    private readonly AnalyzerByteCache _analyzerByteCache = new();
+    private readonly AnalyzerNormalizationUtil _analyzerNormalizationUtil;
 
     /// <summary>
     /// This stores the map between an assembly MVID and the <see cref="CompilerCall"/> that
@@ -88,6 +88,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         OwnsLogReaderState = state is null;
         LogReaderState = state ?? new LogReaderState();
         Metadata = metadata;
+        _analyzerNormalizationUtil = AnalyzerNormalizationUtil.Create(LogReaderState.StripReadyToRun);
 
         DefaultPathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
         {
@@ -993,5 +994,5 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     }
 
     byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AnalyzerData data) =>
-        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, GetAssemblyBytes(data.Mvid));
+        _analyzerNormalizationUtil.NormalizeBytes(data.Mvid, GetAssemblyBytes(data.Mvid));
 }

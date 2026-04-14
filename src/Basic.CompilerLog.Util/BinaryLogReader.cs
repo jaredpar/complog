@@ -21,7 +21,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
 {
     private Stream _stream;
     private readonly bool _leaveOpen;
-    private readonly AnalyzerByteCache _analyzerByteCache = new();
+    private readonly AnalyzerNormalizationUtil _analyzerNormalizationUtil;
 
     private readonly Dictionary<string, PortableExecutableReference> _metadataReferenceMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, AssemblyIdentityData> _assemblyIdentityDataMap = new(PathUtil.Comparer);
@@ -43,6 +43,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         LogReaderState = state ?? new LogReaderState();
         _leaveOpen = leaveOpen;
         _lazyMvidToCompilerCallIndexMap = new(() => BuildMvidToCompilerCallIndexMap());
+        _analyzerNormalizationUtil = AnalyzerNormalizationUtil.Create(LogReaderState.StripReadyToRun);
     }
 
     public static BinaryLogReader Create(
@@ -518,7 +519,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     }
 
     byte[] IBasicAnalyzerHostDataProvider.GetAnalyzerBytes(AnalyzerData data) =>
-        _analyzerByteCache.GetOrStrip(data.Mvid, LogReaderState.StripReadyToRun, File.ReadAllBytes(data.FilePath));
+        _analyzerNormalizationUtil.NormalizeBytes(data.Mvid, File.ReadAllBytes(data.FilePath));
 
     public bool TryGetCompilerCallIndex(Guid mvid, out int compilerCallIndex)
     {
