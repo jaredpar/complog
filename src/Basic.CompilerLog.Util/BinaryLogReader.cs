@@ -14,6 +14,7 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
 using Microsoft.CodeAnalysis.VisualBasic.Syntax;
+using SourceText = Microsoft.CodeAnalysis.Text.SourceText;
 
 namespace Basic.CompilerLog.Util;
 
