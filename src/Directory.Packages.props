@@ -8,7 +8,7 @@
     <_RuntimeVersion>10.0.7</_RuntimeVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.5" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.6" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
     <PackageVersion Include="coverlet.msbuild" Version="10.0.0" />
@@ -22,7 +22,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="$(_RoslynVersion)" />
     <PackageVersion Include="Microsoft.CodeAnalysis.VisualBasic" Version="$(_RoslynVersion)" />
     <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="$(_RuntimeVersion)" />
-    <PackageVersion Include="Microsoft.NET.Test.SDK" Version="18.4.0" />
+    <PackageVersion Include="Microsoft.NET.Test.SDK" Version="18.5.1" />
     <PackageVersion Include="Microsoft.VisualStudio.Setup.Configuration.Interop" Version="3.14.2075" />
     <PackageVersion Include="Mono.Options" Version="6.12.0.148" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.178" />
