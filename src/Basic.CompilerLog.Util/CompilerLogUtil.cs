@@ -30,6 +30,29 @@ public readonly struct ConvertBinaryLogResult
     }
 }
 
+public readonly struct CreateFromWorkspaceResult
+{
+    public bool Succeeded { get; }
+
+    /// <summary>
+    /// The set of <see cref="CompilerCall"/> recorded for each workspace project that was successfully serialized.
+    /// </summary>
+    public List<CompilerCall> CompilerCalls { get; }
+
+    /// <summary>
+    /// Diagnostics produced while serializing the workspace. Per-project failures are recorded here without
+    /// aborting the overall operation.
+    /// </summary>
+    public List<string> Diagnostics { get; }
+
+    public CreateFromWorkspaceResult(bool succeeded, List<CompilerCall> compilerCalls, List<string> diagnostics)
+    {
+        Succeeded = succeeded;
+        CompilerCalls = compilerCalls;
+        Diagnostics = diagnostics;
+    }
+}
+
 public static class CompilerLogUtil
 {
     /// <summary>
@@ -69,13 +92,11 @@ public static class CompilerLogUtil
     }
 
     /// <summary>
-    /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>.
+    /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>. Throws
+    /// <see cref="CompilerLogException"/> if any project fails to serialize; for a non-throwing
+    /// variant use <see cref="TryCreateFromWorkspace(Workspace, string, Func{Project, bool}?, CancellationToken)"/>.
     /// </summary>
-    /// <param name="workspace">The workspace whose projects to include</param>
-    /// <param name="compilerLogFilePath">Path to the output .complog file</param>
-    /// <param name="predicate">Optional filter for which projects to include</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of diagnostic messages produced during conversion</returns>
+    /// <returns>Diagnostic messages produced during serialization (informational only — failures throw).</returns>
     public static List<string> CreateFromWorkspace(
         Workspace workspace,
         string compilerLogFilePath,
@@ -86,21 +107,46 @@ public static class CompilerLogUtil
         return CreateFromWorkspace(workspace, compilerLogStream, predicate, cancellationToken);
     }
 
-    /// <summary>
-    /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>.
-    /// </summary>
-    /// <param name="workspace">The workspace whose projects to include</param>
-    /// <param name="compilerLogStream">Stream to write the compiler log to</param>
-    /// <param name="predicate">Optional filter for which projects to include</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>List of diagnostic messages produced during conversion</returns>
+    /// <inheritdoc cref="CreateFromWorkspace(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
     public static List<string> CreateFromWorkspace(
         Workspace workspace,
         Stream compilerLogStream,
         Func<Project, bool>? predicate = null,
         CancellationToken cancellationToken = default)
     {
+        var result = TryCreateFromWorkspace(workspace, compilerLogStream, predicate, cancellationToken);
+        if (!result.Succeeded)
+        {
+            throw new CompilerLogException("Could not create compiler log from workspace", result.Diagnostics);
+        }
+
+        return result.Diagnostics;
+    }
+
+    /// <summary>
+    /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>. Per-project failures
+    /// are recorded as diagnostics rather than thrown; the result's <see cref="CreateFromWorkspaceResult.Succeeded"/>
+    /// flag is <see langword="false"/> if any project failed.
+    /// </summary>
+    public static CreateFromWorkspaceResult TryCreateFromWorkspace(
+        Workspace workspace,
+        string compilerLogFilePath,
+        Func<Project, bool>? predicate = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        return TryCreateFromWorkspace(workspace, compilerLogStream, predicate, cancellationToken);
+    }
+
+    /// <inheritdoc cref="TryCreateFromWorkspace(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
+    public static CreateFromWorkspaceResult TryCreateFromWorkspace(
+        Workspace workspace,
+        Stream compilerLogStream,
+        Func<Project, bool>? predicate = null,
+        CancellationToken cancellationToken = default)
+    {
         var diagnostics = new List<string>();
+        var compilerCalls = new List<CompilerCall>();
         using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics);
 
         var projects = workspace.CurrentSolution.Projects;
@@ -109,19 +155,33 @@ public static class CompilerLogUtil
             projects = projects.Where(predicate);
         }
 
+        var success = true;
         foreach (var project in projects)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                builder.AddFromWorkspace(project, cancellationToken);
+                if (builder.AddFromWorkspace(project, cancellationToken) is { } compilerCall)
+                {
+                    compilerCalls.Add(compilerCall);
+                }
+                else
+                {
+                    success = false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                diagnostics.Add($"Error adding {project.Name}: {ex.Message}");
+                diagnostics.Add($"Error adding {project.Name}: {ex.GetType().Name}: {ex.Message}");
+                success = false;
             }
         }
 
-        return diagnostics;
+        return new CreateFromWorkspaceResult(success, compilerCalls, diagnostics);
     }
 
     public static List<string> ConvertBinaryLog(string binaryLogFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
