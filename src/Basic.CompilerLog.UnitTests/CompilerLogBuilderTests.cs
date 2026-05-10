@@ -305,19 +305,4 @@ public sealed class CompilerLogBuilderTests : TestBase
         var compilerCall = reader.ReadAllCompilerCalls().Single();
         Assert.Empty(reader.ReadArguments(compilerCall));
     }
-
-    [Fact]
-    public void WorkspaceCommandLineSynthesizer_ProducesPlausibleArgs()
-    {
-        using var workspace = LoadConsoleWorkspace();
-        var project = workspace.CurrentSolution.Projects.Single();
-        var compilation = project.GetCompilationAsync(CancellationToken).GetAwaiter().GetResult()!;
-
-        var args = WorkspaceCommandLineSynthesizer.Synthesize(project, compilation);
-
-        Assert.Contains("/noconfig", args);
-        Assert.Contains(args, a => a.StartsWith("/target:", StringComparison.Ordinal));
-        Assert.Contains(args, a => a.StartsWith("/langversion:", StringComparison.Ordinal));
-        Assert.Contains(args, a => a.StartsWith("/reference:", StringComparison.Ordinal));
-    }
 }

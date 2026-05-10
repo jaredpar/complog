@@ -227,8 +227,6 @@ internal sealed class CompilerLogBuilder : IDisposable
         // semantic analysis. Synthesizing a partial command line from compilation.Options
         // would produce an rsp that compiles but silently drops those inputs, so we leave
         // the args empty: replay/rsp/export will fail visibly rather than misleadingly.
-        // Callers who accept the fidelity tradeoff can use WorkspaceCommandLineSynthesizer
-        // directly.
         var infoPack = new CompilationInfoPack()
         {
             ProjectFilePath = projectFilePath,
