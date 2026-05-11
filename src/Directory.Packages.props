@@ -8,7 +8,7 @@
     <_RuntimeVersion>10.0.7</_RuntimeVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.6" />
+    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.7" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
     <PackageVersion Include="coverlet.msbuild" Version="10.0.0" />
