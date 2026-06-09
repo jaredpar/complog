@@ -1,4 +1,5 @@
 using Basic.CompilerLog.Util;
+using Microsoft.CodeAnalysis;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -128,5 +129,180 @@ public sealed class CompilerLogBuilderTests : TestBase
             builder.AddFromDisk(compilerCall, arguments);
             Assert.Equal([RoslynUtil.GetDiagnosticMissingCommitHash(compilerCall.CompilerFilePath!)], builder.Diagnostics);
         });
+    }
+
+    private Workspace LoadConsoleWorkspace(BasicAnalyzerKind analyzerKind = BasicAnalyzerKind.None)
+    {
+        using var solutionReader = SolutionReader.Create(Fixture.SolutionBinaryLogPath, analyzerKind, predicate: x => x.ProjectFileName == Fixture.ConsoleProjectName);
+        var workspace = new AdhocWorkspace();
+        workspace.AddSolution(solutionReader.ReadSolutionInfo());
+        return workspace;
+    }
+
+    [Fact]
+    public void AddFromWorkspace_RoundTrip()
+    {
+        using var workspace = LoadConsoleWorkspace();
+        var project = workspace.CurrentSolution.Projects.Single();
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, x => x.Name == project.Name, CancellationToken);
+        complogStream.Position = 0;
+
+        Assert.True(result.Succeeded);
+        Assert.Single(result.CompilerCalls);
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var compilerCalls = reader.ReadAllCompilerCalls();
+        Assert.Single(compilerCalls);
+
+        var compilationData = reader.ReadCompilationData(compilerCalls[0]);
+        Assert.True(compilationData.IsCSharp);
+        Assert.NotNull(compilationData.Compilation);
+        Assert.NotEmpty(compilationData.Compilation.SyntaxTrees);
+        Assert.NotEmpty(compilationData.Compilation.References);
+    }
+
+    [Fact]
+    public void AddFromWorkspace_SourceTextPreserved()
+    {
+        using var workspace = LoadConsoleWorkspace();
+        var project = workspace.CurrentSolution.Projects.Single();
+
+        var originalSources = project.Documents
+            .Select(d => d.GetTextAsync(CancellationToken).GetAwaiter().GetResult().ToString())
+            .OrderBy(x => x)
+            .ToList();
+
+        var complogStream = new MemoryStream();
+        CompilerLogUtil.CreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+        complogStream.Position = 0;
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        var sourceTextData = reader.ReadAllSourceTextData(compilerCall)
+            .Where(x => x.SourceTextKind == SourceTextKind.SourceCode)
+            .ToList();
+
+        Assert.Equal(originalSources.Count, sourceTextData.Count);
+
+        var roundTripSources = sourceTextData
+            .Select(x => reader.ReadSourceText(x).ToString())
+            .OrderBy(x => x)
+            .ToList();
+
+        Assert.Equal(originalSources, roundTripSources);
+    }
+
+    [Fact]
+    public void AddFromWorkspace_WithProjectReference()
+    {
+        using var solutionReader = SolutionReader.Create(Fixture.SolutionBinaryLogPath, BasicAnalyzerKind.None);
+        var workspace = new AdhocWorkspace();
+        workspace.AddSolution(solutionReader.ReadSolutionInfo());
+
+        var consoleProject = workspace.CurrentSolution.Projects
+            .FirstOrDefault(p => p.Language == LanguageNames.CSharp && p.ProjectReferences.Any());
+        if (consoleProject is null)
+        {
+            Assert.Skip("Fixture has no C# project with ProjectReferences");
+            return;
+        }
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, x => x.Name == consoleProject.Name, CancellationToken);
+        complogStream.Position = 0;
+
+        Assert.True(result.Succeeded);
+        Assert.Single(result.CompilerCalls);
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        Assert.NotEmpty(reader.ReadAllReferenceData(compilerCall));
+    }
+
+    [Fact]
+    public void CreateFromWorkspace_FilePath()
+    {
+        using var workspace = LoadConsoleWorkspace();
+        var complogFilePath = Path.Combine(RootDirectory, "workspace.complog");
+
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogFilePath, cancellationToken: CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.True(File.Exists(complogFilePath));
+
+        using var reader = CompilerLogReader.Create(complogFilePath, state: State);
+        Assert.Single(reader.ReadAllCompilerCalls());
+    }
+
+    [Fact]
+    public void AddFromWorkspace_WithAnalyzerFileReferences()
+    {
+        using var solutionReader = SolutionReader.Create(Fixture.SolutionBinaryLogPath, BasicAnalyzerKind.OnDisk, predicate: x => x.ProjectFileName == Fixture.ConsoleProjectName);
+        var workspace = new AdhocWorkspace();
+        workspace.AddSolution(solutionReader.ReadSolutionInfo());
+        var project = workspace.CurrentSolution.Projects.Single();
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+        complogStream.Position = 0;
+
+        Assert.True(result.Succeeded, $"Diagnostics: {string.Join("; ", result.Diagnostics)}");
+        Assert.Empty(result.Diagnostics);
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        var analyzerData = reader.ReadAllAnalyzerData(compilerCall);
+        Assert.Equal(project.AnalyzerReferences.Count, analyzerData.Count);
+    }
+
+    [Fact]
+    public async Task AddFromWorkspace_GeneratedTextRoundTrip()
+    {
+        using var workspace = LoadConsoleWorkspace();
+        var project = workspace.CurrentSolution.Projects.Single();
+        var generated = (await project.GetSourceGeneratedDocumentsAsync(CancellationToken)).ToList();
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+        complogStream.Position = 0;
+
+        Assert.True(result.Succeeded);
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        Assert.Equal(generated.Count, reader.ReadAllGeneratedSourceTexts(compilerCall).Count);
+    }
+
+    [Fact]
+    public void TryCreateFromWorkspace_PropagatesCancellation()
+    {
+        using var workspace = LoadConsoleWorkspace();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var complogStream = new MemoryStream();
+        Assert.Throws<OperationCanceledException>(() =>
+            CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: cts.Token));
+    }
+
+    [Fact]
+    public void TryCreateFromWorkspace_LeavesArgsEmpty()
+    {
+        // Workspace-derived complogs deliberately omit a synthesized command line because the
+        // Roslyn workspace API does not surface emit-time inputs (resources, manifests, etc.);
+        // a partial rsp would mislead replay/export. Lock in that the args are empty so we
+        // notice if anyone wires the synthesizer back in by default.
+        using var workspace = LoadConsoleWorkspace();
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+        complogStream.Position = 0;
+        Assert.True(result.Succeeded);
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        Assert.Empty(reader.ReadArguments(compilerCall));
     }
 }

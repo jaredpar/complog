@@ -3,6 +3,7 @@ using MessagePack;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.VisualBasic;
@@ -202,6 +203,354 @@ internal sealed class CompilerLogBuilder : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Adds a compilation built from a Roslyn workspace <see cref="Project"/>. Returns the
+    /// synthesized <see cref="CompilerCall"/> on success, or <see langword="null"/> when the
+    /// project's compilation could not be obtained (a diagnostic is recorded in that case).
+    /// </summary>
+    internal CompilerCall? AddFromWorkspace(Project project, CancellationToken cancellationToken = default)
+    {
+        var isCSharp = project.Language == LanguageNames.CSharp;
+        var projectFilePath = project.FilePath ?? $"{project.Name}{(isCSharp ? ".csproj" : ".vbproj")}";
+        var targetFramework = GetTargetFrameworkFromProject(project);
+
+        var compilation = project.GetCompilationAsync(cancellationToken).GetAwaiter().GetResult();
+        if (compilation is null)
+        {
+            Diagnostics.Add($"Cannot get compilation for {project.Name}");
+            return null;
+        }
+
+        // Roslyn's Workspace API doesn't surface emit-time inputs (embedded resources,
+        // Win32 manifest/icon/resource, source link, app.config) — only items needed for
+        // semantic analysis. Synthesizing a partial command line from compilation.Options
+        // would produce an rsp that compiles but silently drops those inputs, so we leave
+        // the args empty: replay/rsp/export will fail visibly rather than misleadingly.
+        var infoPack = new CompilationInfoPack()
+        {
+            ProjectFilePath = projectFilePath,
+            IsCSharp = isCSharp,
+            TargetFramework = targetFramework,
+            CompilerCallKind = CompilerCallKind.Regular,
+            CommandLineArgsHash = WriteContentMessagePack(Array.Empty<string>()),
+            CompilationDataPackHash = CreateCompilationDataPack(),
+        };
+
+        AddWorkspaceCompilationOptions(infoPack, compilation, isCSharp);
+        AddCore(infoPack);
+
+        return new CompilerCall(
+            projectFilePath: projectFilePath,
+            kind: CompilerCallKind.Regular,
+            targetFramework: targetFramework,
+            isCSharp: isCSharp);
+
+        string CreateCompilationDataPack()
+        {
+            var firstSourceText = project.Documents.FirstOrDefault()?.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+            var dataPack = new CompilationDataPack()
+            {
+                ContentList = new(),
+                ValueMap = new(),
+                References = new(),
+                Analyzers = new(),
+                Resources = new(),
+                ChecksumAlgorithm = firstSourceText?.ChecksumAlgorithm ?? SourceHashAlgorithm.Sha256,
+                EmitPdb = false,
+                HasGeneratedFilesInPdb = false,
+                IncludesGeneratedText = true,
+            };
+
+            var outputFilePath = project.OutputFilePath;
+            var assemblyFileName = outputFilePath is not null
+                ? Path.GetFileName(outputFilePath)
+                : GetWorkspaceAssemblyFileName(project.AssemblyName, compilation.Options.OutputKind);
+            var outputDirectory = outputFilePath is not null
+                ? Path.GetDirectoryName(outputFilePath)
+                : null;
+
+            dataPack.ValueMap["assemblyFileName"] = assemblyFileName;
+            dataPack.ValueMap["outputDirectory"] = outputDirectory;
+            dataPack.ValueMap["xmlFilePath"] = null;
+            dataPack.ValueMap["compilationName"] = project.AssemblyName;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? document.Name;
+                var sourceText = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+                AddSourceText(dataPack, RawContentKind.SourceText, filePath, sourceText);
+            }
+
+            foreach (var document in project.AdditionalDocuments)
+            {
+                var filePath = document.FilePath ?? document.Name;
+                var sourceText = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+                AddSourceText(dataPack, RawContentKind.AdditionalText, filePath, sourceText);
+            }
+
+            foreach (var document in project.AnalyzerConfigDocuments)
+            {
+                var filePath = document.FilePath ?? document.Name;
+                var sourceText = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+                AddSourceText(dataPack, RawContentKind.AnalyzerConfig, filePath, sourceText);
+            }
+
+            var generatedDocs = project.GetSourceGeneratedDocumentsAsync(cancellationToken).GetAwaiter().GetResult();
+            foreach (var document in generatedDocs)
+            {
+                var filePath = document.FilePath ?? document.HintName;
+                var sourceText = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+                AddSourceText(dataPack, RawContentKind.GeneratedText, filePath, sourceText);
+            }
+
+            foreach (var reference in project.MetadataReferences)
+            {
+                if (reference is PortableExecutableReference peRef)
+                {
+                    if (peRef.FilePath is not null)
+                    {
+                        var refInfo = AddAssembly(peRef.FilePath);
+                        dataPack.References.Add(new ReferencePack()
+                        {
+                            Mvid = refInfo.Mvid,
+                            Kind = peRef.Properties.Kind,
+                            EmbedInteropTypes = peRef.Properties.EmbedInteropTypes,
+                            Aliases = peRef.Properties.Aliases,
+                            FilePath = peRef.FilePath,
+                            AssemblyName = refInfo.AssemblyName,
+                            AssemblyInformationalVersion = refInfo.AssemblyInformationalVersion,
+                            NetModuleMvids = ImmutableArray<Guid>.Empty,
+                        });
+                    }
+                    else
+                    {
+                        Diagnostics.Add($"Skipping in-memory metadata reference in {project.Name}: {reference.Display}");
+                    }
+                }
+                else
+                {
+                    Diagnostics.Add($"Skipping metadata reference of unsupported type {reference.GetType().Name} in {project.Name}: {reference.Display}");
+                }
+            }
+
+            foreach (var projectRef in project.ProjectReferences)
+            {
+                AddProjectReferenceToDataPack(dataPack, project, projectRef, cancellationToken);
+            }
+
+            foreach (var analyzerReference in project.AnalyzerReferences)
+            {
+                if (analyzerReference is AnalyzerFileReference fileRef)
+                {
+                    var refInfo = AddAssembly(fileRef.FullPath);
+                    dataPack.Analyzers.Add(new AnalyzerPack()
+                    {
+                        Mvid = refInfo.Mvid,
+                        FilePath = fileRef.FullPath,
+                        AssemblyName = refInfo.AssemblyName,
+                        AssemblyInformationalVersion = refInfo.AssemblyInformationalVersion,
+                    });
+                }
+                else
+                {
+                    Diagnostics.Add($"Skipping analyzer reference of unsupported type {analyzerReference.GetType().Name} in {project.Name}: {analyzerReference.Display}. Reload the workspace with BasicAnalyzerKind.OnDisk or BasicAnalyzerKind.None to capture analyzers via file paths.");
+                }
+            }
+
+            if (compilation.Options.CryptoKeyFile is { Length: > 0 } keyFile
+                && ResolveProjectRelativePath(project, keyFile) is { } resolvedKeyFile
+                && File.Exists(resolvedKeyFile))
+            {
+                AddContentFromDisk(dataPack, RawContentKind.CryptoKeyFile, resolvedKeyFile);
+            }
+
+            return WriteContentMessagePack(dataPack);
+        }
+
+        void AddWorkspaceCompilationOptions(CompilationInfoPack infoPack, Compilation compilation, bool isCSharp)
+        {
+            infoPack.EmitOptionsHash = WriteContentMessagePack(MessagePackUtil.CreateEmitOptionsPack(new EmitOptions()));
+
+            if (isCSharp)
+            {
+                var parseOptions = (project.ParseOptions as CSharpParseOptions) ?? CSharpParseOptions.Default;
+                infoPack.ParseOptionsHash = WriteContentMessagePack(
+                    MessagePackUtil.CreateCSharpParseOptionsPack(parseOptions));
+                infoPack.CompilationOptionsHash = WriteContentMessagePack(
+                    MessagePackUtil.CreateCSharpCompilationOptionsPack((CSharpCompilationOptions)compilation.Options));
+            }
+            else
+            {
+                var parseOptions = (project.ParseOptions as VisualBasicParseOptions) ?? VisualBasicParseOptions.Default;
+                infoPack.ParseOptionsHash = WriteContentMessagePack(
+                    MessagePackUtil.CreateVisualBasicParseOptionsPack(parseOptions));
+                infoPack.CompilationOptionsHash = WriteContentMessagePack(
+                    MessagePackUtil.CreateVisualBasicCompilationOptionsPack((VisualBasicCompilationOptions)compilation.Options));
+            }
+        }
+    }
+
+    private void AddSourceText(CompilationDataPack dataPack, RawContentKind kind, string filePath, SourceText sourceText)
+    {
+        var encoding = sourceText.Encoding ?? ContentEncoding;
+        using var stream = new MemoryStream();
+        using (var writer = Polyfill.NewStreamWriter(stream, encoding, leaveOpen: true))
+        {
+            sourceText.Write(writer);
+        }
+
+        stream.Position = 0;
+        AddContent(dataPack, kind, filePath, stream);
+    }
+
+    /// <summary>
+    /// Serialize a project-to-project reference. Prefers the dependency's on-disk
+    /// <see cref="Project.OutputFilePath"/> (which matches the consumer's TargetFramework), and only
+    /// falls back to emitting the dependency's in-memory <see cref="Compilation"/> when no compiled
+    /// output is available on disk.
+    /// </summary>
+    private void AddProjectReferenceToDataPack(CompilationDataPack dataPack, Project parentProject, ProjectReference projectRef, CancellationToken cancellationToken)
+    {
+        var dep = parentProject.Solution.GetProject(projectRef.ProjectId);
+        if (dep is null)
+        {
+            Diagnostics.Add($"Cannot resolve project reference {projectRef.ProjectId} in {parentProject.Name}");
+            return;
+        }
+
+        if (dep.OutputFilePath is not null && File.Exists(dep.OutputFilePath))
+        {
+            var refInfo = AddAssembly(dep.OutputFilePath);
+            dataPack.References.Add(new ReferencePack()
+            {
+                Mvid = refInfo.Mvid,
+                Kind = MetadataImageKind.Assembly,
+                EmbedInteropTypes = projectRef.EmbedInteropTypes,
+                Aliases = projectRef.Aliases,
+                FilePath = dep.OutputFilePath,
+                AssemblyName = refInfo.AssemblyName,
+                AssemblyInformationalVersion = refInfo.AssemblyInformationalVersion,
+                NetModuleMvids = ImmutableArray<Guid>.Empty,
+            });
+            return;
+        }
+
+        var depCompilation = dep.GetCompilationAsync(cancellationToken).GetAwaiter().GetResult();
+        if (depCompilation is null)
+        {
+            Diagnostics.Add($"Cannot get compilation for project reference {dep.Name} in {parentProject.Name}");
+            return;
+        }
+
+        var memStream = new MemoryStream();
+        var emitResult = depCompilation.Emit(memStream, cancellationToken: cancellationToken);
+        if (!emitResult.Success)
+        {
+            var errors = string.Join(", ", emitResult.Diagnostics
+                .Where(static x => x.Severity == DiagnosticSeverity.Error)
+                .Select(static x => x.GetMessage()));
+            Diagnostics.Add($"Cannot emit compilation reference {depCompilation.AssemblyName} in {parentProject.Name}: {errors}");
+            return;
+        }
+
+        memStream.Position = 0;
+        var displayPath = $"{depCompilation.AssemblyName}.dll";
+        var emittedInfo = AddAssemblyFromStream(displayPath, memStream);
+        dataPack.References.Add(new ReferencePack()
+        {
+            Mvid = emittedInfo.Mvid,
+            Kind = MetadataImageKind.Assembly,
+            EmbedInteropTypes = projectRef.EmbedInteropTypes,
+            Aliases = projectRef.Aliases,
+            FilePath = displayPath,
+            AssemblyName = emittedInfo.AssemblyName,
+            AssemblyInformationalVersion = emittedInfo.AssemblyInformationalVersion,
+            NetModuleMvids = ImmutableArray<Guid>.Empty,
+        });
+    }
+
+    private BuilderAssemblyData AddAssemblyFromStream(string displayPath, MemoryStream stream)
+    {
+        if (_assemblyPathToMvidMap.TryGetValue(displayPath, out var existing))
+        {
+            Debug.Assert(_mvidToRefInfoMap.ContainsKey(existing.Mvid));
+            return existing;
+        }
+
+        stream.Position = 0;
+        using var peReader = new PEReader(stream, PEStreamOptions.LeaveOpen);
+        var metadataReader = peReader.GetMetadataReader();
+        var identityData = RoslynUtil.ReadAssemblyIdentityData(metadataReader);
+        var fullAssemblyName = metadataReader.GetAssemblyDefinition().GetAssemblyName().ToString();
+
+        var info = (identityData.Mvid, identityData.AssemblyName, identityData.AssemblyInformationalVersion, ImmutableArray<string>.Empty);
+        _assemblyPathToMvidMap[displayPath] = info;
+
+        if (!_mvidToRefInfoMap.ContainsKey(info.Mvid))
+        {
+            var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(info.Mvid), CompressionLevel.Fastest);
+            using var entryStream = entry.Open();
+            stream.Position = 0;
+            stream.CopyTo(entryStream);
+            _mvidToRefInfoMap[info.Mvid] = (Path.GetFileName(displayPath), fullAssemblyName);
+        }
+
+        return info;
+    }
+
+    /// <summary>
+    /// Extract a TargetFramework moniker from a workspace <see cref="Project"/>. MSBuildWorkspace
+    /// names multi-targeted projects "AssemblyName(tfm)" — that's the most reliable signal and is
+    /// preferred. Falls back to the parent directory of <see cref="Project.OutputFilePath"/>, which
+    /// for default-layout SDK projects is the TFM (but for projects using <c>artifacts/</c> output
+    /// the directory is <c>{config}_{tfm}</c>, so this fallback is best-effort only).
+    /// </summary>
+    private static string? GetTargetFrameworkFromProject(Project project)
+    {
+        var name = project.Name;
+        var open = name.LastIndexOf('(');
+        var close = name.LastIndexOf(')');
+        if (open > 0 && close == name.Length - 1 && close > open + 1)
+        {
+            return name.Substring(open + 1, close - open - 1);
+        }
+
+        if (project.OutputFilePath is { } outputPath)
+        {
+            var parent = Path.GetFileName(Path.GetDirectoryName(outputPath));
+            if (!string.IsNullOrEmpty(parent))
+            {
+                return parent;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ResolveProjectRelativePath(Project project, string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return path;
+        }
+
+        var projectDir = project.FilePath is { } projectFilePath
+            ? Path.GetDirectoryName(projectFilePath)
+            : null;
+        return projectDir is not null
+            ? Path.Combine(projectDir, path)
+            : null;
+    }
+
+    private static string GetWorkspaceAssemblyFileName(string assemblyName, OutputKind outputKind) =>
+        outputKind switch
+        {
+            OutputKind.NetModule => $"{assemblyName}.netmodule",
+            OutputKind.ConsoleApplication => $"{assemblyName}.exe",
+            OutputKind.WindowsApplication => $"{assemblyName}.exe",
+            _ => $"{assemblyName}.dll",
+        };
 
     private void AddCore(CompilationInfoPack infoPack)
     {
