@@ -378,29 +378,27 @@ public sealed class R2RUtilTests : TestBase
             BasicAnalyzerKind.None);
         var analyzerDataList = reader.ReadAllAnalyzerData(0);
 
-        // Find R2R analyzers with a standard architecture machine value (e.g. Amd64).
-        // These are Windows R2R images that need stripping on non-Windows hosts.
-        var windowsR2rData = analyzerDataList
-            .Where(a =>
-            {
-                var bytes = reader.GetAssemblyBytes(a.Mvid);
-                if (!R2RUtil.IsReadyToRun(bytes))
-                {
-                    return false;
-                }
+        // Get any R2R analyzer from the fixture (on Linux these will have machine 0xFD1D)
+        var r2rAnalyzer = analyzerDataList
+            .First(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)));
 
-                using var stream = bytes.AsSimpleMemoryStream(writable: false);
-                using var peReader = new PEReader(stream);
-                var machine = peReader.PEHeaders.CoffHeader.Machine;
-                return machine == Machine.Amd64 || machine == Machine.Arm64;
-            })
-            .ToList();
+        var bytes = reader.GetAssemblyBytes(r2rAnalyzer.Mvid);
 
-        foreach (var data in windowsR2rData)
-        {
-            var bytes = reader.GetAssemblyBytes(data.Mvid);
-            Assert.True(R2RUtil.NeedsStripping(bytes), $"Windows R2R analyzer {data.FilePath} should need stripping on non-Windows");
-        }
+        // Patch the COFF Machine field to Machine.Amd64 (0x8664) to simulate a Windows R2R
+        // assembly being loaded on Linux. The Machine field is at offset PE_SIGNATURE + 4 in
+        // the COFF header.
+        var patchedBytes = (byte[])bytes.Clone();
+        var peSignatureOffset = BitConverter.ToInt32(patchedBytes, 0x3C);
+        var machineOffset = peSignatureOffset + 4; // PE signature is 4 bytes, Machine is first field of COFF header
+        patchedBytes[machineOffset] = 0x64;     // low byte of 0x8664 (Machine.Amd64)
+        patchedBytes[machineOffset + 1] = 0x86; // high byte
+
+        // Verify the patched assembly is still detected as R2R
+        Assert.True(R2RUtil.IsReadyToRun(patchedBytes));
+
+        // On Linux/macOS, NeedsStripping should return true because Machine.Amd64 is not the
+        // OS-native R2R sentinel
+        Assert.True(R2RUtil.NeedsStripping(patchedBytes));
     }
 
     /// <summary>
