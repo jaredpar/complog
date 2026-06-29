@@ -223,6 +223,42 @@ public sealed class ExportUtilTests : TestBase
     /// Make sure that global configs get their full paths mapped to the new location on disk
     /// </summary>
     [Fact]
+    public void ExportedAnalyzersAreNotR2R()
+    {
+        using var reader = CompilerLogReader.Create(
+            Fixture.Console.Value.CompilerLogPath,
+            BasicAnalyzerKind.None,
+            new LogReaderState(stripReadyToRun: true));
+        var exportUtil = new ExportUtil(reader);
+        var compilerDirectories = SdkUtil.GetSdkCompilerDirectories();
+        foreach (var compilerCall in reader.ReadAllCompilerCalls())
+        {
+            using var tempDir = new TempDir();
+            exportUtil.Export(compilerCall, tempDir.DirectoryPath, compilerDirectories);
+
+            var analyzerDir = Path.Combine(tempDir.DirectoryPath, "analyzers");
+            if (!Directory.Exists(analyzerDir))
+            {
+                continue;
+            }
+
+            var dlls = Directory.GetFiles(analyzerDir, "*.dll", SearchOption.AllDirectories);
+            Assert.NotEmpty(dlls);
+
+            foreach (var dll in dlls)
+            {
+                var bytes = File.ReadAllBytes(dll);
+                Assert.False(
+                    R2RUtil.IsReadyToRun(bytes),
+                    $"Exported analyzer {Path.GetFileName(dll)} should not contain R2R native code");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Make sure that global configs get their full paths mapped to the new location on disk
+    /// </summary>
+    [Fact]
     public void GlobalConfigMapsPaths()
     {
         TestExportRsp(Fixture.ConsoleComplex.Value.CompilerLogPath, expectedCount: 1, verifyExportCallback: void (string path) =>
