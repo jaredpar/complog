@@ -43,7 +43,7 @@ In cases where the API is ambiguous as to whether it returns raw or normalized c
 
 | Package | Purpose |
 |---------|---------|
-| Microsoft.CodeAnalysis (Roslyn) | Compiler APIs (reference version: 4.8.0, build version: 5.0.0) |
+| Microsoft.CodeAnalysis | Compiler APIs (reference version: 4.8.0, build version: 5.0.0) |
 | MSBuild.StructuredLogger | Binary log parsing |
 | MessagePack | Serialization format for `.complog` files |
 | Mono.Options | Command-line argument parsing |
