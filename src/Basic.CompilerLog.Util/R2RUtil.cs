@@ -61,6 +61,16 @@ internal static class R2RUtil
         }
 
         var machine = peReader.PEHeaders.CoffHeader.Machine;
+
+        // On non-Windows, crossgen2 writes an OS-specific sentinel value into the COFF Machine
+        // field (e.g. 0xFD1D on Linux). A standard architecture value (Amd64, Arm64, etc.) in
+        // an R2R image on a non-Windows host therefore indicates a Windows R2R image whose native
+        // code cannot be executed here.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !IsCurrentOsNativeR2R(machine))
+        {
+            return true;
+        }
+
         return !IsCurrentArchitecture(machine);
     }
 

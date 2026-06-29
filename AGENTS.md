@@ -4,7 +4,7 @@ This file provides guidance for AI assistants working with the complog (Compiler
 
 ## Project Overview
 
-**complog** is a .NET tool and library for creating, consuming, and analyzing compiler log files. These files are built from MSBuild binary logs and contain everything needed to recreate Roslyn `Compilation` instances. The project is licensed under MIT.
+**complog** is a .NET tool and library for creating, consuming, and analyzing compiler log files. These files that end with the extension `.complog` that are built from MSBuild binary logs and contain everything needed to recreate Roslyn `Compilation` instances. The project is licensed under MIT.
 
 Repository: https://github.com/jaredpar/complog
 
@@ -23,6 +23,9 @@ dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj -
 
 # Run tests for net10.0 framework
 dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
+
+# Run tests with blame-hang to detect hanging tests (always use this when running full suite)
+dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0 --blame-hang --blame-hang-timeout 60s
 
 # Build with binary log (used for CI and dogfooding)
 dotnet build -bl

@@ -365,6 +365,45 @@ public sealed class R2RUtilTests : TestBase
     }
 
     /// <summary>
+    /// On non-Windows hosts, a ReadyToRun assembly with a standard architecture machine value
+    /// (e.g. <see cref="Machine.Amd64"/>) is a Windows R2R image whose native code cannot
+    /// execute on the current OS. <see cref="R2RUtil.NeedsStripping(PEReader)"/> must return
+    /// <see langword="true"/> for such assemblies.
+    /// </summary>
+    [UnixFact]
+    public void NeedsStrippingReturnsTrueForCrossOsR2R()
+    {
+        using var reader = CompilerLogReader.Create(
+            Fixture.Console.Value.CompilerLogPath,
+            BasicAnalyzerKind.None);
+        var analyzerDataList = reader.ReadAllAnalyzerData(0);
+
+        // Find R2R analyzers with a standard architecture machine value (e.g. Amd64).
+        // These are Windows R2R images that need stripping on non-Windows hosts.
+        var windowsR2rData = analyzerDataList
+            .Where(a =>
+            {
+                var bytes = reader.GetAssemblyBytes(a.Mvid);
+                if (!R2RUtil.IsReadyToRun(bytes))
+                {
+                    return false;
+                }
+
+                using var stream = bytes.AsSimpleMemoryStream(writable: false);
+                using var peReader = new PEReader(stream);
+                var machine = peReader.PEHeaders.CoffHeader.Machine;
+                return machine == Machine.Amd64 || machine == Machine.Arm64;
+            })
+            .ToList();
+
+        foreach (var data in windowsR2rData)
+        {
+            var bytes = reader.GetAssemblyBytes(data.Mvid);
+            Assert.True(R2RUtil.NeedsStripping(bytes), $"Windows R2R analyzer {data.FilePath} should need stripping on non-Windows");
+        }
+    }
+
+    /// <summary>
     /// Builds a minimal PE assembly with static fields that have RVAs for each primitive type
     /// exercised by <c>GetMappedFieldDataSize</c>, strips it through <see cref="R2RUtil.StripReadyToRun"/>,
     /// and verifies the output has valid metadata with the same field definitions.

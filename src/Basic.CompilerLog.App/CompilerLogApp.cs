@@ -407,6 +407,7 @@ public sealed class CompilerLogApp(
         var exportOptions = ExportOptions.None;
         var useVisualStudio = false;
         var exportAsSolution = false;
+        bool? stripReadyToRun = null;
         var options = new FilterOptionSet()
         {
             { "o|out=", "path to export build content", o => baseOutputPath = o },
@@ -415,6 +416,7 @@ public sealed class CompilerLogApp(
             { "simple", "create the simplest possible export (excludes analyzers and config)", i => { if (i is not null) exportOptions |= ExportOptions.ExcludeAll; } },
             { "vs", "use the csc.exe from installed Visual Studio instances", v => useVisualStudio = v is not null },
             { "solution", "export as a full solution with project files (EXPERIMENTAL)", p => exportAsSolution = p is not null },
+            { "strip=", "strip R2R native code from analyzers: auto (default), always, never", void (string s) => stripReadyToRun = FilterOptionSet.ParseStripReadyToRun(s) },
         };
 
         try
@@ -434,7 +436,7 @@ public sealed class CompilerLogApp(
             }
 
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-            using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None);
+            using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None, state: new LogReaderState(stripReadyToRun: stripReadyToRun));
             var exportUtil = new ExportUtil(reader, exportOptions);
 
             if (exportAsSolution)
@@ -1042,9 +1044,9 @@ public sealed class CompilerLogApp(
         }
     }
 
-    internal CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false)
+    internal CompilerLogReader GetCompilerLogReader(Stream compilerLogStream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false, LogReaderState? state = null)
     {
-        var reader = CompilerLogReader.Create(compilerLogStream, basicAnalyzerKind, state: null, leaveOpen);
+        var reader = CompilerLogReader.Create(compilerLogStream, basicAnalyzerKind, state: state, leaveOpen);
         OnCompilerCallReader(reader);
         CheckCompilerLogReader(reader, checkVersion);
         return reader;
