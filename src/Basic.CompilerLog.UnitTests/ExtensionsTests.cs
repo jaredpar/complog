@@ -6,7 +6,6 @@ using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class ExtensionsTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }

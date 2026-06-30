@@ -160,8 +160,3 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
     }
 }
 
-[CollectionDefinition(Name)]
-public sealed class SolutionFixtureCollection : ICollectionFixture<SolutionFixture>
-{
-    public const string Name = "Solution Collection";
-}

@@ -102,7 +102,9 @@ Tests live in `src/Basic.CompilerLog.UnitTests/` and use xUnit SDK v3 (`xunit.v3
 - Follow the naming style of nearby existing tests.
 - Tests reference `Basic.Reference.Assemblies.Net90` for compilation scenarios.
 - Test resources are embedded in the test assembly (see the `Resources/` directory).
-- Tests do **not** run in parallel — parallelism is disabled.
+- Tests run **in parallel** across test classes (`parallelizeTestCollections: true` in
+  `xunit.runner.json`, capped by `maxParallelThreads`). The shared fixtures are exposed as read-only
+  data and each test writes only to its own `TempDir`, so test classes are safe to run concurrently.
 
 ### OS-conditional facts
 
@@ -125,9 +127,11 @@ Generating compiler logs is expensive, so logs are built once per test run and s
 - `FixtureBase` provides shared helpers such as `RunDotnetCommand`, which logs diagnostics to the
   xUnit message sink.
 
-Fixtures are wired up through xUnit collections (`[CollectionDefinition]` /
-`[Collection(...)]`), for example `CompilerLogCollection` and `SolutionFixtureCollection`. Add a
-test class to the appropriate collection to consume the corresponding fixture.
+Fixtures are shared across the whole assembly using xUnit v3 **assembly fixtures**
+(`[assembly: AssemblyFixture(typeof(...))]` in `AssemblyFixtures.cs`), for example
+`CompilerLogFixture` and `SolutionFixture`. This builds each expensive fixture exactly once while
+still allowing the individual test classes to run in parallel collections. A test class consumes a
+fixture simply by taking it as a constructor parameter — no `[Collection(...)]` attribute is needed.
 
 ### Test artifacts directory
 

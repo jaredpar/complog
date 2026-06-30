@@ -17,7 +17,6 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class R2RUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }

@@ -46,6 +46,12 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
     private List<ReadOnlyDirectoryScope> ReadOnlyDirectoryScopes { get; } = new();
 
+    /// <summary>
+    /// Guards <see cref="ReadOnlyDirectoryScopes"/> as the lazy log builds can run concurrently
+    /// when the fixture is shared at the assembly level and test collections run in parallel.
+    /// </summary>
+    private readonly object _readOnlyDirectoryScopesLock = new();
+
     internal ImmutableArray<Lazy<LogData>> AllLogs { get; }
 
     /// <summary>
@@ -717,7 +723,10 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         Assert.Empty(diagnostics);
                     }
 
-                    ReadOnlyDirectoryScopes.Add(new(scratchPath, setReadOnly: true));
+                    lock (_readOnlyDirectoryScopesLock)
+                    {
+                        ReadOnlyDirectoryScopes.Add(new(scratchPath, setReadOnly: true));
+                    }
 
                     return new LogData(projectFilePath, complogFilePath, binlogFilePath, supportsNoneHost);
                 }
@@ -870,9 +879,12 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     public void Dispose()
     {
-        foreach (var scope in ReadOnlyDirectoryScopes)
+        lock (_readOnlyDirectoryScopesLock)
         {
-            scope.ClearReadOnly();
+            foreach (var scope in ReadOnlyDirectoryScopes)
+            {
+                scope.ClearReadOnly();
+            }
         }
 
         Directory.Delete(StorageDirectory, recursive: true);
@@ -926,8 +938,3 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     }
 }
 
-[CollectionDefinition(Name)]
-public sealed class CompilerLogCollection : ICollectionFixture<CompilerLogFixture>
-{
-    public const string Name = "Compiler Log Collection";
-}

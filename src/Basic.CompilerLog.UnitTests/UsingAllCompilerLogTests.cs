@@ -16,7 +16,6 @@ using Basic.CompilerLog.App;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class UsingAllCompilerLogTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }

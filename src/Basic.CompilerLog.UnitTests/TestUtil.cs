@@ -138,7 +138,7 @@ internal static class TestUtil
     /// </summary>
     internal static ProcessResult RunBuildCmd(string directory) =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-         ? ProcessUtil.Run("cmd", args: "/c build.cmd", workingDirectory: directory)
+         ? ProcessUtil.Run("cmd", args: $@"/c ""{Path.Combine(directory, "build.cmd")}""", workingDirectory: directory)
          : ProcessUtil.Run(Path.Combine(directory, "build.sh"), args: "", workingDirectory: directory);
 
     internal static string GetProjectFile(string directory) =>

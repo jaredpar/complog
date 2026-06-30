@@ -12,7 +12,6 @@ using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class SolutionReaderTests : TestBase
 {
     public List<SolutionReader> ReaderList { get; } = new();

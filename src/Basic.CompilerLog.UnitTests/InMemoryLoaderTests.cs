@@ -10,7 +10,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class InMemoryLoaderTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }

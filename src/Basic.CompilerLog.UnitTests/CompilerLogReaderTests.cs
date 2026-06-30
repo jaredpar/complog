@@ -22,7 +22,6 @@ using Task = System.Threading.Tasks.Task;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class CompilerLogReaderTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
