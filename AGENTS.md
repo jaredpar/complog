@@ -1,27 +1,29 @@
 # AGENTS.md
 
-This file provides guidance for AI assistants working with the complog (Compiler Logs) repository.
+This file tells AI assistants how to work in the complog (Compiler Logs) repository: how it is
+structured, how to build and test it, how style is enforced, and how CI/CD works. For details about
+the code itself — internal architecture, source layout, coding style, and how the test suite is
+designed — see [docs/overview.md](docs/overview.md).
 
 ## Project Overview
 
-**complog** is a .NET tool and library for creating, consuming, and analyzing compiler log files. These files that end with the extension `.complog` that are built from MSBuild binary logs and contain everything needed to recreate Roslyn `Compilation` instances. The project is licensed under MIT.
+**complog** is a .NET tool and library for creating, consuming, and analyzing compiler log files.
+These files, using the extension .complog, are built from MSBuild binary logs and contain everything needed 
+to recreate Roslyn `Compilation` instances. The project is licensed under MIT.
 
 Repository: https://github.com/jaredpar/complog
 
 ## Build & Test Commands
 
 ```bash
-# Restore, build, and test (the main workflow)
-dotnet build
+# Restore, build, and test (the main workflow), use -bl for binary logs
+dotnet build -bl
 dotnet test --framework net10.0
 
 # Build the full solution
 dotnet build Basic.CompilerLog.slnx
 
-# Run tests for net10.0 framework (AI agents should focus on this TFM)
-dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
-
-# Run tests for net10.0 framework
+# Run the test suite (AI agents should focus on the net10.0 TFM for initial validation)
 dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
 
 # Run tests with blame-hang to detect hanging tests (always use this when running full suite)
@@ -34,7 +36,15 @@ dotnet build -bl
 dotnet pack
 ```
 
-Build warnings are treated as errors in CI (`-warnaserror`). The restore step also uses `-warnaserror`.
+When running the full test suite, use `--blame-hang --blame-hang-timeout 60s` to detect hanging
+tests:
+
+```bash
+dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0 --blame-hang --blame-hang-timeout 60s
+```
+
+Build warnings are treated as errors in CI (`-warnaserror`). The restore step also uses
+`-warnaserror`.
 
 ## Solution Structure
 
@@ -49,102 +59,46 @@ Solution file: `Basic.CompilerLog.slnx`
 | `src/Scratch/` | Benchmarks and scratch development | - |
 | `src/Shared/` | Shared utility files (linked into projects) | - |
 
-### Key Source Files
+## How Style Is Enforced
 
-- `CompilerLogReader.cs` - Main reader for .complog files (core component)
-- `CompilerLogBuilder.cs` - Builder for creating .complog files
-- `BinaryLogReader.cs` - MSBuild .binlog parsing
-- `CompilerLogApp.cs` - CLI command dispatch and handling
-- `RoslynUtil.cs` - Roslyn compiler integration utilities
-- `ExportUtil.cs` - Export functionality for compilations
-- `SolutionReader.cs` - Creates Roslyn workspaces from logs
-- `Impl/` - Analyzer host implementations (memory and disk variants)
-- `Serialize/` - MessagePack-based serialization
-
-## Coding Conventions
-
-### Language
-
-- **C# with preview features** (LangVersion: preview, currently C# 14)
-- **Nullable reference types** enabled and enforced throughout
-- File-scoped namespace declarations
-- Pattern matching and switch expressions preferred
-- Use `nameof()` instead of string literals for member names
-- Use `is null` / `is not null` instead of `== null` / `!= null`
-- No `#region` directives
-- Comments explain **why**, not **what**
-- Use XML documentation comments (`/// <summary>`) on all methods and types; plain `//` comments on the line immediately before a declaration are not acceptable
-- Nested types should be grouped at the top of the type
-
-### Naming (enforced via .editorconfig)
-
-| Symbol | Convention | Example |
-|--------|-----------|---------|
-| Private instance fields | `_camelCase` | `_reader` |
-| Private static fields | `s_camelCase` | `s_instance` |
-| Constants | `PascalCase` | `MaxRetries` |
-| Public fields/properties | `PascalCase` | `FilePath` |
-| Methods | `PascalCase` | `ReadCompilation` |
-| Interfaces | `IPascalCase` | `ICompilerCallReader` |
-| Type parameters | `TPascalCase` | `TResult` |
-| Parameters/locals | `camelCase` | `filePath` |
-
-### Comparing strings
-
-- Use `PathUtil.Comparison` for file paths
-- Use `StringComparison.OrdinalIgnoreCase` for compiler arguments
-- Use `StringComparison.Ordinal` for all other string comparisons
-
-### Formatting
-
-- 4-space indentation (no tabs)
-- UTF-8 encoding, LF line endings (CRLF for .cmd/.bat files)
-- Final newline required
-- Trailing whitespace trimmed
-- Newline before opening brace of code blocks
-
-## Testing
-
-- **Framework:** xUnit SDK v3 (`xunit.v3` package)
-- **Coverage:** Coverlet (Cobertura format, output to `artifacts/coverage/`)
-- Do **not** use "Arrange", "Act", "Assert" section comments
-- Follow the naming style of nearby existing tests
-- Test resources are embedded in the test assembly (see `Resources/` directory)
-- Tests reference `Basic.Reference.Assemblies.Net90` for compilation scenarios
-- Tests should use existing projects on `CompilerLogFixture` for validation
+- Style and naming rules are enforced via `.editorconfig` at the repo root.
+- The language is **C# with preview features** (`LangVersion: preview`) and **nullable reference
+  types** enabled and enforced throughout.
+- Build warnings are errors in CI, so style/analyzer violations fail the build.
+- For the full set of coding conventions (naming, formatting, string comparison, documentation),
+  see [docs/overview.md](docs/overview.md).
 
 ## Build Configuration
 
-- **Central package management** via `src/Directory.Packages.props` (all package versions defined centrally)
-- **Global build properties** via `src/Directory.Build.props`
-- **Assembly signing** enabled with `key.snk`
-- **Artifacts output** to `artifacts/` directory (relative to repo root)
-- Do **not** modify `global.json` or `NuGet.config` unless explicitly asked
+- **Central package management** via `src/Directory.Packages.props` (all package versions defined
+  centrally).
+- **Global build properties** via `src/Directory.Build.props`.
+- **Assembly signing** enabled with `key.snk`.
+- **Artifacts output** to the `artifacts/` directory (relative to repo root).
+- Do **not** modify `global.json` or `NuGet.config` unless explicitly asked.
 
-### Key Dependencies
+## Testing Notes
 
-| Package | Purpose |
-|---------|---------|
-| Microsoft.CodeAnalysis (Roslyn) | Compiler APIs (reference version: 4.8.0, build version: 5.0.0) |
-| MSBuild.StructuredLogger | Binary log parsing |
-| MessagePack | Serialization format for .complog files |
-| Mono.Options | Command-line argument parsing |
-| Microsoft.Extensions.ObjectPool | Object pooling |
+- Framework is xUnit SDK v3 (`xunit.v3` package); coverage is collected with Coverlet (Cobertura
+  format, output to `artifacts/coverage/`).
+- Tests do **not** run in parallel — parallelism is disabled.
+- In clean environments, `dotnet test Basic.CompilerLog.slnx` fails unless `TEST_ARTIFACTS_PATH` is
+  set for the `Basic.CompilerLog.UnitTests` fixtures. Prefer running the test project directly.
+- For how the test suite is structured (fixtures, collections, `[WindowsFact]`/`[UnixFact]`, test
+  resources), see [docs/overview.md](docs/overview.md).
 
 ## CI/CD
 
 GitHub Actions (`.github/workflows/dotnet.yml`):
-- Runs on push/PR to `main`
-- Matrix: ubuntu-latest + windows-latest
-- .NET SDKs: 8.0.x, 9.0.x, 10.0.x
-- Linux tests: net10.0
-- Windows tests: net10.0 + net472
-- Uploads compiler logs, test results (.trx), and coverage to Codecov
+- Runs on push/PR to `main`.
+- Matrix: ubuntu-latest + windows-latest.
+- .NET SDKs: 8.0.x, 9.0.x, 10.0.x.
+- Linux tests: net10.0.
+- Windows tests: net10.0 + net472.
+- Uploads compiler logs, test results (.trx), and coverage to Codecov.
 
-## Architecture Notes
+## Further Reading
 
-- **Multi-targeting**: The Util library targets net9.0/net10.0/net472/netstandard2.0 for broad compatibility
-- **Roslyn version split**: Reference assemblies use version 4.8.0 (`RoslynReferenceVersion`) while build uses 5.0.0 — this is intentional for compatibility
-- **AssemblyLoadContext**: Used to isolate compiler implementations for version compatibility (see `CustomCompilerLoadContext.cs`)
-- **Path normalization**: Handles Windows/Unix path differences for cross-platform .complog portability
-- **Streaming serialization**: MessagePack-based format for efficient .complog storage
+- [docs/overview.md](docs/overview.md) — internal architecture, source layout, coding style, and
+  test design.
+- [docs/investigating.md](docs/investigating.md) — debugging notes for specific issues.
