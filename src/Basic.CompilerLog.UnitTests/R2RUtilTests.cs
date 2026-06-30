@@ -365,6 +365,43 @@ public sealed class R2RUtilTests : TestBase
     }
 
     /// <summary>
+    /// On non-Windows hosts, a ReadyToRun assembly with a standard architecture machine value
+    /// (e.g. <see cref="Machine.Amd64"/>) is a Windows R2R image whose native code cannot
+    /// execute on the current OS. <see cref="R2RUtil.NeedsStripping(PEReader)"/> must return
+    /// <see langword="true"/> for such assemblies.
+    /// </summary>
+    [UnixFact]
+    public void NeedsStrippingReturnsTrueForCrossOsR2R()
+    {
+        using var reader = CompilerLogReader.Create(
+            Fixture.Console.Value.CompilerLogPath,
+            BasicAnalyzerKind.None);
+        var analyzerDataList = reader.ReadAllAnalyzerData(0);
+
+        // Get any R2R analyzer from the fixture (on Linux these will have machine 0xFD1D)
+        var r2rAnalyzer = analyzerDataList
+            .First(a => R2RUtil.IsReadyToRun(reader.GetAssemblyBytes(a.Mvid)));
+
+        var bytes = reader.GetAssemblyBytes(r2rAnalyzer.Mvid);
+
+        // Patch the COFF Machine field to Machine.Amd64 (0x8664) to simulate a Windows R2R
+        // assembly being loaded on Linux. The Machine field is at offset PE_SIGNATURE + 4 in
+        // the COFF header.
+        var patchedBytes = (byte[])bytes.Clone();
+        var peSignatureOffset = BitConverter.ToInt32(patchedBytes, 0x3C);
+        var machineOffset = peSignatureOffset + 4; // PE signature is 4 bytes, Machine is first field of COFF header
+        patchedBytes[machineOffset] = 0x64;     // low byte of 0x8664 (Machine.Amd64)
+        patchedBytes[machineOffset + 1] = 0x86; // high byte
+
+        // Verify the patched assembly is still detected as R2R
+        Assert.True(R2RUtil.IsReadyToRun(patchedBytes));
+
+        // On Linux/macOS, NeedsStripping should return true because Machine.Amd64 is not the
+        // OS-native R2R sentinel
+        Assert.True(R2RUtil.NeedsStripping(patchedBytes));
+    }
+
+    /// <summary>
     /// Builds a minimal PE assembly with static fields that have RVAs for each primitive type
     /// exercised by <c>GetMappedFieldDataSize</c>, strips it through <see cref="R2RUtil.StripReadyToRun"/>,
     /// and verifies the output has valid metadata with the same field definitions.

@@ -8,8 +8,8 @@ designed — see [docs/overview.md](docs/overview.md).
 ## Project Overview
 
 **complog** is a .NET tool and library for creating, consuming, and analyzing compiler log files.
-These files are built from MSBuild binary logs and contain everything needed to recreate Roslyn
-`Compilation` instances. The project is licensed under MIT.
+These files, using the extension .complog, are built from MSBuild binary logs and contain everything needed 
+to recreate Roslyn `Compilation` instances. The project is licensed under MIT.
 
 Repository: https://github.com/jaredpar/complog
 
@@ -25,6 +25,9 @@ dotnet build Basic.CompilerLog.slnx
 
 # Run the test suite (AI agents should focus on the net10.0 TFM for initial validation)
 dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
+
+# Run tests with blame-hang to detect hanging tests (always use this when running full suite)
+dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0 --blame-hang --blame-hang-timeout 60s
 
 # Build with binary log (used for CI and dogfooding)
 dotnet build -bl
