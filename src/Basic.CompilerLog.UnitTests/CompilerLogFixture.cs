@@ -2,6 +2,7 @@ using Basic.CompilerLog.Util;
 using Microsoft.Build.Framework;
 using Microsoft.CodeAnalysis;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.ComponentModel.Design.Serialization;
@@ -42,15 +43,19 @@ public sealed class FileLockHold(List<Stream> streams) : IDisposable
     }
 }
 
+/// <summary>
+/// Houses the set of compiler logs that are built once and shared across the test suite.
+/// </summary>
+/// <remarks>
+/// This fixture is registered as an assembly fixture and is therefore shared across test
+/// classes that execute in parallel. The shared compiler logs are read-only once built, but
+/// the lazy build callbacks themselves can run concurrently. Any mutable state added here
+/// must be thread-safe (for example <see cref="ReadOnlyDirectoryScopes"/> is a
+/// <see cref="ConcurrentBag{T}"/>).
+/// </remarks>
 public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
-    private List<ReadOnlyDirectoryScope> ReadOnlyDirectoryScopes { get; } = new();
-
-    /// <summary>
-    /// Guards <see cref="ReadOnlyDirectoryScopes"/> as the lazy log builds can run concurrently
-    /// when the fixture is shared at the assembly level and test collections run in parallel.
-    /// </summary>
-    private readonly object _readOnlyDirectoryScopesLock = new();
+    private ConcurrentBag<ReadOnlyDirectoryScope> ReadOnlyDirectoryScopes { get; } = new();
 
     internal ImmutableArray<Lazy<LogData>> AllLogs { get; }
 
@@ -723,10 +728,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                         Assert.Empty(diagnostics);
                     }
 
-                    lock (_readOnlyDirectoryScopesLock)
-                    {
-                        ReadOnlyDirectoryScopes.Add(new(scratchPath, setReadOnly: true));
-                    }
+                    ReadOnlyDirectoryScopes.Add(new(scratchPath, setReadOnly: true));
 
                     return new LogData(projectFilePath, complogFilePath, binlogFilePath, supportsNoneHost);
                 }
@@ -879,12 +881,9 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
 
     public void Dispose()
     {
-        lock (_readOnlyDirectoryScopesLock)
+        foreach (var scope in ReadOnlyDirectoryScopes)
         {
-            foreach (var scope in ReadOnlyDirectoryScopes)
-            {
-                scope.ClearReadOnly();
-            }
+            scope.ClearReadOnly();
         }
 
         Directory.Delete(StorageDirectory, recursive: true);
