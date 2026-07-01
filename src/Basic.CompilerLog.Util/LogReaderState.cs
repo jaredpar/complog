@@ -22,7 +22,7 @@ namespace Basic.CompilerLog.Util;
 public sealed class LogReaderState : IDisposable
 {
     private readonly Dictionary<string, BasicAnalyzerHost>? _analyzersMap;
-    private FileStream _lockFileStream;
+    private FileStream? _lockFileStream;
 
     /// <summary>
     /// Should instances of <see cref="BasicAnalyzerHost" /> be cached and re-used
@@ -106,18 +106,25 @@ public sealed class LogReaderState : IDisposable
         }
 
         _ = Directory.CreateDirectory(BaseDirectory);
-        _lockFileStream = new FileStream(
-            Path.Combine(BaseDirectory, ".lock"),
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None);
 
-        // Now that our lock is held, clean up stale sibling directories from previous
-        // invocations that didn't get a chance to clean up (e.g. process crash).
-        var parentDir = Path.GetDirectoryName(BaseDirectory);
-        if (parentDir is not null)
+        // Only create a lock file and run cleanup when using the default shared temp directory.
+        // Custom base directories are managed by the caller and don't participate in the
+        // lock-based cleanup protocol.
+        if (baseDir is null)
         {
-            CommonUtil.CleanupStaleTempDirectories(parentDir);
+            _lockFileStream = new FileStream(
+                Path.Combine(BaseDirectory, ".lock"),
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None);
+
+            // Now that our lock is held, clean up stale sibling directories from previous
+            // invocations that didn't get a chance to clean up (e.g. process crash).
+            var parentDir = Path.GetDirectoryName(BaseDirectory);
+            if (parentDir is not null)
+            {
+                CommonUtil.CleanupStaleTempDirectories(parentDir);
+            }
         }
     }
 
@@ -144,20 +151,23 @@ public sealed class LogReaderState : IDisposable
         _analyzersMap?.Clear();
 
         // Release the lock file before attempting to delete the directory
-        var lockFilePath = _lockFileStream.Name;
-        _lockFileStream.Dispose();
-        _lockFileStream = null!;
-        try
+        if (_lockFileStream is not null)
         {
-            File.Delete(lockFilePath);
-        }
-        catch (DirectoryNotFoundException)
-        {
-            // Parent directory was already deleted (e.g. by test cleanup). Expected.
-        }
-        catch (Exception ex)
-        {
-            Debug.Fail(ex.Message);
+            var lockFilePath = _lockFileStream.Name;
+            _lockFileStream.Dispose();
+            _lockFileStream = null;
+            try
+            {
+                File.Delete(lockFilePath);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // Parent directory was already deleted (e.g. by test cleanup). Expected.
+            }
+            catch (Exception ex)
+            {
+                Debug.Fail(ex.Message);
+            }
         }
 
         try

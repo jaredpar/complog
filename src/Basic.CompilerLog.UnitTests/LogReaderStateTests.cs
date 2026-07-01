@@ -63,29 +63,35 @@ public class LogReaderStateTests : TestBase
     [Fact]
     public void CreatesLockFile()
     {
-        var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
+        // Lock files are only created when using the default temp directory (baseDir: null)
+        using var state = new Util.LogReaderState();
         var lockPath = Path.Combine(state.BaseDirectory, ".lock");
         Assert.True(File.Exists(lockPath));
 
         // Lock should prevent external exclusive access
         Assert.Throws<IOException>(() => new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None));
-        state.Dispose();
     }
 
     [Fact]
     public void CleanupDoesNotDeleteActiveState()
     {
-        // Use a shared parent so we can test sibling cleanup
-        var parentDir = Root.NewDirectory();
-        var state = new Util.LogReaderState(baseDir: Path.Combine(parentDir, Guid.NewGuid().ToString("N")));
-        Assert.True(Directory.Exists(state.BaseDirectory));
+        // Lock files and cleanup only apply to the default temp directory
+        using var state1 = new Util.LogReaderState();
+        Assert.True(Directory.Exists(state1.BaseDirectory));
 
-        // Another LogReaderState in the same parent should not delete the active one
-        var state2 = new Util.LogReaderState(baseDir: Path.Combine(parentDir, Guid.NewGuid().ToString("N")));
-        Assert.True(Directory.Exists(state.BaseDirectory));
+        // A second state in the same default parent should not delete the first
+        using var state2 = new Util.LogReaderState();
+        Assert.True(Directory.Exists(state1.BaseDirectory));
+        Assert.True(Directory.Exists(state2.BaseDirectory));
+    }
 
+    [Fact]
+    public void NoLockFileWithCustomBaseDir()
+    {
+        var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
+        var lockPath = Path.Combine(state.BaseDirectory, ".lock");
+        Assert.False(File.Exists(lockPath));
         state.Dispose();
-        state2.Dispose();
     }
 
 #if NET
