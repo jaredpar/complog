@@ -31,12 +31,6 @@ public sealed class SolutionReaderTests : TestBase
         }
         ReaderList.Clear();
 
-#if NET
-        // The underlying solution structure holds lots of references that root our contexts 
-        // so there is no way to fully free here.
-        OnDiskLoader.ClearActiveAssemblyLoadContext();
-#endif
-
         base.Dispose();
     }
 

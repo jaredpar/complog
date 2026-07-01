@@ -162,26 +162,12 @@ internal sealed class OnDiskLoader : IDisposable
     }
 
     /// <summary>
-    /// This is a test only helper to determine if there are any active <see cref="AssemblyLoadContext"/> 
-    /// instances. This way the test can setup a GC loop if needed to verify cleanup is happening
-    /// as expected.
+    /// This is a test only helper used to decide whether a best effort GC / finalization pass is
+    /// worth running to clean up on disk analyzer directories. It reflects process-global state, so
+    /// callers must treat it only as an optimization hint and must not use it to verify or force
+    /// cleanup while other work may be creating contexts concurrently.
     /// </summary>
     internal static bool AnyActiveAssemblyLoadContext => Volatile.Read(ref _activeAssemblyLoadContextCount) > 0;
-
-    /// <summary>
-    /// This is a test only helper that allows the test harness to reset the world to a known state. That
-    /// way the test which actually caused a failure can be identified as it will be the sole failing
-    /// test in the output.
-    /// </summary>
-    [ExcludeFromCodeCoverage]
-    internal static void ClearActiveAssemblyLoadContext()
-    {
-        foreach (var pair in AnalyzerDirectoryCleanupMap.ToList())
-        {
-            pair.Value.Dispose();
-            AnalyzerDirectoryCleanupMap.Remove(pair.Key);
-        }
-    }
 
     private OnDiskLoadContext LoadContext { get; set; }
     internal AssemblyLoadContext CompilerLoadContext { get; }

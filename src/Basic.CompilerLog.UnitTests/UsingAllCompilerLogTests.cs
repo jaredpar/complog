@@ -1,6 +1,7 @@
 
 using System.Configuration;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Markup;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
@@ -369,22 +370,86 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
         void AssertCore(AnalyzerReference expected, AnalyzerReference actual)
         {
-            var expectedAnalyzers = expected.GetAnalyzersForAllLanguages();
-            var actualAnalyzers = actual.GetAnalyzersForAllLanguages();
+            var (expectedAnalyzers, expectedAnalyzerFailures) = LoadWithFailures(expected, r => r.GetAnalyzersForAllLanguages().Select(x => x.GetType().FullName));
+            var (actualAnalyzers, actualAnalyzerFailures) = LoadWithFailures(actual, r => r.GetAnalyzersForAllLanguages().Select(x => x.GetType().FullName));
 
-            AssertEx.SequenceEqual(
-                expectedAnalyzers.Select(x => x.GetType().FullName).OrderBy(x => x),
-                actualAnalyzers.Select(x => x.GetType().FullName).OrderBy(x => x));
+            AssertSetEqual("analyzers", expected, actual, expectedAnalyzers, actualAnalyzers, expectedAnalyzerFailures, actualAnalyzerFailures);
 
             // Cannot test GetGeneratorsForAllLanguages here as it has a bug. The
             // de-dupe method not taking into account IncrementalGeneratorWrapper
             //
             // https://github.com/dotnet/roslyn/blob/99d8eeb69f19385838bf4e15dbe9bfcb50edc0eb/src/Compilers/Core/Portable/DiagnosticAnalyzer/AnalyzerFileReference.cs#L420
-            var expectedGenerators = expected.GetGenerators(LanguageNames.CSharp);
-            var actualGenerators = actual.GetGenerators(LanguageNames.CSharp);
-            AssertEx.SequenceEqual(
-                expectedGenerators.Select(x => TestUtil.GetGeneratorType(x).FullName).OrderBy(x => x),
-                actualGenerators.Select(x => TestUtil.GetGeneratorType(x).FullName).OrderBy(x => x));
+            var (expectedGenerators, expectedGeneratorFailures) = LoadWithFailures(expected, r => r.GetGenerators(LanguageNames.CSharp).Select(x => TestUtil.GetGeneratorType(x).FullName));
+            var (actualGenerators, actualGeneratorFailures) = LoadWithFailures(actual, r => r.GetGenerators(LanguageNames.CSharp).Select(x => TestUtil.GetGeneratorType(x).FullName));
+
+            AssertSetEqual("generators", expected, actual, expectedGenerators, actualGenerators, expectedGeneratorFailures, actualGeneratorFailures);
+        }
+
+        // Pull the analyzer / generator type names off the reference while capturing any Roslyn
+        // load-failure events so that an intermittent mismatch reports exactly which types failed
+        // to load and why (see AnalyzerFileReference.AnalyzerLoadFailed).
+        static (List<string?> Names, List<string> Failures) LoadWithFailures(AnalyzerReference reference, Func<AnalyzerReference, IEnumerable<string?>> selector)
+        {
+            var failures = new List<string>();
+            void OnAnalyzerLoadFailed(object? sender, AnalyzerLoadFailureEventArgs e) =>
+                failures.Add($"{e.ErrorCode} typeName='{e.TypeName}' message='{e.Message}' exception={e.Exception}");
+
+            var fileReference = reference as AnalyzerFileReference;
+            if (fileReference is not null)
+            {
+                fileReference.AnalyzerLoadFailed += OnAnalyzerLoadFailed;
+            }
+
+            try
+            {
+                return (selector(reference).OrderBy(x => x, StringComparer.Ordinal).ToList(), failures);
+            }
+            finally
+            {
+                if (fileReference is not null)
+                {
+                    fileReference.AnalyzerLoadFailed -= OnAnalyzerLoadFailed;
+                }
+            }
+        }
+
+        void AssertSetEqual(
+            string kind,
+            AnalyzerReference expectedReference,
+            AnalyzerReference actualReference,
+            List<string?> expectedNames,
+            List<string?> actualNames,
+            List<string> expectedFailures,
+            List<string> actualFailures)
+        {
+            if (expectedNames.SequenceEqual(actualNames, StringComparer.Ordinal))
+            {
+                return;
+            }
+
+            var expectedSet = new HashSet<string?>(expectedNames, StringComparer.Ordinal);
+            var actualSet = new HashSet<string?>(actualNames, StringComparer.Ordinal);
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"Mismatch in {kind} for log '{logDataName}'");
+            builder.AppendLine($"  expected (OnDisk):  FullPath='{expectedReference.FullPath}' Display='{expectedReference.Display}' Id='{expectedReference.Id}' Type={expectedReference.GetType().FullName}");
+            builder.AppendLine($"  actual   (InMemory): FullPath='{actualReference.FullPath}' Display='{actualReference.Display}' Id='{actualReference.Id}' Type={actualReference.GetType().FullName}");
+            builder.AppendLine($"  expected {kind} ({expectedNames.Count}): {string.Join(", ", expectedNames)}");
+            builder.AppendLine($"  actual   {kind} ({actualNames.Count}): {string.Join(", ", actualNames)}");
+            builder.AppendLine($"  only in expected (OnDisk): {string.Join(", ", expectedNames.Where(x => !actualSet.Contains(x)))}");
+            builder.AppendLine($"  only in actual (InMemory): {string.Join(", ", actualNames.Where(x => !expectedSet.Contains(x)))}");
+            builder.AppendLine($"  expected (OnDisk) load failures ({expectedFailures.Count}):");
+            foreach (var failure in expectedFailures)
+            {
+                builder.AppendLine($"    - {failure}");
+            }
+            builder.AppendLine($"  actual (InMemory) load failures ({actualFailures.Count}):");
+            foreach (var failure in actualFailures)
+            {
+                builder.AppendLine($"    - {failure}");
+            }
+
+            Assert.Fail(builder.ToString());
         }
     }
 
