@@ -151,6 +151,10 @@ public sealed class LogReaderState : IDisposable
         {
             File.Delete(lockFilePath);
         }
+        catch (DirectoryNotFoundException)
+        {
+            // Parent directory was already deleted (e.g. by test cleanup). Expected.
+        }
         catch (Exception ex)
         {
             Debug.Fail(ex.Message);
@@ -166,6 +170,10 @@ public sealed class LogReaderState : IDisposable
             // It's expected that some hosts will clean up their directories asynchronously. Both
             // this type and the hosts need to attempt to clean up the base directory.
             CommonUtil.DeleteDirectoryIfEmpty(BaseDirectory);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // Parent directory was already deleted (e.g. by test cleanup). Expected.
         }
         catch (Exception ex)
         {

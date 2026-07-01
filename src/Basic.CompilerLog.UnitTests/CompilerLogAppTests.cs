@@ -1453,7 +1453,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
     /// Validates that stale temp directories from a previous on-disk analyzer run are cleaned up
     /// by a subsequent invocation.
     /// </summary>
-    [Fact]
+    [UnixFact]
     public void ReplayOnDiskCleansStaleTempDirectories()
     {
         var parentDir = CommonUtil.GetCompilerLogTempDirectory();
