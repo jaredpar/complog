@@ -182,7 +182,8 @@ public sealed class CompilerLogApp(
                 return ExitSuccess;
             }
 
-            using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None, state: new(stripReadyToRun: stripReadyToRun));
+            using var state = new LogReaderState(stripReadyToRun: stripReadyToRun);
+            using var reader = GetCompilerCallReader(extra, BasicAnalyzerKind.None, state: state);
             var compilerCalls = ReadAllCompilerCalls(reader, options.FilterCompilerCalls);
             foreach (var compilerCall in compilerCalls)
             {
@@ -436,7 +437,8 @@ public sealed class CompilerLogApp(
             }
 
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
-            using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None, state: new LogReaderState(stripReadyToRun: stripReadyToRun));
+            using var state = new LogReaderState(stripReadyToRun: stripReadyToRun);
+            using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None, state: state);
             var exportUtil = new ExportUtil(reader, exportOptions);
 
             if (exportAsSolution)
@@ -598,7 +600,8 @@ public sealed class CompilerLogApp(
                 WriteLine($"Outputting to {baseOutputPath}");
             }
 
-            using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new(cacheAnalyzers: true, stripReadyToRun: options.StripReadyToRun));
+            using var state = new LogReaderState(cacheAnalyzers: true, stripReadyToRun: options.StripReadyToRun);
+            using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, state);
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allSucceeded = true;
 
@@ -684,7 +687,8 @@ public sealed class CompilerLogApp(
             baseOutputPath = GetBaseOutputPath(baseOutputPath, "generated");
             WriteLine($"Outputting to {baseOutputPath}");
 
-            using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, new LogReaderState(stripReadyToRun: options.StripReadyToRun));
+            using var state = new LogReaderState(stripReadyToRun: options.StripReadyToRun);
+            using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, state);
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var succeeded = true;
 

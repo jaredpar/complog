@@ -22,6 +22,7 @@ namespace Basic.CompilerLog.Util;
 public sealed class LogReaderState : IDisposable
 {
     private readonly Dictionary<string, BasicAnalyzerHost>? _analyzersMap;
+    private FileStream? _lockFileStream;
 
     /// <summary>
     /// Should instances of <see cref="BasicAnalyzerHost" /> be cached and re-used
@@ -92,7 +93,7 @@ public sealed class LogReaderState : IDisposable
     /// <param name="stripReadyToRun">See <see cref="StripReadyToRun"/></param>
     public LogReaderState(string? baseDir = null, bool cacheAnalyzers = true, bool? stripReadyToRun = null)
     {
-        BaseDirectory = baseDir ?? Path.Combine(Path.GetTempPath(), "Basic.CompilerLog", Guid.NewGuid().ToString("N"));
+        BaseDirectory = baseDir ?? Path.Combine(CommonUtil.GetCompilerLogTempDirectory(), Guid.NewGuid().ToString("N"));
         CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");
         AnalyzerDirectory = Path.Combine(BaseDirectory, "Analyzers");
         StripReadyToRun = stripReadyToRun;
@@ -102,6 +103,28 @@ public sealed class LogReaderState : IDisposable
         if (cacheAnalyzers)
         {
             _analyzersMap = new();
+        }
+
+        _ = Directory.CreateDirectory(BaseDirectory);
+
+        // Only create a lock file and run cleanup when using the default shared temp directory.
+        // Custom base directories are managed by the caller and don't participate in the
+        // lock-based cleanup protocol.
+        if (baseDir is null)
+        {
+            _lockFileStream = new FileStream(
+                Path.Combine(BaseDirectory, ".lock"),
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None);
+
+            // Now that our lock is held, clean up stale sibling directories from previous
+            // invocations that didn't get a chance to clean up (e.g. process crash).
+            var parentDir = Path.GetDirectoryName(BaseDirectory);
+            if (parentDir is not null)
+            {
+                CommonUtil.CleanupStaleTempDirectories(parentDir);
+            }
         }
     }
 
@@ -127,6 +150,22 @@ public sealed class LogReaderState : IDisposable
         // an AssemblyLoadContext
         _analyzersMap?.Clear();
 
+        // Release the lock file before attempting to delete the directory
+        if (_lockFileStream is not null)
+        {
+            var lockFilePath = _lockFileStream.Name;
+            _lockFileStream.Dispose();
+            _lockFileStream = null;
+            try
+            {
+                File.Delete(lockFilePath);
+            }
+            catch (Exception ex)
+            {
+                Debug.Fail(ex.Message);
+            }
+        }
+
         try
         {
             if (Directory.Exists(CryptoKeyFileDirectory))
@@ -137,6 +176,10 @@ public sealed class LogReaderState : IDisposable
             // It's expected that some hosts will clean up their directories asynchronously. Both
             // this type and the hosts need to attempt to clean up the base directory.
             CommonUtil.DeleteDirectoryIfEmpty(BaseDirectory);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // Parent directory was already deleted (e.g. by test cleanup). Expected.
         }
         catch (Exception ex)
         {

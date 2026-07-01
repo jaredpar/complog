@@ -1448,6 +1448,52 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
             zipArchive.CreateEntryFromFile(Fixture.Console.Value.BinaryLogPath!, "build.binlog");
         }
     }
+
+    /// <summary>
+    /// Validates that stale temp directories from a previous on-disk analyzer run are cleaned up
+    /// by a subsequent invocation.
+    /// </summary>
+    [UnixFact]
+    public void ReplayOnDiskCleansStaleTempDirectories()
+    {
+        var parentDir = CommonUtil.GetCompilerLogTempDirectory();
+
+        // Snapshot existing directories before the first run
+        var dirsBefore = Directory.Exists(parentDir)
+            ? Directory.GetDirectories(parentDir).ToHashSet()
+            : new HashSet<string>();
+
+        // First run: replay with on-disk analyzers which creates a temp directory
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($@"replay --analyzers ondisk ""{Fixture.Console.Value.CompilerLogPath}"""));
+
+        // After the first run the LogReaderState is disposed (lock released, .lock file deleted)
+        // but the analyzer subdirectories may still exist because the ALC hasn't been collected.
+        var dirsAfterFirst = Directory.Exists(parentDir)
+            ? Directory.GetDirectories(parentDir).ToHashSet()
+            : new HashSet<string>();
+        var newDirs = dirsAfterFirst.Except(dirsBefore).ToList();
+
+        // There should be at most one new directory from the first run (it may have been fully
+        // cleaned if the ALC was collected quickly, so we only assert cleanup if it remains).
+        if (newDirs.Count == 0)
+        {
+            // Nothing to clean up — the directory was already removed. Test passes trivially.
+            return;
+        }
+
+        var staleDir = newDirs[0];
+        Assert.True(Directory.Exists(staleDir));
+
+        // The .lock file should NOT exist (it's deleted on dispose)
+        Assert.False(File.Exists(Path.Combine(staleDir, ".lock")));
+
+        // Second run: any command that creates a LogReaderState will trigger cleanup of siblings.
+        // Use "print" which internally creates a LogReaderState.
+        Assert.Equal(Constants.ExitSuccess, RunCompLog($@"print ""{Fixture.Console.Value.CompilerLogPath}"""));
+
+        // The stale directory from the first run should now be cleaned up
+        Assert.False(Directory.Exists(staleDir));
+    }
 }
 
 #endif
