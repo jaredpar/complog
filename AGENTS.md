@@ -81,7 +81,9 @@ Solution file: `Basic.CompilerLog.slnx`
 
 - Framework is xUnit SDK v3 (`xunit.v3` package); coverage is collected with Coverlet (Cobertura
   format, output to `artifacts/coverage/`).
-- Tests do **not** run in parallel — parallelism is disabled.
+- Tests run **in parallel** across test classes (`parallelizeTestCollections: true`, capped by
+  `maxParallelThreads` in `xunit.runner.json`). Expensive fixtures are shared once per assembly via
+  xUnit v3 assembly fixtures (`AssemblyFixtures.cs`).
 - In clean environments, `dotnet test Basic.CompilerLog.slnx` fails unless `TEST_ARTIFACTS_PATH` is
   set for the `Basic.CompilerLog.UnitTests` fixtures. Prefer running the test project directly.
 - For how the test suite is structured (fixtures, collections, `[WindowsFact]`/`[UnixFact]`, test

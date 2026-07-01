@@ -3,7 +3,6 @@ using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(SolutionFixtureCollection.Name)]
 public sealed class CompilerLogBuilderTests : TestBase
 {
     public SolutionFixture Fixture { get; }

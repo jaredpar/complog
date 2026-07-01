@@ -24,7 +24,6 @@ using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogAppTests.CompilerLogAppTestsFixture>
 {
     public sealed class CompilerLogAppTestsFixture: FixtureBase, IDisposable

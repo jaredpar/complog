@@ -11,6 +11,11 @@ namespace Basic.CompilerLog.UnitTests;
 /// This fixture houses a solution with a variety of projects that have been built and
 /// contain an available binary log.
 /// </summary>
+/// <remarks>
+/// This fixture is registered as an assembly fixture and is therefore shared across test
+/// classes that execute in parallel. The contents are built once in the constructor and are
+/// read-only thereafter, so any mutable state added here must be thread-safe.
+/// </remarks>
 public sealed class SolutionFixture : FixtureBase, IDisposable
 {
     private ReadOnlyDirectoryScope ReadOnlyDirectoryScope { get; }
@@ -160,8 +165,3 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
     }
 }
 
-[CollectionDefinition(Name)]
-public sealed class SolutionFixtureCollection : ICollectionFixture<SolutionFixture>
-{
-    public const string Name = "Solution Collection";
-}

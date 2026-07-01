@@ -24,7 +24,6 @@ namespace Basic.CompilerLog.UnitTests;
 /// instead. This allows for a lot of modding of the compiler log that lets us test corner
 /// cases.
 /// </summary>
-[Collection(SolutionFixtureCollection.Name)]
 public sealed class CompilerLogReaderExTests : TestBase
 {
     public SolutionFixture Fixture { get; }

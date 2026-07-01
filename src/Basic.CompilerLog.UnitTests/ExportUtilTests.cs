@@ -14,7 +14,6 @@ using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class ExportUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
