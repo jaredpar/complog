@@ -94,6 +94,46 @@ public class LogReaderStateTests : TestBase
         state.Dispose();
     }
 
+    [Fact]
+    public void DisposeCleansUpLockFile()
+    {
+        var state = new Util.LogReaderState();
+        var lockPath = Path.Combine(state.BaseDirectory, ".lock");
+        Assert.True(File.Exists(lockPath));
+        state.Dispose();
+        Assert.False(File.Exists(lockPath));
+    }
+
+    [Fact]
+    public void CleanupDeletesStaleSiblingOnConstruction()
+    {
+        // Create a stale directory that simulates a previous run (no lock held)
+        var parentDir = CommonUtil.GetCompilerLogTempDirectory();
+        Directory.CreateDirectory(parentDir);
+        var staleDir = Path.Combine(parentDir, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staleDir);
+        File.WriteAllText(Path.Combine(staleDir, "leftover.txt"), "stale");
+
+        // Creating a new state should clean up the stale sibling
+        using var state = new Util.LogReaderState();
+        Assert.False(Directory.Exists(staleDir));
+    }
+
+    [Fact]
+    public void CleanupDeletesStaleSiblingWithUnlockedLockFile()
+    {
+        // Create a stale directory with an unlocked .lock file (simulates crashed process)
+        var parentDir = CommonUtil.GetCompilerLogTempDirectory();
+        Directory.CreateDirectory(parentDir);
+        var staleDir = Path.Combine(parentDir, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staleDir);
+        File.WriteAllText(Path.Combine(staleDir, ".lock"), "");
+
+        // Creating a new state should clean up the stale sibling
+        using var state = new Util.LogReaderState();
+        Assert.False(Directory.Exists(staleDir));
+    }
+
 #if NET
     [Fact]
     public void CustomAssemblyLoadContext()

@@ -33,6 +33,21 @@ public sealed class CommonUtilTests
     }
 
     [Fact]
+    public void GetCompilerLogTempDirectoryDefault()
+    {
+        var dir = CommonUtil.GetCompilerLogTempDirectory();
+        Assert.Equal(Path.Combine(Path.GetTempPath(), "Basic.CompilerLog"), dir);
+    }
+
+    [Fact]
+    public void GetCompilerLogTempDirectoryCustom()
+    {
+        var custom = @"/custom/base";
+        var dir = CommonUtil.GetCompilerLogTempDirectory(custom);
+        Assert.Equal(Path.Combine(custom, "Basic.CompilerLog"), dir);
+    }
+
+    [Fact]
     public void CleanupDeletesStaleDirectories()
     {
         var parentDir = Path.Combine(Path.GetTempPath(), "Basic.CompilerLog.Test.Cleanup", Guid.NewGuid().ToString("N"));

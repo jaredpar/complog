@@ -160,10 +160,6 @@ public sealed class LogReaderState : IDisposable
             {
                 File.Delete(lockFilePath);
             }
-            catch (DirectoryNotFoundException)
-            {
-                // Parent directory was already deleted (e.g. by test cleanup). Expected.
-            }
             catch (Exception ex)
             {
                 Debug.Fail(ex.Message);
