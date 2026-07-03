@@ -694,10 +694,10 @@ public sealed class ExportUtilTests : TestBase
         TestOutputHelper.WriteLine(solutionContent);
 
         // Verify complete solution content with both target frameworks
-        var expectedSolution = """
+        var expectedSolution = $"""
             <Solution>
               <Project Path="classlibmulti-net6.0/classlibmulti-net6.0.csproj" />
-              <Project Path="classlibmulti-net9.0/classlibmulti-net9.0.csproj" />
+              <Project Path="classlibmulti-{TestUtil.TestTargetFramework}/classlibmulti-{TestUtil.TestTargetFramework}.csproj" />
             </Solution>
             """;
         Assert.Equal(expectedSolution, solutionContent.Trim());
@@ -783,12 +783,12 @@ public sealed class ExportUtilTests : TestBase
         var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         using var tempDir = new TempDir();
-        exportUtil.ExportSolution(tempDir.DirectoryPath, cc => cc.TargetFramework == "net9.0");
+        exportUtil.ExportSolution(tempDir.DirectoryPath, cc => cc.TargetFramework == TestUtil.TestTargetFramework);
 
         var solutionContent = File.ReadAllText(Path.Combine(tempDir.DirectoryPath, "export.slnx"));
-        var expectedSolution = """
+        var expectedSolution = $"""
             <Solution>
-              <Project Path="classlibmulti-net9.0/classlibmulti-net9.0.csproj" />
+              <Project Path="classlibmulti-{TestUtil.TestTargetFramework}/classlibmulti-{TestUtil.TestTargetFramework}.csproj" />
             </Solution>
             """;
         Assert.Equal(expectedSolution, solutionContent.Trim());

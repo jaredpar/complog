@@ -65,7 +65,8 @@ public class LogReaderStateTests : TestBase
     {
         // Lock files are only created when using the default temp directory (baseDir: null)
         using var state = new Util.LogReaderState();
-        var lockPath = Path.Combine(state.BaseDirectory, ".lock");
+        var dirName = Path.GetFileName(state.BaseDirectory);
+        var lockPath = Path.Combine(CommonUtil.GetLocksDirectory(), dirName + ".lock");
         Assert.True(File.Exists(lockPath));
 
         // Lock should prevent external exclusive access
@@ -89,7 +90,8 @@ public class LogReaderStateTests : TestBase
     public void NoLockFileWithCustomBaseDir()
     {
         var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
-        var lockPath = Path.Combine(state.BaseDirectory, ".lock");
+        var dirName = Path.GetFileName(state.BaseDirectory);
+        var lockPath = Path.Combine(CommonUtil.GetLocksDirectory(), dirName + ".lock");
         Assert.False(File.Exists(lockPath));
         state.Dispose();
     }
@@ -98,7 +100,8 @@ public class LogReaderStateTests : TestBase
     public void DisposeCleansUpLockFile()
     {
         var state = new Util.LogReaderState();
-        var lockPath = Path.Combine(state.BaseDirectory, ".lock");
+        var dirName = Path.GetFileName(state.BaseDirectory);
+        var lockPath = Path.Combine(CommonUtil.GetLocksDirectory(), dirName + ".lock");
         Assert.True(File.Exists(lockPath));
         state.Dispose();
         Assert.False(File.Exists(lockPath));
@@ -122,12 +125,15 @@ public class LogReaderStateTests : TestBase
     [Fact]
     public void CleanupDeletesStaleSiblingWithUnlockedLockFile()
     {
-        // Create a stale directory with an unlocked .lock file (simulates crashed process)
+        // Create a stale directory with an unlocked lock file in the locks dir (simulates crashed process)
         var parentDir = CommonUtil.GetCompilerLogTempDirectory();
         Directory.CreateDirectory(parentDir);
-        var staleDir = Path.Combine(parentDir, Guid.NewGuid().ToString("N"));
+        var dirName = Guid.NewGuid().ToString("N");
+        var staleDir = Path.Combine(parentDir, dirName);
         Directory.CreateDirectory(staleDir);
-        File.WriteAllText(Path.Combine(staleDir, ".lock"), "");
+        var locksDir = CommonUtil.GetLocksDirectory();
+        Directory.CreateDirectory(locksDir);
+        File.WriteAllText(Path.Combine(locksDir, dirName + ".lock"), "");
 
         // Creating a new state should clean up the stale sibling
         using var state = new Util.LogReaderState();
