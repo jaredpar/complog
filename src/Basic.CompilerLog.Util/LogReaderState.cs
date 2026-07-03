@@ -93,7 +93,8 @@ public sealed class LogReaderState : IDisposable
     /// <param name="stripReadyToRun">See <see cref="StripReadyToRun"/></param>
     public LogReaderState(string? baseDir = null, bool cacheAnalyzers = true, bool? stripReadyToRun = null)
     {
-        BaseDirectory = baseDir ?? Path.Combine(CommonUtil.GetCompilerLogTempDirectory(), Guid.NewGuid().ToString("N"));
+        var dirName = Guid.NewGuid().ToString("N");
+        BaseDirectory = baseDir ?? Path.Combine(CommonUtil.GetCompilerLogTempDirectory(), dirName);
         CryptoKeyFileDirectory = Path.Combine(BaseDirectory, "CryptoKeys");
         AnalyzerDirectory = Path.Combine(BaseDirectory, "Analyzers");
         StripReadyToRun = stripReadyToRun;
@@ -105,26 +106,36 @@ public sealed class LogReaderState : IDisposable
             _analyzersMap = new();
         }
 
-        _ = Directory.CreateDirectory(BaseDirectory);
-
         // Only create a lock file and run cleanup when using the default shared temp directory.
         // Custom base directories are managed by the caller and don't participate in the
         // lock-based cleanup protocol.
         if (baseDir is null)
         {
+            // Create the lock file FIRST in the shared locks directory. This ensures that
+            // cleanup cannot race with directory creation — the lock is held before the
+            // working directory exists.
+            var locksDir = CommonUtil.GetLocksDirectory();
+            Directory.CreateDirectory(locksDir);
             _lockFileStream = new FileStream(
-                Path.Combine(BaseDirectory, ".lock"),
+                Path.Combine(locksDir, dirName + ".lock"),
                 FileMode.Create,
                 FileAccess.Write,
                 FileShare.None);
 
-            // Now that our lock is held, clean up stale sibling directories from previous
-            // invocations that didn't get a chance to clean up (e.g. process crash).
+            // Now create the working directory
+            Directory.CreateDirectory(BaseDirectory);
+
+            // Clean up stale sibling directories from previous invocations that didn't
+            // get a chance to clean up (e.g. process crash).
             var parentDir = Path.GetDirectoryName(BaseDirectory);
             if (parentDir is not null)
             {
                 CommonUtil.CleanupStaleTempDirectories(parentDir);
             }
+        }
+        else
+        {
+            Directory.CreateDirectory(BaseDirectory);
         }
     }
 
@@ -150,22 +161,6 @@ public sealed class LogReaderState : IDisposable
         // an AssemblyLoadContext
         _analyzersMap?.Clear();
 
-        // Release the lock file before attempting to delete the directory
-        if (_lockFileStream is not null)
-        {
-            var lockFilePath = _lockFileStream.Name;
-            _lockFileStream.Dispose();
-            _lockFileStream = null;
-            try
-            {
-                File.Delete(lockFilePath);
-            }
-            catch (Exception ex)
-            {
-                Debug.Fail(ex.Message);
-            }
-        }
-
         try
         {
             if (Directory.Exists(CryptoKeyFileDirectory))
@@ -185,6 +180,30 @@ public sealed class LogReaderState : IDisposable
         {
             // Nothing to do if we can't delete the directories
             Debug.Fail(ex.Message);
+        }
+
+        // Release the lock file AFTER cleaning up the base directory. The lock must be
+        // held until we're done with the directory so cleanup won't race with us.
+        if (_lockFileStream is not null)
+        {
+            var lockFilePath = _lockFileStream.Name;
+            _lockFileStream.Dispose();
+            _lockFileStream = null;
+            try
+            {
+                File.Delete(lockFilePath);
+            }
+            catch (Exception ex)
+            {
+                Debug.Fail(ex.Message);
+            }
+
+            // Try to clean up the locks directory if it's now empty
+            var locksDir = Path.GetDirectoryName(lockFilePath);
+            if (locksDir is not null)
+            {
+                CommonUtil.DeleteDirectoryIfEmpty(locksDir);
+            }
         }
     }
 

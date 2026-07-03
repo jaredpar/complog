@@ -28,7 +28,7 @@ internal static class TestUtil
     /// <summary>
     /// This is the standard target framework that test projects are built against.
     /// </summary>
-    internal const string TestTargetFramework = "net9.0";
+    internal const string TestTargetFramework = "net10.0";
 
     internal static bool IsNetFramework =>
 #if NETFRAMEWORK
