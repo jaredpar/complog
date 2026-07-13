@@ -10,7 +10,7 @@ public sealed class FixtureBuildCacheTests : IDisposable
 
     public FixtureBuildCacheTests()
     {
-        Cache = new FixtureBuildCache(Root.DirectoryPath, "test-key");
+        Cache = new FixtureBuildCache(Root.DirectoryPath, "test");
     }
 
     public void Dispose()
@@ -21,132 +21,243 @@ public sealed class FixtureBuildCacheTests : IDisposable
     private string GetBuildDirectory(string name = "entry") =>
         Path.Combine(Cache.CacheDirectory, name);
 
+    /// <summary>
+    /// A recipe in the shape the fixtures use: write some source files, then run a command that
+    /// produces output files. The command is counted so tests can assert whether the process
+    /// actually ran or the cache satisfied it.
+    /// </summary>
+    private sealed class FakeRecipe(FixtureBuildCache cache)
+    {
+        internal string SourceContent = "source";
+        internal string Args = "build -bl";
+        internal int RunCount;
+
+        internal void Run(string directory)
+        {
+            File.WriteAllText(Path.Combine(directory, "source.txt"), SourceContent);
+            var result = cache.RunCommand(Args, directory, () =>
+            {
+                RunCount++;
+                File.WriteAllText(Path.Combine(directory, "output.txt"), $"built from {SourceContent}");
+                return new ProcessResult(exitCode: 0, standardOut: "", standardError: "");
+            });
+            Assert.True(result.Succeeded);
+        }
+    }
+
     [Fact]
-    public void BuildRunsOnceThenIsCached()
+    public void CommandRunsOnceThenReplaysAreVerified()
     {
         var buildDirectory = GetBuildDirectory();
-        var buildCount = 0;
-        void Build(string path)
+        var recipe = new FakeRecipe(Cache);
+
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(1, recipe.RunCount);
+        Assert.True(File.Exists(Path.Combine(buildDirectory, "output.txt")));
+
+        Assert.True(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(1, recipe.RunCount);
+    }
+
+    [Fact]
+    public void CommandOutsideBuildRunsUncached()
+    {
+        var directory = Root.NewDirectory();
+        var runCount = 0;
+        for (var i = 0; i < 2; i++)
         {
-            buildCount++;
-            File.WriteAllText(Path.Combine(path, "output.txt"), "built");
+            var result = Cache.RunCommand("build", directory, () =>
+            {
+                runCount++;
+                return new ProcessResult(exitCode: 0, standardOut: "", standardError: "");
+            });
+            Assert.True(result.Succeeded);
         }
 
-        Assert.False(Cache.RunBuild(buildDirectory, Build));
-        Assert.True(Cache.RunBuild(buildDirectory, Build));
-        Assert.Equal(1, buildCount);
-        Assert.Equal("built", File.ReadAllText(Path.Combine(buildDirectory, "output.txt")));
+        Assert.Equal(2, runCount);
     }
 
     [Fact]
-    public void CachedBuildSurvivesNewCacheInstance()
+    public void ChangedSourceContentRebuilds()
     {
         var buildDirectory = GetBuildDirectory();
-        Assert.False(Cache.RunBuild(buildDirectory, path => File.WriteAllText(Path.Combine(path, "output.txt"), "built")));
+        var recipe = new FakeRecipe(Cache);
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
 
-        var otherCache = new FixtureBuildCache(Root.DirectoryPath, "test-key");
-        Assert.True(otherCache.RunBuild(buildDirectory, _ => Assert.Fail("Should not rebuild")));
+        recipe.SourceContent = "changed source";
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(2, recipe.RunCount);
+        Assert.Equal("built from changed source", File.ReadAllText(Path.Combine(buildDirectory, "output.txt")));
+
+        // The changed recipe becomes the cached state for later runs.
+        Assert.True(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(2, recipe.RunCount);
     }
 
     [Fact]
-    public void DifferentKeysDoNotShareBuilds()
+    public void ChangedCommandLineRebuilds()
     {
-        var buildCount = 0;
-        void Build(string path) => buildCount++;
+        var buildDirectory = GetBuildDirectory();
+        var recipe = new FakeRecipe(Cache);
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
 
-        Assert.False(Cache.RunBuild(GetBuildDirectory(), Build));
-        var otherCache = new FixtureBuildCache(Root.DirectoryPath, "other-key");
-        Assert.False(otherCache.RunBuild(Path.Combine(otherCache.CacheDirectory, "entry"), Build));
-        Assert.Equal(2, buildCount);
+        recipe.Args = "build -bl -other";
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(2, recipe.RunCount);
     }
 
     /// <summary>
-    /// A directory without a completion marker means a previous run crashed part way through the
-    /// build. The partial content must be discarded.
+    /// Reverting to previously built inputs must not re-run the command: the store still has the
+    /// outputs for that key and restores them by copy.
     /// </summary>
     [Fact]
-    public void PartialBuildIsRebuilt()
+    public void RevertedSourceContentRestoresFromStore()
     {
         var buildDirectory = GetBuildDirectory();
-        Directory.CreateDirectory(buildDirectory);
-        File.WriteAllText(Path.Combine(buildDirectory, "stale.txt"), "partial");
+        var recipe = new FakeRecipe(Cache);
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
 
-        var cached = Cache.RunBuild(buildDirectory, path => File.WriteAllText(Path.Combine(path, "output.txt"), "built"));
-        Assert.False(cached);
-        Assert.False(File.Exists(Path.Combine(buildDirectory, "stale.txt")));
+        recipe.SourceContent = "changed source";
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(2, recipe.RunCount);
+
+        recipe.SourceContent = "source";
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(2, recipe.RunCount);
+        Assert.Equal("built from source", File.ReadAllText(Path.Combine(buildDirectory, "output.txt")));
+    }
+
+    /// <summary>
+    /// A deleted output (say the user cleaned up bin directories by hand) is detected and healed
+    /// from the store without re-running the command.
+    /// </summary>
+    [Fact]
+    public void DeletedOutputIsRestoredWithoutRunning()
+    {
+        var buildDirectory = GetBuildDirectory();
+        var recipe = new FakeRecipe(Cache);
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
+
+        File.Delete(Path.Combine(buildDirectory, "output.txt"));
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(1, recipe.RunCount);
         Assert.True(File.Exists(Path.Combine(buildDirectory, "output.txt")));
     }
 
     /// <summary>
-    /// A marker without the directory (say the user deleted the directory by hand) must trigger a
-    /// rebuild rather than handing out a missing path.
+    /// A missing sentinel means a previous run crashed part way through the build. The directory
+    /// is rebuilt, but the store still satisfies the unchanged commands.
     /// </summary>
     [Fact]
-    public void MarkerWithoutDirectoryIsRebuilt()
+    public void MissingSentinelRebuildsFromStore()
     {
         var buildDirectory = GetBuildDirectory();
-        File.WriteAllText(buildDirectory + ".complete", "stale");
+        var recipe = new FakeRecipe(Cache);
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
 
-        var cached = Cache.RunBuild(buildDirectory, path => File.WriteAllText(Path.Combine(path, "output.txt"), "built"));
-        Assert.False(cached);
+        File.Delete(buildDirectory + ".complete");
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(1, recipe.RunCount);
         Assert.True(File.Exists(Path.Combine(buildDirectory, "output.txt")));
+    }
+
+    /// <summary>
+    /// The SDK version from global.json participates in the command key, so changing it re-runs
+    /// the commands.
+    /// </summary>
+    [Fact]
+    public void ChangedSdkVersionRebuilds()
+    {
+        var buildDirectory = GetBuildDirectory();
+        var sdkVersion = "1.0.100";
+        var recipe = new FakeRecipe(Cache);
+        void Run(string directory)
+        {
+            File.WriteAllText(Path.Combine(directory, "global.json"), $$"""{ "sdk": { "version": "{{sdkVersion}}" } }""");
+            recipe.Run(directory);
+        }
+
+        Assert.False(Cache.RunBuild(buildDirectory, Run));
+        Assert.True(Cache.RunBuild(buildDirectory, Run));
+        Assert.Equal(1, recipe.RunCount);
+
+        sdkVersion = "2.0.100";
+        Assert.False(Cache.RunBuild(buildDirectory, Run));
+        Assert.Equal(2, recipe.RunCount);
+    }
+
+    [Fact]
+    public void TryReadSdkVersionWalksUp()
+    {
+        var directory = Root.NewDirectory();
+        var nested = Path.Combine(directory, "a", "b");
+        Directory.CreateDirectory(nested);
+        File.WriteAllText(Path.Combine(directory, "global.json"), """{ "sdk": { "version": "9.0.100", "rollForward": "minor" } }""");
+        Assert.Equal("9.0.100", FixtureBuildCache.TryReadSdkVersion(nested));
     }
 
     /// <summary>
     /// A run that crashes while holding a <see cref="ReadOnlyDirectoryScope"/> leaves the cached
-    /// files read-only on disk. The next run must restore write access when handing out the
-    /// cached directory.
+    /// files read-only on disk. The next run must restore write access before replaying.
     /// </summary>
     [Fact]
-    public void ReadOnlyCachedBuildIsMadeWritable()
+    public void ReadOnlyBuildDirectoryIsMadeWritable()
     {
         var buildDirectory = GetBuildDirectory();
-        Assert.False(Cache.RunBuild(buildDirectory, path => File.WriteAllText(Path.Combine(path, "output.txt"), "built")));
+        var recipe = new FakeRecipe(Cache);
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
 
         // Simulate the crash by setting read-only and never disposing the scope.
         _ = new ReadOnlyDirectoryScope(buildDirectory, setReadOnly: true);
 
-        Assert.True(Cache.RunBuild(buildDirectory, _ => Assert.Fail("Should not rebuild")));
+        Assert.True(Cache.RunBuild(buildDirectory, recipe.Run));
+        Assert.Equal(1, recipe.RunCount);
         File.WriteAllText(Path.Combine(buildDirectory, "writable.txt"), "writable again");
     }
 
     [Fact]
-    public void FailedBuildIsNotCached()
+    public void FailedCommandIsNotCached()
     {
         var buildDirectory = GetBuildDirectory();
-        Assert.Throws<InvalidOperationException>(() =>
-            Cache.RunBuild(buildDirectory, _ => throw new InvalidOperationException("build failed")));
+        var runCount = 0;
+        var fail = true;
+        void Run(string directory)
+        {
+            var result = Cache.RunCommand("build", directory, () =>
+            {
+                runCount++;
+                return new ProcessResult(exitCode: fail ? 1 : 0, standardOut: "", standardError: "");
+            });
 
-        var cached = Cache.RunBuild(buildDirectory, path => File.WriteAllText(Path.Combine(path, "output.txt"), "built"));
-        Assert.False(cached);
+            // FixtureBase fails the fixture (throws) when a command does not succeed.
+            Assert.True(result.Succeeded);
+        }
+
+        Assert.ThrowsAny<Exception>(() => Cache.RunBuild(buildDirectory, Run));
+        fail = false;
+        Assert.False(Cache.RunBuild(buildDirectory, Run));
+        Assert.Equal(2, runCount);
+        Assert.True(Cache.RunBuild(buildDirectory, Run));
+        Assert.Equal(2, runCount);
     }
 
     [Fact]
-    public void PruneDeletesStaleKeysAndKeepsCurrent()
+    public void PruneDeletesStaleStoreEntriesAndKeepsRecent()
     {
         var buildDirectory = GetBuildDirectory();
-        _ = Cache.RunBuild(buildDirectory, path => File.WriteAllText(Path.Combine(path, "output.txt"), "built"));
+        var recipe = new FakeRecipe(Cache);
+        Assert.False(Cache.RunBuild(buildDirectory, recipe.Run));
 
-        var staleCache = new FixtureBuildCache(Root.DirectoryPath, "stale-key");
-        _ = staleCache.RunBuild(Path.Combine(staleCache.CacheDirectory, "entry"), path => File.WriteAllText(Path.Combine(path, "output.txt"), "built"));
-        File.WriteAllText(
-            Path.Combine(staleCache.CacheDirectory, "last-used.txt"),
-            DateTime.UtcNow.AddDays(-30).ToString("O"));
+        var storeDirectory = Path.Combine(Root.DirectoryPath, "store");
+        var keyDirectory = Directory.GetDirectories(storeDirectory).Single();
 
-        Cache.PruneStaleEntries();
-        Assert.False(Directory.Exists(staleCache.CacheDirectory));
-        Assert.True(Directory.Exists(Cache.CacheDirectory));
-        Assert.True(File.Exists(Path.Combine(buildDirectory, "output.txt")));
-    }
-
-    [Fact]
-    public void PruneKeepsRecentlyUsedKeys()
-    {
-        var otherCache = new FixtureBuildCache(Root.DirectoryPath, "other-key");
-        _ = otherCache.RunBuild(Path.Combine(otherCache.CacheDirectory, "entry"), path => File.WriteAllText(Path.Combine(path, "output.txt"), "built"));
+        var staleDirectory = Path.Combine(storeDirectory, "stalekey");
+        Directory.CreateDirectory(staleDirectory);
+        File.WriteAllText(Path.Combine(staleDirectory, "last-used.txt"), DateTime.UtcNow.AddDays(-30).ToString("O"));
 
         Cache.PruneStaleEntries();
-        Assert.True(Directory.Exists(otherCache.CacheDirectory));
+        Assert.False(Directory.Exists(staleDirectory));
+        Assert.True(Directory.Exists(keyDirectory));
     }
 
     /// <summary>

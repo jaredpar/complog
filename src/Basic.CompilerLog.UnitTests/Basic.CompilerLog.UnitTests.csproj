@@ -32,29 +32,6 @@
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
   </ItemGroup>
 
-  <!-- Inputs that determine the FixtureBuildCache content key. Embedding them means any edit to
-       a fixture build recipe automatically invalidates the machine level build cache. -->
-  <ItemGroup>
-    <EmbeddedResource Include="CompilerLogFixture.cs">
-        <LogicalName>BuildCacheInput.CompilerLogFixture.cs</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="SolutionFixture.cs">
-        <LogicalName>BuildCacheInput.SolutionFixture.cs</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="FixtureBase.cs">
-        <LogicalName>BuildCacheInput.FixtureBase.cs</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="FixtureBuildCache.cs">
-        <LogicalName>BuildCacheInput.FixtureBuildCache.cs</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="..\Shared\DotnetUtil.cs">
-        <LogicalName>BuildCacheInput.DotnetUtil.cs</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="..\Shared\ProcessUtil.cs">
-        <LogicalName>BuildCacheInput.ProcessUtil.cs</LogicalName>
-    </EmbeddedResource>
-  </ItemGroup>
-
   <ItemGroup>
     <EmbeddedResource Include="Resources\Key.snk">
         <LogicalName>Key.snk</LogicalName>

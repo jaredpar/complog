@@ -79,17 +79,13 @@ internal static class TestUtil
     /// <summary>
     /// Writes a global.json to <paramref name="directory"/> that pins builds to <see cref="SdkVersion"/>.
     /// This produces the same content as running `dotnet new globaljson --sdk-version {SdkVersion}
-    /// --roll-forward minor` without the cost of spawning a process. Does nothing when the file
-    /// already exists (the fixture build cache shares the directory across test runs).
+    /// --roll-forward minor` without the cost of spawning a process. The file is rewritten when
+    /// its content is out of date because the fixture build cache reuses the directory across
+    /// test runs (and across changes to <see cref="SdkVersion"/>).
     /// </summary>
     internal static void WriteGlobalJson(string directory)
     {
         var filePath = Path.Combine(directory, "global.json");
-        if (File.Exists(filePath))
-        {
-            return;
-        }
-
         var content = $$"""
             {
               "sdk": {
@@ -99,18 +95,12 @@ internal static class TestUtil
             }
             """;
 
-        // Write to a temp file and move it into place so concurrent test processes racing to
-        // create the same file don't observe partial content.
-        var tempFilePath = filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        File.WriteAllText(tempFilePath, content);
-        try
+        if (File.Exists(filePath) && File.ReadAllText(filePath) == content)
         {
-            File.Move(tempFilePath, filePath);
+            return;
         }
-        catch (IOException) when (File.Exists(filePath))
-        {
-            File.Delete(tempFilePath);
-        }
+
+        File.WriteAllText(filePath, content);
     }
 
     /// <summary>

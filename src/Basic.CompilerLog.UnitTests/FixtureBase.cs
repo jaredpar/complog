@@ -23,7 +23,9 @@ public abstract class FixtureBase
         var diagnosticBuilder = new StringBuilder();
 
         diagnosticBuilder.AppendLine($"Running: {Interlocked.Increment(ref _processCount)} {args} in {workingDirectory}");
-        var result = DotnetUtil.Command(args, workingDirectory);
+        var result = FixtureBuildCache.Instance is { } buildCache
+            ? buildCache.RunCommand(args, workingDirectory, RunProcess)
+            : RunProcess();
         diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");
         diagnosticBuilder.AppendLine($"Standard Output: {result.StandardOut}");
         diagnosticBuilder.AppendLine($"Standard Error: {result.StandardError}");
@@ -33,5 +35,7 @@ public abstract class FixtureBase
         {
             Assert.Fail($"Command failed: {diagnosticBuilder.ToString()}");
         }
+
+        ProcessResult RunProcess() => DotnetUtil.Command(args, workingDirectory);
     }
 }

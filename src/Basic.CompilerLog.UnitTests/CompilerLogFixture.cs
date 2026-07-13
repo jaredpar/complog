@@ -554,7 +554,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 for (int i = 0; i < oldLines.Length; i++)
                 {
                     var line = oldLines[i];
-                    if (line.Contains("<ProjectReference", StringComparison.Ordinal))
+
+                    // The "/>" check keeps this idempotent: when the build cache replays this
+                    // recipe over an existing directory the reference is already expanded.
+                    if (line.Contains("<ProjectReference", StringComparison.Ordinal) &&
+                        line.Contains("/>", StringComparison.Ordinal))
                     {
                         newlines.Add(line.Replace("/>", ">"));
                         newlines.Add($"        <Aliases>{aliasName}</Aliases>");
