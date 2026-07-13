@@ -309,7 +309,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
 
         // Build the solution
         TestOutputHelper.WriteLine($"Building solution for {logDataName}");
-        var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+        var result = ProcessUtil.Run("dotnet", $"build -nr:false \"{solutionFile}\"");
         TestOutputHelper.WriteLine(result.StandardOut);
         TestOutputHelper.WriteLine(result.StandardError);
         Assert.True(result.Succeeded, $"Build failed for {logDataName}: {result.StandardOut}");

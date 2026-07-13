@@ -29,8 +29,9 @@ internal static class DotnetUtil
             var key = (string)entry.Key;
             if (!string.Equals(key, "MSBuildSDKsPath", StringComparison.OrdinalIgnoreCase))
             {
-                map.Add(key, (string)entry.Value!);
-
+                // Use the indexer, not Add, because on Unix the environment can legitimately
+                // contain keys that differ only by case (e.g. HTTPS_PROXY and https_proxy).
+                map[key] = (string)entry.Value!;
             }
         }
         return map;
