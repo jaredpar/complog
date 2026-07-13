@@ -133,6 +133,14 @@ Fixtures are shared across the whole assembly using xUnit v3 **assembly fixtures
 still allowing the individual test classes to run in parallel collections. A test class consumes a
 fixture simply by taking it as a constructor parameter — no `[Collection(...)]` attribute is needed.
 
+The `dotnet new` / `dotnet build` invocations that produce the fixture scratch directories are
+additionally cached *across test runs* on the machine by `FixtureBuildCache`. The cache is keyed by
+the content of the fixture sources and the resolved SDK version, so editing a fixture recipe or
+changing SDK rebuilds everything while product code edits reuse the cached outputs. Only the
+process outputs are cached — the binlog to complog conversion still runs every test run so product
+changes are always exercised. Set `COMPLOG_TEST_BUILD_CACHE=0` to disable the cache (it is disabled
+by default in GitHub Actions where machines are fresh).
+
 ### Test artifacts directory
 
 Tests write generated artifacts to a test-artifacts directory. Locally this defaults to a

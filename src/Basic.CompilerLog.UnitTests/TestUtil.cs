@@ -77,6 +77,43 @@ internal static class TestUtil
     internal static string TestTempRoot { get; } = CreateUniqueSubDirectory(Path.Combine(Path.GetTempPath(), "Basic.CompilerLog.UnitTests"));
 
     /// <summary>
+    /// Writes a global.json to <paramref name="directory"/> that pins builds to <see cref="SdkVersion"/>.
+    /// This produces the same content as running `dotnet new globaljson --sdk-version {SdkVersion}
+    /// --roll-forward minor` without the cost of spawning a process. Does nothing when the file
+    /// already exists (the fixture build cache shares the directory across test runs).
+    /// </summary>
+    internal static void WriteGlobalJson(string directory)
+    {
+        var filePath = Path.Combine(directory, "global.json");
+        if (File.Exists(filePath))
+        {
+            return;
+        }
+
+        var content = $$"""
+            {
+              "sdk": {
+                "version": "{{SdkVersion}}",
+                "rollForward": "minor"
+              }
+            }
+            """;
+
+        // Write to a temp file and move it into place so concurrent test processes racing to
+        // create the same file don't observe partial content.
+        var tempFilePath = filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        File.WriteAllText(tempFilePath, content);
+        try
+        {
+            File.Move(tempFilePath, filePath);
+        }
+        catch (IOException) when (File.Exists(filePath))
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    /// <summary>
     /// This code will generate a unique subdirectory under <paramref name="path"/>. This is done instead of using
     /// GUIDs because that leads to long path issues on .NET Framework.
     /// </summary>

@@ -15,10 +15,18 @@ namespace Basic.CompilerLog.UnitTests;
 /// This fixture is registered as an assembly fixture and is therefore shared across test
 /// classes that execute in parallel. The contents are built once in the constructor and are
 /// read-only thereafter, so any mutable state added here must be thread-safe.
+///
+/// The dotnet new / build invocations that produce the solution are cached across test runs on
+/// the machine via <see cref="FixtureBuildCache"/>.
 /// </remarks>
 public sealed class SolutionFixture : FixtureBase, IDisposable
 {
     private ReadOnlyDirectoryScope ReadOnlyDirectoryScope { get; }
+
+    /// <summary>
+    /// When non-null the expensive dotnet builds are cached across test runs on this machine.
+    /// </summary>
+    private FixtureBuildCache? BuildCache { get; }
 
     internal ImmutableArray<string> ProjectPaths { get; }
 
@@ -49,18 +57,60 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
     public SolutionFixture(IMessageSink messageSink)
         : base(messageSink)
     {
-        StorageDirectory = Path.Combine(TestUtil.TestTempRoot, "solutionlogfixture");
-        Directory.CreateDirectory(StorageDirectory);
+        BuildCache = FixtureBuildCache.Instance;
+        StorageDirectory = BuildCache is { } buildCache
+            ? Path.Combine(buildCache.CacheDirectory, "solutionlogfixture")
+            : Path.Combine(TestUtil.TestTempRoot, "solutionlogfixture");
         SolutionPath = Path.Combine(StorageDirectory, "Solution.sln");
         var binlogDir = Path.Combine(StorageDirectory, "binlogs");
+        SolutionBinaryLogPath = Path.Combine(binlogDir, "msbuild.binlog");
+
+        // The project paths are deterministic so they can be computed up front. The builds that
+        // produce them only run when there is no cached copy from a previous test run.
+        var builder = ImmutableArray.CreateBuilder<string>();
+        ConsoleProjectPath = AddProjectPath("console", "console.csproj");
+        ClassLibProjectPath = AddProjectPath("classlib", "classlib.csproj");
+        ClassLibMultiProjectPath = AddProjectPath("classlibmulti", "classlibmulti.csproj");
+        ClassLibWithResourceLibs = AddProjectPath("classlibwithresources", "classlibwithresources.csproj");
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            WpfAppProjectPath = AddProjectPath("wpfapp", "wpfapp2.csproj");
+        }
+
+        ProjectPaths = builder.ToImmutableArray();
+
+        if (BuildCache is { } cache)
+        {
+            if (cache.RunBuild(StorageDirectory, BuildSolution))
+            {
+                MessageSink.OnDiagnosticMessage($"Using cached build for {nameof(SolutionFixture)}");
+            }
+        }
+        else
+        {
+            Directory.CreateDirectory(StorageDirectory);
+            BuildSolution(StorageDirectory);
+        }
+
+        ReadOnlyDirectoryScope = new(StorageDirectory, setReadOnly: true);
+
+        string AddProjectPath(string directoryName, string projectFileName)
+        {
+            var projectPath = Path.Combine(StorageDirectory, directoryName, projectFileName);
+            builder.Add(projectPath);
+            return projectPath;
+        }
+    }
+
+    private void BuildSolution(string storageDirectory)
+    {
+        var binlogDir = Path.Combine(storageDirectory, "binlogs");
         Directory.CreateDirectory(binlogDir);
 
-        RunDotnetCommand($"new globaljson --sdk-version {TestUtil.SdkVersion} --roll-forward minor", StorageDirectory);
-        RunDotnetCommand("dotnet new sln -n Solution", StorageDirectory);
+        TestUtil.WriteGlobalJson(storageDirectory);
+        RunDotnetCommand("dotnet new sln -n Solution", storageDirectory);
 
-        var builder = ImmutableArray.CreateBuilder<string>();
-
-        ConsoleProjectPath = WithProject("console", string (string dir) =>
+        WithProject("console", string (string dir) =>
         {
             RunDotnetCommand($"new console --name console -o . --framework {TestUtil.TestTargetFramework}", dir);
             var program = """
@@ -79,13 +129,13 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
             return Path.Combine(dir, "console.csproj");
         });
 
-        ClassLibProjectPath = WithProject("classlib", string (string dir) =>
+        WithProject("classlib", string (string dir) =>
         {
             RunDotnetCommand($"new classlib --name classlib --framework {TestUtil.TestTargetFramework} -o .", dir);
             return Path.Combine(dir, "classlib.csproj");
         });
 
-        ClassLibMultiProjectPath = WithProject("classlibmulti", string (string dir) =>
+        WithProject("classlibmulti", string (string dir) =>
         {
             RunDotnetCommand("new classlib --name classlibmulti -o .", dir);
             var projectFileContent = $"""
@@ -101,7 +151,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
             return Path.Combine(dir, "classlibmulti.csproj");
         });
 
-        ClassLibWithResourceLibs = WithProject("classlibwithresources", string (string dir) =>
+        WithProject("classlibwithresources", string (string dir) =>
         {
             RunDotnetCommand($"new classlib --name classlibwithresources --output .", dir);
             var resx = """
@@ -135,33 +185,30 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            WpfAppProjectPath = WithProject("wpfapp", string (string dir) =>
+            WithProject("wpfapp", string (string dir) =>
             {
                 RunDotnetCommand("new wpf --name wpfapp2 -o .", dir);
                 return Path.Combine(dir, "wpfapp2.csproj");
             });
         }
 
-        string WithProject(string name, Func<string, string> func)
+        RunDotnetCommand($"build -bl:{Path.Combine(binlogDir, "msbuild.binlog")} -nr:false", storageDirectory);
+
+        void WithProject(string name, Func<string, string> func)
         {
-            var dir = Path.Combine(StorageDirectory, name);
+            var dir = Path.Combine(storageDirectory, name);
             Directory.CreateDirectory(dir);
             var projectPath = func(dir);
-            RunDotnetCommand($@"dotnet sln add ""{projectPath}""", StorageDirectory);
-            builder.Add(projectPath);
-            return projectPath;
+            RunDotnetCommand($@"dotnet sln add ""{projectPath}""", storageDirectory);
         };
-
-        ProjectPaths = builder.ToImmutableArray();
-        SolutionBinaryLogPath = Path.Combine(binlogDir, "msbuild.binlog");
-        RunDotnetCommand($"build -bl:{SolutionBinaryLogPath} -nr:false", StorageDirectory);
-        ReadOnlyDirectoryScope = new(StorageDirectory, setReadOnly: true);
     }
 
     public void Dispose()
     {
         ReadOnlyDirectoryScope.ClearReadOnly();
-        Directory.Delete(StorageDirectory, recursive: true);
+        if (BuildCache is null)
+        {
+            Directory.Delete(StorageDirectory, recursive: true);
+        }
     }
 }
-

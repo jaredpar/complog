@@ -68,6 +68,22 @@ internal sealed class ReadOnlyDirectoryScope : IDisposable
     }
 
     /// <summary>
+    /// Restores write access to a directory that a previous, possibly crashed, test run left
+    /// read-only. Unlike <see cref="ClearReadOnly"/> this does not require the current process to
+    /// have set the protection in the first place.
+    /// </summary>
+    public static void EnsureWritable(string directoryPath)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            return;
+        }
+
+        var scope = new ReadOnlyDirectoryScope(directoryPath, setReadOnly: false);
+        scope.ClearReadOnlyCore();
+    }
+
+    /// <summary>
     /// Make directory and all files under it effectively read-only by enforcing NTFS ACLs.
     /// </summary>
     public void SetReadOnly()
@@ -141,6 +157,12 @@ internal sealed class ReadOnlyDirectoryScope : IDisposable
             throw new InvalidOperationException();
         }
 
+        ClearReadOnlyCore();
+        IsReadOnly = false;
+    }
+
+    private void ClearReadOnlyCore()
+    {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             Debug.Assert(_denyRule is not null);

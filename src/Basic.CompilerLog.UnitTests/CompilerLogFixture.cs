@@ -52,10 +52,19 @@ public sealed class FileLockHold(List<Stream> streams) : IDisposable
 /// the lazy build callbacks themselves can run concurrently. Any mutable state added here
 /// must be thread-safe (for example <see cref="ReadOnlyDirectoryScopes"/> is a
 /// <see cref="ConcurrentBag{T}"/>).
+///
+/// The dotnet new / build invocations that produce the scratch directories are cached across test
+/// runs on the machine via <see cref="FixtureBuildCache"/>. The binlog to complog conversion is
+/// deliberately not cached so product code changes are exercised on every run.
 /// </remarks>
 public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
     private ConcurrentBag<ReadOnlyDirectoryScope> ReadOnlyDirectoryScopes { get; } = new();
+
+    /// <summary>
+    /// When non-null the expensive dotnet builds are cached across test runs on this machine.
+    /// </summary>
+    private FixtureBuildCache? BuildCache { get; }
 
     internal ImmutableArray<Lazy<LogData>> AllLogs { get; }
 
@@ -145,11 +154,18 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     {
         StorageDirectory = Path.Combine(TestUtil.TestTempRoot, "compilerlogfixture");
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
-        ScratchDirectory = Path.Combine(StorageDirectory, "scratch dir");
+        BuildCache = FixtureBuildCache.Instance;
+        ScratchDirectory = BuildCache is { } buildCache
+            ? Path.Combine(buildCache.CacheDirectory, "compilerlogfixture", "scratch dir")
+            : Path.Combine(StorageDirectory, "scratch dir");
         Directory.CreateDirectory(ComplogDirectory);
         Directory.CreateDirectory(ScratchDirectory);
 
-        RunDotnetCommand($"new globaljson --sdk-version {TestUtil.SdkVersion} --roll-forward minor", ScratchDirectory);
+        messageSink.OnDiagnosticMessage(BuildCache is { } cache
+            ? $"Using fixture build cache {cache.CacheDirectory}"
+            : $"Fixture build cache disabled: {FixtureBuildCache.DisabledReason}");
+
+        TestUtil.WriteGlobalJson(ScratchDirectory);
 
         var testArtifactsDir = Path.Combine(TestUtil.TestArtifactsDirectory, "compilerlogfixture");
         Directory.CreateDirectory(testArtifactsDir);
@@ -706,10 +722,20 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 try
                 {
                     var scratchPath = Path.Combine(ScratchDirectory, Path.GetFileNameWithoutExtension(name));
-                    Assert.False(Directory.Exists(scratchPath));
-                    _ = Directory.CreateDirectory(scratchPath);
                     messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
-                    action(scratchPath);
+                    if (BuildCache is { } buildCache)
+                    {
+                        if (buildCache.RunBuild(scratchPath, action))
+                        {
+                            messageSink.OnDiagnosticMessage($"Using cached build for {name}");
+                        }
+                    }
+                    else
+                    {
+                        Assert.False(Directory.Exists(scratchPath));
+                        _ = Directory.CreateDirectory(scratchPath);
+                        action(scratchPath);
+                    }
                     var projectFilePath = Directory.EnumerateFiles(scratchPath, "*proj", SearchOption.TopDirectoryOnly).SingleOrDefault();
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
                     Assert.True(File.Exists(binlogFilePath));
@@ -836,8 +862,9 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         var list = new List<Stream>();
         foreach (var filePath in Directory.EnumerateFiles(ScratchDirectory, "*", SearchOption.AllDirectories))
         {
-            // Don't lock the binlog or complogs as that is what the code is actually going to be reading
-            if (Path.GetExtension(filePath) is ".binlog" or ".complog")
+            // Don't lock the binlog or complogs as that is what the code is actually going to be
+            // reading. The .complete files are build cache markers, not build content.
+            if (Path.GetExtension(filePath) is ".binlog" or ".complog" or ".complete")
             {
                 continue;
             }
