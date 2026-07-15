@@ -4,7 +4,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <!-- We are not using package source mapping. -->
     <NoWarn>$(NoWarn);NU1507</NoWarn>
-    <_RoslynVersion>5.3.0</_RoslynVersion>
+    <_RoslynVersion>5.6.0</_RoslynVersion>
     <_RuntimeVersion>10.0.9</_RuntimeVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -14,7 +14,7 @@
     <PackageVersion Include="coverlet.msbuild" Version="10.0.1" />
     <PackageVersion Include="MessagePack" Version="3.1.7" />
     <PackageVersion Include="Microsoft.Bcl.Memory" Version="$(_RuntimeVersion)" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0">
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
