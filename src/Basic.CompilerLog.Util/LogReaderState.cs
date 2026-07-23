@@ -226,9 +226,6 @@ public sealed class LogReaderState : IDisposable
                     // Best effort. A concurrent cleanup pass may have already reclaimed it.
                 }
             }
-
-            // Try to clean up the locks directory if it's now empty
-            CommonUtil.DeleteDirectoryIfEmpty(CommonUtil.GetLocksDirectory());
         }
     }
 

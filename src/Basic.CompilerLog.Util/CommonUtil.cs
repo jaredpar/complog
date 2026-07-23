@@ -141,9 +141,12 @@ internal static class CommonUtil
             }
         }
 
-        // Try to clean up the locks dir if empty, then the parent
-        DeleteDirectoryIfEmpty(locksDirectory);
-        DeleteDirectoryIfEmpty(parentDirectory);
+        // Deliberately do NOT delete the shared locks directory (or its parent). Both are
+        // long-lived roots shared by every concurrent LogReaderState in this process tree.
+        // Deleting them here races with another instance that is creating its lock file inside
+        // locks/, producing UnauthorizedAccessException/DirectoryNotFoundException (issue #370).
+        // Leaving these empty directories behind is harmless; only the per-owner working
+        // directories and lock files are reclaimed above.
     }
 
     /// <summary>
