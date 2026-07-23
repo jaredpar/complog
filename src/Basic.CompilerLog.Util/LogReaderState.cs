@@ -3,6 +3,7 @@ using System.Runtime.Loader;
 #endif
 
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using Basic.CompilerLog.Util.Impl;
 
@@ -116,11 +117,31 @@ public sealed class LogReaderState : IDisposable
             // working directory exists.
             var locksDir = CommonUtil.GetLocksDirectory();
             Directory.CreateDirectory(locksDir);
+
+            // Hold the lock file open with FileShare.None for the lifetime of this instance so the
+            // cleanup probe (see CommonUtil.CleanupStaleTempDirectories) can use an exclusive open
+            // as a liveness test.
+            //
+            // On Windows we also pass FileOptions.DeleteOnClose so the file is removed atomically
+            // when the handle closes — including on a hard crash, where the kernel enforces it. That
+            // removes the release/delete window that previously let cleanup race with disposal.
+            //
+            // On Unix we must NOT use DeleteOnClose here: combining it with FileShare.None disables
+            // share enforcement (dotnet/runtime#59995), which would let the probe open a live owner's
+            // lock and wrongly delete an active directory. Instead the file is deleted manually in
+            // Dispose. Unix has no delete-pending semantics, so the manual delete is race-free, and a
+            // crash leaves the file behind for the probe to reclaim (the OS releases its advisory lock
+            // on process death).
+            var lockFileOptions = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? FileOptions.DeleteOnClose
+                : FileOptions.None;
             _lockFileStream = new FileStream(
                 Path.Combine(locksDir, dirName + ".lock"),
                 FileMode.Create,
                 FileAccess.Write,
-                FileShare.None);
+                FileShare.None,
+                bufferSize: 1,
+                lockFileOptions);
 
             // Now create the working directory
             Directory.CreateDirectory(BaseDirectory);
@@ -176,33 +197,34 @@ public sealed class LogReaderState : IDisposable
         {
             // Parent directory was already deleted (e.g. by test cleanup). Expected.
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Nothing to do if we can't delete the directories
-            Debug.Fail(ex.Message);
+            // Nothing to do if we can't delete the directories. This is best-effort cleanup and
+            // concurrent instances may already be removing these directories.
         }
 
-        // Release the lock file AFTER cleaning up the base directory. The lock must be
-        // held until we're done with the directory so cleanup won't race with us.
+        // Release the lock file AFTER cleaning up the base directory. The lock must be held until
+        // we're done with the directory so cleanup won't race with us.
+        //
+        // On Windows the stream was opened with FileOptions.DeleteOnClose, so disposing it removes
+        // the lock file atomically — no separate File.Delete (and its associated sharing race) is
+        // needed. On Unix DeleteOnClose is not used (see the ctor), so delete the file manually.
         if (_lockFileStream is not null)
         {
             var lockFilePath = _lockFileStream.Name;
             _lockFileStream.Dispose();
             _lockFileStream = null;
-            try
-            {
-                File.Delete(lockFilePath);
-            }
-            catch (Exception ex)
-            {
-                Debug.Fail(ex.Message);
-            }
 
-            // Try to clean up the locks directory if it's now empty
-            var locksDir = Path.GetDirectoryName(lockFilePath);
-            if (locksDir is not null)
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                CommonUtil.DeleteDirectoryIfEmpty(locksDir);
+                try
+                {
+                    File.Delete(lockFilePath);
+                }
+                catch (Exception)
+                {
+                    // Best effort. A concurrent cleanup pass may have already reclaimed it.
+                }
             }
         }
     }

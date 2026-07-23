@@ -123,9 +123,11 @@ public class LogReaderStateTests : TestBase
     }
 
     [Fact]
-    public void CleanupDeletesStaleSiblingWithUnlockedLockFile()
+    public void CleanupDeletesStaleSiblingWithUnheldLockFile()
     {
-        // Create a stale directory with an unlocked lock file in the locks dir (simulates crashed process)
+        // A sibling directory with an unheld lock file simulates a crashed process that left its
+        // lock file behind. The exclusive-open probe acquires the lock, proving the owner is gone,
+        // so construction of a new state should clean up the stale sibling.
         var parentDir = CommonUtil.GetCompilerLogTempDirectory();
         Directory.CreateDirectory(parentDir);
         var dirName = Guid.NewGuid().ToString("N");
@@ -138,6 +140,32 @@ public class LogReaderStateTests : TestBase
         // Creating a new state should clean up the stale sibling
         using var state = new Util.LogReaderState();
         Assert.False(Directory.Exists(staleDir));
+    }
+
+    [Fact]
+    public void CleanupPreservesSiblingWithHeldLockFile()
+    {
+        // A sibling directory whose lock file is held open (FileShare.None) is owned by a live
+        // instance. The exclusive-open probe fails, so construction must not delete it.
+        var parentDir = CommonUtil.GetCompilerLogTempDirectory();
+        Directory.CreateDirectory(parentDir);
+        var dirName = Guid.NewGuid().ToString("N");
+        var siblingDir = Path.Combine(parentDir, dirName);
+        Directory.CreateDirectory(siblingDir);
+        var locksDir = CommonUtil.GetLocksDirectory();
+        Directory.CreateDirectory(locksDir);
+        var lockPath = Path.Combine(locksDir, dirName + ".lock");
+        using var lockStream = new FileStream(lockPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+        using (var state = new Util.LogReaderState())
+        {
+            Assert.True(Directory.Exists(siblingDir));
+        }
+
+        // Manual cleanup of the simulated sibling
+        lockStream.Dispose();
+        File.Delete(lockPath);
+        Directory.Delete(siblingDir, recursive: true);
     }
 
 #if NET
