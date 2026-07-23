@@ -383,20 +383,42 @@ public abstract class CompilationData
 
         // This removes file full paths and tool versions from the content text.
         int flags = 0b11;
-        object[] args =
-        [
-            options,
-            Compilation.SyntaxTrees.ToImmutableArray(),
-            Compilation.References.ToImmutableArray(),
-            ImmutableArray<byte>.Empty,
-            AdditionalTexts,
-            analyzers,
-            generators,
-            ImmutableArray<KeyValuePair<string, string>>.Empty,
-            EmitOptions,
-            flags,
-            (CancellationToken)default,
-        ];
+
+        // The signature of DeterministicKey.GetDeterministicKey has grown over time. For example Roslyn
+        // 5.6.0 inserted the sourceLinkStream and resources parameters. Rather than hard code a positional
+        // argument array (which throws TargetParameterCountException when the parameter count changes) build
+        // the arguments by matching parameter names. Any parameter we don't explicitly supply falls back to
+        // its type default, which keeps us resilient to future optional parameters being added.
+        var argValues = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["compilationOptions"] = options,
+            ["syntaxTrees"] = Compilation.SyntaxTrees.ToImmutableArray(),
+            ["references"] = Compilation.References.ToImmutableArray(),
+            ["publicKey"] = ImmutableArray<byte>.Empty,
+            ["additionalTexts"] = AdditionalTexts,
+            ["analyzers"] = analyzers,
+            ["generators"] = generators,
+            ["pathMap"] = ImmutableArray<KeyValuePair<string, string>>.Empty,
+            ["emitOptions"] = EmitOptions,
+            ["options"] = flags,
+            ["cancellationToken"] = (CancellationToken)default,
+        };
+
+        var parameters = method.GetParameters();
+        var args = new object?[parameters.Length];
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            var parameter = parameters[i];
+            if (argValues.TryGetValue(parameter.Name!, out var value))
+            {
+                args[i] = value;
+            }
+            else
+            {
+                var parameterType = parameter.ParameterType;
+                args[i] = parameterType.IsValueType ? Activator.CreateInstance(parameterType) : null;
+            }
+        }
 
         var result = method.Invoke(null, args)!;
         var contentHash = (string)result;
