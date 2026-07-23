@@ -82,9 +82,20 @@ internal static class CommonUtil
 
     /// <summary>
     /// Enumerates <paramref name="parentDirectory"/> for subdirectories that are no longer owned by
-    /// a running process and deletes them. Ownership is determined by a lock file in the sibling
-    /// <c>locks/</c> directory held open with <see cref="FileShare.None"/> by the owning
-    /// <see cref="LogReaderState"/>.
+    /// a running process and deletes them. Ownership is tracked by a lock file in the sibling
+    /// <c>locks/</c> directory that the owning <see cref="LogReaderState"/> holds open with
+    /// <see cref="FileShare.None"/> for its lifetime.
+    ///
+    /// A directory is considered orphaned (and deleted) when either:
+    /// <list type="bullet">
+    /// <item>its lock file is missing — the owner disposed cleanly (deleting the file), or on Windows
+    /// the kernel removed it via delete-on-close when the owner crashed; or</item>
+    /// <item>its lock file exists but can be opened exclusively — the owner is gone but left the file
+    /// behind (e.g. a hard crash on Unix, where the file is deleted by a managed step that does not
+    /// run on abnormal termination). The OS releases the file's share lock when the owning process
+    /// dies, so a successful exclusive open is a reliable liveness test on every platform.</item>
+    /// </list>
+    /// A lock file that cannot be opened exclusively is still held by a live owner and is left alone.
     /// </summary>
     internal static void CleanupStaleTempDirectories(string parentDirectory)
     {
@@ -108,40 +119,62 @@ internal static class CommonUtil
                 var dirName = Path.GetFileName(dir);
                 var lockFilePath = Path.Combine(locksDirectory, dirName + ".lock");
 
+                if (File.Exists(lockFilePath) && !TryAcquireStaleLock(lockFilePath))
+                {
+                    // The lock file exists and is held by a live owner. Leave the directory alone.
+                    continue;
+                }
+
+                // The lock file is missing, or we acquired it exclusively (owner is gone). The
+                // directory is orphaned. Delete the working directory first, then the lock file so
+                // that an interruption still leaves the "missing lock file" orphan signal intact.
+                Directory.Delete(dir, recursive: true);
                 if (File.Exists(lockFilePath))
                 {
-                    // Attempt to open the lock file exclusively. If it succeeds the owning process
-                    // is no longer running and the directory is stale.
-                    using var fs = new FileStream(lockFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-                    fs.Dispose();
-
-                    // Lock acquired — owning process is gone. Delete the lock file and directory.
                     File.Delete(lockFilePath);
                 }
-                else
-                {
-                    // No lock file means either old format or orphaned. Check for a legacy
-                    // in-directory .lock file for backward compat.
-                    var legacyLockPath = Path.Combine(dir, ".lock");
-                    if (File.Exists(legacyLockPath))
-                    {
-                        using var fs = new FileStream(legacyLockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-                        fs.Dispose();
-                    }
-                }
-
-                // Either no lock file, acquired the external lock, or acquired legacy lock.
-                // Delete the directory.
-                Directory.Delete(dir, recursive: true);
             }
             catch
             {
-                // Lock is held by another process, or we can't delete for another reason. Skip.
+                // Best effort. The directory may be mid-creation by another instance, or otherwise
+                // in use; skip it and let a future cleanup pass handle it.
             }
         }
 
         // Try to clean up the locks dir if empty, then the parent
         DeleteDirectoryIfEmpty(locksDirectory);
         DeleteDirectoryIfEmpty(parentDirectory);
+    }
+
+    /// <summary>
+    /// Attempts to open <paramref name="lockFilePath"/> exclusively. Success means no live owner
+    /// holds the lock, so the associated directory is stale. The owning <see cref="LogReaderState"/>
+    /// holds the file open with <see cref="FileShare.None"/>, and the OS releases that share lock
+    /// when the owner terminates — including on a crash (on Windows the kernel enforces the lock; on
+    /// Unix .NET uses an advisory <c>flock</c> that the kernel drops on process death). A successful
+    /// exclusive open is therefore a reliable liveness probe. Returns <see langword="false"/> if the
+    /// lock is still held by a live owner.
+    ///
+    /// Note: the owner deliberately does not combine <see cref="FileOptions.DeleteOnClose"/> with
+    /// <see cref="FileShare.None"/> on Unix, because that disables share enforcement there
+    /// (dotnet/runtime#59995) and would make this probe unreliable.
+    /// </summary>
+    private static bool TryAcquireStaleLock(string lockFilePath)
+    {
+        try
+        {
+            using var fs = new FileStream(lockFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return true;
+        }
+        catch (IOException)
+        {
+            // Held by a live owner.
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Held by a live owner (some platforms surface a sharing conflict this way).
+            return false;
+        }
     }
 }

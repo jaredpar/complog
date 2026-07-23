@@ -48,16 +48,20 @@ public sealed class CommonUtilTests
         var staleDir = Path.Combine(parentDir, dirName);
         Directory.CreateDirectory(staleDir);
 
-        // Create an unlocked lock file in the locks directory (simulates a dead process)
+        // Create an unheld lock file in the locks directory (simulates a crashed process that left
+        // the lock file behind — the exclusive-open probe will acquire it and treat the dir stale).
         var locksDir = Path.Combine(parentDir, "locks");
         Directory.CreateDirectory(locksDir);
-        File.WriteAllText(Path.Combine(locksDir, dirName + ".lock"), "");
+        var lockPath = Path.Combine(locksDir, dirName + ".lock");
+        File.WriteAllText(lockPath, "");
         // Also create a file that would normally exist in a working directory
         File.WriteAllText(Path.Combine(staleDir, "analyzer.dll"), "fake");
 
         CommonUtil.CleanupStaleTempDirectories(parentDir);
 
         Assert.False(Directory.Exists(staleDir));
+        // The stale lock file should also be removed
+        Assert.False(File.Exists(lockPath));
     }
 
     [Fact]
@@ -97,46 +101,6 @@ public sealed class CommonUtilTests
         Assert.True(Directory.Exists(activeDir));
 
         // Cleanup
-        lockStream.Dispose();
-        Directory.Delete(parentDir, recursive: true);
-    }
-
-    [Fact]
-    public void CleanupDeletesLegacyLockedDirectory()
-    {
-        // Tests backward compat: a directory with an in-directory .lock file (old format)
-        // that is not held should be cleaned up
-        var parentDir = Path.Combine(Path.GetTempPath(), "Basic.CompilerLog.Test.Cleanup", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(parentDir);
-        var staleDir = Path.Combine(parentDir, Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(staleDir);
-        File.WriteAllText(Path.Combine(staleDir, ".lock"), "");
-
-        CommonUtil.CleanupStaleTempDirectories(parentDir);
-
-        Assert.False(Directory.Exists(staleDir));
-    }
-
-    [Fact]
-    public void CleanupSkipsLegacyLockedDirectory()
-    {
-        // Tests backward compat: a directory with a held in-directory .lock file (old format)
-        // should be skipped
-        var parentDir = Path.Combine(Path.GetTempPath(), "Basic.CompilerLog.Test.Cleanup", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(parentDir);
-        var activeDir = Path.Combine(parentDir, Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(activeDir);
-
-        using var lockStream = new FileStream(
-            Path.Combine(activeDir, ".lock"),
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None);
-
-        CommonUtil.CleanupStaleTempDirectories(parentDir);
-
-        Assert.True(Directory.Exists(activeDir));
-
         lockStream.Dispose();
         Directory.Delete(parentDir, recursive: true);
     }
