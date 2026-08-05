@@ -18,6 +18,11 @@ public static class CodeAnalysisExtensions
             return emitOptions.WithEmitMetadataOnly(true);
         }
 
+        if ((emitFlags & EmitFlags.IncludeMetadataStream) != 0)
+        {
+            return emitOptions.WithIncludePrivateMembers(false);
+        }
+
         return emitOptions;
     }
 

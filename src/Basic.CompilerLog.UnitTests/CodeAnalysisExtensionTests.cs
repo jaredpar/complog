@@ -37,8 +37,8 @@ public sealed class CodeAnalysisExtensionsTests : TestBase
         AssertEx.HasData(result.XmlStream);
         AssertEx.HasData(result.MetadataStream);
         Assert.Equal(0, result.AssemblyStream.Position);
-        Assert.Equal(0, result.PdbStream.Position);
-        Assert.Equal(0, result.XmlStream.Position);
-        Assert.Equal(0, result.MetadataStream.Position);
+        Assert.Equal(0, result.PdbStream!.Position);
+        Assert.Equal(0, result.XmlStream!.Position);
+        Assert.Equal(0, result.MetadataStream!.Position);
     }
 }
