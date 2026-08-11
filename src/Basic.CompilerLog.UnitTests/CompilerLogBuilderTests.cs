@@ -1,5 +1,8 @@
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
+using System.Text;
 using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -138,14 +141,38 @@ public sealed class CompilerLogBuilderTests : TestBase
         return workspace;
     }
 
+    /// <summary>
+    /// Build a simple C# class library project inside <paramref name="workspace"/>. The project has
+    /// no on-disk output so project references to it exercise the in-memory emit path.
+    /// </summary>
+    private static Project AddAdhocProject(AdhocWorkspace workspace, string projectName, string assemblyName, string source, params ProjectId[] projectReferences)
+    {
+        var projectId = ProjectId.CreateNewId(projectName);
+        var documentInfo = DocumentInfo.Create(
+            DocumentId.CreateNewId(projectId),
+            $"{projectName}.cs",
+            loader: TextLoader.From(TextAndVersion.Create(SourceText.From(source, Encoding.UTF8), VersionStamp.Default)));
+        var projectInfo = ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: projectName,
+            assemblyName: assemblyName,
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            documents: [documentInfo],
+            projectReferences: projectReferences.Select(x => new ProjectReference(x)),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]);
+        return workspace.AddProject(projectInfo);
+    }
+
     [Fact]
-    public void AddFromWorkspace_RoundTrip()
+    public async Task AddFromWorkspace_RoundTrip()
     {
         using var workspace = LoadConsoleWorkspace();
         var project = workspace.CurrentSolution.Projects.Single();
 
         var complogStream = new MemoryStream();
-        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, x => x.Name == project.Name, CancellationToken);
+        var result = await CompilerLogUtil.TryCreateFromWorkspaceAsync(workspace, complogStream, x => x.Name == project.Name, CancellationToken);
         complogStream.Position = 0;
 
         Assert.True(result.Succeeded);
@@ -196,20 +223,12 @@ public sealed class CompilerLogBuilderTests : TestBase
     [Fact]
     public void AddFromWorkspace_WithProjectReference()
     {
-        using var solutionReader = SolutionReader.Create(Fixture.SolutionBinaryLogPath, BasicAnalyzerKind.None);
-        var workspace = new AdhocWorkspace();
-        workspace.AddSolution(solutionReader.ReadSolutionInfo());
-
-        var consoleProject = workspace.CurrentSolution.Projects
-            .FirstOrDefault(p => p.Language == LanguageNames.CSharp && p.ProjectReferences.Any());
-        if (consoleProject is null)
-        {
-            Assert.Skip("Fixture has no C# project with ProjectReferences");
-            return;
-        }
+        using var workspace = new AdhocWorkspace();
+        var lib = AddAdhocProject(workspace, "RefLib", "RefLib", "public class RefLib { public const int Version = 1; }");
+        _ = AddAdhocProject(workspace, "Consumer", "Consumer", "public class Consumer { public int Version => RefLib.Version; }", lib.Id);
 
         var complogStream = new MemoryStream();
-        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, x => x.Name == consoleProject.Name, CancellationToken);
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, x => x.Name == "Consumer", CancellationToken);
         complogStream.Position = 0;
 
         Assert.True(result.Succeeded);
@@ -217,7 +236,40 @@ public sealed class CompilerLogBuilderTests : TestBase
 
         using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
         var compilerCall = reader.ReadAllCompilerCalls().Single();
-        Assert.NotEmpty(reader.ReadAllReferenceData(compilerCall));
+        var referenceData = reader.ReadAllReferenceData(compilerCall);
+        Assert.Contains(referenceData, x => x.AssemblyIdentityData.AssemblyName == "RefLib");
+
+        // The embedded reference must actually resolve: the consumer must re-compile without
+        // errors using only assemblies stored in the log.
+        var compilationData = reader.ReadCompilationData(compilerCall);
+        Assert.Empty(compilationData.GetDiagnostics(CancellationToken).Where(x => x.Severity == DiagnosticSeverity.Error));
+    }
+
+    /// <summary>
+    /// Workspace projects can share an assembly name (a multi-targeted project loads as one
+    /// project per TargetFramework). The emitted-reference cache is keyed by ProjectId so the
+    /// flavors must not be conflated.
+    /// </summary>
+    [Fact]
+    public void AddFromWorkspace_ProjectReferencesSharingAssemblyName()
+    {
+        using var workspace = new AdhocWorkspace();
+        var lib1 = AddAdhocProject(workspace, "RefLib(net9.0)", "RefLib", "public class RefLib { public const int Version = 9; }");
+        var lib2 = AddAdhocProject(workspace, "RefLib(net10.0)", "RefLib", "public class RefLib { public const int Version = 10; }");
+        _ = AddAdhocProject(workspace, "Consumer1", "Consumer1", "public class Consumer1 { public int Version => RefLib.Version; }", lib1.Id);
+        _ = AddAdhocProject(workspace, "Consumer2", "Consumer2", "public class Consumer2 { public int Version => RefLib.Version; }", lib2.Id);
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, x => x.Name.StartsWith("Consumer", StringComparison.Ordinal), CancellationToken);
+        complogStream.Position = 0;
+        Assert.True(result.Succeeded);
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var mvids = reader.ReadAllCompilerCalls()
+            .Select(x => reader.ReadAllReferenceData(x).Single(r => r.AssemblyIdentityData.AssemblyName == "RefLib").Mvid)
+            .ToList();
+        Assert.Equal(2, mvids.Count);
+        Assert.NotEqual(mvids[0], mvids[1]);
     }
 
     [Fact]

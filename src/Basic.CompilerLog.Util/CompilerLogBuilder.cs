@@ -39,6 +39,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private readonly Dictionary<Guid, (string FileName, string AssemblyName)> _mvidToRefInfoMap = new();
     private readonly Dictionary<string, BuilderAssemblyData> _assemblyPathToMvidMap = new(PathUtil.Comparer);
+    private readonly Dictionary<ProjectId, BuilderAssemblyData> _emittedProjectMap = new();
     private readonly HashSet<string> _contentHashMap = new(PathUtil.Comparer);
     private readonly Dictionary<string, (AssemblyName AssemblyName, string? CommitHash)> _compilerInfoMap = new(PathUtil.Comparer);
     private readonly List<(int CompilerCallIndex, bool IsRefAssembly, Guid Mvid)> _compilerCallMvidList = new();
@@ -209,13 +210,13 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// synthesized <see cref="CompilerCall"/> on success, or <see langword="null"/> when the
     /// project's compilation could not be obtained (a diagnostic is recorded in that case).
     /// </summary>
-    internal CompilerCall? AddFromWorkspace(Project project, CancellationToken cancellationToken = default)
+    internal async Task<CompilerCall?> AddFromWorkspaceAsync(Project project, CancellationToken cancellationToken = default)
     {
         var isCSharp = project.Language == LanguageNames.CSharp;
         var projectFilePath = project.FilePath ?? $"{project.Name}{(isCSharp ? ".csproj" : ".vbproj")}";
         var targetFramework = GetTargetFrameworkFromProject(project);
 
-        var compilation = project.GetCompilationAsync(cancellationToken).GetAwaiter().GetResult();
+        var compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
         if (compilation is null)
         {
             Diagnostics.Add($"Cannot get compilation for {project.Name}");
@@ -234,7 +235,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             TargetFramework = targetFramework,
             CompilerCallKind = CompilerCallKind.Regular,
             CommandLineArgsHash = WriteContentMessagePack(Array.Empty<string>()),
-            CompilationDataPackHash = CreateCompilationDataPack(),
+            CompilationDataPackHash = await CreateCompilationDataPackAsync().ConfigureAwait(false),
         };
 
         AddWorkspaceCompilationOptions(infoPack, compilation, isCSharp);
@@ -246,9 +247,11 @@ internal sealed class CompilerLogBuilder : IDisposable
             targetFramework: targetFramework,
             isCSharp: isCSharp);
 
-        string CreateCompilationDataPack()
+        async Task<string> CreateCompilationDataPackAsync()
         {
-            var firstSourceText = project.Documents.FirstOrDefault()?.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+            var firstSourceText = project.Documents.FirstOrDefault() is { } firstDocument
+                ? await firstDocument.GetTextAsync(cancellationToken).ConfigureAwait(false)
+                : null;
             var dataPack = new CompilationDataPack()
             {
                 ContentList = new(),
@@ -278,29 +281,29 @@ internal sealed class CompilerLogBuilder : IDisposable
             foreach (var document in project.Documents)
             {
                 var filePath = document.FilePath ?? document.Name;
-                var sourceText = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+                var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
                 AddSourceText(dataPack, RawContentKind.SourceText, filePath, sourceText);
             }
 
             foreach (var document in project.AdditionalDocuments)
             {
                 var filePath = document.FilePath ?? document.Name;
-                var sourceText = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+                var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
                 AddSourceText(dataPack, RawContentKind.AdditionalText, filePath, sourceText);
             }
 
             foreach (var document in project.AnalyzerConfigDocuments)
             {
                 var filePath = document.FilePath ?? document.Name;
-                var sourceText = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+                var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
                 AddSourceText(dataPack, RawContentKind.AnalyzerConfig, filePath, sourceText);
             }
 
-            var generatedDocs = project.GetSourceGeneratedDocumentsAsync(cancellationToken).GetAwaiter().GetResult();
+            var generatedDocs = await project.GetSourceGeneratedDocumentsAsync(cancellationToken).ConfigureAwait(false);
             foreach (var document in generatedDocs)
             {
                 var filePath = document.FilePath ?? document.HintName;
-                var sourceText = document.GetTextAsync(cancellationToken).GetAwaiter().GetResult();
+                var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
                 AddSourceText(dataPack, RawContentKind.GeneratedText, filePath, sourceText);
             }
 
@@ -336,7 +339,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             foreach (var projectRef in project.ProjectReferences)
             {
-                AddProjectReferenceToDataPack(dataPack, project, projectRef, cancellationToken);
+                await AddProjectReferenceToDataPackAsync(dataPack, project, projectRef, cancellationToken).ConfigureAwait(false);
             }
 
             foreach (var analyzerReference in project.AnalyzerReferences)
@@ -410,7 +413,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// falls back to emitting the dependency's in-memory <see cref="Compilation"/> when no compiled
     /// output is available on disk.
     /// </summary>
-    private void AddProjectReferenceToDataPack(CompilationDataPack dataPack, Project parentProject, ProjectReference projectRef, CancellationToken cancellationToken)
+    private async Task AddProjectReferenceToDataPackAsync(CompilationDataPack dataPack, Project parentProject, ProjectReference projectRef, CancellationToken cancellationToken)
     {
         var dep = parentProject.Solution.GetProject(projectRef.ProjectId);
         if (dep is null)
@@ -421,22 +424,20 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         if (dep.OutputFilePath is not null && File.Exists(dep.OutputFilePath))
         {
-            var refInfo = AddAssembly(dep.OutputFilePath);
-            dataPack.References.Add(new ReferencePack()
-            {
-                Mvid = refInfo.Mvid,
-                Kind = MetadataImageKind.Assembly,
-                EmbedInteropTypes = projectRef.EmbedInteropTypes,
-                Aliases = projectRef.Aliases,
-                FilePath = dep.OutputFilePath,
-                AssemblyName = refInfo.AssemblyName,
-                AssemblyInformationalVersion = refInfo.AssemblyInformationalVersion,
-                NetModuleMvids = ImmutableArray<Guid>.Empty,
-            });
+            AddReferencePack(AddAssembly(dep.OutputFilePath), dep.OutputFilePath);
             return;
         }
 
-        var depCompilation = dep.GetCompilationAsync(cancellationToken).GetAwaiter().GetResult();
+        // The emit cache is keyed by ProjectId: assembly names are not unique across a
+        // workspace (each TargetFramework flavor of a multi-targeted project shares one).
+        var displayPath = $"{dep.AssemblyName}.dll";
+        if (_emittedProjectMap.TryGetValue(dep.Id, out var cachedInfo))
+        {
+            AddReferencePack(cachedInfo, displayPath);
+            return;
+        }
+
+        var depCompilation = await dep.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
         if (depCompilation is null)
         {
             Diagnostics.Add($"Cannot get compilation for project reference {dep.Name} in {parentProject.Name}");
@@ -454,46 +455,37 @@ internal sealed class CompilerLogBuilder : IDisposable
             return;
         }
 
-        memStream.Position = 0;
-        var displayPath = $"{depCompilation.AssemblyName}.dll";
-        var emittedInfo = AddAssemblyFromStream(displayPath, memStream);
-        dataPack.References.Add(new ReferencePack()
-        {
-            Mvid = emittedInfo.Mvid,
-            Kind = MetadataImageKind.Assembly,
-            EmbedInteropTypes = projectRef.EmbedInteropTypes,
-            Aliases = projectRef.Aliases,
-            FilePath = displayPath,
-            AssemblyName = emittedInfo.AssemblyName,
-            AssemblyInformationalVersion = emittedInfo.AssemblyInformationalVersion,
-            NetModuleMvids = ImmutableArray<Guid>.Empty,
-        });
+        var emittedInfo = AddEmittedAssembly(displayPath, memStream);
+        _emittedProjectMap[dep.Id] = emittedInfo;
+        AddReferencePack(emittedInfo, displayPath);
+
+        void AddReferencePack(BuilderAssemblyData info, string filePath) =>
+            dataPack.References.Add(new ReferencePack()
+            {
+                Mvid = info.Mvid,
+                Kind = MetadataImageKind.Assembly,
+                EmbedInteropTypes = projectRef.EmbedInteropTypes,
+                Aliases = projectRef.Aliases,
+                FilePath = filePath,
+                AssemblyName = info.AssemblyName,
+                AssemblyInformationalVersion = info.AssemblyInformationalVersion,
+                NetModuleMvids = ImmutableArray<Guid>.Empty,
+            });
     }
 
-    private BuilderAssemblyData AddAssemblyFromStream(string displayPath, MemoryStream stream)
+    private BuilderAssemblyData AddEmittedAssembly(string displayPath, MemoryStream stream)
     {
-        if (_assemblyPathToMvidMap.TryGetValue(displayPath, out var existing))
-        {
-            Debug.Assert(_mvidToRefInfoMap.ContainsKey(existing.Mvid));
-            return existing;
-        }
-
         stream.Position = 0;
         using var peReader = new PEReader(stream, PEStreamOptions.LeaveOpen);
         var metadataReader = peReader.GetMetadataReader();
         var identityData = RoslynUtil.ReadAssemblyIdentityData(metadataReader);
-        var fullAssemblyName = metadataReader.GetAssemblyDefinition().GetAssemblyName().ToString();
-
-        var info = (identityData.Mvid, identityData.AssemblyName, identityData.AssemblyInformationalVersion, ImmutableArray<string>.Empty);
-        _assemblyPathToMvidMap[displayPath] = info;
+        BuilderAssemblyData info = (identityData.Mvid, identityData.AssemblyName, identityData.AssemblyInformationalVersion, ImmutableArray<string>.Empty);
 
         if (!_mvidToRefInfoMap.ContainsKey(info.Mvid))
         {
-            var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(info.Mvid), CompressionLevel.Fastest);
-            using var entryStream = entry.Open();
+            var fullAssemblyName = metadataReader.GetAssemblyDefinition().GetAssemblyName().ToString();
             stream.Position = 0;
-            stream.CopyTo(entryStream);
-            _mvidToRefInfoMap[info.Mvid] = (Path.GetFileName(displayPath), fullAssemblyName);
+            WriteAssemblyEntry(info.Mvid, Path.GetFileName(displayPath), fullAssemblyName, stream);
         }
 
         return info;
@@ -1017,17 +1009,13 @@ internal sealed class CompilerLogBuilder : IDisposable
             return info;
         }
 
-        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(info.Mvid), CompressionLevel.Fastest);
-        using var entryStream = entry.Open();
-        using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
-        fileStream.CopyTo(entryStream);
-
         // There are some assemblies for which MetadataReader will return an AssemblyName which
         // fails ToString calls which is why we use AssemblyName.GetAssemblyName here.
         //
         // Example: .nuget\packages\microsoft.visualstudio.interop\17.2.32505.113\lib\net472\Microsoft.VisualStudio.Interop.dll
         var assemblyName = AssemblyName.GetAssemblyName(filePath);
-        _mvidToRefInfoMap[info.Mvid] = (Path.GetFileName(filePath), assemblyName.ToString());
+        using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
+        WriteAssemblyEntry(info.Mvid, Path.GetFileName(filePath), assemblyName.ToString(), fileStream);
         return info;
 
         BuilderAssemblyData ReadBuilderAssemblyData(string filePath)
@@ -1039,6 +1027,14 @@ internal sealed class CompilerLogBuilder : IDisposable
             var netModuleNames = RoslynUtil.GetNetModuleFileNames(metadataReader);
             return (identityData.Mvid, identityData.AssemblyName, identityData.AssemblyInformationalVersion, netModuleNames);
         }
+    }
+
+    private void WriteAssemblyEntry(Guid mvid, string fileName, string fullAssemblyName, Stream stream)
+    {
+        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Fastest);
+        using var entryStream = entry.Open();
+        stream.CopyTo(entryStream);
+        _mvidToRefInfoMap[mvid] = (fileName, fullAssemblyName);
     }
 
     /// <summary>

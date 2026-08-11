@@ -94,27 +94,27 @@ public static class CompilerLogUtil
     /// <summary>
     /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>. Throws
     /// <see cref="CompilerLogException"/> if any project fails to serialize; for a non-throwing
-    /// variant use <see cref="TryCreateFromWorkspace(Workspace, string, Func{Project, bool}?, CancellationToken)"/>.
+    /// variant use <see cref="TryCreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>.
     /// </summary>
     /// <returns>Diagnostic messages produced during serialization (informational only — failures throw).</returns>
-    public static List<string> CreateFromWorkspace(
+    public static async Task<List<string>> CreateFromWorkspaceAsync(
         Workspace workspace,
         string compilerLogFilePath,
         Func<Project, bool>? predicate = null,
         CancellationToken cancellationToken = default)
     {
         using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-        return CreateFromWorkspace(workspace, compilerLogStream, predicate, cancellationToken);
+        return await CreateFromWorkspaceAsync(workspace, compilerLogStream, predicate, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <inheritdoc cref="CreateFromWorkspace(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
-    public static List<string> CreateFromWorkspace(
+    /// <inheritdoc cref="CreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
+    public static async Task<List<string>> CreateFromWorkspaceAsync(
         Workspace workspace,
         Stream compilerLogStream,
         Func<Project, bool>? predicate = null,
         CancellationToken cancellationToken = default)
     {
-        var result = TryCreateFromWorkspace(workspace, compilerLogStream, predicate, cancellationToken);
+        var result = await TryCreateFromWorkspaceAsync(workspace, compilerLogStream, predicate, cancellationToken).ConfigureAwait(false);
         if (!result.Succeeded)
         {
             throw new CompilerLogException("Could not create compiler log from workspace", result.Diagnostics);
@@ -123,23 +123,39 @@ public static class CompilerLogUtil
         return result.Diagnostics;
     }
 
+    /// <inheritdoc cref="CreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
+    public static List<string> CreateFromWorkspace(
+        Workspace workspace,
+        string compilerLogFilePath,
+        Func<Project, bool>? predicate = null,
+        CancellationToken cancellationToken = default) =>
+        CreateFromWorkspaceAsync(workspace, compilerLogFilePath, predicate, cancellationToken).GetAwaiter().GetResult();
+
+    /// <inheritdoc cref="CreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
+    public static List<string> CreateFromWorkspace(
+        Workspace workspace,
+        Stream compilerLogStream,
+        Func<Project, bool>? predicate = null,
+        CancellationToken cancellationToken = default) =>
+        CreateFromWorkspaceAsync(workspace, compilerLogStream, predicate, cancellationToken).GetAwaiter().GetResult();
+
     /// <summary>
     /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>. Per-project failures
     /// are recorded as diagnostics rather than thrown; the result's <see cref="CreateFromWorkspaceResult.Succeeded"/>
     /// flag is <see langword="false"/> if any project failed.
     /// </summary>
-    public static CreateFromWorkspaceResult TryCreateFromWorkspace(
+    public static async Task<CreateFromWorkspaceResult> TryCreateFromWorkspaceAsync(
         Workspace workspace,
         string compilerLogFilePath,
         Func<Project, bool>? predicate = null,
         CancellationToken cancellationToken = default)
     {
         using var compilerLogStream = new FileStream(compilerLogFilePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-        return TryCreateFromWorkspace(workspace, compilerLogStream, predicate, cancellationToken);
+        return await TryCreateFromWorkspaceAsync(workspace, compilerLogStream, predicate, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <inheritdoc cref="TryCreateFromWorkspace(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
-    public static CreateFromWorkspaceResult TryCreateFromWorkspace(
+    /// <inheritdoc cref="TryCreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
+    public static async Task<CreateFromWorkspaceResult> TryCreateFromWorkspaceAsync(
         Workspace workspace,
         Stream compilerLogStream,
         Func<Project, bool>? predicate = null,
@@ -161,7 +177,7 @@ public static class CompilerLogUtil
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                if (builder.AddFromWorkspace(project, cancellationToken) is { } compilerCall)
+                if (await builder.AddFromWorkspaceAsync(project, cancellationToken).ConfigureAwait(false) is { } compilerCall)
                 {
                     compilerCalls.Add(compilerCall);
                 }
@@ -183,6 +199,22 @@ public static class CompilerLogUtil
 
         return new CreateFromWorkspaceResult(success, compilerCalls, diagnostics);
     }
+
+    /// <inheritdoc cref="TryCreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
+    public static CreateFromWorkspaceResult TryCreateFromWorkspace(
+        Workspace workspace,
+        string compilerLogFilePath,
+        Func<Project, bool>? predicate = null,
+        CancellationToken cancellationToken = default) =>
+        TryCreateFromWorkspaceAsync(workspace, compilerLogFilePath, predicate, cancellationToken).GetAwaiter().GetResult();
+
+    /// <inheritdoc cref="TryCreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
+    public static CreateFromWorkspaceResult TryCreateFromWorkspace(
+        Workspace workspace,
+        Stream compilerLogStream,
+        Func<Project, bool>? predicate = null,
+        CancellationToken cancellationToken = default) =>
+        TryCreateFromWorkspaceAsync(workspace, compilerLogStream, predicate, cancellationToken).GetAwaiter().GetResult();
 
     public static List<string> ConvertBinaryLog(string binaryLogFilePath, string compilerLogFilePath, Func<CompilerCall, bool>? predicate = null)
     {
