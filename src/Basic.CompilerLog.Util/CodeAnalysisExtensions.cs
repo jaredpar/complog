@@ -18,6 +18,11 @@ public static class CodeAnalysisExtensions
             return emitOptions.WithEmitMetadataOnly(true);
         }
 
+        if ((emitFlags & EmitFlags.IncludeMetadataStream) != 0)
+        {
+            return emitOptions.WithIncludePrivateMembers(false);
+        }
+
         return emitOptions;
     }
 
@@ -67,6 +72,23 @@ public static class CodeAnalysisExtensions
             embeddedTexts,
             metadataPEStream: metadataStream,
             cancellationToken: cancellationToken);
+
+        assemblyStream.Position = 0;
+        if (pdbStream is not null)
+        {
+            pdbStream.Position = 0;
+        }
+
+        if (xmlStream is not null)
+        {
+            xmlStream.Position = 0;
+        }
+
+        if (metadataStream is not null)
+        {
+            metadataStream.Position = 0;
+        }
+
         return new EmitMemoryResult(
             result.Success,
             assemblyStream,

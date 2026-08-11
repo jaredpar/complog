@@ -22,7 +22,7 @@ public abstract class FixtureBase
         var start = DateTime.UtcNow;
         var diagnosticBuilder = new StringBuilder();
 
-        diagnosticBuilder.AppendLine($"Running: {_processCount++} {args} in {workingDirectory}");
+        diagnosticBuilder.AppendLine($"Running: {Interlocked.Increment(ref _processCount)} {args} in {workingDirectory}");
         var result = DotnetUtil.Command(args, workingDirectory);
         diagnosticBuilder.AppendLine($"Succeeded: {result.Succeeded}");
         diagnosticBuilder.AppendLine($"Standard Output: {result.StandardOut}");

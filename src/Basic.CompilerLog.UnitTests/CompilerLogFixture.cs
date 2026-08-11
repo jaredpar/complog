@@ -2,6 +2,7 @@ using Basic.CompilerLog.Util;
 using Microsoft.Build.Framework;
 using Microsoft.CodeAnalysis;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.ComponentModel.Design.Serialization;
@@ -42,9 +43,19 @@ public sealed class FileLockHold(List<Stream> streams) : IDisposable
     }
 }
 
+/// <summary>
+/// Houses the set of compiler logs that are built once and shared across the test suite.
+/// </summary>
+/// <remarks>
+/// This fixture is registered as an assembly fixture and is therefore shared across test
+/// classes that execute in parallel. The shared compiler logs are read-only once built, but
+/// the lazy build callbacks themselves can run concurrently. Any mutable state added here
+/// must be thread-safe (for example <see cref="ReadOnlyDirectoryScopes"/> is a
+/// <see cref="ConcurrentBag{T}"/>).
+/// </remarks>
 public sealed class CompilerLogFixture : FixtureBase, IDisposable
 {
-    private List<ReadOnlyDirectoryScope> ReadOnlyDirectoryScopes { get; } = new();
+    private ConcurrentBag<ReadOnlyDirectoryScope> ReadOnlyDirectoryScopes { get; } = new();
 
     internal ImmutableArray<Lazy<LogData>> AllLogs { get; }
 
@@ -926,8 +937,3 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     }
 }
 
-[CollectionDefinition(Name)]
-public sealed class CompilerLogCollection : ICollectionFixture<CompilerLogFixture>
-{
-    public const string Name = "Compiler Log Collection";
-}

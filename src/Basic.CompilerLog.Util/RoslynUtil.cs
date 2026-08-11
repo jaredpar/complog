@@ -1065,21 +1065,6 @@ public static class RoslynUtil
     }
 
     /// <summary>
-    /// Work around Roslyn issue that creates a strong reference to AssemblyLoadContext instances
-    ///
-    /// https://github.com/dotnet/roslyn/issues/77719
-    /// </summary>
-    internal static void ClearLocalizableStringMap()
-    {
-        var assembly = typeof(Compilation).Assembly;
-        var type = assembly.GetType("Microsoft.CodeAnalysis.Diagnostics.AnalyzerManager+AnalyzerExecutionContext")!;
-        var field = type.GetField("s_localizableStringToException", BindingFlags.Static | BindingFlags.NonPublic)!;
-        var obj = field.GetValue(null)!;
-        var dictionary = (ImmutableDictionary<LocalizableString, Exception>)obj;
-        field.SetValue(null, ImmutableDictionary<LocalizableString, Exception>.Empty.WithComparers(dictionary.KeyComparer, dictionary.ValueComparer));
-    }
-
-    /// <summary>
     /// Extracts all Include element Path attributes from a ruleset file
     /// </summary>
     internal static List<string> GetRuleSetIncludes(XmlDocument doc)

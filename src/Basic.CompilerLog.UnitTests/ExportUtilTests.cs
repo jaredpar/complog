@@ -14,7 +14,6 @@ using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class ExportUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
@@ -217,6 +216,42 @@ public sealed class ExportUtilTests : TestBase
             var analyzers = Directory.GetFiles(Path.Combine(tempPath, "analyzers"), "*.dll", SearchOption.AllDirectories).ToList();
             Assert.Empty(analyzers);
         }, runBuild: false);
+    }
+
+    /// <summary>
+    /// Make sure that global configs get their full paths mapped to the new location on disk
+    /// </summary>
+    [Fact]
+    public void ExportedAnalyzersAreNotR2R()
+    {
+        using var reader = CompilerLogReader.Create(
+            Fixture.Console.Value.CompilerLogPath,
+            BasicAnalyzerKind.None,
+            new LogReaderState(stripReadyToRun: true));
+        var exportUtil = new ExportUtil(reader);
+        var compilerDirectories = SdkUtil.GetSdkCompilerDirectories();
+        foreach (var compilerCall in reader.ReadAllCompilerCalls())
+        {
+            using var tempDir = new TempDir();
+            exportUtil.Export(compilerCall, tempDir.DirectoryPath, compilerDirectories);
+
+            var analyzerDir = Path.Combine(tempDir.DirectoryPath, "analyzers");
+            if (!Directory.Exists(analyzerDir))
+            {
+                continue;
+            }
+
+            var dlls = Directory.GetFiles(analyzerDir, "*.dll", SearchOption.AllDirectories);
+            Assert.NotEmpty(dlls);
+
+            foreach (var dll in dlls)
+            {
+                var bytes = File.ReadAllBytes(dll);
+                Assert.False(
+                    R2RUtil.IsReadyToRun(bytes),
+                    $"Exported analyzer {Path.GetFileName(dll)} should not contain R2R native code");
+            }
+        }
     }
 
     /// <summary>
@@ -659,10 +694,10 @@ public sealed class ExportUtilTests : TestBase
         TestOutputHelper.WriteLine(solutionContent);
 
         // Verify complete solution content with both target frameworks
-        var expectedSolution = """
+        var expectedSolution = $"""
             <Solution>
               <Project Path="classlibmulti-net6.0/classlibmulti-net6.0.csproj" />
-              <Project Path="classlibmulti-net9.0/classlibmulti-net9.0.csproj" />
+              <Project Path="classlibmulti-{TestUtil.TestTargetFramework}/classlibmulti-{TestUtil.TestTargetFramework}.csproj" />
             </Solution>
             """;
         Assert.Equal(expectedSolution, solutionContent.Trim());
@@ -748,12 +783,12 @@ public sealed class ExportUtilTests : TestBase
         var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
 
         using var tempDir = new TempDir();
-        exportUtil.ExportSolution(tempDir.DirectoryPath, cc => cc.TargetFramework == "net9.0");
+        exportUtil.ExportSolution(tempDir.DirectoryPath, cc => cc.TargetFramework == TestUtil.TestTargetFramework);
 
         var solutionContent = File.ReadAllText(Path.Combine(tempDir.DirectoryPath, "export.slnx"));
-        var expectedSolution = """
+        var expectedSolution = $"""
             <Solution>
-              <Project Path="classlibmulti-net9.0/classlibmulti-net9.0.csproj" />
+              <Project Path="classlibmulti-{TestUtil.TestTargetFramework}/classlibmulti-{TestUtil.TestTargetFramework}.csproj" />
             </Solution>
             """;
         Assert.Equal(expectedSolution, solutionContent.Trim());

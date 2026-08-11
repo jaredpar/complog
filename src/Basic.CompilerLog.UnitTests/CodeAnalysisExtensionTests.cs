@@ -5,7 +5,6 @@ using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class CodeAnalysisExtensionsTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
@@ -24,15 +23,22 @@ public sealed class CodeAnalysisExtensionsTests : TestBase
         var result = compilation.EmitToMemory(EmitFlags.Default, cancellationToken: CancellationToken);
         AssertEx.Success(TestOutputHelper, result);
         AssertEx.HasData(result.AssemblyStream);
+        Assert.Equal(0, result.AssemblyStream.Position);
         Assert.Null(result.PdbStream);
         Assert.Null(result.XmlStream);
         Assert.Null(result.MetadataStream);
 
-        result = compilation.EmitToMemory(EmitFlags.IncludePdbStream, cancellationToken: CancellationToken);
+        result = compilation.EmitToMemory(
+            EmitFlags.IncludePdbStream | EmitFlags.IncludeXmlStream | EmitFlags.IncludeMetadataStream,
+            cancellationToken: CancellationToken);
         AssertEx.Success(TestOutputHelper, result);
         AssertEx.HasData(result.AssemblyStream);
         AssertEx.HasData(result.PdbStream);
-        Assert.Null(result.XmlStream);
-        Assert.Null(result.MetadataStream);
+        AssertEx.HasData(result.XmlStream);
+        AssertEx.HasData(result.MetadataStream);
+        Assert.Equal(0, result.AssemblyStream.Position);
+        Assert.Equal(0, result.PdbStream!.Position);
+        Assert.Equal(0, result.XmlStream!.Position);
+        Assert.Equal(0, result.MetadataStream!.Position);
     }
 }

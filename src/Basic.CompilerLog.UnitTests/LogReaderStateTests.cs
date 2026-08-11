@@ -8,7 +8,6 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public class LogReaderStateTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }
@@ -59,6 +58,114 @@ public class LogReaderStateTests : TestBase
         state.Dispose();
         Assert.True(state.IsDisposed);
         Assert.Throws<ObjectDisposedException>(() => state.GetOrCreateBasicAnalyzerHost(null!, BasicAnalyzerKind.InMemory, null!));
+    }
+
+    [Fact]
+    public void CreatesLockFile()
+    {
+        // Lock files are only created when using the default temp directory (baseDir: null)
+        using var state = new Util.LogReaderState();
+        var dirName = Path.GetFileName(state.BaseDirectory);
+        var lockPath = Path.Combine(CommonUtil.GetLocksDirectory(), dirName + ".lock");
+        Assert.True(File.Exists(lockPath));
+
+        // Lock should prevent external exclusive access
+        Assert.Throws<IOException>(() => new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None));
+    }
+
+    [Fact]
+    public void CleanupDoesNotDeleteActiveState()
+    {
+        // Lock files and cleanup only apply to the default temp directory
+        using var state1 = new Util.LogReaderState();
+        Assert.True(Directory.Exists(state1.BaseDirectory));
+
+        // A second state in the same default parent should not delete the first
+        using var state2 = new Util.LogReaderState();
+        Assert.True(Directory.Exists(state1.BaseDirectory));
+        Assert.True(Directory.Exists(state2.BaseDirectory));
+    }
+
+    [Fact]
+    public void NoLockFileWithCustomBaseDir()
+    {
+        var state = new Util.LogReaderState(baseDir: Root.NewDirectory());
+        var dirName = Path.GetFileName(state.BaseDirectory);
+        var lockPath = Path.Combine(CommonUtil.GetLocksDirectory(), dirName + ".lock");
+        Assert.False(File.Exists(lockPath));
+        state.Dispose();
+    }
+
+    [Fact]
+    public void DisposeCleansUpLockFile()
+    {
+        var state = new Util.LogReaderState();
+        var dirName = Path.GetFileName(state.BaseDirectory);
+        var lockPath = Path.Combine(CommonUtil.GetLocksDirectory(), dirName + ".lock");
+        Assert.True(File.Exists(lockPath));
+        state.Dispose();
+        Assert.False(File.Exists(lockPath));
+    }
+
+    [Fact]
+    public void CleanupDeletesStaleSiblingOnConstruction()
+    {
+        // Create a stale directory that simulates a previous run (no lock held)
+        var parentDir = CommonUtil.GetCompilerLogTempDirectory();
+        Directory.CreateDirectory(parentDir);
+        var staleDir = Path.Combine(parentDir, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staleDir);
+        File.WriteAllText(Path.Combine(staleDir, "leftover.txt"), "stale");
+
+        // Creating a new state should clean up the stale sibling
+        using var state = new Util.LogReaderState();
+        Assert.False(Directory.Exists(staleDir));
+    }
+
+    [Fact]
+    public void CleanupDeletesStaleSiblingWithUnheldLockFile()
+    {
+        // A sibling directory with an unheld lock file simulates a crashed process that left its
+        // lock file behind. The exclusive-open probe acquires the lock, proving the owner is gone,
+        // so construction of a new state should clean up the stale sibling.
+        var parentDir = CommonUtil.GetCompilerLogTempDirectory();
+        Directory.CreateDirectory(parentDir);
+        var dirName = Guid.NewGuid().ToString("N");
+        var staleDir = Path.Combine(parentDir, dirName);
+        Directory.CreateDirectory(staleDir);
+        var locksDir = CommonUtil.GetLocksDirectory();
+        Directory.CreateDirectory(locksDir);
+        File.WriteAllText(Path.Combine(locksDir, dirName + ".lock"), "");
+
+        // Creating a new state should clean up the stale sibling
+        using var state = new Util.LogReaderState();
+        Assert.False(Directory.Exists(staleDir));
+    }
+
+    [Fact]
+    public void CleanupPreservesSiblingWithHeldLockFile()
+    {
+        // A sibling directory whose lock file is held open (FileShare.None) is owned by a live
+        // instance. The exclusive-open probe fails, so construction must not delete it.
+        var parentDir = CommonUtil.GetCompilerLogTempDirectory();
+        Directory.CreateDirectory(parentDir);
+        var dirName = Guid.NewGuid().ToString("N");
+        var siblingDir = Path.Combine(parentDir, dirName);
+        Directory.CreateDirectory(siblingDir);
+        var locksDir = CommonUtil.GetLocksDirectory();
+        Directory.CreateDirectory(locksDir);
+        var lockPath = Path.Combine(locksDir, dirName + ".lock");
+        using var lockStream = new FileStream(lockPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+        using (var state = new Util.LogReaderState())
+        {
+            Assert.True(Directory.Exists(siblingDir));
+        }
+
+        // Manual cleanup of the simulated sibling
+        lockStream.Dispose();
+        File.Delete(lockPath);
+        Directory.Delete(siblingDir, recursive: true);
     }
 
 #if NET

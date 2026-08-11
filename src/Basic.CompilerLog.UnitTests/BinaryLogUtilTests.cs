@@ -18,7 +18,6 @@ using System.Runtime.Loader;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class BinaryLogUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }

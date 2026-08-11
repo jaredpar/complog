@@ -391,8 +391,8 @@ public sealed partial class ExportUtil
             foreach (var analyzer in Reader.ReadAllAnalyzerData(compilerCall))
             {
                 var filePath = builder.AnalyzerDirectory.GetNewFilePath(analyzer.FilePath);
-                using var analyzerStream = Reader.GetAssemblyStream(analyzer.Mvid);
-                analyzerStream.WriteTo(filePath);
+                using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                Reader.CopyAnalyzerBytes(analyzer, fileStream);
                 var arg = $@"/analyzer:""{FormatPathArgument(filePath)}""";
                 list.Add(arg);
             }

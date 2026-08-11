@@ -4,7 +4,6 @@ using Xunit;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class CompilerCallReaderUtilTests : TestBase
 {
     public CompilerLogFixture Fixture { get; }

@@ -177,22 +177,21 @@ public abstract class TestBase : IDisposable
 
 #if NET
 
+        // Best effort cleanup: force a GC + finalization pass so that collectible AssemblyLoadContext
+        // instances this test no longer references get collected. When that happens their finalizer
+        // deletes the on disk analyzer directories, keeping the temp tree tidy. It is expected that
+        // some contexts can't be collected (their references get rooted in ways we don't control);
+        // that simply leaves a directory behind and is not a failure.
+        //
+        // We deliberately do NOT verify that all contexts were collected, nor force clear them. That
+        // state is process-global and tests run in parallel, so inspecting or clearing it here would
+        // delete analyzer directories still in use by other concurrently running tests.
         if (OnDiskLoader.AnyActiveAssemblyLoadContext)
         {
-            var maxCount = 10;
-            for (int i = 0; i < maxCount && OnDiskLoader.AnyActiveAssemblyLoadContext; i++)
+            for (int i = 0; i < 3 && OnDiskLoader.AnyActiveAssemblyLoadContext; i++)
             {
                 GC.Collect(2, GCCollectionMode.Forced);
                 GC.WaitForPendingFinalizers();
-                Thread.Sleep(TimeSpan.FromSeconds(1));
-            }
-
-            if (OnDiskLoader.AnyActiveAssemblyLoadContext)
-            {
-                // https://github.com/jaredpar/complog/issues/241
-                // Environment.FailFast("there are still active AssemblyLoadContext");
-                // Assert.Fail("There are still active AssemblyLoadContext");
-                OnDiskLoader.ClearActiveAssemblyLoadContext();
             }
         }
 

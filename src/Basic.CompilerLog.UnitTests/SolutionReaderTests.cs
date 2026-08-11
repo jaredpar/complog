@@ -12,7 +12,6 @@ using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
-[Collection(CompilerLogCollection.Name)]
 public sealed class SolutionReaderTests : TestBase
 {
     public List<SolutionReader> ReaderList { get; } = new();
@@ -31,12 +30,6 @@ public sealed class SolutionReaderTests : TestBase
             reader.Dispose();
         }
         ReaderList.Clear();
-
-#if NET
-        // The underlying solution structure holds lots of references that root our contexts 
-        // so there is no way to fully free here.
-        OnDiskLoader.ClearActiveAssemblyLoadContext();
-#endif
 
         base.Dispose();
     }
