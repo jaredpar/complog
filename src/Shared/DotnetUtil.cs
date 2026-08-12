@@ -14,7 +14,7 @@ namespace Basic.CompilerLog;
 
 internal static class DotnetUtil
 {
-    private static readonly Lazy<Dictionary<string, string>> _lazyDotnetEnvironmentVariables = new(CreateDotnetEnvironmentVariables);
+    private static readonly Lazy<Dictionary<string, string>> s_lazyDotnetEnvironmentVariables = new(CreateDotnetEnvironmentVariables);
 
     private static Dictionary<string, string> CreateDotnetEnvironmentVariables()
     {
@@ -23,14 +23,17 @@ internal static class DotnetUtil
         // are executing under. For example `dotnet test` could spawn an 8.0 process but we end up testing
         // the 7.0.400 SDK. This environment variable though will point to 8.0 and end up causing load 
         // issues. Clear it out here so that the `dotnet` commands have a fresh context.
+        //
+        // In 10.0.400 there is a new environment variable getting added that blocks sub `dotnet build` processes
+        // from being created. Clear that out as well.
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var comparer = StringComparer.OrdinalIgnoreCase;
         foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
         {
             var key = (string)entry.Key;
-            if (!string.Equals(key, "MSBuildSDKsPath", StringComparison.OrdinalIgnoreCase))
+            if (!key.StartsWith("MSBuild", StringComparison.OrdinalIgnoreCase))
             {
                 map.Add(key, (string)entry.Value!);
-
             }
         }
         return map;
@@ -41,5 +44,5 @@ internal static class DotnetUtil
             "dotnet",
             args,
             workingDirectory: workingDirectory,
-            environment: _lazyDotnetEnvironmentVariables.Value);
+            environment: s_lazyDotnetEnvironmentVariables.Value);
 }

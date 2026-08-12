@@ -219,7 +219,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var index = GetIndex(compilerCall);
         var infoPack = GetOrReadCompilationInfoPack(index);
         var dataPack = GetOrReadCompilationDataPack(index);
-        var tuple = ReadCompilerOptions(infoPack);
+        var tuple = ReadCompilerOptions(index, infoPack, dataPack);
         return new CompilerCallData(
             compilerCall,
             assemblyFileName: dataPack.ValueMap["assemblyFileName"]!,
@@ -372,7 +372,10 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return normalizedArgs;
     }
 
-    private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(CompilationInfoPack pack)
+    private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(
+        int index,
+        CompilationInfoPack pack,
+        CompilationDataPack dataPack)
     {
         var emitOptions = MessagePackUtil.CreateEmitOptions(GetContentPack<EmitOptionsPack>(pack.EmitOptionsHash));
         ParseOptions parseOptions;
@@ -394,7 +397,37 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             compilationOptions = MessagePackUtil.CreateVisualBasicCompilationOptions(optionsTuple.Item1, optionsTuple.Item2, optionsTuple.Item3, optionsTuple.Item4);
         }
 
+        compilationOptions = MaterializeCryptoKeyFile(index, dataPack, compilationOptions);
         return (emitOptions, parseOptions, compilationOptions);
+    }
+
+    private CompilationOptions MaterializeCryptoKeyFile(
+        int index,
+        CompilationDataPack dataPack,
+        CompilationOptions compilationOptions)
+    {
+        foreach (var tuple in dataPack.ContentList)
+        {
+            var kind = (RawContentKind)tuple.Item1;
+            if (kind != RawContentKind.CryptoKeyFile)
+            {
+                continue;
+            }
+
+            var originalFilePath = PathNormalizationUtil.NormalizePath(tuple.Item2.FilePath, kind);
+            var directory = Path.Combine(LogReaderState.CryptoKeyFileDirectory, index.ToString());
+            Directory.CreateDirectory(directory);
+            var filePath = Path.Combine(directory, Path.GetFileName(originalFilePath));
+
+            if (tuple.Item2.ContentHash is string contentHash)
+            {
+                File.WriteAllBytes(filePath, GetRawContentBytes(contentHash));
+            }
+
+            compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
+        }
+
+        return compilationOptions;
     }
 
     public SourceHashAlgorithm GetChecksumAlgorithm(CompilerCall compilerCall) =>
@@ -408,7 +441,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var index = GetIndex(compilerCall);
         var infoPack = GetOrReadCompilationInfoPack(index);
         var dataPack = GetOrReadCompilationDataPack(index);
-        var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(infoPack);
+        var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(index, infoPack, dataPack);
         var referenceList = ReadMetadataReferences(dataPack.References);
         var resourceList = ReadResources(dataPack.Resources);
         var compilationName = dataPack.ValueMap["compilationName"];
@@ -465,7 +498,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                          contentHash is not null ? ReadSourceText(kind, contentHash, hashAlgorithm) : null));
                     break;
                 case RawContentKind.CryptoKeyFile:
-                    HandleCryptoKeyFile(contentHash, filePath);
                     break;
                 case RawContentKind.SourceLink:
                     sourceLinkStream = TryGetContentAsStream(contentHash, filePath);
@@ -526,20 +558,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         return compilerCall.IsCSharp
             ? CreateCSharp()
             : CreateVisualBasic();
-
-        void HandleCryptoKeyFile(string? contentHash, string originalFilePath)
-        {
-            var dir = Path.Combine(LogReaderState.CryptoKeyFileDirectory, GetIndex(compilerCall).ToString());
-            Directory.CreateDirectory(dir);
-            var filePath = Path.Combine(dir, Path.GetFileName(originalFilePath));
-
-            if (contentHash is not null)
-            {
-                File.WriteAllBytes(filePath, GetRawContentBytes(contentHash));
-            }
-
-            compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
-        }
 
         CSharpCompilationData CreateCSharp() =>
             RoslynUtil.CreateCSharpCompilationData(
