@@ -155,7 +155,7 @@ public sealed class ExportUtilTests : TestBase
         var solutionFile = Path.Combine(tempDir.DirectoryPath, "export.slnx");
         Assert.True(File.Exists(solutionFile));
 
-        var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+        var result = DotnetUtil.Command($"build \"{solutionFile}\"", tempDir.DirectoryPath);
         verifyBuildResult?.Invoke(result);
         testOutputHelper.WriteLine(result.StandardOut);
         testOutputHelper.WriteLine(result.StandardError);

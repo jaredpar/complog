@@ -934,7 +934,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
             var solutionFile = Path.Combine(exportDir.DirectoryPath, "export.slnx");
             Assert.True(File.Exists(solutionFile));
 
-            var result = ProcessUtil.Run("dotnet", $"build \"{solutionFile}\"");
+            var result = DotnetUtil.Command($"build \"{solutionFile}\"", exportDir.DirectoryPath);
             TestOutputHelper.WriteLine(result.StandardOut);
             TestOutputHelper.WriteLine(result.StandardError);
             Assert.True(result.Succeeded, $"Build failed: {result.StandardOut}");
