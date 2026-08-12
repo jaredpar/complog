@@ -15,6 +15,7 @@ public sealed class DotnetUtilTests
             ["MSBuildExtensionsPath32"] = "machine-extensions",
             ["MSBuildExtensionsPath64"] = "machine-extensions-64",
             ["MSBuildLoadMicrosoftTargetsReadOnly"] = "true",
+            ["MSBUILDENSURESTDOUTFORTASKPROCESSES"] = "1",
             ["DOTNET_HOST_PATH"] = "dotnet",
         };
 
@@ -22,6 +23,7 @@ public sealed class DotnetUtilTests
 
         Assert.False(childEnvironment.ContainsKey("MSBuildExtensionsPath"));
         Assert.False(childEnvironment.ContainsKey("msbuildsdkspath"));
+        Assert.False(childEnvironment.ContainsKey("MSBUILDENSURESTDOUTFORTASKPROCESSES"));
         Assert.Equal(4, childEnvironment.Count);
         Assert.Equal("machine-extensions", childEnvironment["MSBuildExtensionsPath32"]);
         Assert.Equal("machine-extensions-64", childEnvironment["MSBuildExtensionsPath64"]);

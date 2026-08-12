@@ -20,7 +20,7 @@ internal static class DotnetUtil
         CreateDotnetEnvironmentVariables(Environment.GetEnvironmentVariables());
 
     /// <summary>
-    /// Copies the parent environment without the MSBuild paths that identify its selected SDK.
+    /// Copies the parent environment without MSBuild settings that are unsafe for child commands.
     /// </summary>
     /// <param name="environmentVariables">The parent process environment variables.</param>
     internal static Dictionary<string, string> CreateDotnetEnvironmentVariables(IDictionary environmentVariables)
@@ -31,8 +31,12 @@ internal static class DotnetUtil
         // assemblies from the child SDK. Newer task API dependencies made this latent mismatch fail
         // during task loading. DOTNET_HOST_PATH is retained because it identifies the shared muxer.
         // MSBuildExtensionsPath32 and MSBuildExtensionsPath64 are retained because the CLI does not set
-        // them, preserving deliberate user configuration.
+        // them. Other MSBuild settings are retained unless they are known to be unsafe for child commands.
         // https://github.com/jaredpar/complog/pull/73
+        //
+        // MSBUILDENSURESTDOUTFORTASKPROCESSES makes reusable worker nodes inherit the redirected stdout
+        // handle. ProcessUtil synchronously reads stdout to EOF, so those nodes can block it until they exit.
+        // https://github.com/jaredpar/complog/pull/375
         var comparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal;
@@ -41,7 +45,8 @@ internal static class DotnetUtil
         {
             var key = (string)entry.Key;
             if (!string.Equals(key, "MSBuildExtensionsPath", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(key, "MSBuildSDKsPath", StringComparison.OrdinalIgnoreCase))
+                !string.Equals(key, "MSBuildSDKsPath", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(key, "MSBUILDENSURESTDOUTFORTASKPROCESSES", StringComparison.OrdinalIgnoreCase))
             {
                 map[key] = (string)entry.Value!;
             }
