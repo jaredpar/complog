@@ -1,6 +1,7 @@
 ﻿using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -95,5 +96,28 @@ public sealed class SolutionReaderTests : TestBase
             var result = compilation.EmitToMemory(cancellationToken: CancellationToken);
             Assert.True(result.Success);
         }
+    }
+
+    [Fact]
+    public async Task CryptoKeyFile()
+    {
+        var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
+        var reader = SolutionReader.Create(Fixture.ConsoleSigned.Value.CompilerLogPath, BasicAnalyzerKind.None);
+        ReaderList.Add(reader);
+
+        var workspace = new AdhocWorkspace();
+        var project = workspace.AddSolution(reader.ReadSolutionInfo()).Projects.Single();
+        project = project.WithCompilationOptions(
+            ((CSharpCompilationOptions)project.CompilationOptions!).WithPublicSign(true));
+        var cryptoKeyFile = project.CompilationOptions!.CryptoKeyFile;
+
+        Assert.NotNull(cryptoKeyFile);
+        Assert.StartsWith(reader.Reader.LogReaderState.CryptoKeyFileDirectory, cryptoKeyFile);
+        Assert.Equal(keyBytes, File.ReadAllBytes(cryptoKeyFile));
+
+        var compilation = await project.GetCompilationAsync(CancellationToken);
+        Assert.NotNull(compilation);
+        var diagnostics = compilation.GetDiagnostics(CancellationToken);
+        Assert.Empty(diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
     }
 }
