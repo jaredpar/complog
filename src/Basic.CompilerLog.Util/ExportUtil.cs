@@ -9,13 +9,8 @@ namespace Basic.CompilerLog.Util;
 
 public sealed partial class ExportUtil
 {
-    internal sealed class ContentBuilder : PathNormalizationUtil
+    internal sealed class ContentBuilder : PathMappingUtil
     {
-        /// <summary>
-        /// This is the <see cref="PathNormalizationUtil"/> that was used by the <see cref="CompilerLogReader"/>.
-        /// </summary>
-        private PathNormalizationUtil PathNormalizationUtil { get; }
-
         /// <summary>
         /// This is the root most directory where the compilation occurred. This can be more root than <see cref="ProjectDirectory"/>
         /// when there are .editorconfig files that are above the project directory. This path is after going through
@@ -44,9 +39,13 @@ public sealed partial class ExportUtil
         internal ResilientDirectory GeneratedCodeDirectory { get; }
         internal ResilientDirectory BuildOutput { get; }
 
-        internal ContentBuilder(string destinationDirectory, string originalSourceDirectory, string projectDirectory, PathNormalizationUtil pathNormalizationUtil)
+        internal override bool IsEmpty => false;
+
+        internal ContentBuilder(
+            string destinationDirectory,
+            string originalSourceDirectory,
+            string projectDirectory)
         {
-            PathNormalizationUtil = pathNormalizationUtil;
             DestinationDirectory = destinationDirectory;
             SourceDirectory = originalSourceDirectory;
             ProjectDirectory = projectDirectory;
@@ -61,20 +60,22 @@ public sealed partial class ExportUtil
         }
 
         [return: NotNullIfNotNull("path")]
-        internal override string? NormalizePath(string? path)
+        internal override string? MapPath(string? path, PathMapKind kind)
         {
             if (path is null)
             {
                 return null;
             }
 
-            // Normalize out all of the ..\ and .\ in the path to the current platform.
-            var normalizedPath = PathNormalizationUtil.NormalizePath(path);
+            return MapPathCore(path);
+        }
 
+        private string MapPathCore(string path)
+        {
             // If the path isn't rooted then it was relative to the project directory when it was recorded.
-            var normalizedFullPath = Path.IsPathRooted(normalizedPath)
-                ? normalizedPath
-                : Path.Combine(ProjectDirectory, normalizedPath);
+            var normalizedFullPath = Path.IsPathRooted(path)
+                ? path
+                : Path.Combine(ProjectDirectory, path);
 
             // Try and remove any relative elements from the paths to make it a bit cleaner.
             normalizedFullPath = Path.GetFullPath(normalizedFullPath);
@@ -91,34 +92,37 @@ public sealed partial class ExportUtil
         }
 
         [return: NotNullIfNotNull("path")]
-        internal override string? NormalizePath(string? path, RawContentKind kind) => kind switch
+        internal override string? MapPath(string? path, RawContentKind kind)
         {
-            RawContentKind.GeneratedText => GeneratedCodeDirectory.GetNewFilePath(path!),
-            _ => NormalizePath(path),
-        };
+            if (path is null)
+            {
+                return null;
+            }
+
+            return kind == RawContentKind.GeneratedText
+                ? GeneratedCodeDirectory.GetNewFilePath(path)
+                : MapPathCore(path);
+        }
 
         [return: NotNullIfNotNull("path")]
-        internal override string? NormalizePath(string path, ReadOnlySpan<char> optionName)
+        internal override string MapPath(string path, ReadOnlySpan<char> optionName)
         {
             if (optionName is "out" or "refout" or "doc" or "generatedfilesout" or "errorlog")
             {
-                var normalizedPath = PathNormalizationUtil.NormalizePath(path, optionName);
-                var newPath = BuildOutput.GetNewFilePath(normalizedPath);
+                var newPath = BuildOutput.GetNewFilePath(path);
 
                 if (optionName is "generatedfilesout")
                 {
                     _ = Directory.CreateDirectory(newPath);
                 }
 
-                return Path.IsPathRooted(normalizedPath)
+                return Path.IsPathRooted(path)
                     ? newPath
                     : PathUtil.RemovePathStart(newPath, DestinationDirectory);
             }
 
-            return NormalizePath(path);
+            return MapPathCore(path);
         }
-
-        internal override bool IsPathRooted([NotNullWhen(true)] string? path) => PathNormalizationUtil.IsPathRooted(path);
     }
 
     public CompilerLogReader Reader { get; }
@@ -126,6 +130,10 @@ public sealed partial class ExportUtil
     public bool ExcludeAnalyzers => (Options & ExportOptions.ExcludeAnalyzers) != 0;
     public bool ExcludeConfigs => (Options & ExportOptions.ExcludeConfigs) != 0;
     internal PathNormalizationUtil PathNormalizationUtil => Reader.PathNormalizationUtil;
+    internal PathMappingUtil PathMappingUtil => Reader.PathMappingUtil;
+
+    private string NormalizeAndMapPath(string path, RawContentKind kind) =>
+        PathMappingUtil.MapPath(PathNormalizationUtil.NormalizePath(path)!, kind);
 
     public ExportUtil(CompilerLogReader reader, ExportOptions options = ExportOptions.None)
     {
@@ -162,17 +170,17 @@ public sealed partial class ExportUtil
         }
 
         var originalSourceDirectory = GetSourceDirectory(Reader, compilerCall);
+        var previousPathMappingUtil = Reader.PathMappingUtil;
         var builder = new ContentBuilder(
             destinationDir,
             originalSourceDirectory,
-            PathNormalizationUtil.NormalizePath(compilerCall.ProjectDirectory),
-            PathNormalizationUtil);
+            compilerCall.ProjectDirectory);
         bool hasNoConfigOption = false;
         var checksumAlgorithm = Reader.GetChecksumAlgorithm(compilerCall);
 
         try
         {
-            Reader.PathNormalizationUtil = builder;
+            Reader.PathMappingUtil = builder;
             Directory.CreateDirectory(destinationDir);
             WriteContent();
             var rspReferenceLines = WriteReferences();
@@ -196,7 +204,7 @@ public sealed partial class ExportUtil
         }
         finally
         {
-            Reader.PathNormalizationUtil = Reader.DefaultPathNormalizationUtil;
+            Reader.PathMappingUtil = previousPathMappingUtil;
         }
 
         static string MakeSafeFileName(string value)
@@ -256,7 +264,7 @@ public sealed partial class ExportUtil
             {
                 foreach (var rawContent in Reader.ReadAllRawContent(compilerCall, RawContentKind.GeneratedText))
                 {
-                    var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                    var filePath = NormalizeAndMapPath(rawContent.FilePath, rawContent.Kind);
                     newLines.Add(NormalizeSourceFilePath(filePath));
                 }
             }
@@ -438,7 +446,7 @@ public sealed partial class ExportUtil
                         continue;
                     }
 
-                    var filePath = Reader.PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                    var filePath = NormalizeAndMapPath(rawContent.FilePath, rawContent.Kind);
                     _ = Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
                     using var contentStream = Reader.GetContentStream(rawContent.Kind, rawContent.ContentHash);
                     contentStream.WriteTo(filePath);
@@ -511,8 +519,6 @@ public sealed partial class ExportUtil
     /// </summary>
     internal string GetSourceDirectory(CompilerLogReader reader, CompilerCall compilerCall)
     {
-        Debug.Assert(object.ReferenceEquals(reader.DefaultPathNormalizationUtil, reader.PathNormalizationUtil));
-
         var sourceRootDir = Path.GetDirectoryName(compilerCall.ProjectFilePath)!;
 
         if (ExcludeConfigs)

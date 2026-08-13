@@ -64,17 +64,14 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     internal Metadata Metadata { get; }
 
     /// <summary>
-    /// This is the default path normalization util that was created based on the log metadata. It cannot
-    /// be changed after creation.
+    /// Translates paths from the platform that created the log to the current platform.
     /// </summary>
-    internal PathNormalizationUtil DefaultPathNormalizationUtil { get; }
+    internal PathNormalizationUtil PathNormalizationUtil { get; }
 
     /// <summary>
-    /// This is used to normalize paths within the log. This will be used to both map the file paths
-    /// in the Roslyn API as well as to map paths within content that is understood by the compiler. For
-    /// example: this will be used to map section paths within a global editorconfig file.
+    /// Maps normalized host paths to the locations where they should be exposed or materialized.
     /// </summary>
-    internal PathNormalizationUtil PathNormalizationUtil { get; set; }
+    internal PathMappingUtil PathMappingUtil { get; set; }
 
     internal int Count => Metadata.Count;
     public int MetadataVersion => Metadata.MetadataVersion;
@@ -91,7 +88,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         Metadata = metadata;
         _analyzerNormalizationUtil = AnalyzerNormalizationUtil.Create(LogReaderState.StripReadyToRun);
 
-        DefaultPathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
+        PathNormalizationUtil = (Metadata.IsWindows, RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) switch
         {
             (true, true) => PathNormalizationUtil.Empty,
             (true, false) => PathNormalizationUtil.WindowsToUnix,
@@ -99,7 +96,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             (false, false) => PathNormalizationUtil.Empty,
         };
 
-        PathNormalizationUtil = DefaultPathNormalizationUtil;
+        PathMappingUtil = PathMappingUtil.CreateDefault(LogReaderState);
 
         if (metadata.MetadataVersion == 2)
         {
@@ -206,11 +203,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     private CompilerCall ReadCompilerCallCore(int index, CompilationInfoPack pack)
     {
         return new CompilerCall(
-            NormalizePath(pack.ProjectFilePath),
+            NormalizeAndMapPath(pack.ProjectFilePath, PathMapKind.ProjectFile),
             pack.CompilerCallKind,
             pack.TargetFramework,
             pack.IsCSharp,
-            NormalizePath(pack.CompilerFilePath),
+            NormalizeAndMapPath(pack.CompilerFilePath, PathMapKind.CompilerExecutableFile),
             new CompilerCallState(this, index));
     }
 
@@ -219,11 +216,11 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var index = GetIndex(compilerCall);
         var infoPack = GetOrReadCompilationInfoPack(index);
         var dataPack = GetOrReadCompilationDataPack(index);
-        var tuple = ReadCompilerOptions(index, infoPack, dataPack);
+        var tuple = ReadCompilerOptions(infoPack, dataPack);
         return new CompilerCallData(
             compilerCall,
             assemblyFileName: dataPack.ValueMap["assemblyFileName"]!,
-            outputDirectory: NormalizePath(dataPack.ValueMap["outputDirectory"]),
+            outputDirectory: NormalizeAndMapPath(dataPack.ValueMap["outputDirectory"], optionName: "out"),
             tuple.ParseOptions,
             tuple.CompilationOptions,
             tuple.EmitOptions);
@@ -357,7 +354,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
     public IReadOnlyCollection<string> ReadArguments(CompilerCall compilerCall)
     {
         var rawArgs = ReadRawArguments(compilerCall);
-        if (PathNormalizationUtil.IsEmpty)
+        if (PathNormalizationUtil.IsEmpty && PathMappingUtil.IsEmpty)
         {
             return rawArgs;
         }
@@ -366,14 +363,13 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var index = 0;
         foreach (var arg in rawArgs)
         {
-            normalizedArgs[index++] = CompilerCommandLineUtil.NormalizeArgument(arg, PathNormalizationUtil.NormalizePath);
+            normalizedArgs[index++] = CompilerCommandLineUtil.MapArgument(arg, NormalizeAndMapPath);
         }
 
         return normalizedArgs;
     }
 
     private (EmitOptions EmitOptions, ParseOptions ParseOptions, CompilationOptions CompilationOptions) ReadCompilerOptions(
-        int index,
         CompilationInfoPack pack,
         CompilationDataPack dataPack)
     {
@@ -397,37 +393,37 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             compilationOptions = MessagePackUtil.CreateVisualBasicCompilationOptions(optionsTuple.Item1, optionsTuple.Item2, optionsTuple.Item3, optionsTuple.Item4);
         }
 
-        compilationOptions = MaterializeCryptoKeyFile(index, dataPack, compilationOptions);
+        compilationOptions = MaterializeCryptoKeyFile(dataPack, compilationOptions);
         return (emitOptions, parseOptions, compilationOptions);
-    }
 
-    private CompilationOptions MaterializeCryptoKeyFile(
-        int index,
-        CompilationDataPack dataPack,
-        CompilationOptions compilationOptions)
-    {
-        foreach (var tuple in dataPack.ContentList)
+        // This method will materialize the crypto key file to the location specified by the path mapping util. This
+        // is the rare case where reading compilation information will cause a file to be written to disk. It's the
+        // rare case where the compiler reads directly from disk at binding vs. pre-reading at Compilation creation
+        // time.
+        CompilationOptions MaterializeCryptoKeyFile(
+            CompilationDataPack dataPack,
+            CompilationOptions compilationOptions)
         {
-            var kind = (RawContentKind)tuple.Item1;
-            if (kind != RawContentKind.CryptoKeyFile)
+            foreach (var tuple in dataPack.ContentList)
             {
-                continue;
+                var kind = (RawContentKind)tuple.Item1;
+                if (kind != RawContentKind.CryptoKeyFile)
+                {
+                    continue;
+                }
+
+                var filePath = NormalizeAndMapPath(tuple.Item2.FilePath, kind);
+                if (tuple.Item2.ContentHash is string contentHash)
+                {
+                    _ = Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+                    File.WriteAllBytes(filePath, GetRawContentBytes(contentHash));
+                }
+
+                compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
             }
 
-            var originalFilePath = PathNormalizationUtil.NormalizePath(tuple.Item2.FilePath, kind);
-            var directory = Path.Combine(LogReaderState.CryptoKeyFileDirectory, index.ToString());
-            Directory.CreateDirectory(directory);
-            var filePath = Path.Combine(directory, Path.GetFileName(originalFilePath));
-
-            if (tuple.Item2.ContentHash is string contentHash)
-            {
-                File.WriteAllBytes(filePath, GetRawContentBytes(contentHash));
-            }
-
-            compilationOptions = compilationOptions.WithCryptoKeyFile(filePath);
+            return compilationOptions;
         }
-
-        return compilationOptions;
     }
 
     public SourceHashAlgorithm GetChecksumAlgorithm(CompilerCall compilerCall) =>
@@ -441,12 +437,12 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var index = GetIndex(compilerCall);
         var infoPack = GetOrReadCompilationInfoPack(index);
         var dataPack = GetOrReadCompilationDataPack(index);
-        var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(index, infoPack, dataPack);
+        var (emitOptions, rawParseOptions, compilationOptions) = ReadCompilerOptions(infoPack, dataPack);
         var referenceList = ReadMetadataReferences(dataPack.References);
         var resourceList = ReadResources(dataPack.Resources);
         var compilationName = dataPack.ValueMap["compilationName"];
         var assemblyFileName = dataPack.ValueMap["assemblyFileName"]!;
-        var xmlFilePath = NormalizePath(dataPack.ValueMap["xmlFilePath"]);
+        var xmlFilePath = NormalizeAndMapPath(dataPack.ValueMap["xmlFilePath"], optionName: "doc");
         var hashAlgorithm = dataPack.ChecksumAlgorithm;
         var sourceTexts = new List<(SourceText SourceText, string Path)>();
         var additionalTexts = ImmutableArray.CreateBuilder<AdditionalText>();
@@ -462,7 +458,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         {
             var kind = (RawContentKind)tuple.Item1;
             var contentHash = tuple.Item2.ContentHash;
-            var filePath = PathNormalizationUtil.NormalizePath(tuple.Item2.FilePath, kind);
+            var filePath = NormalizeAndMapPath(tuple.Item2.FilePath, kind);
 
             switch (kind)
             {
@@ -477,6 +473,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                     break;
                 case RawContentKind.GeneratedText:
                     // Nothing to do here as these are handled by the generation process.
+                    break;
+                case RawContentKind.CryptoKeyFile:
                     break;
                 case RawContentKind.AnalyzerConfig:
                 {
@@ -496,8 +494,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                     additionalTexts.Add(new BasicAdditionalSourceText(
                         filePath,
                          contentHash is not null ? ReadSourceText(kind, contentHash, hashAlgorithm) : null));
-                    break;
-                case RawContentKind.CryptoKeyFile:
                     break;
                 case RawContentKind.SourceLink:
                     sourceLinkStream = TryGetContentAsStream(contentHash, filePath);
@@ -679,7 +675,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         foreach (var referencePack in dataPack.References)
         {
             var filePath = referencePack.FilePath is string fp
-                ? NormalizePath(fp)
+                ? NormalizeAndMapPath(fp, optionName: "reference")
                 : GetMetadataReferenceFileName(referencePack.Mvid);
             var assemblyIdentityData = new AssemblyIdentityData(
                 referencePack.Mvid,
@@ -705,7 +701,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 analyzerPack.Mvid,
                 analyzerPack.AssemblyName,
                 analyzerPack.AssemblyInformationalVersion);
-            list.Add(new AnalyzerData(assemblyIdentityData, NormalizePath(analyzerPack.FilePath)));
+            list.Add(new AnalyzerData(
+                assemblyIdentityData,
+                NormalizeAndMapPath(analyzerPack.FilePath, optionName: "analyzer")));
         }
         return list;
     }
@@ -744,7 +742,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             if (kind is { } k)
             {
                 object id = rawContent.ContentHash ?? rawContent.FilePath;
-                var filePath = PathNormalizationUtil.NormalizePath(rawContent.FilePath, rawContent.Kind);
+                var filePath = NormalizeAndMapPath(rawContent.FilePath, rawContent.Kind);
                 var data = new SourceTextData(id, filePath, dataPack.ChecksumAlgorithm, k);
                 list.Add(data);
             }
@@ -888,7 +886,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     private MemoryStream? GetNormalizedContentStream(RawContentKind kind, string contentHash)
     {
-        if (PathNormalizationUtil.IsEmpty)
+        if (PathNormalizationUtil.IsEmpty && PathMappingUtil.IsEmpty)
         {
             return null;
         }
@@ -913,7 +911,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             var sourceText = RoslynUtil.GetSourceText(stream, checksumAlgorithm: SourceHashAlgorithm.Sha1, canBeEmbedded: false);
             if (RoslynUtil.IsGlobalEditorConfigWithSection(sourceText))
             {
-                var newText = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, PathNormalizationUtil.NormalizePath);
+                var newText = RoslynUtil.RewriteGlobalEditorConfigSections(sourceText, NormalizeAndMapEmbeddedPath);
                 return SourceText.From(newText, checksumAlgorithm: sourceText.ChecksumAlgorithm);
             }
 
@@ -933,7 +931,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 return null;
             }
 
-            RoslynUtil.RewriteRuleSetIncludes(xmlDocument, PathNormalizationUtil.NormalizePath);
+            RoslynUtil.RewriteRuleSetIncludes(xmlDocument, NormalizeAndMapEmbeddedPath);
             var newStream = new MemoryStream();
             xmlDocument.Save(newStream);
             newStream.Position = 0;
@@ -1008,7 +1006,18 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         _mvidToCompilerCallIndexMap.TryGetValue(mvid, out compilerCallIndex);
 
     [return: NotNullIfNotNull("path")]
-    private string? NormalizePath(string? path) => PathNormalizationUtil.NormalizePath(path);
+    private string? NormalizeAndMapPath(string? path, PathMapKind kind) =>
+        PathMappingUtil.MapPath(PathNormalizationUtil.NormalizePath(path), kind);
+
+    [return: NotNullIfNotNull("path")]
+    private string? NormalizeAndMapPath(string? path, RawContentKind kind) =>
+        PathMappingUtil.MapPath(PathNormalizationUtil.NormalizePath(path), kind);
+
+    private string NormalizeAndMapPath(string? path, ReadOnlySpan<char> optionName) =>
+        PathMappingUtil.MapPath(PathNormalizationUtil.NormalizePath(path)!, optionName);
+
+    private string NormalizeAndMapEmbeddedPath(string path) =>
+        NormalizeAndMapPath(path, optionName: "embed");
 
     public void Dispose()
     {

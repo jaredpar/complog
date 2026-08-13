@@ -360,7 +360,18 @@ public sealed class ExportUtilTests : TestBase
     [Fact]
     public void StrongNameKey()
     {
-        TestExportRsp(Fixture.ConsoleSigned.Value.CompilerLogPath, expectedCount: 1, runBuild: false);
+        var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
+        TestExportRsp(
+            Fixture.ConsoleSigned.Value.CompilerLogPath,
+            expectedCount: 1,
+            verifyExportCallback: tempPath =>
+            {
+                var keyFilePath = Assert.Single(
+                    Directory.GetFiles(tempPath, "*.snk", SearchOption.AllDirectories));
+                Assert.StartsWith(Path.Combine(tempPath, "src"), keyFilePath);
+                Assert.Equal(keyBytes, File.ReadAllBytes(keyFilePath));
+            },
+            runBuild: false);
     }
 
 #if NET
@@ -368,10 +379,13 @@ public sealed class ExportUtilTests : TestBase
     public void ExportAll()
     {
         using var reader = CompilerLogReader.Create(Fixture.ClassLibMulti.Value.CompilerLogPath);
+        var pathMappingUtil = new IdentityPathMappingUtil();
+        reader.PathMappingUtil = pathMappingUtil;
         var exportUtil = new ExportUtil(reader, ExportOptions.ExcludeAnalyzers);
         exportUtil.ExportAll(RootDirectory, SdkUtil.GetSdkCompilerDirectories());
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "0")));
         Assert.True(Directory.Exists(Path.Combine(RootDirectory, "1")));
+        Assert.Same(pathMappingUtil, reader.PathMappingUtil);
     }
 
     [Fact]
@@ -565,16 +579,53 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ContentBuilder_NormalizePathNull()
+    public void ContentBuilder_MapPath()
     {
         using var temp = new TempDir();
         var src = temp.NewDirectory("src");
+        var destination = temp.NewDirectory("dest");
         var builder = new ExportUtil.ContentBuilder(
-            destinationDirectory: temp.NewDirectory("dest"),
+            destinationDirectory: destination,
             originalSourceDirectory: src,
-            projectDirectory: src,
-            PathNormalizationUtil.Empty);
-        Assert.Null(builder.NormalizePath(null));
+            projectDirectory: src);
+
+        Assert.Null(builder.MapPath(null, PathMapKind.ProjectFile));
+        Assert.Null(builder.MapPath(null, RawContentKind.SourceText));
+
+        var projectFilePath = Path.Combine(src, "project.csproj");
+        Assert.Equal(
+            Path.Combine(destination, "src", "project.csproj"),
+            builder.MapPath(projectFilePath, PathMapKind.ProjectFile));
+
+        var rootedOutputPath = Path.Combine(src, "bin", "app.dll");
+        Assert.Equal(
+            Path.Combine(destination, "output", "app.dll"),
+            builder.MapPath(rootedOutputPath, "out"));
+
+        var relativeOutputPath = Path.Combine("obj", "ref.dll");
+        Assert.Equal(
+            Path.Combine("output", "ref.dll"),
+            builder.MapPath(relativeOutputPath, "refout"));
+    }
+
+    [Fact]
+    public void ContentBuilder_CryptoKeyFile()
+    {
+        using var temp = new TempDir();
+        using var state = new LogReaderState(temp.NewDirectory("state"));
+        var src = temp.NewDirectory("src");
+        var destination = temp.NewDirectory("dest");
+        var keyFilePath = Path.Combine(src, "key.snk");
+        var builder = new ExportUtil.ContentBuilder(
+            destination,
+            originalSourceDirectory: src,
+            projectDirectory: src);
+
+        var normalizedPath = builder.MapPath(keyFilePath, RawContentKind.CryptoKeyFile);
+
+        Assert.Equal(Path.Combine(destination, "src", "key.snk"), normalizedPath);
+        Assert.Equal(normalizedPath, builder.MapPath(keyFilePath, "keyfile"));
+        Assert.DoesNotContain(state.CryptoKeyFileDirectory, normalizedPath);
     }
 
 #if NET

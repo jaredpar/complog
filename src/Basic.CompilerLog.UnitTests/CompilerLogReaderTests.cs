@@ -24,6 +24,22 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class CompilerLogReaderTests : TestBase
 {
+    private sealed class EmptyPathMappingUtil : PathMappingUtil
+    {
+        internal override bool IsEmpty => true;
+    }
+
+    private sealed class CryptoKeyPathMappingUtil(string cryptoKeyFilePath) : PathMappingUtil
+    {
+        internal override bool IsEmpty => true;
+
+        internal override string? MapPath(string? path, RawContentKind kind) =>
+            kind == RawContentKind.CryptoKeyFile
+                ? cryptoKeyFilePath
+                : path;
+
+    }
+
     public CompilerLogFixture Fixture { get; }
 
     public CompilerLogReaderTests(ITestOutputHelper testOutputHelper, ITestContextAccessor testContextAccessor, CompilerLogFixture fixture)
@@ -146,7 +162,7 @@ public sealed class CompilerLogReaderTests : TestBase
     public void GetContentBytes()
     {
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
-        reader.PathNormalizationUtil = new IdentityPathNormalizationUtil();
+        reader.PathMappingUtil = new IdentityPathMappingUtil();
         var compilerCall = reader.ReadCompilerCall(0);
         var any = false;
         foreach (var rawContent in reader.ReadAllRawContent(compilerCall, RawContentKind.AnalyzerConfig))
@@ -206,15 +222,43 @@ public sealed class CompilerLogReaderTests : TestBase
     }
 
     [Fact]
+    public void ReadArgumentsEmptyMapping()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        Assert.True(reader.PathNormalizationUtil.IsEmpty);
+        reader.PathMappingUtil = new EmptyPathMappingUtil();
+        var compilerCall = reader.ReadCompilerCall(0);
+
+        Assert.Equal(reader.ReadRawArguments(compilerCall), reader.ReadArguments(compilerCall));
+    }
+
+    [Fact]
     public void KeyFileDefault()
     {
         var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
         using var reader = CompilerLogReader.Create(Fixture.ConsoleSigned.Value.CompilerLogPath);
-        var data = reader.ReadCompilationData(0);
+        var compilerCall = reader.ReadCompilerCall(0);
+        var data = reader.ReadCompilationData(compilerCall);
 
         Assert.NotNull(data.CompilationOptions.CryptoKeyFile);
-        Assert.StartsWith(reader.LogReaderState.CryptoKeyFileDirectory, data.CompilationOptions.CryptoKeyFile);
+        Assert.Equal(
+            reader.LogReaderState.CryptoKeyFileDirectory,
+            Path.GetDirectoryName(data.CompilationOptions.CryptoKeyFile));
+        Assert.True(File.Exists(data.CompilationOptions.CryptoKeyFile));
         Assert.True(keyBytes.SequenceEqual(File.ReadAllBytes(data.CompilationOptions.CryptoKeyFile)));
+
+        string? commandLineKeyFile = null;
+        foreach (var argument in reader.ReadArguments(compilerCall))
+        {
+            if (CompilerCommandLineUtil.TryParseOption(argument, out var option) &&
+                option.Name is "keyfile")
+            {
+                commandLineKeyFile = CompilerCommandLineUtil.MaybeRemoveQuotes(option.Value).ToString();
+                break;
+            }
+        }
+
+        Assert.Equal(data.CompilationOptions.CryptoKeyFile, commandLineKeyFile);
         reader.Dispose();
         Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
     }
@@ -240,6 +284,22 @@ public sealed class CompilerLogReaderTests : TestBase
         // State does own and it should cleanup
         state.Dispose();
         Assert.False(File.Exists(data.CompilationOptions.CryptoKeyFile));
+    }
+
+    [Fact]
+    public void KeyFileCustomPathMapping()
+    {
+        using var tempDir = new TempDir("keyfilepath");
+        var cryptoKeyFilePath = Path.Combine(tempDir.DirectoryPath, "custom", "key.snk");
+        var keyBytes = ResourceLoader.GetResourceBlob("Key.snk");
+        using var reader = CompilerLogReader.Create(Fixture.ConsoleSigned.Value.CompilerLogPath);
+        reader.PathMappingUtil = new CryptoKeyPathMappingUtil(cryptoKeyFilePath);
+
+        var data = reader.ReadCompilationData(0);
+
+        Assert.Equal(cryptoKeyFilePath, data.CompilationOptions.CryptoKeyFile);
+        Assert.Equal(keyBytes, File.ReadAllBytes(cryptoKeyFilePath));
+        Assert.False(Directory.Exists(reader.LogReaderState.CryptoKeyFileDirectory));
     }
 
     [Fact]
