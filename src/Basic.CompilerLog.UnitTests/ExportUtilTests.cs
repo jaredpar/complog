@@ -579,15 +579,33 @@ public sealed class ExportUtilTests : TestBase
     }
 
     [Fact]
-    public void ContentBuilder_MapPathNull()
+    public void ContentBuilder_MapPath()
     {
         using var temp = new TempDir();
         var src = temp.NewDirectory("src");
+        var destination = temp.NewDirectory("dest");
         var builder = new ExportUtil.ContentBuilder(
-            destinationDirectory: temp.NewDirectory("dest"),
+            destinationDirectory: destination,
             originalSourceDirectory: src,
             projectDirectory: src);
+
         Assert.Null(builder.MapPath(null, PathMapKind.ProjectFile));
+        Assert.Null(builder.MapPath(null, RawContentKind.SourceText));
+
+        var projectFilePath = Path.Combine(src, "project.csproj");
+        Assert.Equal(
+            Path.Combine(destination, "src", "project.csproj"),
+            builder.MapPath(projectFilePath, PathMapKind.ProjectFile));
+
+        var rootedOutputPath = Path.Combine(src, "bin", "app.dll");
+        Assert.Equal(
+            Path.Combine(destination, "output", "app.dll"),
+            builder.MapPath(rootedOutputPath, "out"));
+
+        var relativeOutputPath = Path.Combine("obj", "ref.dll");
+        Assert.Equal(
+            Path.Combine("output", "ref.dll"),
+            builder.MapPath(relativeOutputPath, "refout"));
     }
 
     [Fact]

@@ -13,8 +13,16 @@ public sealed class PathMappingUtilTests
         var pathMappingUtil = PathMappingUtil.CreateDefault(state);
         var path = Path.Combine(tempDir.DirectoryPath, "dir", "key.snk");
         var collisionPath = Path.Combine(tempDir.DirectoryPath, "other", "key.snk");
+        var secondCollisionPath = Path.Combine(tempDir.DirectoryPath, "another", "key.snk");
 
         Assert.False(pathMappingUtil.IsEmpty);
+        Assert.Null(pathMappingUtil.MapPath(null, RawContentKind.CryptoKeyFile));
+        Assert.Equal(path, pathMappingUtil.MapPath(path, RawContentKind.SourceText));
+        Assert.Equal(path, pathMappingUtil.MapPath(path, "out"));
+
+        var identityPathMappingUtil = new IdentityPathMappingUtil();
+        Assert.Equal(path, identityPathMappingUtil.MapPath(path, RawContentKind.CryptoKeyFile));
+        Assert.Equal(path, identityPathMappingUtil.MapPath(path, "keyfile"));
 
         var mappedPath = pathMappingUtil.MapPath(path, RawContentKind.CryptoKeyFile);
 
@@ -34,5 +42,12 @@ public sealed class PathMappingUtilTests
         Assert.Equal(
             collisionMappedPath,
             pathMappingUtil.MapPath(collisionPath, RawContentKind.CryptoKeyFile));
+
+        var secondCollisionMappedPath = pathMappingUtil.MapPath(
+            secondCollisionPath,
+            RawContentKind.CryptoKeyFile);
+        Assert.Equal(
+            Path.Combine(state.CryptoKeyFileDirectory, "key.2.snk"),
+            secondCollisionMappedPath);
     }
 }

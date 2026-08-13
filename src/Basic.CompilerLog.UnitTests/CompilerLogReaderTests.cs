@@ -24,6 +24,11 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class CompilerLogReaderTests : TestBase
 {
+    private sealed class EmptyPathMappingUtil : PathMappingUtil
+    {
+        internal override bool IsEmpty => true;
+    }
+
     private sealed class CryptoKeyPathMappingUtil(string cryptoKeyFilePath) : PathMappingUtil
     {
         internal override bool IsEmpty => true;
@@ -214,6 +219,17 @@ public sealed class CompilerLogReaderTests : TestBase
         using var reader = CompilerLogReader.Create(Fixture.ConsoleComplex.Value.CompilerLogPath);
         var d = reader.ReadAllResourceData(0).Single();
         Assert.Equal("console-complex.resource.txt", reader.ReadResourceDescription(d).GetResourceName());
+    }
+
+    [Fact]
+    public void ReadArgumentsEmptyMapping()
+    {
+        using var reader = CompilerLogReader.Create(Fixture.Console.Value.CompilerLogPath);
+        Assert.True(reader.PathNormalizationUtil.IsEmpty);
+        reader.PathMappingUtil = new EmptyPathMappingUtil();
+        var compilerCall = reader.ReadCompilerCall(0);
+
+        Assert.Equal(reader.ReadRawArguments(compilerCall), reader.ReadArguments(compilerCall));
     }
 
     [Fact]
