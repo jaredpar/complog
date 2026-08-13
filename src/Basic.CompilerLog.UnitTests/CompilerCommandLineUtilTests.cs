@@ -7,6 +7,12 @@ namespace Basic.CompilerLog.UnitTests;
 
 public sealed class CompilerCommandLineUtilTests
 {
+    private static string NormalizeEmptyPath(string path, ReadOnlySpan<char> _) =>
+        PathNormalizationUtil.Empty.NormalizePath(path);
+
+    private static string NormalizeWindowsPath(string path, ReadOnlySpan<char> _) =>
+        PathNormalizationUtil.WindowsToUnix.NormalizePath(path);
+
     [Theory]
     [InlineData("/reference:test.dll", true)]
     [InlineData("/r:test.dll", true)]
@@ -170,28 +176,25 @@ public sealed class CompilerCommandLineUtilTests
     [Theory]
     [InlineData("/errorlog:build.sarif", "/errorlog:build.sarif")]
     [InlineData("/errorlog:build.sarif,version=2", @"/errorlog:""build.sarif,version=2""")]
-    public void NormalizeArgument_ErrorLog_NoSpaces(string arg, string expected)
+    public void MapArgument_ErrorLog_NoSpaces(string arg, string expected)
     {
-        var util = PathNormalizationUtil.Empty;
-        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util.NormalizePath));
+        Assert.Equal(expected, CompilerCommandLineUtil.MapArgument(arg, NormalizeEmptyPath));
     }
 
     [Theory]
     [InlineData(@"/errorlog:c:\src\build.sarif", "/errorlog:/code/src/build.sarif")]
     [InlineData(@"/errorlog:c:\src\build.sarif,version=2", @"/errorlog:""/code/src/build.sarif,version=2""")]
-    public void NormalizeArgument_ErrorLog_NormalizesPath(string arg, string expected)
+    public void MapArgument_ErrorLog_NormalizesPath(string arg, string expected)
     {
-        var util = PathNormalizationUtil.WindowsToUnix;
-        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util.NormalizePath));
+        Assert.Equal(expected, CompilerCommandLineUtil.MapArgument(arg, NormalizeWindowsPath));
     }
 
     [Theory]
     [InlineData(@"/errorlog:""c:\path with spaces\build.sarif""", @"/errorlog:""/code/path with spaces/build.sarif""")]
     [InlineData(@"/errorlog:""c:\path with spaces\build.sarif,version=2""", @"/errorlog:""/code/path with spaces/build.sarif,version=2""")]
-    public void NormalizeArgument_ErrorLog_QuotedPathWithSpaces(string arg, string expected)
+    public void MapArgument_ErrorLog_QuotedPathWithSpaces(string arg, string expected)
     {
-        var util = PathNormalizationUtil.WindowsToUnix;
-        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util.NormalizePath));
+        Assert.Equal(expected, CompilerCommandLineUtil.MapArgument(arg, NormalizeWindowsPath));
     }
 
     [Theory]
@@ -245,25 +248,22 @@ public sealed class CompilerCommandLineUtilTests
     [InlineData("/optimize", "/optimize")]
     [InlineData("/target:library", "/target:library")]
     [InlineData("/nullable:enable", "/nullable:enable")]
-    public void NormalizeArgument_NonPathOptions_ReturnsUnchanged(string arg, string expected)
+    public void MapArgument_NonPathOptions_ReturnsUnchanged(string arg, string expected)
     {
-        var util = PathNormalizationUtil.Empty;
-        Assert.Equal(expected, CompilerCommandLineUtil.NormalizeArgument(arg, util.NormalizePath));
+        Assert.Equal(expected, CompilerCommandLineUtil.MapArgument(arg, NormalizeEmptyPath));
     }
 
     [Fact]
-    public void NormalizeArgument_SourceFile_NormalizesPath()
+    public void MapArgument_SourceFile_NormalizesPath()
     {
-        var util = PathNormalizationUtil.WindowsToUnix;
-        var result = CompilerCommandLineUtil.NormalizeArgument(@"c:\src\file.cs", util.NormalizePath);
+        var result = CompilerCommandLineUtil.MapArgument(@"c:\src\file.cs", NormalizeWindowsPath);
         Assert.Equal("/code/src/file.cs", result);
     }
 
     [Fact]
-    public void NormalizeArgument_QuotedSourceFile_NormalizesPath()
+    public void MapArgument_QuotedSourceFile_NormalizesPath()
     {
-        var util = PathNormalizationUtil.WindowsToUnix;
-        var result = CompilerCommandLineUtil.NormalizeArgument(@"""c:\src\my file.cs""", util.NormalizePath);
+        var result = CompilerCommandLineUtil.MapArgument(@"""c:\src\my file.cs""", NormalizeWindowsPath);
         Assert.Equal("\"/code/src/my file.cs\"", result);
     }
 
@@ -274,7 +274,7 @@ public sealed class CompilerCommandLineUtilTests
     [InlineData(@"/reference:""a,b""", "a,b-")]
     [InlineData(@"/reference:""a,b"",c", "a,b-c-")]
     [InlineData(@"/reference:a,""b,c"",d", "a-b,c-d-")]
-    public void NormalizeArgument_PathList(string optionText, string expected)
+    public void MapArgument_PathList(string optionText, string expected)
     {
         var builder = new StringBuilder(expected.Length);
         Assert.True(CompilerCommandLineUtil.TryParseOption(optionText, out var option));
