@@ -43,6 +43,12 @@ internal sealed class CompilerLogBuilder : IDisposable
     private readonly List<(int CompilerCallIndex, bool IsRefAssembly, Guid Mvid)> _compilerCallMvidList = new();
     private readonly DefaultObjectPool<MemoryStream> _memoryStreamPool = new(new MemoryStreamPoolPolicy(), maximumRetained: 5);
 
+    /// <summary>
+    /// The earliest timestamp the zip format can represent. Values before 1980 are rejected by
+    /// <see cref="ZipArchiveEntry.LastWriteTime"/>.
+    /// </summary>
+    private static readonly DateTimeOffset ZipEpoch = new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     private int _compilationCount;
     private bool _closed;
 
@@ -59,6 +65,25 @@ internal sealed class CompilerLogBuilder : IDisposable
         MetadataVersion = metadataVersion ?? Metadata.LatestMetadataVersion;
         ZipArchive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true);
         Diagnostics = diagnostics;
+    }
+
+    /// <summary>
+    /// Creates a zip entry with a fixed modification time, so that two logs built from the same
+    /// inputs are byte-identical.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ZipArchive.CreateEntry(string, CompressionLevel)"/> defaults the entry's
+    /// modification time to the moment it is created, which makes every log unique even when its
+    /// contents are not. Nothing reads these timestamps — entries are addressed by name, and their
+    /// names are already content-derived — but they defeat storage layers that deduplicate by
+    /// comparing bytes, because the header preceding each entry differs between two logs that hold
+    /// the identical entry. The value is the DOS epoch, the earliest a zip can represent.
+    /// </remarks>
+    private ZipArchiveEntry CreateEntry(string entryName)
+    {
+        var entry = ZipArchive.CreateEntry(entryName, CompressionLevel.Fastest);
+        entry.LastWriteTime = ZipEpoch;
+        return entry;
     }
 
     /// <summary>
@@ -206,7 +231,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     private void AddCore(CompilationInfoPack infoPack)
     {
         var index = _compilationCount;
-        var entry = ZipArchive.CreateEntry(GetCompilerEntryName(index), CompressionLevel.Fastest);
+        var entry = CreateEntry(GetCompilerEntryName(index));
         using (var entryStream = entry.Open())
         {
             MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
@@ -234,7 +259,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void WriteMetadata()
         {
-            var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Fastest);
+            var entry = CreateEntry(MetadataFileName);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             Metadata.Create(_compilationCount, MetadataVersion).Write(writer);
         }
@@ -256,7 +281,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                     : null,
             };
             var contentHash = WriteContentMessagePack(pack);
-            var entry = ZipArchive.CreateEntry(LogInfoFileName, CompressionLevel.Fastest);
+            var entry = CreateEntry(LogInfoFileName);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             writer.WriteLine(contentHash);
         }
@@ -435,7 +460,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         if (_contentHashMap.Add(hashText))
         {
-            var entry = ZipArchive.CreateEntry(GetContentEntryName(hashText), CompressionLevel.Fastest);
+            var entry = CreateEntry(GetContentEntryName(hashText));
             using var entryStream = entry.Open();
             stream.Position = 0;
             stream.CopyTo(entryStream);
@@ -668,7 +693,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return info;
         }
 
-        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(info.Mvid), CompressionLevel.Fastest);
+        var entry = CreateEntry(GetAssemblyEntryName(info.Mvid));
         using var entryStream = entry.Open();
         using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
         fileStream.CopyTo(entryStream);
@@ -712,7 +737,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return mvid;
         }
 
-        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Fastest);
+        var entry = CreateEntry(GetAssemblyEntryName(mvid));
         using var entryStream = entry.Open();
         using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
         fileStream.CopyTo(entryStream);

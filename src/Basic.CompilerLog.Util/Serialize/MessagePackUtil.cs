@@ -98,7 +98,9 @@ internal static class MessagePackUtil
             ConcurrentBuild = options.ConcurrentBuild,
             Deterministic = options.Deterministic,
             MetadataImportOptions =  options.MetadataImportOptions,
-            SpecificDiagnosticOptions = options.SpecificDiagnosticOptions,
+            SpecificDiagnosticOptions = ImmutableSortedDictionary.CreateRange(
+                StringComparer.Ordinal,
+                options.SpecificDiagnosticOptions),
             ReportSuppressedDiagnostics = options.ReportSuppressedDiagnostics,
             DebugPlusMode = debugPlusMode,
         };
