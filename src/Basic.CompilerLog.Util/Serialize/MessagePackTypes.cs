@@ -52,8 +52,17 @@ public class CompilationOptionsPack
     public bool Deterministic { get; set; }
     [Key(16)]
     public MetadataImportOptions MetadataImportOptions { get; set; }
+    /// <summary>
+    /// Sorted so that the serialized bytes depend only on the contents. A hash-ordered dictionary
+    /// enumerates differently in every process, because .NET randomizes string hashing, which would
+    /// make two logs built from identical inputs differ.
+    /// </summary>
+    /// <remarks>
+    /// The MessagePack wire shape is a map for any dictionary type, so logs written by earlier
+    /// versions deserialize unchanged.
+    /// </remarks>
     [Key(17)]
-    public ImmutableDictionary<string, ReportDiagnostic>? SpecificDiagnosticOptions { get; set; }
+    public ImmutableSortedDictionary<string, ReportDiagnostic>? SpecificDiagnosticOptions { get; set; }
     [Key(18)]
     public bool ReportSuppressedDiagnostics { get; set; }
     [Key(19)]
