@@ -272,6 +272,43 @@ public sealed class CompilerLogBuilderTests : TestBase
         Assert.NotEqual(mvids[0], mvids[1]);
     }
 
+    /// <summary>
+    /// When a referenced project has no on-disk output and its in-memory emit fails, the
+    /// referencing project must be reported as failed rather than recorded with the
+    /// reference silently dropped.
+    /// </summary>
+    [Fact]
+    public void AddFromWorkspace_ProjectReferenceEmitFailure()
+    {
+        using var workspace = new AdhocWorkspace();
+
+        // ConsoleApplication with no entry point: in-memory emit fails with CS5001
+        var depId = ProjectId.CreateNewId("Dep");
+        workspace.AddProject(ProjectInfo.Create(
+            depId,
+            VersionStamp.Default,
+            name: "Dep",
+            assemblyName: "Dep",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.ConsoleApplication),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]));
+        _ = AddAdhocProject(workspace, "Consumer", "Consumer", "public class Consumer { }", depId);
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+        complogStream.Position = 0;
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, x => x.Contains("Cannot emit compilation reference Dep in Consumer"));
+
+        // The dependency project itself serialized fine; only the consumer is excluded.
+        var compilerCall = Assert.Single(result.CompilerCalls);
+        Assert.Equal("Dep.csproj", Path.GetFileName(compilerCall.ProjectFilePath));
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        Assert.Single(reader.ReadAllCompilerCalls());
+    }
+
     [Fact]
     public void CreateFromWorkspace_FilePath()
     {

@@ -208,7 +208,8 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// <summary>
     /// Adds a compilation built from a Roslyn workspace <see cref="Project"/>. Returns the
     /// synthesized <see cref="CompilerCall"/> on success, or <see langword="null"/> when the
-    /// project's compilation could not be obtained (a diagnostic is recorded in that case).
+    /// project's compilation could not be obtained or one of its project references could not
+    /// be captured (a diagnostic is recorded in either case).
     /// </summary>
     internal async Task<CompilerCall?> AddFromWorkspaceAsync(Project project, CancellationToken cancellationToken = default)
     {
@@ -223,11 +224,21 @@ internal sealed class CompilerLogBuilder : IDisposable
             return null;
         }
 
+        var allProjectReferencesAdded = true;
+
         // Roslyn's Workspace API doesn't surface emit-time inputs (embedded resources,
         // Win32 manifest/icon/resource, source link, app.config) — only items needed for
         // semantic analysis. Synthesizing a partial command line from compilation.Options
         // would produce an rsp that compiles but silently drops those inputs, so we leave
         // the args empty: replay/rsp/export will fail visibly rather than misleadingly.
+        var compilationDataPackHash = await CreateCompilationDataPackAsync().ConfigureAwait(false);
+        if (!allProjectReferencesAdded)
+        {
+            // A dropped project reference means the stored compilation would silently differ
+            // from the workspace one, so the project is excluded rather than recorded broken.
+            return null;
+        }
+
         var infoPack = new CompilationInfoPack()
         {
             ProjectFilePath = projectFilePath,
@@ -235,7 +246,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             TargetFramework = targetFramework,
             CompilerCallKind = CompilerCallKind.Regular,
             CommandLineArgsHash = WriteContentMessagePack(Array.Empty<string>()),
-            CompilationDataPackHash = await CreateCompilationDataPackAsync().ConfigureAwait(false),
+            CompilationDataPackHash = compilationDataPackHash,
         };
 
         AddWorkspaceCompilationOptions(infoPack, compilation, isCSharp);
@@ -339,7 +350,10 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             foreach (var projectRef in project.ProjectReferences)
             {
-                await AddProjectReferenceToDataPackAsync(dataPack, project, projectRef, cancellationToken).ConfigureAwait(false);
+                if (!await TryAddProjectReferenceToDataPackAsync(dataPack, project, projectRef, cancellationToken).ConfigureAwait(false))
+                {
+                    allProjectReferencesAdded = false;
+                }
             }
 
             foreach (var analyzerReference in project.AnalyzerReferences)
@@ -411,21 +425,22 @@ internal sealed class CompilerLogBuilder : IDisposable
     /// Serialize a project-to-project reference. Prefers the dependency's on-disk
     /// <see cref="Project.OutputFilePath"/> (which matches the consumer's TargetFramework), and only
     /// falls back to emitting the dependency's in-memory <see cref="Compilation"/> when no compiled
-    /// output is available on disk.
+    /// output is available on disk. Returns <see langword="false"/> when the reference could not be
+    /// captured (a diagnostic is recorded in that case).
     /// </summary>
-    private async Task AddProjectReferenceToDataPackAsync(CompilationDataPack dataPack, Project parentProject, ProjectReference projectRef, CancellationToken cancellationToken)
+    private async Task<bool> TryAddProjectReferenceToDataPackAsync(CompilationDataPack dataPack, Project parentProject, ProjectReference projectRef, CancellationToken cancellationToken)
     {
         var dep = parentProject.Solution.GetProject(projectRef.ProjectId);
         if (dep is null)
         {
             Diagnostics.Add($"Cannot resolve project reference {projectRef.ProjectId} in {parentProject.Name}");
-            return;
+            return false;
         }
 
         if (dep.OutputFilePath is not null && File.Exists(dep.OutputFilePath))
         {
             AddReferencePack(AddAssembly(dep.OutputFilePath), dep.OutputFilePath);
-            return;
+            return true;
         }
 
         // The emit cache is keyed by ProjectId: assembly names are not unique across a
@@ -434,14 +449,14 @@ internal sealed class CompilerLogBuilder : IDisposable
         if (_emittedProjectMap.TryGetValue(dep.Id, out var cachedInfo))
         {
             AddReferencePack(cachedInfo, displayPath);
-            return;
+            return true;
         }
 
         var depCompilation = await dep.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
         if (depCompilation is null)
         {
             Diagnostics.Add($"Cannot get compilation for project reference {dep.Name} in {parentProject.Name}");
-            return;
+            return false;
         }
 
         var memStream = new MemoryStream();
@@ -452,12 +467,13 @@ internal sealed class CompilerLogBuilder : IDisposable
                 .Where(static x => x.Severity == DiagnosticSeverity.Error)
                 .Select(static x => x.GetMessage()));
             Diagnostics.Add($"Cannot emit compilation reference {depCompilation.AssemblyName} in {parentProject.Name}: {errors}");
-            return;
+            return false;
         }
 
         var emittedInfo = AddEmittedAssembly(displayPath, memStream);
         _emittedProjectMap[dep.Id] = emittedInfo;
         AddReferencePack(emittedInfo, displayPath);
+        return true;
 
         void AddReferencePack(BuilderAssemblyData info, string filePath) =>
             dataPack.References.Add(new ReferencePack()
