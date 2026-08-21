@@ -450,6 +450,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         var emitPdb = dataPack.EmitPdb ?? !emitOptions.EmitMetadataOnly;
 
         MemoryStream? win32ResourceStream = null;
+        MemoryStream? win32IconStream = null;
+        MemoryStream? win32ManifestStream = null;
         MemoryStream? sourceLinkStream = null;
         List<EmbeddedText>? embeddedTexts = null;
         List<AnalyzerConfig>? analyzerConfigs = null;
@@ -501,6 +503,14 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 case RawContentKind.Win32Resource:
                     win32ResourceStream = TryGetContentAsStream(contentHash, filePath);
                     break;
+                // A missing icon or manifest is not diagnosed at creation, matching the
+                // compiler which only notices them at emit
+                case RawContentKind.Win32Icon:
+                    win32IconStream = contentHash is not null ? TryGetContentAsStream(contentHash, filePath) : null;
+                    break;
+                case RawContentKind.Win32Manifest:
+                    win32ManifestStream = contentHash is not null ? TryGetContentAsStream(contentHash, filePath) : null;
+                    break;
                 case RawContentKind.Embed:
                 {
                     if (embeddedTexts is null)
@@ -529,8 +539,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
                 case RawContentKind.RuleSet:
                 case RawContentKind.RuleSetInclude:
                 case RawContentKind.AppConfig:
-                case RawContentKind.Win32Manifest:
-                case RawContentKind.Win32Icon:
                     break;
                 default:
                     throw new InvalidOperationException();
@@ -544,7 +552,9 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             win32ResourceStream: win32ResourceStream,
             sourceLinkStream: sourceLinkStream,
             resources: resourceList,
-            embeddedTexts: embeddedTexts);
+            embeddedTexts: embeddedTexts,
+            win32IconStream: win32IconStream,
+            win32ManifestStream: win32ManifestStream);
 
         var basicAnalyzerHost = CreateBasicAnalyzerHost(compilerCall);
         var analyzerConfigSet = analyzerConfigs is null

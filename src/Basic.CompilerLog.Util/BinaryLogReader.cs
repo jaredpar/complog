@@ -291,7 +291,11 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
                 win32ResourceStream: ReadFileAsMemoryStream(args.Win32ResourceFile),
                 sourceLinkStream: ReadFileAsMemoryStream(args.SourceLink),
                 resources: args.ManifestResources,
-                embeddedTexts: GetEmbeddedTexts());
+                embeddedTexts: GetEmbeddedTexts(),
+                // A missing icon or manifest is not diagnosed here, matching the compiler
+                // which only notices them at emit
+                win32IconStream: File.Exists(args.Win32Icon) ? ReadFileAsMemoryStream(args.Win32Icon) : null,
+                win32ManifestStream: File.Exists(args.Win32Manifest) ? ReadFileAsMemoryStream(args.Win32Manifest) : null);
         }
 
         MemoryStream? ReadFileAsMemoryStream(string? filePath)
