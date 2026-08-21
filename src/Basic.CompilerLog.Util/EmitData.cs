@@ -18,6 +18,20 @@ public sealed class EmitData
     public string? XmlFilePath { get; }
     public bool EmitPdb { get; }
     public MemoryStream? Win32ResourceStream { get; }
+
+    /// <summary>
+    /// The /win32icon content when the compilation specified one. Used to synthesize the
+    /// default Win32 resources when <see cref="Win32ResourceStream"/> is null, the same way
+    /// the command line compiler does.
+    /// </summary>
+    public MemoryStream? Win32IconStream { get; }
+
+    /// <summary>
+    /// The /win32manifest content when the compilation specified one. See
+    /// <see cref="Win32IconStream"/>.
+    /// </summary>
+    public MemoryStream? Win32ManifestStream { get; }
+
     public MemoryStream? SourceLinkStream { get; }
     public IEnumerable<ResourceDescription>? Resources { get; }
     public IEnumerable<EmbeddedText>? EmbeddedTexts { get; }
@@ -29,12 +43,16 @@ public sealed class EmitData
         MemoryStream? win32ResourceStream,
         MemoryStream? sourceLinkStream,
         IEnumerable<ResourceDescription>? resources,
-        IEnumerable<EmbeddedText>? embeddedTexts)
+        IEnumerable<EmbeddedText>? embeddedTexts,
+        MemoryStream? win32IconStream = null,
+        MemoryStream? win32ManifestStream = null)
     {
         AssemblyFileName = assemblyFileName;
         EmitPdb = emitPdb;
         XmlFilePath = xmlFilePath;
         Win32ResourceStream = win32ResourceStream;
+        Win32IconStream = win32IconStream;
+        Win32ManifestStream = win32ManifestStream;
         SourceLinkStream = sourceLinkStream;
         Resources = resources;
         EmbeddedTexts = embeddedTexts;
