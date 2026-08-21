@@ -40,6 +40,28 @@ public sealed class CompilerLogBuilderTests : TestBase
         });
     }
 
+    /// <summary>
+    /// Analyzer and metadata reference paths are not resolved by the command line parser (that
+    /// happens later when the compiler loads them) so a relative path has to be resolved against
+    /// the base directory here, not the process working directory.
+    /// </summary>
+    [Fact]
+    public void AddWithRelativeAnalyzerAndReferencePaths()
+    {
+        WithCompilerCall((builder, compilerCall, _) =>
+        {
+            var projectDirectory = Path.Combine(RootDirectory, "relative");
+            Directory.CreateDirectory(projectDirectory);
+            var fileName = "relative-analyzer.dll";
+            File.Copy(typeof(CompilerLogBuilder).Assembly.Location, Path.Combine(projectDirectory, fileName));
+            compilerCall = new CompilerCall(
+                Path.Combine(projectDirectory, "relative.csproj"),
+                compilerFilePath: compilerCall.CompilerFilePath);
+            builder.AddFromDisk(compilerCall, [$"/analyzer:{fileName}", $"/reference:{fileName}"]);
+            Assert.Empty(builder.Diagnostics);
+        });
+    }
+
     [Fact]
     public void RulesetMissing()
     {
