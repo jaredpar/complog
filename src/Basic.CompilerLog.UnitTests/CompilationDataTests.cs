@@ -31,7 +31,7 @@ public sealed class CompilationDataTests : TestBase
             var data = reader.ReadCompilationData(0);
             var emitResult = data.EmitToMemory(cancellationToken: cancellationToken);
             Assert.True(emitResult.Success);
-            emitResult.AssemblyStream.Position = 0;
+            Assert.Equal(0, emitResult.AssemblyStream.Position);
             using var peReader = new System.Reflection.PortableExecutable.PEReader(emitResult.AssemblyStream, System.Reflection.PortableExecutable.PEStreamOptions.LeaveOpen);
             Assert.True(peReader.PEHeaders.PEHeader!.ResourceTableDirectory.Size > 0);
         });
