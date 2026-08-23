@@ -444,6 +444,16 @@ internal sealed class CompilerLogBuilder : IDisposable
         return hashText;
     }
 
+    /// <summary>
+    /// The command line parser does not resolve analyzer or metadata reference paths against the
+    /// base directory, that happens later when the compiler loads them. Do the same here so a
+    /// relative path on the command line isn't resolved against the process working directory.
+    /// </summary>
+    private static string ResolveOnDiskPath(string filePath, CommandLineArguments args) =>
+        !Path.IsPathRooted(filePath) && args.BaseDirectory is { } baseDirectory
+            ? Path.Combine(baseDirectory, filePath)
+            : filePath;
+
     private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)
     {
         var explicitModuleSet = new HashSet<Guid>();
@@ -451,15 +461,16 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         foreach (var reference in args.MetadataReferences)
         {
+            var referencePath = ResolveOnDiskPath(reference.Reference, args);
             if (reference.Properties.Kind == MetadataImageKind.Assembly)
             {
-                var (mvid, assemblyName, assemblyInformationalVersion, netModuleNames) = AddAssembly(reference.Reference);
+                var (mvid, assemblyName, assemblyInformationalVersion, netModuleNames) = AddAssembly(referencePath);
 
                 var netModuleMvids = ImmutableArray<Guid>.Empty;
                 if (netModuleNames.Length > 0)
                 {
                     var mvidBuilder = ImmutableArray.CreateBuilder<Guid>(netModuleNames.Length);
-                    var assemblyDir = Path.GetDirectoryName(reference.Reference)!;
+                    var assemblyDir = Path.GetDirectoryName(referencePath)!;
                     foreach (var netModuleName in netModuleNames)
                     {
                         var netModulePath = Path.Combine(assemblyDir, netModuleName);
@@ -482,7 +493,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                     Kind = reference.Properties.Kind,
                     EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
                     Aliases = reference.Properties.Aliases,
-                    FilePath = reference.Reference,
+                    FilePath = referencePath,
                     AssemblyName = assemblyName,
                     AssemblyInformationalVersion = assemblyInformationalVersion,
                     NetModuleMvids = netModuleMvids,
@@ -495,13 +506,13 @@ internal sealed class CompilerLogBuilder : IDisposable
                 Debug.Assert(reference.Properties.Aliases.IsEmpty);
                 Debug.Assert(!reference.Properties.EmbedInteropTypes);
 
-                 var mvid = AddNetModule(reference.Reference);
+                 var mvid = AddNetModule(referencePath);
                  var pack = new ReferencePack()
                  {
                      Mvid = mvid,
                      Kind = MetadataImageKind.Module,
                      Aliases = [],
-                     FilePath = reference.Reference,
+                     FilePath = referencePath,
                  };
                  dataPack.References.Add(pack);
                  explicitModuleSet.Add(mvid);
@@ -635,11 +646,12 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var analyzer in args.AnalyzerReferences)
         {
-            var (mvid, assemblyName, assemblyInformationalVersion, _) = AddAssembly(analyzer.FilePath);
+            var analyzerPath = ResolveOnDiskPath(analyzer.FilePath, args);
+            var (mvid, assemblyName, assemblyInformationalVersion, _) = AddAssembly(analyzerPath);
             var pack = new AnalyzerPack()
             {
                 Mvid = mvid,
-                FilePath = analyzer.FilePath,
+                FilePath = analyzerPath,
                 AssemblyName = assemblyName,
                 AssemblyInformationalVersion = assemblyInformationalVersion
             };
