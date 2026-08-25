@@ -17,6 +17,26 @@ public sealed class CompilationDataTests : TestBase
         Fixture = fixture;
     }
 
+    /// <summary>
+    /// When the original build didn't pass /win32res the compiler synthesizes the version
+    /// resource from the compilation. Replay needs to do the same or the emitted assembly
+    /// has an empty resource table where the original had version information.
+    /// </summary>
+    [Fact]
+    public void EmitToMemoryHasDefaultVersionResource()
+    {
+        RunInContext(Fixture.ClassLib.Value.CompilerLogPath, static (testOutputHelper, filePath, cancellationToken) =>
+        {
+            using var reader = CompilerLogReader.Create(filePath);
+            var data = reader.ReadCompilationData(0);
+            var emitResult = data.EmitToMemory(cancellationToken: cancellationToken);
+            Assert.True(emitResult.Success);
+            Assert.Equal(0, emitResult.AssemblyStream.Position);
+            using var peReader = new System.Reflection.PortableExecutable.PEReader(emitResult.AssemblyStream, System.Reflection.PortableExecutable.PEStreamOptions.LeaveOpen);
+            Assert.True(peReader.PEHeaders.PEHeader!.ResourceTableDirectory.Size > 0);
+        });
+    }
+
     [Fact]
     public void EmitToMemoryCombinations()
     {

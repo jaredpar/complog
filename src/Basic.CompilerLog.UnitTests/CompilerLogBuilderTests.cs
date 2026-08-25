@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Security.Cryptography;
 using Basic.CompilerLog.Util;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -41,6 +43,28 @@ public sealed class CompilerLogBuilderTests : TestBase
             // Add a source link that doesn't exist
             builder.AddFromDisk(compilerCall, ["/sourcelink:does-not-exist.txt"]);
             Assert.NotEmpty(builder.Diagnostics);
+        });
+    }
+
+    /// <summary>
+    /// Analyzer and metadata reference paths are not resolved by the command line parser (that
+    /// happens later when the compiler loads them) so a relative path has to be resolved against
+    /// the base directory here, not the process working directory.
+    /// </summary>
+    [Fact]
+    public void AddWithRelativeAnalyzerAndReferencePaths()
+    {
+        WithCompilerCall((builder, compilerCall, _) =>
+        {
+            var projectDirectory = Path.Combine(RootDirectory, "relative");
+            Directory.CreateDirectory(projectDirectory);
+            var fileName = "relative-analyzer.dll";
+            File.Copy(typeof(CompilerLogBuilder).Assembly.Location, Path.Combine(projectDirectory, fileName));
+            compilerCall = new CompilerCall(
+                Path.Combine(projectDirectory, "relative.csproj"),
+                compilerFilePath: compilerCall.CompilerFilePath);
+            builder.AddFromDisk(compilerCall, [$"/analyzer:{fileName}", $"/reference:{fileName}"]);
+            Assert.Empty(builder.Diagnostics);
         });
     }
 
@@ -392,5 +416,56 @@ public sealed class CompilerLogBuilderTests : TestBase
         using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
         var compilerCall = reader.ReadAllCompilerCalls().Single();
         Assert.Empty(reader.ReadArguments(compilerCall));
+    }
+
+    /// <summary>
+    /// The same binary log should convert to the same bytes every time, so that storage which
+    /// deduplicates by content sees one blob rather than one per conversion.
+    /// </summary>
+    [Fact]
+    public void ConvertBinaryLogIsByteIdentical()
+    {
+        var hashes = Enumerable
+            .Range(0, 3)
+            .Select(_ => GetHash(CreateComplog()))
+            .Distinct()
+            .ToList();
+        Assert.Single(hashes);
+
+        byte[] CreateComplog()
+        {
+            using var complogStream = new MemoryStream();
+            using var binlogStream = new FileStream(Fixture.SolutionBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            Assert.Empty(CompilerLogUtil.ConvertBinaryLog(binlogStream, complogStream));
+            return complogStream.ToArray();
+        }
+
+        static string GetHash(byte[] bytes)
+        {
+            using var sha = SHA256.Create();
+            return BitConverter.ToString(sha.ComputeHash(bytes));
+        }
+    }
+
+    /// <summary>
+    /// Zip entries default their modification time to the moment the entry is created. That is not
+    /// read back anywhere, but it does put a different value in the header in front of every entry,
+    /// so it has to be pinned for <see cref="ConvertBinaryLogIsByteIdentical"/> to hold. Checked
+    /// separately because a zip timestamp only has two second resolution, so three conversions in a
+    /// row can land on the same value by luck.
+    /// </summary>
+    [Fact]
+    public void ZipEntryTimestampsAreFixed()
+    {
+        using var complogStream = new MemoryStream();
+        using (var binlogStream = new FileStream(Fixture.SolutionBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            Assert.Empty(CompilerLogUtil.ConvertBinaryLog(binlogStream, complogStream));
+        }
+
+        complogStream.Position = 0;
+        using var zip = new ZipArchive(complogStream, ZipArchiveMode.Read, leaveOpen: true);
+        Assert.NotEmpty(zip.Entries);
+        Assert.All(zip.Entries, e => Assert.Equal(new DateTime(1980, 1, 1), e.LastWriteTime.DateTime));
     }
 }

@@ -8,8 +8,7 @@ using System.Runtime.InteropServices;
 namespace Basic.CompilerLog.Util;
 
 /// <summary>
-/// This is used to map paths from one format to another. This can be used to map between operating systems or
-/// to change root paths within an operating system.
+/// Translates paths from the platform that created the compiler log to the current platform.
 /// </summary>
 /// <remarks>
 /// The mapping methods in this type are idempotent.
@@ -46,21 +45,6 @@ internal abstract class PathNormalizationUtil
     [return: NotNullIfNotNull("path")]
     internal abstract string? NormalizePath(string? path);
 
-    /// <summary>
-    /// Normalize the path from the "from" platform to the "to" platform. The 
-    /// <paramref name="kind"/> parameter represents the kind of content the path is 
-    /// associated with.
-    /// </summary>
-    [return: NotNullIfNotNull("path")]
-    internal virtual string? NormalizePath(string? path, RawContentKind kind) => NormalizePath(path);
-
-    /// <summary>
-    /// Normalize the path from the "from" platform to the "to" platform. The
-    /// <paramref name="optionName"/> parameter represents the compiler option. An empty
-    /// string is used to represent paths not associated with any option (just raw source
-    /// files on the command line)
-    /// </summary>
-    internal virtual string NormalizePath(string path, ReadOnlySpan<char> optionName)  => NormalizePath(path);
 }
 
 /// <summary>

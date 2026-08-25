@@ -45,6 +45,12 @@ internal sealed class CompilerLogBuilder : IDisposable
     private readonly List<(int CompilerCallIndex, bool IsRefAssembly, Guid Mvid)> _compilerCallMvidList = new();
     private readonly DefaultObjectPool<MemoryStream> _memoryStreamPool = new(new MemoryStreamPoolPolicy(), maximumRetained: 5);
 
+    /// <summary>
+    /// The earliest timestamp the zip format can represent. Values before 1980 are rejected by
+    /// <see cref="ZipArchiveEntry.LastWriteTime"/>.
+    /// </summary>
+    private static readonly DateTimeOffset ZipEpoch = new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     private int _compilationCount;
     private bool _closed;
 
@@ -61,6 +67,25 @@ internal sealed class CompilerLogBuilder : IDisposable
         MetadataVersion = metadataVersion ?? Metadata.LatestMetadataVersion;
         ZipArchive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true);
         Diagnostics = diagnostics;
+    }
+
+    /// <summary>
+    /// Creates a zip entry with a fixed modification time, so that two logs built from the same
+    /// inputs are byte-identical.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ZipArchive.CreateEntry(string, CompressionLevel)"/> defaults the entry's
+    /// modification time to the moment it is created, which makes every log unique even when its
+    /// contents are not. Nothing reads these timestamps — entries are addressed by name, and their
+    /// names are already content-derived — but they defeat storage layers that deduplicate by
+    /// comparing bytes, because the header preceding each entry differs between two logs that hold
+    /// the identical entry. The value is the DOS epoch, the earliest a zip can represent.
+    /// </remarks>
+    private ZipArchiveEntry CreateEntry(string entryName)
+    {
+        var entry = ZipArchive.CreateEntry(entryName, CompressionLevel.Fastest);
+        entry.LastWriteTime = ZipEpoch;
+        return entry;
     }
 
     /// <summary>
@@ -563,7 +588,7 @@ internal sealed class CompilerLogBuilder : IDisposable
     private void AddCore(CompilationInfoPack infoPack)
     {
         var index = _compilationCount;
-        var entry = ZipArchive.CreateEntry(GetCompilerEntryName(index), CompressionLevel.Fastest);
+        var entry = CreateEntry(GetCompilerEntryName(index));
         using (var entryStream = entry.Open())
         {
             MessagePackSerializer.Serialize(entryStream, infoPack, SerializerOptions);
@@ -591,7 +616,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         void WriteMetadata()
         {
-            var entry = ZipArchive.CreateEntry(MetadataFileName, CompressionLevel.Fastest);
+            var entry = CreateEntry(MetadataFileName);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             Metadata.Create(_compilationCount, MetadataVersion).Write(writer);
         }
@@ -613,7 +638,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                     : null,
             };
             var contentHash = WriteContentMessagePack(pack);
-            var entry = ZipArchive.CreateEntry(LogInfoFileName, CompressionLevel.Fastest);
+            var entry = CreateEntry(LogInfoFileName);
             using var writer = Polyfill.NewStreamWriter(entry.Open(), ContentEncoding, leaveOpen: false);
             writer.WriteLine(contentHash);
         }
@@ -792,7 +817,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         if (_contentHashMap.Add(hashText))
         {
-            var entry = ZipArchive.CreateEntry(GetContentEntryName(hashText), CompressionLevel.Fastest);
+            var entry = CreateEntry(GetContentEntryName(hashText));
             using var entryStream = entry.Open();
             stream.Position = 0;
             stream.CopyTo(entryStream);
@@ -801,6 +826,16 @@ internal sealed class CompilerLogBuilder : IDisposable
         return hashText;
     }
 
+    /// <summary>
+    /// The command line parser does not resolve analyzer or metadata reference paths against the
+    /// base directory, that happens later when the compiler loads them. Do the same here so a
+    /// relative path on the command line isn't resolved against the process working directory.
+    /// </summary>
+    private static string ResolveOnDiskPath(string filePath, CommandLineArguments args) =>
+        !Path.IsPathRooted(filePath) && args.BaseDirectory is { } baseDirectory
+            ? Path.Combine(baseDirectory, filePath)
+            : filePath;
+
     private void AddReferences(CompilationDataPack dataPack, CommandLineArguments args)
     {
         var explicitModuleSet = new HashSet<Guid>();
@@ -808,15 +843,16 @@ internal sealed class CompilerLogBuilder : IDisposable
 
         foreach (var reference in args.MetadataReferences)
         {
+            var referencePath = ResolveOnDiskPath(reference.Reference, args);
             if (reference.Properties.Kind == MetadataImageKind.Assembly)
             {
-                var (mvid, assemblyName, assemblyInformationalVersion, netModuleNames) = AddAssembly(reference.Reference);
+                var (mvid, assemblyName, assemblyInformationalVersion, netModuleNames) = AddAssembly(referencePath);
 
                 var netModuleMvids = ImmutableArray<Guid>.Empty;
                 if (netModuleNames.Length > 0)
                 {
                     var mvidBuilder = ImmutableArray.CreateBuilder<Guid>(netModuleNames.Length);
-                    var assemblyDir = Path.GetDirectoryName(reference.Reference)!;
+                    var assemblyDir = Path.GetDirectoryName(referencePath)!;
                     foreach (var netModuleName in netModuleNames)
                     {
                         var netModulePath = Path.Combine(assemblyDir, netModuleName);
@@ -839,7 +875,7 @@ internal sealed class CompilerLogBuilder : IDisposable
                     Kind = reference.Properties.Kind,
                     EmbedInteropTypes = reference.Properties.EmbedInteropTypes,
                     Aliases = reference.Properties.Aliases,
-                    FilePath = reference.Reference,
+                    FilePath = referencePath,
                     AssemblyName = assemblyName,
                     AssemblyInformationalVersion = assemblyInformationalVersion,
                     NetModuleMvids = netModuleMvids,
@@ -852,13 +888,13 @@ internal sealed class CompilerLogBuilder : IDisposable
                 Debug.Assert(reference.Properties.Aliases.IsEmpty);
                 Debug.Assert(!reference.Properties.EmbedInteropTypes);
 
-                 var mvid = AddNetModule(reference.Reference);
+                 var mvid = AddNetModule(referencePath);
                  var pack = new ReferencePack()
                  {
                      Mvid = mvid,
                      Kind = MetadataImageKind.Module,
                      Aliases = [],
-                     FilePath = reference.Reference,
+                     FilePath = referencePath,
                  };
                  dataPack.References.Add(pack);
                  explicitModuleSet.Add(mvid);
@@ -992,11 +1028,12 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         foreach (var analyzer in args.AnalyzerReferences)
         {
-            var (mvid, assemblyName, assemblyInformationalVersion, _) = AddAssembly(analyzer.FilePath);
+            var analyzerPath = ResolveOnDiskPath(analyzer.FilePath, args);
+            var (mvid, assemblyName, assemblyInformationalVersion, _) = AddAssembly(analyzerPath);
             var pack = new AnalyzerPack()
             {
                 Mvid = mvid,
-                FilePath = analyzer.FilePath,
+                FilePath = analyzerPath,
                 AssemblyName = assemblyName,
                 AssemblyInformationalVersion = assemblyInformationalVersion
             };
@@ -1047,7 +1084,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void WriteAssemblyEntry(Guid mvid, string fileName, string fullAssemblyName, Stream stream)
     {
-        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Fastest);
+        var entry = CreateEntry(GetAssemblyEntryName(mvid));
         using var entryStream = entry.Open();
         stream.CopyTo(entryStream);
         _mvidToRefInfoMap[mvid] = (fileName, fullAssemblyName);
@@ -1073,7 +1110,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return mvid;
         }
 
-        var entry = ZipArchive.CreateEntry(GetAssemblyEntryName(mvid), CompressionLevel.Fastest);
+        var entry = CreateEntry(GetAssemblyEntryName(mvid));
         using var entryStream = entry.Open();
         using var fileStream = RoslynUtil.OpenBuildFileForRead(filePath);
         fileStream.CopyTo(entryStream);

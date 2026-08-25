@@ -112,7 +112,10 @@ public sealed class SolutionReaderTests : TestBase
         var cryptoKeyFile = project.CompilationOptions!.CryptoKeyFile;
 
         Assert.NotNull(cryptoKeyFile);
-        Assert.StartsWith(reader.Reader.LogReaderState.CryptoKeyFileDirectory, cryptoKeyFile);
+        Assert.Equal(
+            reader.Reader.LogReaderState.CryptoKeyFileDirectory,
+            Path.GetDirectoryName(cryptoKeyFile));
+        Assert.True(File.Exists(cryptoKeyFile));
         Assert.Equal(keyBytes, File.ReadAllBytes(cryptoKeyFile));
 
         var compilation = await project.GetCompilationAsync(CancellationToken);

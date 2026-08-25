@@ -46,7 +46,7 @@ internal readonly struct RawContent(string filePath, string? contentHash, RawCon
     /// </summary>
     /// <remarks>
     /// This will be the original file path from when the log was created. It will not go through
-    /// <see cref="PathNormalizationUtil"/>
+    /// <see cref="PathNormalizationUtil"/> or <see cref="PathMappingUtil"/>.
     /// </remarks>
     internal string FilePath { get; } = filePath;
 

@@ -204,7 +204,7 @@ public sealed class UsingAllCompilerLogTests : TestBase
         var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
         using var reader = CompilerLogReader.Create(logData.CompilerLogPath, basicAnalyzerKind: BasicAnalyzerKind.None);
         VerifyCore();
-        reader.PathNormalizationUtil = new IdentityPathNormalizationUtil();
+        reader.PathMappingUtil = new IdentityPathMappingUtil();
         VerifyCore();
 
         void VerifyCore()

@@ -301,7 +301,7 @@ public abstract class CompilationData
                 peStream,
                 pdbStream,
                 xmlStream,
-                EmitData.Win32ResourceStream,
+                GetWin32Resources(compilation),
                 EmitData.Resources,
                 emitOptions,
                 debugEntryPoint: null,
@@ -333,6 +333,41 @@ public abstract class CompilationData
         }
     }
 
+    /// <summary>
+    /// The Win32 resources to pass to emit. When the original build passed /win32res that
+    /// content is used directly. Otherwise mirror the command line compiler: it synthesizes
+    /// the version resource (plus any /win32icon and /win32manifest content) from the
+    /// compilation rather than emitting no resources at all.
+    /// </summary>
+    private Stream? GetWin32Resources(Compilation compilation)
+    {
+        if (EmitData.Win32ResourceStream is { } win32ResourceStream)
+        {
+            win32ResourceStream.Position = 0;
+            return win32ResourceStream;
+        }
+
+        if (compilation.Options.OutputKind == OutputKind.NetModule)
+        {
+            return null;
+        }
+
+        if (EmitData.Win32ManifestStream is { } manifestStream)
+        {
+            manifestStream.Position = 0;
+        }
+        if (EmitData.Win32IconStream is { } iconStream)
+        {
+            iconStream.Position = 0;
+        }
+
+        return compilation.CreateDefaultWin32Resources(
+            versionResource: true,
+            noManifest: false,
+            manifestContents: EmitData.Win32ManifestStream,
+            iconInIcoFormat: EmitData.Win32IconStream);
+    }
+
     public EmitMemoryResult EmitToMemory(
         EmitFlags? emitFlags = null,
         EmitOptions? emitOptions = null,
@@ -352,7 +387,7 @@ public abstract class CompilationData
 
         return compilation.EmitToMemory(
             emitFlags ?? EmitFlags,
-            win32ResourceStream: EmitData.Win32ResourceStream,
+            win32ResourceStream: GetWin32Resources(compilation),
             manifestResources: EmitData.Resources,
             emitOptions: emitOptions ?? EmitOptions,
             sourceLinkStream: EmitData.SourceLinkStream,
