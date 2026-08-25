@@ -348,25 +348,34 @@ public sealed class CompilerLogBuilderTests : TestBase
         Assert.Single(reader.ReadAllCompilerCalls());
     }
 
+    /// <summary>
+    /// Capturing a workspace runs its generators, which loads the analyzer assemblies. On .NET
+    /// Framework <see cref="BasicAnalyzerKind.OnDisk"/> loads them into the current
+    /// <see cref="AppDomain"/>, so this runs in a child domain to keep those loads out of the test
+    /// process where they would trip the assembly load check in every concurrently running test.
+    /// </summary>
     [Fact]
     public void AddFromWorkspace_WithAnalyzerFileReferences()
     {
-        using var solutionReader = SolutionReader.Create(Fixture.SolutionBinaryLogPath, BasicAnalyzerKind.OnDisk, predicate: x => x.ProjectFileName == Fixture.ConsoleProjectName);
-        var workspace = new AdhocWorkspace();
-        workspace.AddSolution(solutionReader.ReadSolutionInfo());
-        var project = workspace.CurrentSolution.Projects.Single();
+        RunInContext((BinaryLogPath: Fixture.SolutionBinaryLogPath, ProjectName: Fixture.ConsoleProjectName), static (testOutputHelper, state, cancellationToken) =>
+        {
+            using var solutionReader = SolutionReader.Create(state.BinaryLogPath, BasicAnalyzerKind.OnDisk, predicate: x => x.ProjectFileName == state.ProjectName);
+            var workspace = new AdhocWorkspace();
+            workspace.AddSolution(solutionReader.ReadSolutionInfo());
+            var project = workspace.CurrentSolution.Projects.Single();
 
-        var complogStream = new MemoryStream();
-        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
-        complogStream.Position = 0;
+            var complogStream = new MemoryStream();
+            var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: cancellationToken);
+            complogStream.Position = 0;
 
-        Assert.True(result.Succeeded, $"Diagnostics: {string.Join("; ", result.Diagnostics)}");
-        Assert.Empty(result.Diagnostics);
+            Assert.True(result.Succeeded, $"Diagnostics: {string.Join("; ", result.Diagnostics)}");
+            Assert.Empty(result.Diagnostics);
 
-        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
-        var compilerCall = reader.ReadAllCompilerCalls().Single();
-        var analyzerData = reader.ReadAllAnalyzerData(compilerCall);
-        Assert.Equal(project.AnalyzerReferences.Count, analyzerData.Count);
+            using var reader = CompilerLogReader.Create(complogStream, leaveOpen: false);
+            var compilerCall = reader.ReadAllCompilerCalls().Single();
+            var analyzerData = reader.ReadAllAnalyzerData(compilerCall);
+            Assert.Equal(project.AnalyzerReferences.Count, analyzerData.Count);
+        });
     }
 
     [Fact]
