@@ -20,7 +20,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -35,8 +34,7 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         public Lazy<(string ProjectFilePath, string BinaryLogPath)> RemovedConsoleProject { get; }
         public Lazy<(string ProjectFilePath, string BinaryLogPath)> ConsoleWithDiagnostics { get; }
 
-        public CompilerLogAppTestsFixture(IMessageSink messageSink)
-            : base(messageSink)
+        public CompilerLogAppTestsFixture()
         {
             BinlogDirectory = Storage.NewDirectory("binlogs");
             RemovedConsoleProject = new Lazy<(string, string)>(() => CreateRemovedProject());
