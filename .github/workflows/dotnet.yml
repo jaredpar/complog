@@ -109,7 +109,7 @@ jobs:
       if: always()
       with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: ${{ env.TEST_COVERAGE_PATH }}
+          directory: artifacts/coverage
           fail_ci_if_error: true
 
     - name: Publish Test Results
@@ -138,4 +138,3 @@ jobs:
         name: .NET Test Results
         path: '*.trx'
         reporter: dotnet-trx
-
