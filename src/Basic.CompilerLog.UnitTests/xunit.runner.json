@@ -1,7 +1,7 @@
 {
   "appDomain": "ifAvailable",
   "shadowCopy": false,
-  "parallelizeTestCollections": true,
+  "parallelizeTestCollections": false,
   "maxParallelThreads": 8,
   "printMaxStringLength": 0
 }

@@ -8,9 +8,6 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Xunit;
-using Xunit.Runner.Common;
-using Xunit.Sdk;
 using AssemblyMetadata=Microsoft.CodeAnalysis.AssemblyMetadata;
 
 namespace Basic.CompilerLog.UnitTests;
@@ -28,11 +25,6 @@ internal static class Extensions
         }
 
         throw new Exception($"Cannot get MVID from reference {reference.Display}");
-    }
-
-    internal static void OnDiagnosticMessage(this IMessageSink messageSink, string message)
-    {
-        messageSink.OnMessage(new DiagnosticMessage(message));
     }
 
     internal static void ForEach<T>(this IEnumerable<T> enumerable, Action<T> action)
