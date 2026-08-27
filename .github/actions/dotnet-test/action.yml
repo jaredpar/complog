@@ -1,5 +1,5 @@
-name: 'dotnet test'
-description: 'Wrap dotnet test command with common arguments'
+name: 'Run tests'
+description: 'Run the test application with common arguments'
 author: 'Jared Parsons <jared@paranoidcoding.org>'
 inputs:
   name:
@@ -18,17 +18,27 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Test $${ inputs.name }
-      run: >
-        dotnet test --no-build --framework ${{ inputs.framework }}
-        --blame-hang --blame-hang-dump-type full --blame-hang-timeout 10m
-        --results-directory ${{ inputs.test-results-dir }}
-        --logger "console;verbosity=detailed"
-        --logger "trx;LogFileName=TestResults-${{ inputs.name }}.trx"
-        -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=${{ inputs.test-coverage-dir }}/coverage.${{ inputs.name }}.xml
-      shell: pwsh
-      env:
-        DOTNET_DbgEnableMiniDump: 1
-        DOTNET_DbgMiniDumptype: 2
-        DOTNET_CreateDumpLogToFile: ${{ inputs.test-results-dir }}test-%e-%p.dmp
+    - name: Test ${{ inputs.name }}
+      run: |
+        dotnet run --project src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj `
+          --no-build --framework ${{ inputs.framework }} -- `
+          --hangdump --hangdump-type-if-supported full --hangdump-timeout 10m `
+          --results-directory "${{ inputs.test-results-dir }}" `
+          --output Detailed `
+          --report-xunit-trx `
+          --report-xunit-trx-filename TestResults-${{ inputs.name }}.trx `
+          --coverlet --coverlet-output-format cobertura `
+          --coverlet-file-prefix coverage.${{ inputs.name }} `
+          --coverlet-include "[Basic.CompilerLog]*" `
+          --coverlet-include "[Basic.CompilerLog.App]*" `
+          --coverlet-include "[Basic.CompilerLog.Util]*"
+        $testExitCode = $LASTEXITCODE
 
+        $coverageFiles = @(Get-ChildItem -Path "${{ inputs.test-results-dir }}" -Filter 'coverage.${{ inputs.name }}.coverage.cobertura.*.xml')
+        if ($testExitCode -eq 0 -and $coverageFiles.Count -eq 0) {
+          throw 'The test run did not produce a coverage report.'
+        }
+
+        $coverageFiles | Copy-Item -Destination "${{ inputs.test-coverage-dir }}"
+        exit $testExitCode
+      shell: pwsh

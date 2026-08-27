@@ -3,7 +3,6 @@ using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
 using Xunit;
-using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -46,8 +45,7 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
 
     internal string? WpfAppProjectPath { get; }
 
-    public SolutionFixture(IMessageSink messageSink)
-        : base(messageSink)
+    public SolutionFixture()
     {
         StorageDirectory = Path.Combine(TestUtil.TestTempRoot, "solutionlogfixture");
         Directory.CreateDirectory(StorageDirectory);
@@ -164,4 +162,3 @@ public sealed class SolutionFixture : FixtureBase, IDisposable
         Directory.Delete(StorageDirectory, recursive: true);
     }
 }
-

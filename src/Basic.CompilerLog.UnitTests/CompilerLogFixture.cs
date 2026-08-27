@@ -15,7 +15,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
 using Xunit;
-using Xunit.Sdk;
 
 namespace Basic.CompilerLog.UnitTests;
 
@@ -140,8 +139,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     /// Constructor for the primary fixture. To get actual diagnostic messages into the output
     /// Add the following to xunit.runner.json to enable "diagnosticMessages": true
     /// </summary>
-    public CompilerLogFixture(IMessageSink messageSink)
-        : base(messageSink)
+    public CompilerLogFixture()
     {
         StorageDirectory = Path.Combine(TestUtil.TestTempRoot, "compilerlogfixture");
         ComplogDirectory = Path.Combine(StorageDirectory, "logs");
@@ -708,7 +706,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                     var scratchPath = Path.Combine(ScratchDirectory, Path.GetFileNameWithoutExtension(name));
                     Assert.False(Directory.Exists(scratchPath));
                     _ = Directory.CreateDirectory(scratchPath);
-                    messageSink.OnDiagnosticMessage($"Starting {name} in {scratchPath}");
+                    TestContext.Current.SendDiagnosticMessage($"Starting {name} in {scratchPath}");
                     action(scratchPath);
                     var projectFilePath = Directory.EnumerateFiles(scratchPath, "*proj", SearchOption.TopDirectoryOnly).SingleOrDefault();
                     var binlogFilePath = Path.Combine(scratchPath, "msbuild.binlog");
@@ -738,7 +736,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 }
                 finally
                 {
-                    messageSink.OnDiagnosticMessage($"Finished {name} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
+                    TestContext.Current.SendDiagnosticMessage($"Finished {name} {(DateTime.UtcNow - start).TotalSeconds:F2}s");
                 }
             });
 
@@ -936,4 +934,3 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         return await GetLogDataAsync(logData, testOutputHelper);
     }
 }
-
