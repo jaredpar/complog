@@ -39,6 +39,6 @@ runs:
           throw 'The test run did not produce a coverage report.'
         }
 
-        $coverageFiles | Copy-Item -Destination "${{ inputs.test-coverage-dir }}"
+        $coverageFiles[0] | Copy-Item -Destination "${{ inputs.test-coverage-dir }}/coverage.${{ inputs.name }}.xml"
         exit $testExitCode
       shell: pwsh
