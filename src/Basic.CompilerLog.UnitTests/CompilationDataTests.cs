@@ -2,6 +2,7 @@
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.Testing.Platform.Extensions.Messages;
 using Xunit;
 
@@ -79,6 +80,28 @@ public sealed class CompilationDataTests : TestBase
             Assert.Null(emitResult.PdbStream);
             Assert.Null(emitResult.XmlStream);
             Assert.Null(emitResult.MetadataStream);
+        });
+    }
+
+    /// <summary>
+    /// Covers <see href="https://github.com/dotnet/roslyn/issues/78721"/> while the fix in
+    /// <see href="https://github.com/dotnet/roslyn/pull/85028"/> is not yet available in our Roslyn package.
+    /// </summary>
+    [Fact]
+    public void EmitToMemoryMetadataOnlyWithPdbPath()
+    {
+        RunInContext(Fixture.ClassLib.Value.CompilerLogPath, static (testOutputHelper, filePath, cancellationToken) =>
+        {
+            using var reader = CompilerLogReader.Create(filePath);
+            var data = reader.ReadCompilationData(0);
+            var emitOptions = data.EmitOptions
+                .WithEmitMetadataOnly(true)
+                .WithDebugInformationFormat(DebugInformationFormat.Embedded)
+                .WithPdbFilePath("test.pdb");
+
+            var exception = Assert.Throws<ArgumentException>(
+                () => data.EmitToMemory(EmitFlags.MetadataOnly, emitOptions, cancellationToken));
+            Assert.Equal("metadataPEStream", exception.ParamName);
         });
     }
 
