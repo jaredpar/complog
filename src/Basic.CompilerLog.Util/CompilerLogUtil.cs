@@ -30,7 +30,7 @@ public readonly struct ConvertBinaryLogResult
     }
 }
 
-public readonly struct CreateFromWorkspaceResult
+public readonly struct ConvertFromWorkspaceResult
 {
     public bool Succeeded { get; }
 
@@ -45,7 +45,7 @@ public readonly struct CreateFromWorkspaceResult
     /// </summary>
     public List<string> Diagnostics { get; }
 
-    public CreateFromWorkspaceResult(bool succeeded, List<CompilerCall> compilerCalls, List<string> diagnostics)
+    public ConvertFromWorkspaceResult(bool succeeded, List<CompilerCall> compilerCalls, List<string> diagnostics)
     {
         Succeeded = succeeded;
         CompilerCalls = compilerCalls;
@@ -141,10 +141,10 @@ public static class CompilerLogUtil
 
     /// <summary>
     /// Creates a compiler log from the projects in the provided <see cref="Workspace"/>. Per-project failures
-    /// are recorded as diagnostics rather than thrown; the result's <see cref="CreateFromWorkspaceResult.Succeeded"/>
+    /// are recorded as diagnostics rather than thrown; the result's <see cref="ConvertFromWorkspaceResult.Succeeded"/>
     /// flag is <see langword="false"/> if any project failed.
     /// </summary>
-    public static async Task<CreateFromWorkspaceResult> TryCreateFromWorkspaceAsync(
+    public static async Task<ConvertFromWorkspaceResult> TryCreateFromWorkspaceAsync(
         Workspace workspace,
         string compilerLogFilePath,
         Func<Project, bool>? predicate = null,
@@ -155,7 +155,7 @@ public static class CompilerLogUtil
     }
 
     /// <inheritdoc cref="TryCreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
-    public static async Task<CreateFromWorkspaceResult> TryCreateFromWorkspaceAsync(
+    public static async Task<ConvertFromWorkspaceResult> TryCreateFromWorkspaceAsync(
         Workspace workspace,
         Stream compilerLogStream,
         Func<Project, bool>? predicate = null,
@@ -197,11 +197,11 @@ public static class CompilerLogUtil
             }
         }
 
-        return new CreateFromWorkspaceResult(success, compilerCalls, diagnostics);
+        return new ConvertFromWorkspaceResult(success, compilerCalls, diagnostics);
     }
 
     /// <inheritdoc cref="TryCreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
-    public static CreateFromWorkspaceResult TryCreateFromWorkspace(
+    public static ConvertFromWorkspaceResult TryCreateFromWorkspace(
         Workspace workspace,
         string compilerLogFilePath,
         Func<Project, bool>? predicate = null,
@@ -209,7 +209,7 @@ public static class CompilerLogUtil
         TryCreateFromWorkspaceAsync(workspace, compilerLogFilePath, predicate, cancellationToken).GetAwaiter().GetResult();
 
     /// <inheritdoc cref="TryCreateFromWorkspaceAsync(Workspace, string, Func{Project, bool}?, CancellationToken)"/>
-    public static CreateFromWorkspaceResult TryCreateFromWorkspace(
+    public static ConvertFromWorkspaceResult TryCreateFromWorkspace(
         Workspace workspace,
         Stream compilerLogStream,
         Func<Project, bool>? predicate = null,

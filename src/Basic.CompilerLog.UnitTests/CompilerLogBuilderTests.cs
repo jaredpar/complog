@@ -409,12 +409,11 @@ public sealed class CompilerLogBuilderTests : TestBase
     }
 
     [Fact]
-    public void TryCreateFromWorkspace_LeavesArgsEmpty()
+    public void TryCreateFromWorkspace_SynthesizesCommandLine()
     {
-        // Workspace-derived complogs deliberately omit a synthesized command line because the
-        // Roslyn workspace API does not surface emit-time inputs (resources, manifests, etc.);
-        // a partial rsp would mislead replay/export. Lock in that the args are empty so we
-        // notice if anyone wires the synthesizer back in by default.
+        // The Roslyn workspace API does not surface emit-time inputs (resources, manifests,
+        // etc.) so the stored command line is synthesized on a best-effort basis: it keeps
+        // rsp / replay / export functional while accepting fidelity gaps around emit.
         using var workspace = LoadConsoleWorkspace();
 
         var complogStream = new MemoryStream();
@@ -424,7 +423,11 @@ public sealed class CompilerLogBuilderTests : TestBase
 
         using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
         var compilerCall = reader.ReadAllCompilerCalls().Single();
-        Assert.Empty(reader.ReadArguments(compilerCall));
+        var arguments = reader.ReadArguments(compilerCall);
+        Assert.NotEmpty(arguments);
+        Assert.Contains("/noconfig", arguments);
+        Assert.Contains(arguments, x => x.EndsWith(".cs", StringComparison.Ordinal));
+        Assert.Contains(arguments, x => x.StartsWith("/reference:", StringComparison.Ordinal));
     }
 
     /// <summary>

@@ -249,14 +249,12 @@ internal sealed class CompilerLogBuilder : IDisposable
             return null;
         }
 
-        var allProjectReferencesAdded = true;
-
         // Roslyn's Workspace API doesn't surface emit-time inputs (embedded resources,
         // Win32 manifest/icon/resource, source link, app.config) — only items needed for
-        // semantic analysis. Synthesizing a partial command line from compilation.Options
-        // would produce an rsp that compiles but silently drops those inputs, so we leave
-        // the args empty: replay/rsp/export will fail visibly rather than misleadingly.
-        var compilationDataPackHash = await CreateCompilationDataPackAsync().ConfigureAwait(false);
+        // semantic analysis. The synthesized command line is therefore best-effort: it
+        // round trips the analysis surface but cannot include emit-only inputs, so
+        // replay / rsp / export on a workspace-derived log can have fidelity issues.
+        var (compilationDataPackHash, allProjectReferencesAdded) = await CreateCompilationDataPackAsync().ConfigureAwait(false);
         if (!allProjectReferencesAdded)
         {
             // A dropped project reference means the stored compilation would silently differ
@@ -270,7 +268,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             IsCSharp = isCSharp,
             TargetFramework = targetFramework,
             CompilerCallKind = CompilerCallKind.Regular,
-            CommandLineArgsHash = WriteContentMessagePack(Array.Empty<string>()),
+            CommandLineArgsHash = WriteContentMessagePack(WorkspaceCommandLineSynthesizer.Synthesize(project, compilation)),
             CompilationDataPackHash = compilationDataPackHash,
         };
 
@@ -283,8 +281,9 @@ internal sealed class CompilerLogBuilder : IDisposable
             targetFramework: targetFramework,
             isCSharp: isCSharp);
 
-        async Task<string> CreateCompilationDataPackAsync()
+        async Task<(string CompilationDataPackHash, bool AllProjectReferencesAdded)> CreateCompilationDataPackAsync()
         {
+            var allProjectReferencesAdded = true;
             var firstSourceText = project.Documents.FirstOrDefault() is { } firstDocument
                 ? await firstDocument.GetTextAsync(cancellationToken).ConfigureAwait(false)
                 : null;
@@ -297,7 +296,6 @@ internal sealed class CompilerLogBuilder : IDisposable
                 Resources = new(),
                 ChecksumAlgorithm = firstSourceText?.ChecksumAlgorithm ?? SourceHashAlgorithm.Sha256,
                 EmitPdb = false,
-                HasGeneratedFilesInPdb = false,
                 IncludesGeneratedText = true,
             };
 
@@ -316,23 +314,20 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             foreach (var document in project.Documents)
             {
-                var filePath = document.FilePath ?? document.Name;
                 var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
-                AddSourceText(dataPack, RawContentKind.SourceText, filePath, sourceText);
+                AddSourceText(dataPack, RawContentKind.SourceText, GetDocumentFilePath(document), sourceText);
             }
 
             foreach (var document in project.AdditionalDocuments)
             {
-                var filePath = document.FilePath ?? document.Name;
                 var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
-                AddSourceText(dataPack, RawContentKind.AdditionalText, filePath, sourceText);
+                AddSourceText(dataPack, RawContentKind.AdditionalText, GetDocumentFilePath(document), sourceText);
             }
 
             foreach (var document in project.AnalyzerConfigDocuments)
             {
-                var filePath = document.FilePath ?? document.Name;
                 var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
-                AddSourceText(dataPack, RawContentKind.AnalyzerConfig, filePath, sourceText);
+                AddSourceText(dataPack, RawContentKind.AnalyzerConfig, GetDocumentFilePath(document), sourceText);
             }
 
             var generatedDocs = await project.GetSourceGeneratedDocumentsAsync(cancellationToken).ConfigureAwait(false);
@@ -345,7 +340,30 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             foreach (var reference in project.MetadataReferences)
             {
-                if (reference is PortableExecutableReference peRef)
+                if (reference is BasicMetadataReference basicRef)
+                {
+                    // A reference materialized from a compiler log: its file path is just the
+                    // original file name and typically does not exist on this machine, but it
+                    // retains the original PE images so store those directly.
+                    var refInfo = AddEmittedAssembly(basicRef.FilePath ?? $"{basicRef.Mvid}.dll", new MemoryStream(basicRef.ImageBytes));
+                    foreach (var (moduleMvid, moduleImage) in basicRef.Modules.Skip(1))
+                    {
+                        AddNetModuleImage(moduleMvid, moduleImage);
+                    }
+
+                    dataPack.References.Add(new ReferencePack()
+                    {
+                        Mvid = refInfo.Mvid,
+                        Kind = basicRef.Properties.Kind,
+                        EmbedInteropTypes = basicRef.Properties.EmbedInteropTypes,
+                        Aliases = basicRef.Properties.Aliases,
+                        FilePath = basicRef.FilePath,
+                        AssemblyName = refInfo.AssemblyName,
+                        AssemblyInformationalVersion = refInfo.AssemblyInformationalVersion,
+                        NetModuleMvids = basicRef.Modules.Skip(1).Select(x => x.Mvid).ToImmutableArray(),
+                    });
+                }
+                else if (reference is PortableExecutableReference peRef)
                 {
                     if (peRef.FilePath is not null)
                     {
@@ -394,6 +412,12 @@ internal sealed class CompilerLogBuilder : IDisposable
                         AssemblyInformationalVersion = refInfo.AssemblyInformationalVersion,
                     });
                 }
+                else if (analyzerReference is IBasicAnalyzerReference)
+                {
+                    // A synthetic reference from this library's own analyzer hosts (e.g. the
+                    // None host's generated-text replay). Its output is captured through
+                    // GetSourceGeneratedDocumentsAsync so nothing is lost by skipping it.
+                }
                 else
                 {
                     Diagnostics.Add($"Skipping analyzer reference of unsupported type {analyzerReference.GetType().Name} in {project.Name}: {analyzerReference.Display}. Reload the workspace with BasicAnalyzerKind.OnDisk or BasicAnalyzerKind.None to capture analyzers via file paths.");
@@ -407,7 +431,25 @@ internal sealed class CompilerLogBuilder : IDisposable
                 AddContentFromDisk(dataPack, RawContentKind.CryptoKeyFile, resolvedKeyFile);
             }
 
-            return WriteContentMessagePack(dataPack);
+            return (WriteContentMessagePack(dataPack), allProjectReferencesAdded);
+
+            // Documents loaded through MSBuildWorkspace carry fully qualified paths but other
+            // hosts (AdhocWorkspace in particular) can hand out bare names, so qualify off the
+            // project directory when possible to keep the stored paths uniform.
+            string GetDocumentFilePath(TextDocument document)
+            {
+                var filePath = document.FilePath ?? document.Name;
+                return ResolveProjectRelativePath(project, filePath) ?? filePath;
+            }
+
+            static string GetWorkspaceAssemblyFileName(string assemblyName, OutputKind outputKind) =>
+                outputKind switch
+                {
+                    OutputKind.NetModule => $"{assemblyName}.netmodule",
+                    OutputKind.ConsoleApplication => $"{assemblyName}.exe",
+                    OutputKind.WindowsApplication => $"{assemblyName}.exe",
+                    _ => $"{assemblyName}.dll",
+                };
         }
 
         void AddWorkspaceCompilationOptions(CompilationInfoPack infoPack, Compilation compilation, bool isCSharp)
@@ -416,7 +458,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
             if (isCSharp)
             {
-                var parseOptions = (project.ParseOptions as CSharpParseOptions) ?? CSharpParseOptions.Default;
+                var parseOptions = (CSharpParseOptions)project.ParseOptions!;
                 infoPack.ParseOptionsHash = WriteContentMessagePack(
                     MessagePackUtil.CreateCSharpParseOptionsPack(parseOptions));
                 infoPack.CompilationOptionsHash = WriteContentMessagePack(
@@ -424,7 +466,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             }
             else
             {
-                var parseOptions = (project.ParseOptions as VisualBasicParseOptions) ?? VisualBasicParseOptions.Default;
+                var parseOptions = (VisualBasicParseOptions)project.ParseOptions!;
                 infoPack.ParseOptionsHash = WriteContentMessagePack(
                     MessagePackUtil.CreateVisualBasicParseOptionsPack(parseOptions));
                 infoPack.CompilationOptionsHash = WriteContentMessagePack(
@@ -435,7 +477,15 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private void AddSourceText(CompilationDataPack dataPack, RawContentKind kind, string filePath, SourceText sourceText)
     {
+        // The reader decodes stored content with SourceText.From which assumes UTF-8 unless
+        // the bytes begin with a detectable BOM, so an encoding that is neither UTF-8 nor
+        // preamble-emitting would not round trip. Re-encode those as UTF-8.
         var encoding = sourceText.Encoding ?? ContentEncoding;
+        if (encoding.CodePage != ContentEncoding.CodePage && encoding.GetPreamble().Length == 0)
+        {
+            encoding = ContentEncoding;
+        }
+
         using var stream = new MemoryStream();
         using (var writer = Polyfill.NewStreamWriter(stream, encoding, leaveOpen: true))
         {
@@ -495,6 +545,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             return false;
         }
 
+        memStream.Position = 0;
         var emittedInfo = AddEmittedAssembly(displayPath, memStream);
         _emittedProjectMap[dep.Id] = emittedInfo;
         AddReferencePack(emittedInfo, displayPath);
@@ -516,7 +567,7 @@ internal sealed class CompilerLogBuilder : IDisposable
 
     private BuilderAssemblyData AddEmittedAssembly(string displayPath, MemoryStream stream)
     {
-        stream.Position = 0;
+        Debug.Assert(stream.Position == 0);
         using var peReader = new PEReader(stream, PEStreamOptions.LeaveOpen);
         var metadataReader = peReader.GetMetadataReader();
         var identityData = RoslynUtil.ReadAssemblyIdentityData(metadataReader);
@@ -529,7 +580,28 @@ internal sealed class CompilerLogBuilder : IDisposable
             WriteAssemblyEntry(info.Mvid, Path.GetFileName(displayPath), fullAssemblyName, stream);
         }
 
+        stream.Position = 0;
         return info;
+    }
+
+    /// <summary>
+    /// Store a netmodule from an in-memory PE image. Netmodules don't have an assembly
+    /// manifest so, like <see cref="AddNetModule"/>, this uses the module name in place of
+    /// the assembly name.
+    /// </summary>
+    private void AddNetModuleImage(Guid mvid, byte[] image)
+    {
+        if (_mvidToRefInfoMap.ContainsKey(mvid))
+        {
+            return;
+        }
+
+        using var stream = new MemoryStream(image);
+        using var peReader = new PEReader(stream, PEStreamOptions.LeaveOpen);
+        var metadataReader = peReader.GetMetadataReader();
+        var moduleName = metadataReader.GetString(metadataReader.GetModuleDefinition().Name);
+        stream.Position = 0;
+        WriteAssemblyEntry(mvid, moduleName, Path.GetFileNameWithoutExtension(moduleName), stream);
     }
 
     /// <summary>
@@ -575,15 +647,6 @@ internal sealed class CompilerLogBuilder : IDisposable
             ? Path.Combine(projectDir, path)
             : null;
     }
-
-    private static string GetWorkspaceAssemblyFileName(string assemblyName, OutputKind outputKind) =>
-        outputKind switch
-        {
-            OutputKind.NetModule => $"{assemblyName}.netmodule",
-            OutputKind.ConsoleApplication => $"{assemblyName}.exe",
-            OutputKind.WindowsApplication => $"{assemblyName}.exe",
-            _ => $"{assemblyName}.dll",
-        };
 
     private void AddCore(CompilationInfoPack infoPack)
     {
