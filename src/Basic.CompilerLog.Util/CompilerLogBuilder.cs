@@ -239,7 +239,14 @@ internal sealed class CompilerLogBuilder : IDisposable
     internal async Task<CompilerCall?> AddFromWorkspaceAsync(Project project, CancellationToken cancellationToken = default)
     {
         var isCSharp = project.Language == LanguageNames.CSharp;
-        var projectFilePath = project.FilePath ?? $"{project.Name}{(isCSharp ? ".csproj" : ".vbproj")}";
+
+        // Content paths stored in the log must be rooted (see AddContentCore). Workspace
+        // projects don't always have a file path (AdhocWorkspace in particular) so a
+        // directory is synthesized to anchor relative paths in that case.
+        var projectDirectory = Path.GetDirectoryName(project.FilePath) is { Length: > 0 } directory
+            ? directory
+            : Path.Combine(Path.GetTempPath(), "complog", "workspace", project.Name);
+        var projectFilePath = project.FilePath ?? Path.Combine(projectDirectory, $"{project.Name}{(isCSharp ? ".csproj" : ".vbproj")}");
         var targetFramework = GetTargetFrameworkFromProject(project);
 
         var compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
@@ -333,9 +340,8 @@ internal sealed class CompilerLogBuilder : IDisposable
             var generatedDocs = await project.GetSourceGeneratedDocumentsAsync(cancellationToken).ConfigureAwait(false);
             foreach (var document in generatedDocs)
             {
-                var filePath = document.FilePath ?? document.HintName;
                 var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
-                AddSourceText(dataPack, RawContentKind.GeneratedText, filePath, sourceText);
+                AddSourceText(dataPack, RawContentKind.GeneratedText, GetDocumentFilePath(document), sourceText);
             }
 
             foreach (var reference in project.MetadataReferences)
@@ -424,22 +430,25 @@ internal sealed class CompilerLogBuilder : IDisposable
                 }
             }
 
-            if (compilation.Options.CryptoKeyFile is { Length: > 0 } keyFile
-                && ResolveProjectRelativePath(project, keyFile) is { } resolvedKeyFile
-                && File.Exists(resolvedKeyFile))
+            if (compilation.Options.CryptoKeyFile is { Length: > 0 } keyFile)
             {
-                AddContentFromDisk(dataPack, RawContentKind.CryptoKeyFile, resolvedKeyFile);
+                var resolvedKeyFile = Path.IsPathRooted(keyFile) ? keyFile : Path.Combine(projectDirectory, keyFile);
+                if (File.Exists(resolvedKeyFile))
+                {
+                    AddContentFromDisk(dataPack, RawContentKind.CryptoKeyFile, resolvedKeyFile);
+                }
             }
 
             return (WriteContentMessagePack(dataPack), allProjectReferencesAdded);
 
-            // Documents loaded through MSBuildWorkspace carry fully qualified paths but other
-            // hosts (AdhocWorkspace in particular) can hand out bare names, so qualify off the
-            // project directory when possible to keep the stored paths uniform.
+            // Documents loaded through MSBuildWorkspace carry fully qualified paths, but other
+            // hosts (AdhocWorkspace in particular) can hand out bare names and source generated
+            // documents get synthesized relative paths, so anchor those to the project directory
+            // to satisfy the rooted path contract on stored content.
             string GetDocumentFilePath(TextDocument document)
             {
                 var filePath = document.FilePath ?? document.Name;
-                return ResolveProjectRelativePath(project, filePath) ?? filePath;
+                return Path.IsPathRooted(filePath) ? filePath : Path.Combine(projectDirectory, filePath);
             }
 
             static string GetWorkspaceAssemblyFileName(string assemblyName, OutputKind outputKind) =>
@@ -631,21 +640,6 @@ internal sealed class CompilerLogBuilder : IDisposable
         }
 
         return null;
-    }
-
-    private static string? ResolveProjectRelativePath(Project project, string path)
-    {
-        if (Path.IsPathRooted(path))
-        {
-            return path;
-        }
-
-        var projectDir = project.FilePath is { } projectFilePath
-            ? Path.GetDirectoryName(projectFilePath)
-            : null;
-        return projectDir is not null
-            ? Path.Combine(projectDir, path)
-            : null;
     }
 
     private void AddCore(CompilationInfoPack infoPack)
