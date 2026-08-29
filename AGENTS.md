@@ -18,16 +18,16 @@ Repository: https://github.com/jaredpar/complog
 ```bash
 # Restore, build, and test (the main workflow), use -bl for binary logs
 dotnet build -bl
-dotnet test --framework net10.0
+dotnet run --project src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
 
 # Build the full solution
 dotnet build Basic.CompilerLog.slnx
 
 # Run the test suite (AI agents should focus on the net10.0 TFM for initial validation)
-dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
+dotnet run --project src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0
 
-# Run tests with blame-hang to detect hanging tests (always use this when running full suite)
-dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0 --blame-hang --blame-hang-timeout 60s
+# Run tests with hang-dump collection (always use this when running the full suite)
+dotnet run --project src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0 -- --hangdump --hangdump-timeout 60s
 
 # Build with binary log (used for CI and dogfooding)
 dotnet build -bl
@@ -36,11 +36,10 @@ dotnet build -bl
 dotnet pack
 ```
 
-When running the full test suite, use `--blame-hang --blame-hang-timeout 60s` to detect hanging
-tests:
+When running the full test suite, use `--hangdump --hangdump-timeout 60s` to detect hanging tests:
 
 ```bash
-dotnet test src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0 --blame-hang --blame-hang-timeout 60s
+dotnet run --project src/Basic.CompilerLog.UnitTests/Basic.CompilerLog.UnitTests.csproj --framework net10.0 -- --hangdump --hangdump-timeout 60s
 ```
 
 Build warnings are treated as errors in CI (`-warnaserror`). The restore step also uses
@@ -84,7 +83,7 @@ Solution file: `Basic.CompilerLog.slnx`
 - Tests run **in parallel** across test classes (`parallelizeTestCollections: true`, capped by
   `maxParallelThreads` in `xunit.runner.json`). Expensive fixtures are shared once per assembly via
   xUnit v3 assembly fixtures (`AssemblyFixtures.cs`).
-- In clean environments, `dotnet test Basic.CompilerLog.slnx` fails unless `TEST_ARTIFACTS_PATH` is
+- In clean environments, running the test application fails unless `TEST_ARTIFACTS_PATH` is
   set for the `Basic.CompilerLog.UnitTests` fixtures. Prefer running the test project directly.
 - For how the test suite is structured (fixtures, collections, `[WindowsFact]`/`[UnixFact]`, test
   resources), see [docs/overview.md](docs/overview.md).

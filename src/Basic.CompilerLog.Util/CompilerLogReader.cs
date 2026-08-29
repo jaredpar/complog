@@ -374,6 +374,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         CompilationDataPack dataPack)
     {
         var emitOptions = MessagePackUtil.CreateEmitOptions(GetContentPack<EmitOptionsPack>(pack.EmitOptionsHash));
+        emitOptions = ApplyMetadataOnlyEmitWorkaround(emitOptions);
         ParseOptions parseOptions;
         CompilationOptions compilationOptions;
         if (pack.IsCSharp)
@@ -395,6 +396,25 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         compilationOptions = MaterializeCryptoKeyFile(dataPack, compilationOptions);
         return (emitOptions, parseOptions, compilationOptions);
+
+        EmitOptions ApplyMetadataOnlyEmitWorkaround(EmitOptions emitOptions)
+        {
+            // Metadata-only output cannot have an associated PDB. Current Roslyn can retain the PDB path,
+            // emit a CodeView entry, or reject embedded debug information. Work around dotnet/roslyn#85028
+            // until a Roslyn package containing the fix is available.
+            if (!emitOptions.EmitMetadataOnly)
+            {
+                return emitOptions;
+            }
+
+            emitOptions = emitOptions.WithPdbFilePath(null!);
+            if (emitOptions.DebugInformationFormat == DebugInformationFormat.Embedded)
+            {
+                emitOptions = emitOptions.WithDebugInformationFormat(DebugInformationFormat.PortablePdb);
+            }
+
+            return emitOptions;
+        }
 
         // This method will materialize the crypto key file to the location specified by the path mapping util. This
         // is the rare case where reading compilation information will cause a file to be written to disk. It's the
@@ -772,9 +792,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             return true;
         }
 
-        return dataPack.HasGeneratedFilesInPdb is true
-            ? dataPack.IncludesGeneratedText
-            : dataPack.IncludesGeneratedText;
+        return dataPack.IncludesGeneratedText;
     }
 
     /// <inheritdoc cref="ICompilerCallReader.ReadAllGeneratedSourceTexts(CompilerCall)"/>
