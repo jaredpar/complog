@@ -363,7 +363,13 @@ public sealed class CompilerLogBuilderTests : TestBase
                 generalDiagnosticOption: ReportDiagnostic.Error,
                 cryptoKeyContainer: "MyContainer",
                 delaySign: true,
-                nullableContextOptions: NullableContextOptions.Warnings),
+                nullableContextOptions: NullableContextOptions.Warnings,
+                specificDiagnosticOptions: new Dictionary<string, ReportDiagnostic>()
+                {
+                    ["CS0169"] = ReportDiagnostic.Suppress,
+                    ["CS0219"] = ReportDiagnostic.Error,
+                    ["CS0414"] = ReportDiagnostic.Warn,
+                }),
             parseOptions: new CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview, preprocessorSymbols: ["FIRST", "SECOND"]),
             documents: [DocumentInfo.Create(
                 DocumentId.CreateNewId(projectId),
@@ -386,6 +392,9 @@ public sealed class CompilerLogBuilderTests : TestBase
         Assert.Contains("/nullable:warnings", args);
         Assert.Contains("/langversion:preview", args);
         Assert.Contains("/define:FIRST;SECOND", args);
+        Assert.Contains("/nowarn:CS0169", args);
+        Assert.Contains("/warnaserror+:CS0219", args);
+        Assert.Contains("/warnaserror-:CS0414", args);
         Assert.Contains(args, x => x.StartsWith("/reference:MyAlias=", StringComparison.Ordinal));
         Assert.Contains(args, x => x.StartsWith("/link:", StringComparison.Ordinal));
         Assert.Contains(args, x => x.StartsWith("/out:", StringComparison.Ordinal));
@@ -453,6 +462,63 @@ public sealed class CompilerLogBuilderTests : TestBase
 
         var moduleArgs = WorkspaceCommandLineSynthesizer.Synthesize(moduleProject, (await moduleProject.GetCompilationAsync(CancellationToken))!);
         Assert.Contains("/target:module", moduleArgs);
+    }
+
+    [Theory]
+    [InlineData(OutputKind.WindowsRuntimeMetadata, "winmdobj")]
+    [InlineData(OutputKind.WindowsRuntimeApplication, "appcontainerexe")]
+    public async Task SynthesizeCommandLine_WindowsRuntimeTargets(OutputKind outputKind, string expectedTarget)
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId("WinRt");
+        var project = workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "WinRt",
+            assemblyName: "WinRt",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(outputKind),
+            parseOptions: new CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp10),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]));
+
+        var args = WorkspaceCommandLineSynthesizer.Synthesize(project, (await project.GetCompilationAsync(CancellationToken))!);
+        Assert.Contains($"/target:{expectedTarget}", args);
+        Assert.Contains("/langversion:10.0", args);
+    }
+
+    /// <summary>
+    /// The Visual Basic synthesizer path with non-default options: nothing else exercises the
+    /// "On"/"text" sides of the option flags or a VB root namespace.
+    /// </summary>
+    [Fact]
+    public async Task SynthesizeCommandLine_VisualBasicOptions()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId("VbLib");
+        var project = workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "VbLib",
+            assemblyName: "VbLib",
+            language: LanguageNames.VisualBasic,
+            compilationOptions: new Microsoft.CodeAnalysis.VisualBasic.VisualBasicCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                rootNamespace: "My.Root",
+                optionStrict: Microsoft.CodeAnalysis.VisualBasic.OptionStrict.On,
+                optionExplicit: false,
+                optionInfer: false,
+                optionCompareText: true),
+            parseOptions: new Microsoft.CodeAnalysis.VisualBasic.VisualBasicParseOptions(
+                preprocessorSymbols: [new KeyValuePair<string, object>("DEBUG", true)]),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]));
+
+        var args = WorkspaceCommandLineSynthesizer.Synthesize(project, (await project.GetCompilationAsync(CancellationToken))!);
+        Assert.Contains("/rootnamespace:My.Root", args);
+        Assert.Contains("/optionstrict+", args);
+        Assert.Contains("/optionexplicit-", args);
+        Assert.Contains("/optioninfer-", args);
+        Assert.Contains("/optioncompare:text", args);
+        Assert.Contains(args, x => x.StartsWith("/define:DEBUG=", StringComparison.Ordinal));
     }
 
     /// <summary>
