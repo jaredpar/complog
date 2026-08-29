@@ -439,7 +439,7 @@ public sealed class CompilerLogBuilderTests : TestBase
         Assert.Contains("/target:winexe", winExeArgs);
         Assert.Contains("/nullable:annotations", winExeArgs);
         Assert.Contains("/langversion:latestmajor", winExeArgs);
-        Assert.Single(winExeArgs.Where(x => x.StartsWith("/reference:", StringComparison.Ordinal)));
+        Assert.Single(winExeArgs, x => x.StartsWith("/reference:", StringComparison.Ordinal));
 
         var moduleId = ProjectId.CreateNewId("ModuleProject");
         var moduleProject = workspace.AddProject(ProjectInfo.Create(
