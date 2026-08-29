@@ -219,6 +219,12 @@ internal static class WorkspaceCommandLineSynthesizer
             }
 
             var path = Quote(peRef.FilePath);
+            if (peRef.Properties.Kind == MetadataImageKind.Module)
+            {
+                args.Add($"/addmodule:{path}");
+                continue;
+            }
+
             var optionName = peRef.Properties.EmbedInteropTypes ? "link" : "reference";
             if (peRef.Properties.Aliases.Length > 0)
             {

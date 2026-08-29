@@ -333,6 +333,63 @@ public sealed class CompilerLogBuilderTests : TestBase
         Assert.Single(reader.ReadAllCompilerCalls());
     }
 
+    /// <summary>
+    /// A reference of kind <see cref="MetadataImageKind.Module"/> must be materialized as
+    /// <see cref="ModuleMetadata"/> (the compiler casts to it) and captured as a netmodule,
+    /// not an assembly (its image has no assembly manifest).
+    /// </summary>
+    [Fact]
+    public void AddFromWorkspace_ExplicitNetModuleReference()
+    {
+        var moduleCompilation = CSharpCompilation.Create(
+            "ModuleLib",
+            [CSharpSyntaxTree.ParseText("public class ModuleClass { public static string GetMessage() => \"Hello\"; }", cancellationToken: CancellationToken)],
+            [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
+            new CSharpCompilationOptions(OutputKind.NetModule));
+        var moduleStream = new MemoryStream();
+        Assert.True(moduleCompilation.Emit(moduleStream, cancellationToken: CancellationToken).Success);
+        var moduleImage = moduleStream.ToArray();
+
+        Guid moduleMvid;
+        using (var peReader = new System.Reflection.PortableExecutable.PEReader(new MemoryStream(moduleImage)))
+        {
+            var metadataReader = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(peReader);
+            moduleMvid = metadataReader.GetGuid(metadataReader.GetModuleDefinition().Mvid);
+        }
+
+        var moduleReference = BasicMetadataReference.Create(
+            [(moduleMvid, moduleImage)],
+            new MetadataReferenceProperties(MetadataImageKind.Module),
+            "ModuleLib.netmodule");
+
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId("Consumer");
+        workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "Consumer",
+            assemblyName: "Consumer",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            documents: [DocumentInfo.Create(
+                DocumentId.CreateNewId(projectId),
+                "Consumer.cs",
+                loader: TextLoader.From(TextAndVersion.Create(SourceText.From("public class Consumer { public string M() => ModuleClass.GetMessage(); }", Encoding.UTF8), VersionStamp.Default)))],
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location), moduleReference]));
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+        complogStream.Position = 0;
+        Assert.True(result.Succeeded, $"Diagnostics: {string.Join("; ", result.Diagnostics)}");
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        Assert.Contains(reader.ReadAllReferenceData(compilerCall), x => x.Kind == MetadataImageKind.Module);
+
+        var compilationData = reader.ReadCompilationData(compilerCall);
+        Assert.Empty(compilationData.GetDiagnostics(CancellationToken).Where(x => x.Severity == DiagnosticSeverity.Error));
+    }
+
     [Fact]
     public void CreateFromWorkspace_FilePath()
     {

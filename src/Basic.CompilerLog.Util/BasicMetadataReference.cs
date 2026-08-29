@@ -12,10 +12,11 @@ namespace Basic.CompilerLog.Util;
 /// </summary>
 internal sealed class BasicMetadataReference : PortableExecutableReference
 {
-    private readonly AssemblyMetadata _metadata;
+    private readonly Microsoft.CodeAnalysis.Metadata _metadata;
 
     /// <summary>
-    /// The MVID and PE image of the assembly followed by any netmodules it includes.
+    /// The MVID and PE image of the assembly followed by any netmodules it includes. For a
+    /// reference of kind <see cref="MetadataImageKind.Module"/> this is the single module image.
     /// </summary>
     internal ImmutableArray<(Guid Mvid, byte[] Image)> Modules { get; }
 
@@ -24,7 +25,7 @@ internal sealed class BasicMetadataReference : PortableExecutableReference
 
     private BasicMetadataReference(
         ImmutableArray<(Guid Mvid, byte[] Image)> modules,
-        AssemblyMetadata metadata,
+        Microsoft.CodeAnalysis.Metadata metadata,
         MetadataReferenceProperties properties,
         string? filePath)
         : base(properties, filePath)
@@ -38,15 +39,23 @@ internal sealed class BasicMetadataReference : PortableExecutableReference
         MetadataReferenceProperties properties,
         string? filePath)
     {
-        var metadata = AssemblyMetadata.Create(modules
-            .Select(x => ModuleMetadata.CreateFromImage(ImmutableArray.Create(x.Image)))
-            .ToImmutableArray());
+        // The metadata kind must match the reference kind: the compiler casts the metadata of a
+        // module reference to ModuleMetadata.
+        Microsoft.CodeAnalysis.Metadata metadata = properties.Kind == MetadataImageKind.Module
+            ? ModuleMetadata.CreateFromImage(ImmutableArray.Create(modules[0].Image))
+            : AssemblyMetadata.Create(modules
+                .Select(x => ModuleMetadata.CreateFromImage(ImmutableArray.Create(x.Image)))
+                .ToImmutableArray());
         return new(modules, metadata, properties, filePath);
     }
 
     protected override DocumentationProvider CreateDocumentationProvider() => DocumentationProvider.Default;
 
-    protected override Microsoft.CodeAnalysis.Metadata GetMetadataImpl() => _metadata.Copy();
+    protected override Microsoft.CodeAnalysis.Metadata GetMetadataImpl() => _metadata switch
+    {
+        AssemblyMetadata assemblyMetadata => assemblyMetadata.Copy(),
+        _ => ((ModuleMetadata)_metadata).Copy(),
+    };
 
     protected override PortableExecutableReference WithPropertiesImpl(MetadataReferenceProperties properties) =>
         new BasicMetadataReference(Modules, _metadata, properties, FilePath);

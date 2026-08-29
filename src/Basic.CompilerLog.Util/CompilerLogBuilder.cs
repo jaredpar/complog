@@ -351,6 +351,19 @@ internal sealed class CompilerLogBuilder : IDisposable
                     // A reference materialized from a compiler log: its file path is just the
                     // original file name and typically does not exist on this machine, but it
                     // retains the original PE images so store those directly.
+                    if (basicRef.Properties.Kind == MetadataImageKind.Module)
+                    {
+                        AddNetModuleImage(basicRef.Mvid, basicRef.ImageBytes);
+                        dataPack.References.Add(new ReferencePack()
+                        {
+                            Mvid = basicRef.Mvid,
+                            Kind = MetadataImageKind.Module,
+                            Aliases = [],
+                            FilePath = basicRef.FilePath,
+                        });
+                        continue;
+                    }
+
                     var refInfo = AddEmittedAssembly(basicRef.FilePath ?? $"{basicRef.Mvid}.dll", new MemoryStream(basicRef.ImageBytes));
                     foreach (var (moduleMvid, moduleImage) in basicRef.Modules.Skip(1))
                     {
