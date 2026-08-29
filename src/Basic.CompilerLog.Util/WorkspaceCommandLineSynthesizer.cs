@@ -159,7 +159,9 @@ internal static class WorkspaceCommandLineSynthesizer
         var parseOptions = (CSharpParseOptions)project.ParseOptions!;
         var compilationOptions = (CSharpCompilationOptions)compilation.Options;
 
-        args.Add($"/langversion:{LanguageVersionToFlag(parseOptions.LanguageVersion)}");
+        // SpecifiedLanguageVersion retains what the user asked for (e.g. "latest") where
+        // LanguageVersion is the mapped concrete version.
+        args.Add($"/langversion:{LanguageVersionToFlag(parseOptions.SpecifiedLanguageVersion)}");
 
         if (parseOptions.PreprocessorSymbolNames.Any())
         {
@@ -190,7 +192,7 @@ internal static class WorkspaceCommandLineSynthesizer
         var parseOptions = (VisualBasicParseOptions)project.ParseOptions!;
         var compilationOptions = (VisualBasicCompilationOptions)compilation.Options;
 
-        args.Add($"/langversion:{parseOptions.LanguageVersion}");
+        args.Add($"/langversion:{parseOptions.SpecifiedLanguageVersion}");
 
         if (parseOptions.PreprocessorSymbols.Any())
         {

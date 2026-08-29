@@ -334,6 +334,128 @@ public sealed class CompilerLogBuilderTests : TestBase
     }
 
     /// <summary>
+    /// The synthesized command line must reflect the compilation options that survive the
+    /// workspace API. This exercises the option-rich paths that the fixture projects don't hit.
+    /// </summary>
+    [Fact]
+    public async Task SynthesizeCommandLine_Options()
+    {
+        using var workspace = new AdhocWorkspace();
+        var libRef = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
+        var aliasedRef = MetadataReference.CreateFromFile(typeof(Uri).Assembly.Location)
+            .WithAliases(["MyAlias"]);
+        var interopRef = MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location)
+            .WithEmbedInteropTypes(true);
+
+        var projectId = ProjectId.CreateNewId("Options");
+        var project = workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "Options",
+            assemblyName: "Options",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(
+                OutputKind.ConsoleApplication,
+                mainTypeName: "Program",
+                platform: Platform.X64,
+                checkOverflow: true,
+                allowUnsafe: true,
+                generalDiagnosticOption: ReportDiagnostic.Error,
+                cryptoKeyContainer: "MyContainer",
+                delaySign: true,
+                nullableContextOptions: NullableContextOptions.Warnings),
+            parseOptions: new CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview, preprocessorSymbols: ["FIRST", "SECOND"]),
+            documents: [DocumentInfo.Create(
+                DocumentId.CreateNewId(projectId),
+                "Program.cs",
+                loader: TextLoader.From(TextAndVersion.Create(SourceText.From("class Program { static void Main() { } }", Encoding.UTF8), VersionStamp.Default)))],
+            metadataReferences: [libRef, aliasedRef, interopRef],
+            outputFilePath: Path.Combine(RootDirectory, "Options.exe")));
+
+        var compilation = (await project.GetCompilationAsync(CancellationToken))!;
+        var args = WorkspaceCommandLineSynthesizer.Synthesize(project, compilation);
+
+        Assert.Contains("/target:exe", args);
+        Assert.Contains("/main:Program", args);
+        Assert.Contains("/platform:x64", args);
+        Assert.Contains("/checked+", args);
+        Assert.Contains("/unsafe+", args);
+        Assert.Contains("/warnaserror+", args);
+        Assert.Contains("/keycontainer:MyContainer", args);
+        Assert.Contains("/delaysign+", args);
+        Assert.Contains("/nullable:warnings", args);
+        Assert.Contains("/langversion:preview", args);
+        Assert.Contains("/define:FIRST;SECOND", args);
+        Assert.Contains(args, x => x.StartsWith("/reference:MyAlias=", StringComparison.Ordinal));
+        Assert.Contains(args, x => x.StartsWith("/link:", StringComparison.Ordinal));
+        Assert.Contains(args, x => x.StartsWith("/out:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SynthesizeCommandLine_SuppressAndPublicSign()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId("Quiet");
+        var project = workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "Quiet",
+            assemblyName: "Quiet",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                generalDiagnosticOption: ReportDiagnostic.Suppress,
+                publicSign: true),
+            parseOptions: new CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Latest),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]));
+
+        var compilation = (await project.GetCompilationAsync(CancellationToken))!;
+        var args = WorkspaceCommandLineSynthesizer.Synthesize(project, compilation);
+
+        Assert.Contains("/nowarn", args);
+        Assert.Contains("/publicsign+", args);
+        Assert.Contains("/langversion:latest", args);
+    }
+
+    [Fact]
+    public async Task SynthesizeCommandLine_WinExeAndModule()
+    {
+        using var workspace = new AdhocWorkspace();
+
+        // An in-memory reference has no file path, so nothing useful can go into the rsp for it.
+        var imageReference = MetadataReference.CreateFromImage(File.ReadAllBytes(typeof(object).Assembly.Location));
+        var winExeId = ProjectId.CreateNewId("WinExe");
+        var winExe = workspace.AddProject(ProjectInfo.Create(
+            winExeId,
+            VersionStamp.Default,
+            name: "WinExe",
+            assemblyName: "WinExe",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.WindowsApplication, nullableContextOptions: NullableContextOptions.Annotations),
+            parseOptions: new CSharpParseOptions(Microsoft.CodeAnalysis.CSharp.LanguageVersion.LatestMajor),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location), imageReference]));
+
+        var winExeArgs = WorkspaceCommandLineSynthesizer.Synthesize(winExe, (await winExe.GetCompilationAsync(CancellationToken))!);
+        Assert.Contains("/target:winexe", winExeArgs);
+        Assert.Contains("/nullable:annotations", winExeArgs);
+        Assert.Contains("/langversion:latestmajor", winExeArgs);
+        Assert.Single(winExeArgs.Where(x => x.StartsWith("/reference:", StringComparison.Ordinal)));
+
+        var moduleId = ProjectId.CreateNewId("ModuleProject");
+        var moduleProject = workspace.AddProject(ProjectInfo.Create(
+            moduleId,
+            VersionStamp.Default,
+            name: "ModuleProject",
+            assemblyName: "ModuleProject",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.NetModule),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]));
+
+        var moduleArgs = WorkspaceCommandLineSynthesizer.Synthesize(moduleProject, (await moduleProject.GetCompilationAsync(CancellationToken))!);
+        Assert.Contains("/target:module", moduleArgs);
+    }
+
+    /// <summary>
     /// A reference of kind <see cref="MetadataImageKind.Module"/> must be materialized as
     /// <see cref="ModuleMetadata"/> (the compiler casts to it) and captured as a netmodule,
     /// not an assembly (its image has no assembly manifest).
@@ -377,17 +499,244 @@ public sealed class CompilerLogBuilderTests : TestBase
                 loader: TextLoader.From(TextAndVersion.Create(SourceText.From("public class Consumer { public string M() => ModuleClass.GetMessage(); }", Encoding.UTF8), VersionStamp.Default)))],
             metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location), moduleReference]));
 
+        // A second consumer of the same module exercises the already-stored dedupe path.
+        var secondProjectId = ProjectId.CreateNewId("Consumer2");
+        workspace.AddProject(ProjectInfo.Create(
+            secondProjectId,
+            VersionStamp.Default,
+            name: "Consumer2",
+            assemblyName: "Consumer2",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            documents: [DocumentInfo.Create(
+                DocumentId.CreateNewId(secondProjectId),
+                "Consumer2.cs",
+                loader: TextLoader.From(TextAndVersion.Create(SourceText.From("public class Consumer2 { public string M() => ModuleClass.GetMessage(); }", Encoding.UTF8), VersionStamp.Default)))],
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location), moduleReference]));
+
         var complogStream = new MemoryStream();
         var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
         complogStream.Position = 0;
         Assert.True(result.Succeeded, $"Diagnostics: {string.Join("; ", result.Diagnostics)}");
 
         using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
-        var compilerCall = reader.ReadAllCompilerCalls().Single();
-        Assert.Contains(reader.ReadAllReferenceData(compilerCall), x => x.Kind == MetadataImageKind.Module);
+        var compilerCalls = reader.ReadAllCompilerCalls();
+        Assert.Equal(2, compilerCalls.Count);
+        foreach (var compilerCall in compilerCalls)
+        {
+            Assert.Contains(reader.ReadAllReferenceData(compilerCall), x => x.Kind == MetadataImageKind.Module);
+            var compilationData = reader.ReadCompilationData(compilerCall);
+            Assert.Empty(compilationData.GetDiagnostics(CancellationToken).Where(x => x.Severity == DiagnosticSeverity.Error));
+        }
+    }
 
-        var compilationData = reader.ReadCompilationData(compilerCall);
-        Assert.Empty(compilationData.GetDiagnostics(CancellationToken).Where(x => x.Severity == DiagnosticSeverity.Error));
+    /// <summary>
+    /// The reader decodes stored content assuming UTF-8 unless the bytes carry a BOM, so a
+    /// BOM-less non-UTF-8 source text has to be re-encoded to survive the round trip.
+    /// </summary>
+    [Fact]
+    public void AddFromWorkspace_NonUtf8SourceTextRoundTrips()
+    {
+        const string source = "public class Latin1Café { }";
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId("Latin");
+        _ = workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "Latin",
+            assemblyName: "Latin",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            documents: [DocumentInfo.Create(
+                DocumentId.CreateNewId(projectId),
+                "Latin.cs",
+                loader: TextLoader.From(TextAndVersion.Create(SourceText.From(source, Encoding.GetEncoding("ISO-8859-1")), VersionStamp.Default)))],
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]));
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+        complogStream.Position = 0;
+        Assert.True(result.Succeeded);
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        var sourceTextData = reader.ReadAllSourceTextData(compilerCall).Single(x => x.SourceTextKind == SourceTextKind.SourceCode);
+        Assert.Equal(source, reader.ReadSourceText(sourceTextData).ToString());
+    }
+
+    /// <summary>
+    /// Two projects referencing the same in-memory dependency must reuse the emitted assembly
+    /// through the ProjectId-keyed cache rather than emitting it twice.
+    /// </summary>
+    [Fact]
+    public void AddFromWorkspace_SharedProjectReferenceUsesCache()
+    {
+        using var workspace = new AdhocWorkspace();
+        var lib = AddAdhocProject(workspace, "SharedLib", "SharedLib", "public class SharedLib { }");
+        _ = AddAdhocProject(workspace, "ConsumerA", "ConsumerA", "public class ConsumerA : SharedLib { }", lib.Id);
+        _ = AddAdhocProject(workspace, "ConsumerB", "ConsumerB", "public class ConsumerB : SharedLib { }", lib.Id);
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, x => x.Name.StartsWith("Consumer", StringComparison.Ordinal), CancellationToken);
+        complogStream.Position = 0;
+        Assert.True(result.Succeeded);
+
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        var mvids = reader.ReadAllCompilerCalls()
+            .Select(x => reader.ReadAllReferenceData(x).Single(r => r.AssemblyIdentityData.AssemblyName == "SharedLib").Mvid)
+            .ToList();
+        Assert.Equal(2, mvids.Count);
+        Assert.Equal(mvids[0], mvids[1]);
+    }
+
+    /// <summary>
+    /// When the project name has no "(tfm)" suffix the TargetFramework falls back to the parent
+    /// directory of the output path, which for default-layout SDK projects is the TFM.
+    /// </summary>
+    [Fact]
+    public void AddFromWorkspace_TargetFrameworkFromOutputPath()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId("TfmLib");
+        _ = workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "TfmLib",
+            assemblyName: "TfmLib",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
+            outputFilePath: Path.Combine(RootDirectory, "bin", "Debug", "net9.0", "TfmLib.dll")));
+
+        // MSBuildWorkspace names multi-targeted projects "AssemblyName(tfm)"; that takes priority.
+        var parenId = ProjectId.CreateNewId("ParenLib(net8.0)");
+        _ = workspace.AddProject(ProjectInfo.Create(
+            parenId,
+            VersionStamp.Default,
+            name: "ParenLib(net8.0)",
+            assemblyName: "ParenLib",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]));
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+        Assert.True(result.Succeeded);
+        Assert.Equal("net9.0", result.CompilerCalls.Single(x => x.ProjectFileName.StartsWith("TfmLib", StringComparison.Ordinal)).TargetFramework);
+        Assert.Equal("net8.0", result.CompilerCalls.Single(x => x.ProjectFileName.StartsWith("ParenLib", StringComparison.Ordinal)).TargetFramework);
+    }
+
+    private sealed class ThrowingTextLoader(Exception exception) : TextLoader
+    {
+        public override Task<TextAndVersion> LoadTextAndVersionAsync(LoadTextOptions options, CancellationToken cancellationToken) =>
+            throw exception;
+    }
+
+    private static AdhocWorkspace CreateWorkspaceWithThrowingDocument(Exception exception)
+    {
+        var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId("Broken");
+        _ = workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "Broken",
+            assemblyName: "Broken",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            documents: [DocumentInfo.Create(
+                DocumentId.CreateNewId(projectId),
+                "Broken.cs",
+                loader: new ThrowingTextLoader(exception))],
+            metadataReferences: [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)]));
+        return workspace;
+    }
+
+    /// <summary>
+    /// Build a workspace whose single project has a metadata reference whose backing file no
+    /// longer exists on disk: the compilation itself is fine (the reference bytes were read
+    /// eagerly) but serializing it throws when the builder goes back to the file.
+    /// </summary>
+    private AdhocWorkspace CreateWorkspaceWithMissingReferenceFile()
+    {
+        var referencePath = Path.Combine(RootDirectory, "missing-reference.dll");
+        File.Copy(typeof(object).Assembly.Location, referencePath);
+        var reference = MetadataReference.CreateFromFile(referencePath);
+        File.Delete(referencePath);
+
+        var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId("Broken");
+        _ = workspace.AddProject(ProjectInfo.Create(
+            projectId,
+            VersionStamp.Default,
+            name: "Broken",
+            assemblyName: "Broken",
+            language: LanguageNames.CSharp,
+            compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+            metadataReferences: [reference]));
+        return workspace;
+    }
+
+    /// <summary>
+    /// A project that throws while serializing is recorded as a diagnostic and fails the
+    /// result rather than propagating.
+    /// </summary>
+    [Fact]
+    public void TryCreateFromWorkspace_ProjectThrows()
+    {
+        using var workspace = CreateWorkspaceWithMissingReferenceFile();
+
+        var complogStream = new MemoryStream();
+        var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Diagnostics, x => x.Contains("Error adding Broken"));
+    }
+
+    [Fact]
+    public void TryCreateFromWorkspace_CancellationDuringSerialization()
+    {
+        using var workspace = CreateWorkspaceWithThrowingDocument(new OperationCanceledException());
+
+        var complogStream = new MemoryStream();
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            CompilerLogUtil.TryCreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken));
+    }
+
+    [Fact]
+    public async Task CreateFromWorkspaceAsync_FilePath()
+    {
+        using var workspace = LoadConsoleWorkspace();
+        var complogFilePath = Path.Combine(RootDirectory, "workspace-async.complog");
+
+        _ = await CompilerLogUtil.CreateFromWorkspaceAsync(workspace, complogFilePath, cancellationToken: CancellationToken);
+
+        using var reader = CompilerLogReader.Create(complogFilePath, state: State);
+        Assert.Single(reader.ReadAllCompilerCalls());
+    }
+
+    [Fact]
+    public void CreateFromWorkspace_SyncFilePath()
+    {
+        using var workspace = LoadConsoleWorkspace();
+        var complogFilePath = Path.Combine(RootDirectory, "workspace-sync.complog");
+
+        _ = CompilerLogUtil.CreateFromWorkspace(workspace, complogFilePath, cancellationToken: CancellationToken);
+
+        Assert.True(File.Exists(complogFilePath));
+    }
+
+    /// <summary>
+    /// The throwing variant surfaces per-project failures as a <see cref="CompilerLogException"/>.
+    /// </summary>
+    [Fact]
+    public void CreateFromWorkspace_ThrowsOnFailure()
+    {
+        using var workspace = CreateWorkspaceWithMissingReferenceFile();
+
+        var complogStream = new MemoryStream();
+        var ex = Assert.Throws<CompilerLogException>(() =>
+            CompilerLogUtil.CreateFromWorkspace(workspace, complogStream, cancellationToken: CancellationToken));
+        Assert.Contains("Error adding Broken", ex.Message);
     }
 
     [Fact]
