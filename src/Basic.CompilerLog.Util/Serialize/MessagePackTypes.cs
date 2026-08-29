@@ -280,6 +280,9 @@ public class CompilationDataPack
     public bool IncludesGeneratedText { get; set; }
     [Key(6)]
     public SourceHashAlgorithm ChecksumAlgorithm { get; set; }
+    /// <summary>
+    /// Deprecated. Retained to preserve the serialized layout.
+    /// </summary>
     [Key(7)]
     public bool? HasGeneratedFilesInPdb { get; set; }
     [Key(8)]

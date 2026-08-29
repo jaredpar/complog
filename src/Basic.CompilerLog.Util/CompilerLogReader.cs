@@ -792,9 +792,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             return true;
         }
 
-        return dataPack.HasGeneratedFilesInPdb is true
-            ? dataPack.IncludesGeneratedText
-            : dataPack.IncludesGeneratedText;
+        return dataPack.IncludesGeneratedText;
     }
 
     /// <inheritdoc cref="ICompilerCallReader.ReadAllGeneratedSourceTexts(CompilerCall)"/>

@@ -395,12 +395,10 @@ internal sealed class CompilerLogBuilder : IDisposable
     {
         if (!RoslynUtil.HasGeneratedFilesInPdb(args))
         {
-            dataPack.HasGeneratedFilesInPdb = false;
             dataPack.IncludesGeneratedText = false;
             return;
         }
 
-        dataPack.HasGeneratedFilesInPdb = true;
         try
         {
             var generatedFiles = RoslynUtil.ReadGeneratedFilesFromPdb(compilerCall, args);
