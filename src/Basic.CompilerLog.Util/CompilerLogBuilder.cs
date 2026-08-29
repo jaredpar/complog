@@ -710,33 +710,23 @@ internal sealed class CompilerLogBuilder : IDisposable
     private void AddContent(CompilationDataPack dataPack, RawContentKind kind, string filePath, Stream stream)
     {
         var contentHash = WriteContent(stream);
-
-        dataPack.ContentList.Add(((int)kind, new ContentPack()
-        {
-            ContentHash = contentHash,
-            FilePath = filePath
-        }));
+        AddContentCore(dataPack, kind, filePath, contentHash);
     }
 
     private bool AddContentFromDisk(CompilationDataPack dataPack, RawContentKind kind, string filePath)
     {
         var contentHash = WriteContentFromDisk(filePath);
+        AddContentCore(dataPack, kind, filePath, contentHash);
+        return contentHash is not null;
+    }
+
+    private static void AddContentCore(CompilationDataPack dataPack, RawContentKind kind, string filePath, string? contentHash)
+    {
+        Debug.Assert(Path.IsPathRooted(filePath));
 
         dataPack.ContentList.Add(((int)kind, new ContentPack()
         {
             ContentHash = contentHash,
-            FilePath = filePath
-        }));
-
-        return contentHash is not null;
-    }
-
-    private void AddContent(CompilationDataPack dataPack, RawContentKind kind, string filePath, string content)
-    {
-        using var stream = new StringStream(content, ContentEncoding);
-        dataPack.ContentList.Add(((int)kind, new ContentPack()
-        {
-            ContentHash = WriteContent(stream),
             FilePath = filePath
         }));
     }
