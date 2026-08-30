@@ -439,6 +439,7 @@ public sealed class CompilerLogApp(
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
             using var state = new LogReaderState(stripReadyToRun: stripReadyToRun);
             using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None, state: state);
+            WriteWorkspaceLogWarning(reader);
             var exportUtil = new ExportUtil(reader, exportOptions);
 
             if (exportAsSolution)
@@ -510,6 +511,7 @@ public sealed class CompilerLogApp(
             }
 
             using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
+            WriteWorkspaceLogWarning(reader);
             if (inline)
             {
                 WriteLine("Generating response files inline");
@@ -602,6 +604,7 @@ public sealed class CompilerLogApp(
 
             using var state = new LogReaderState(cacheAnalyzers: true, stripReadyToRun: options.StripReadyToRun);
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, state);
+            WriteWorkspaceLogWarning(reader);
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allSucceeded = true;
 
@@ -1060,6 +1063,19 @@ public sealed class CompilerLogApp(
     {
         var logFilePath = GetLogFilePath(extra);
         return CompilerLogUtil.GetOrCreateCompilerLogStream(logFilePath);
+    }
+
+    /// <summary>
+    /// Warn when operating on a log created from a Roslyn workspace: the workspace API doesn't
+    /// surface emit-time inputs so the stored command line is best effort and the output of
+    /// replay / export / rsp can differ from the original build.
+    /// </summary>
+    internal void WriteWorkspaceLogWarning(ICompilerCallReader reader)
+    {
+        if (reader.IsWorkspaceLog)
+        {
+            WriteLine("Warning: this log was created from a Roslyn workspace, not an actual build. Emit-time inputs (embedded resources, Win32 resources, source link, app.config) are not captured so the output can differ from the original build.");
+        }
     }
 
     internal ICompilerCallReader GetCompilerCallReader(List<string> extra, BasicAnalyzerKind? basicAnalyzerKind = null, bool checkVersion = false, LogReaderState? state = null)

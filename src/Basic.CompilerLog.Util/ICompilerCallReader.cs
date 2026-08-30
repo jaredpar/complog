@@ -9,6 +9,13 @@ public interface ICompilerCallReader : IDisposable
     public BasicAnalyzerKind BasicAnalyzerKind { get; }
     public LogReaderState LogReaderState { get; }
     public bool OwnsLogReaderState { get; }
+
+    /// <summary>
+    /// True when the underlying log was created from a Roslyn <see cref="Workspace"/> rather
+    /// than an actual build. Workspace logs don't include emit-time inputs (embedded resources,
+    /// Win32 resources, source link, app.config) so replay / export have fidelity limits.
+    /// </summary>
+    public bool IsWorkspaceLog { get; }
     public CompilerCall ReadCompilerCall(int index);
     public List<CompilerCall> ReadAllCompilerCalls(Func<CompilerCall, bool>? predicate = null);
     public List<CompilationData> ReadAllCompilationData(Func<CompilerCall, bool>? predicate = null);

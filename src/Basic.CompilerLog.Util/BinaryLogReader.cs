@@ -35,6 +35,9 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     public bool OwnsLogReaderState { get; }
     public LogReaderState LogReaderState { get; }
     public BasicAnalyzerKind BasicAnalyzerKind { get; }
+
+    /// <inheritdoc cref="ICompilerCallReader.IsWorkspaceLog"/>
+    public bool IsWorkspaceLog => false;
     public bool IsDisposed => _stream is null;
 
     private BinaryLogReader(Stream stream, bool leaveOpen, BasicAnalyzerKind? basicAnalyzerKind, LogReaderState? state)

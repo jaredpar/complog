@@ -211,6 +211,28 @@ public sealed class CompilerLogBuilderTests : TestBase
         Assert.NotNull(compilationData.Compilation);
         Assert.NotEmpty(compilationData.Compilation.SyntaxTrees);
         Assert.NotEmpty(compilationData.Compilation.References);
+        Assert.True(reader.IsWorkspaceLog);
+    }
+
+    /// <summary>
+    /// The workspace origin flag must be scoped to workspace-created logs: build-derived
+    /// readers report false.
+    /// </summary>
+    [Fact]
+    public void ConvertBinaryLog_IsNotWorkspaceLog()
+    {
+        using var complogStream = new MemoryStream();
+        using (var binlogStream = new FileStream(Fixture.SolutionBinaryLogPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            _ = CompilerLogUtil.ConvertBinaryLog(binlogStream, complogStream);
+        }
+
+        complogStream.Position = 0;
+        using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
+        Assert.False(reader.IsWorkspaceLog);
+
+        using var binlogReader = BinaryLogReader.Create(Fixture.SolutionBinaryLogPath);
+        Assert.False(binlogReader.IsWorkspaceLog);
     }
 
     [Fact]
