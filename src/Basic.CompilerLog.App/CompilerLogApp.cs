@@ -439,11 +439,11 @@ public sealed class CompilerLogApp(
             using var compilerLogStream = GetOrCreateCompilerLogStream(extra);
             using var state = new LogReaderState(stripReadyToRun: stripReadyToRun);
             using var reader = GetCompilerLogReader(compilerLogStream, leaveOpen: true, BasicAnalyzerKind.None, state: state);
-            WriteWorkspaceLogWarning(reader);
             var exportUtil = new ExportUtil(reader, exportOptions);
 
             if (exportAsSolution)
             {
+                WriteWorkspaceLogWarning(reader.ReadAllCompilerCalls(options.FilterCompilerCalls));
                 baseOutputPath = GetBaseOutputPath(baseOutputPath, "solution");
                 WriteLine($"Exporting project to {baseOutputPath}");
                 exportUtil.ExportSolution(baseOutputPath, options.FilterCompilerCalls);
@@ -451,6 +451,7 @@ public sealed class CompilerLogApp(
             else
             {
                 var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
+                WriteWorkspaceLogWarning(namedCompilerCalls.Select(x => x.CompilerCall));
                 baseOutputPath = GetBaseOutputPath(baseOutputPath, "export");
                 WriteLine($"Exporting to {baseOutputPath}");
                 Directory.CreateDirectory(baseOutputPath);
@@ -511,7 +512,6 @@ public sealed class CompilerLogApp(
             }
 
             using var reader = GetCompilerCallReader(extra, BasicAnalyzerHost.DefaultKind);
-            WriteWorkspaceLogWarning(reader);
             if (inline)
             {
                 WriteLine("Generating response files inline");
@@ -525,6 +525,7 @@ public sealed class CompilerLogApp(
 
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
             var allCompilerCalls = namedCompilerCalls.Select(x => x.CompilerCall).ToList();
+            WriteWorkspaceLogWarning(allCompilerCalls);
             foreach (var (name, compilerCall, isMultiTargeted) in namedCompilerCalls)
             {
                 var rspDirPath = inline
@@ -604,8 +605,8 @@ public sealed class CompilerLogApp(
 
             using var state = new LogReaderState(cacheAnalyzers: true, stripReadyToRun: options.StripReadyToRun);
             using var reader = GetCompilerCallReader(extra, options.BasicAnalyzerKind, checkVersion: true, state);
-            WriteWorkspaceLogWarning(reader);
             var namedCompilerCalls = ReadAllNamedCompilerCalls(reader, options.FilterCompilerCalls);
+            WriteWorkspaceLogWarning(namedCompilerCalls.Select(x => x.CompilerCall));
             var allSucceeded = true;
 
             foreach (var (name, compilerCall) in namedCompilerCalls)
@@ -1066,15 +1067,15 @@ public sealed class CompilerLogApp(
     }
 
     /// <summary>
-    /// Warn when operating on a log created from a Roslyn workspace: the workspace API doesn't
-    /// surface emit-time inputs so the stored command line is best effort and the output of
-    /// replay / export / rsp can differ from the original build.
+    /// Warn when any of the selected compilations was created from a Roslyn workspace: the
+    /// workspace API doesn't surface emit-time inputs so the stored command line is best effort
+    /// and the output of replay / export / rsp can differ from the original build.
     /// </summary>
-    internal void WriteWorkspaceLogWarning(ICompilerCallReader reader)
+    internal void WriteWorkspaceLogWarning(IEnumerable<CompilerCall> compilerCalls)
     {
-        if (reader.IsWorkspaceLog)
+        if (compilerCalls.Any(x => x.IsWorkspace))
         {
-            WriteLine("Warning: this log was created from a Roslyn workspace, not an actual build. Emit-time inputs (embedded resources, Win32 resources, source link, app.config) are not captured so the output can differ from the original build.");
+            WriteLine("Warning: compilations in this log were created from a Roslyn workspace, not an actual build. Emit-time inputs (embedded resources, Win32 resources, source link, app.config) are not captured so the output can differ from the original build.");
         }
     }
 

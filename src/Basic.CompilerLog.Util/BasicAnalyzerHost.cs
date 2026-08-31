@@ -130,13 +130,8 @@ public abstract class BasicAnalyzerHost : IDisposable
         {
             if (analyzers.Count == 0)
             {
-                // A log created from a workspace can contain generated text without recording
-                // any analyzer references (the workspace's generators are not required to be
-                // file backed). Replay whatever generated text is stored.
                 var storedSourceTexts = dataProvider.ReadAllGeneratedSourceTexts(compilerCall);
-                return storedSourceTexts.Count == 0
-                    ? new BasicAnalyzerHostNone()
-                    : new BasicAnalyzerHostNone(storedSourceTexts);
+                return new BasicAnalyzerHostNone(storedSourceTexts);
             }
 
             if (!dataProvider.HasAllGeneratedFileContent(compilerCall))

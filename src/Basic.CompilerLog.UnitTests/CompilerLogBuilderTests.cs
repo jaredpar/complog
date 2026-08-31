@@ -211,12 +211,13 @@ public sealed class CompilerLogBuilderTests : TestBase
         Assert.NotNull(compilationData.Compilation);
         Assert.NotEmpty(compilationData.Compilation.SyntaxTrees);
         Assert.NotEmpty(compilationData.Compilation.References);
-        Assert.True(reader.IsWorkspaceLog);
+        Assert.All(compilerCalls, x => Assert.True(x.IsWorkspace));
+        Assert.All(result.CompilerCalls, x => Assert.True(x.IsWorkspace));
     }
 
     /// <summary>
-    /// The workspace origin flag must be scoped to workspace-created logs: build-derived
-    /// readers report false.
+    /// The workspace origin flag must be scoped to workspace-created compilations:
+    /// build-derived compiler calls report false.
     /// </summary>
     [Fact]
     public void ConvertBinaryLog_IsNotWorkspaceLog()
@@ -229,10 +230,10 @@ public sealed class CompilerLogBuilderTests : TestBase
 
         complogStream.Position = 0;
         using var reader = CompilerLogReader.Create(complogStream, State, leaveOpen: false);
-        Assert.False(reader.IsWorkspaceLog);
+        Assert.All(reader.ReadAllCompilerCalls(), x => Assert.False(x.IsWorkspace));
 
         using var binlogReader = BinaryLogReader.Create(Fixture.SolutionBinaryLogPath);
-        Assert.False(binlogReader.IsWorkspaceLog);
+        Assert.All(binlogReader.ReadAllCompilerCalls(), x => Assert.False(x.IsWorkspace));
     }
 
     [Fact]

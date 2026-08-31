@@ -61,10 +61,6 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
     public BasicAnalyzerKind BasicAnalyzerKind { get; }
     public LogReaderState LogReaderState { get; }
-
-    /// <inheritdoc cref="ICompilerCallReader.IsWorkspaceLog"/>
-    public bool IsWorkspaceLog { get; }
-
     internal Metadata Metadata { get; }
 
     /// <summary>
@@ -108,9 +104,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
         }
         else
         {
-            var logInfoPack = ReadLogInfo();
-            _msbuildDataPack = logInfoPack.MSBuildData;
-            IsWorkspaceLog = logInfoPack.IsWorkspaceLog;
+            _msbuildDataPack = ReadLogInfo();
         }
 
         void ReadAssemblyInfo()
@@ -125,7 +119,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             }
         }
 
-        LogInfoPack ReadLogInfo()
+        MSBuildDataPack? ReadLogInfo()
         {
             using var reader = Polyfill.NewStreamReader(ZipArchive.OpenEntryOrThrow(LogInfoFileName), ContentEncoding, leaveOpen: false);
             var hash = reader.ReadLine();
@@ -138,7 +132,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             {
                 _mvidToCompilerCallIndexMap[tuple.Mvid] = tuple.CompilerCallIndex;
             }
-            return pack;
+            return pack.MSBuildData;
         }
     }
 
@@ -214,7 +208,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             pack.TargetFramework,
             pack.IsCSharp,
             NormalizeAndMapPath(pack.CompilerFilePath, PathMapKind.CompilerExecutableFile),
-            new CompilerCallState(this, index));
+            new CompilerCallState(this, index),
+            isWorkspace: pack.IsWorkspace);
     }
 
     public CompilerCallData ReadCompilerCallData(CompilerCall compilerCall)

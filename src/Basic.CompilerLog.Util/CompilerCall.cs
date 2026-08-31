@@ -51,6 +51,14 @@ public sealed class CompilerCall
     public string ProjectFileName { get; }
     public string ProjectDirectory { get; }
 
+    /// <summary>
+    /// True when this compilation was created from a Roslyn <see cref="Microsoft.CodeAnalysis.Workspace"/>
+    /// rather than an actual build. The workspace API doesn't surface emit-time inputs (embedded
+    /// resources, Win32 resources, source link, app.config) so replaying such a compilation has
+    /// fidelity limits.
+    /// </summary>
+    public bool IsWorkspace { get; }
+
     public bool IsVisualBasic => !IsCSharp;
 
     internal CompilerCall(
@@ -59,7 +67,8 @@ public sealed class CompilerCall
         string? targetFramework = null,
         bool isCSharp = true,
         string? compilerFilePath = null,
-        object? ownerState = null)
+        object? ownerState = null,
+        bool isWorkspace = false)
     {
         CompilerFilePath = compilerFilePath;
         ProjectFilePath = projectFilePath;
@@ -67,6 +76,7 @@ public sealed class CompilerCall
         TargetFramework = targetFramework;
         IsCSharp = isCSharp;
         OwnerState = ownerState;
+        IsWorkspace = isWorkspace;
         ProjectFileName = Path.GetFileName(ProjectFilePath);
         ProjectDirectory = Path.GetDirectoryName(ProjectFilePath)!;
     }

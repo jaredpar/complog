@@ -163,10 +163,7 @@ public static class CompilerLogUtil
     {
         var diagnostics = new List<string>();
         var compilerCalls = new List<CompilerCall>();
-        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics)
-        {
-            IsWorkspaceLog = true,
-        };
+        using var builder = new CompilerLogBuilder(compilerLogStream, diagnostics);
 
         var projects = workspace.CurrentSolution.Projects;
         if (predicate is not null)

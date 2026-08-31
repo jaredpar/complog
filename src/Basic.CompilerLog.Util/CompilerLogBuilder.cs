@@ -59,12 +59,6 @@ internal sealed class CompilerLogBuilder : IDisposable
     internal ZipArchive ZipArchive { get; private set; }
     internal MSBuildData? MSBuildData { get; set; }
 
-    /// <summary>
-    /// Set when the log is being created from a Roslyn workspace rather than an actual build,
-    /// so readers can surface the fidelity limits of workspace logs.
-    /// </summary>
-    internal bool IsWorkspaceLog { get; set; }
-
     internal bool IsOpen => !_closed;
     internal bool IsClosed => _closed;
 
@@ -281,6 +275,7 @@ internal sealed class CompilerLogBuilder : IDisposable
             IsCSharp = isCSharp,
             TargetFramework = targetFramework,
             CompilerCallKind = CompilerCallKind.Regular,
+            IsWorkspace = true,
             CommandLineArgsHash = WriteContentMessagePack(WorkspaceCommandLineSynthesizer.Synthesize(project, compilation)),
             CompilationDataPackHash = compilationDataPackHash,
         };
@@ -292,7 +287,8 @@ internal sealed class CompilerLogBuilder : IDisposable
             projectFilePath: projectFilePath,
             kind: CompilerCallKind.Regular,
             targetFramework: targetFramework,
-            isCSharp: isCSharp);
+            isCSharp: isCSharp,
+            isWorkspace: true);
 
         async Task<(string CompilationDataPackHash, bool AllProjectReferencesAdded)> CreateCompilationDataPackAsync()
         {
@@ -703,7 +699,6 @@ internal sealed class CompilerLogBuilder : IDisposable
             {
                 CompilerCallMvidList = _compilerCallMvidList,
                 MvidToReferenceInfoMap = _mvidToRefInfoMap,
-                IsWorkspaceLog = IsWorkspaceLog,
                 MSBuildData = MSBuildData is { } d
                     ? new MSBuildDataPack
                     {
