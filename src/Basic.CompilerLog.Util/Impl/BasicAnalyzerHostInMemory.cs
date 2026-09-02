@@ -27,7 +27,6 @@ internal sealed class BasicAnalyzerHostInMemory : BasicAnalyzerHost
         var name = $"{nameof(BasicAnalyzerHostInMemory)} - {Guid.NewGuid().ToString("N")}";
         Loader = new InMemoryLoader(name, provider, analyzers);
     }
-
 #if NET
 
     /// <summary>
@@ -361,4 +360,3 @@ file sealed class BasicAnalyzerReference : AnalyzerReference, IBasicAnalyzerRefe
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"In Memory {AssemblyName}";
 }
-

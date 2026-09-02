@@ -141,11 +141,12 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     private (CompilerCallData CompilerCallData, CommandLineArguments Arguments) ReadCompilerCallDataCore(CompilerCall compilerCall)
     {
         var args = ReadCommandLineArguments(compilerCall);
-        var assemblyFileName = RoslynUtil.GetAssemblyFileName(args);
-        var compilationName = Path.GetFileNameWithoutExtension(assemblyFileName);
+        var outputFileName = RoslynUtil.GetAssemblyFileName(args);
+        var assemblyFileName = Path.GetFileNameWithoutExtension(outputFileName);
         var data = new CompilerCallData(
             compilerCall,
-            compilationName,
+            assemblyFileName,
+            outputFileName,
             args.OutputDirectory,
             args.ParseOptions,
             args.CompilationOptions,
@@ -427,7 +428,7 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
         var list = new List<SourceTextData>(args.SourceFiles.Length + args.AnalyzerConfigPaths.Length + args.AdditionalFiles.Length);
         list.AddRange(args.SourceFiles.Select(x => new SourceTextData(this, x.Path, args.ChecksumAlgorithm, SourceTextKind.SourceCode)));
         list.AddRange(args.AnalyzerConfigPaths.Select(x => new SourceTextData(this, x, args.ChecksumAlgorithm, SourceTextKind.AnalyzerConfig)));
-        list.AddRange(args.AdditionalFiles.Select(x => new SourceTextData(this, x.Path, args.ChecksumAlgorithm, SourceTextKind.AnalyzerConfig)));
+        list.AddRange(args.AdditionalFiles.Select(x => new SourceTextData(this, x.Path, args.ChecksumAlgorithm, SourceTextKind.AdditionalText)));
         return list;
     }
 

@@ -252,4 +252,15 @@ public sealed class BinaryLogReaderTests : TestBase
         var data2 = reader.ReadMSBuildData();
         Assert.Same(data1, data2);
     }
+
+    [Fact]
+    public void ReadAllSourceTextDataClassifiesAdditionalFilesAsAdditionalText()
+    {
+        using var reader = BinaryLogReader.Create(Fixture.ConsoleComplex.Value.BinaryLogPath!);
+        var compilerCall = reader.ReadAllCompilerCalls().Single();
+        var sourceTextData = reader.ReadAllSourceTextData(compilerCall)
+            .Single(data => Path.GetFileName(data.FilePath) == "additional.txt");
+
+        Assert.Equal(SourceTextKind.AdditionalText, sourceTextData.SourceTextKind);
+    }
 }

@@ -19,6 +19,16 @@ The core library lives in `src/Basic.CompilerLog.Util/`. Key source files:
 CLI logic lives in `src/Basic.CompilerLog.App/` (`CompilerLogApp.cs` handles command dispatch),
 with `src/Basic.CompilerLog/` as the thin `complog` global-tool entry point.
 
+`src/Basic.CompilerLog.WorkspaceComparer/` is a development tool for comparing the workspace loaded
+by `MSBuildWorkspace` with the workspace reconstructed by `SolutionReader`. It reports structural
+differences in projects, documents, project and metadata references, analyzers, and compiler options,
+making it easier to spot where compiler-log workspaces diverge from the shape consumers normally see
+through `MSBuildWorkspace`:
+
+```bash
+dotnet run --project src/Basic.CompilerLog.WorkspaceComparer -- <project-or-solution> <compiler-log>
+```
+
 ## Architecture Notes
 
 - **Multi-targeting**: The Util library targets net9.0/net10.0/net472/netstandard2.0 for broad
