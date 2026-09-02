@@ -14,6 +14,7 @@ namespace Basic.CompilerLog.Util;
 public sealed class SolutionReader : IDisposable
 {
     private readonly SortedDictionary<int, (CompilerCall CompilerCall, ProjectId ProjectId)> _indexToProjectDataMap;
+    private readonly HashSet<string> _multiTargetProjectPaths;
 
     internal ICompilerCallReader Reader { get; }
     internal VersionStamp VersionStamp { get; }
@@ -29,6 +30,7 @@ public sealed class SolutionReader : IDisposable
         predicate ??= static c => c.Kind == CompilerCallKind.Regular;
         var map = new SortedDictionary<int, (CompilerCall, ProjectId)>();
         var compilerCalls = reader.ReadAllCompilerCalls();
+        _multiTargetProjectPaths = reader.GetMultiTargetedProjectFilePaths();
         for (int i = 0; i < compilerCalls.Count; i++)
         {
             var call = reader.ReadCompilerCall(i);
@@ -83,23 +85,32 @@ public sealed class SolutionReader : IDisposable
                 _ => throw new InvalidOperationException(),
             };
 
-            var fileName = sourceTextData.FilePath;
+            var filePath = sourceTextData.FilePath;
+            var fileName = Path.GetFileName(filePath);
             var documentId = DocumentId.CreateNewId(projectId, debugName: fileName);
             list.Add(DocumentInfo.Create(
                 documentId,
                 fileName,
+                folders: GetFolders(compilerCall.ProjectDirectory, filePath),
                 loader: new CompilerLogTextLoader(Reader, VersionStamp, sourceTextData),
-                filePath: sourceTextData.FilePath));
+                filePath: filePath));
         }
 
         var refTuple = ReadReferences();
         var compilerCallData = Reader.ReadCompilerCallData(compilerCall);
         var basicAnalyzeHost = Reader.CreateBasicAnalyzerHost(compilerCall);
+        var projectName = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
+        if (compilerCall.TargetFramework is not null &&
+            _multiTargetProjectPaths.Contains(compilerCall.ProjectFilePath))
+        {
+            projectName = $"{projectName} ({compilerCall.TargetFramework})";
+        }
+
         var projectInfo = ProjectInfo.Create(
             projectId,
             VersionStamp,
-            name: compilerCall.ProjectFileName,
-            assemblyName: compilerCallData.AssemblyFileName,
+            name: projectName,
+            assemblyName: Path.GetFileNameWithoutExtension(compilerCallData.AssemblyFileName),
             language: compilerCall.IsCSharp ? LanguageNames.CSharp : LanguageNames.VisualBasic,
             filePath: compilerCall.ProjectFilePath,
             outputFilePath: Path.Combine(compilerCallData.OutputDirectory ?? "", compilerCallData.AssemblyFileName),
@@ -136,10 +147,10 @@ public sealed class SolutionReader : IDisposable
                     continue;
                 }
 
-                if (Reader.TryGetCompilerCallIndex(referenceData.Mvid, out var refCompilerCallIndex))
+                if (Reader.TryGetCompilerCallIndex(referenceData.Mvid, out var refCompilerCallIndex) &&
+                    _indexToProjectDataMap.TryGetValue(refCompilerCallIndex, out var refProjectData))
                 {
-                    var refProjectId = _indexToProjectDataMap[refCompilerCallIndex].ProjectId;
-                    projectReferences.Add(new ProjectReference(refProjectId, referenceData.Aliases, referenceData.EmbedInteropTypes));
+                    projectReferences.Add(new ProjectReference(refProjectData.ProjectId, referenceData.Aliases, referenceData.EmbedInteropTypes));
                 }
                 else
                 {
@@ -149,6 +160,22 @@ public sealed class SolutionReader : IDisposable
             }
 
             return (projectReferences, metadataReferences);
+        }
+
+        static ImmutableArray<string> GetFolders(string projectDirectory, string filePath)
+        {
+            var relativePath = Path.GetRelativePath(projectDirectory, filePath);
+            if (Path.IsPathRooted(relativePath) ||
+                relativePath == ".." ||
+                relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            {
+                return [];
+            }
+
+            var directory = Path.GetDirectoryName(relativePath);
+            return string.IsNullOrEmpty(directory)
+                ? []
+                : directory.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).ToImmutableArray();
         }
     }
 }

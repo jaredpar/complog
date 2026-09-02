@@ -122,6 +122,24 @@ public static class Extensions
         return mdRef;
     }
 
+    public static HashSet<string> GetMultiTargetedProjectFilePaths(
+        this ICompilerCallReader compilerCallReader,
+        Func<CompilerCall, bool>? predicate = null)
+    {
+        var projectFilePaths = new HashSet<string>(PathUtil.Comparer);
+        var multiTargetedProjectFilePaths = new HashSet<string>(PathUtil.Comparer);
+        foreach (var compilerCall in compilerCallReader.ReadAllCompilerCalls(predicate))
+        {
+            if (compilerCall.Kind == CompilerCallKind.Regular &&
+                !projectFilePaths.Add(compilerCall.ProjectFilePath))
+            {
+                multiTargetedProjectFilePaths.Add(compilerCall.ProjectFilePath);
+            }
+        }
+
+        return multiTargetedProjectFilePaths;
+    }
+
     public static (List<string> Analyzers, List<string> Generators) ReadAnalyzerFullTypeNames(this ICompilerCallReader compilerCallReader, AnalyzerData analyzerData, bool? isCSharp = null)
     {
         var languageName = isCSharp switch

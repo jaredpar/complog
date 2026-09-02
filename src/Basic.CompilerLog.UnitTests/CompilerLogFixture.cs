@@ -80,6 +80,11 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
     internal Lazy<LogData> ConsoleWithReference { get; }
 
     /// <summary>
+    /// A console project that has a reference to a multi-targeted library
+    /// </summary>
+    internal Lazy<LogData> ConsoleWithMultiTargetReference { get; }
+
+    /// <summary>
     /// This is a solution that has two projects (library and console) where the console
     /// has a reference to the library using an extern alias.
     /// </summary>
@@ -318,7 +323,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                   </PropertyGroup>
                   <ItemGroup>
                     <EmbeddedResource Include="resource.txt" />
-                    <AdditionalFiles Include="additional.txt" FixtureKey="true" />
+                    <AdditionalFiles Include="Assets\additional.txt" FixtureKey="true" />
                     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="FixtureKey" />
                   </ItemGroup>
                 </Project>
@@ -336,9 +341,17 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 """, TestBase.DefaultEncoding);
             File.WriteAllText(Path.Combine(scratchPath, "line.txt"), "this is content", TestBase.DefaultEncoding);
 
-            File.WriteAllText(Path.Combine(scratchPath, "additional.txt"), """
+            var assetsPath = Directory.CreateDirectory(Path.Combine(scratchPath, "Assets")).FullName;
+            File.WriteAllText(Path.Combine(assetsPath, "additional.txt"), """
                 This is an additional file.
                 It just has some text in it
+                """, TestBase.DefaultEncoding);
+
+            var featuresPath = Directory.CreateDirectory(Path.Combine(scratchPath, "Features")).FullName;
+            File.WriteAllText(Path.Combine(featuresPath, "Nested.cs"), "class Nested { }", TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(featuresPath, ".editorconfig"), """
+                [*.cs]
+                dotnet_diagnostic.CA1822.severity = none
                 """, TestBase.DefaultEncoding);
 
             // File with a space in the name to make sure we quote correctly in RSP
@@ -481,6 +494,52 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
                 """,
                 TestBase.DefaultEncoding);
             RunDotnetCommand($@"add . reference ""{classLibPath}""", consolePath);
+            RunDotnetCommand($@"sln add ""{consolePath}""", scratchPath);
+
+            RunDotnetCommand("build -bl -nr:false", scratchPath);
+        });
+
+        ConsoleWithMultiTargetReference = WithBuild("console-with-multi-target-project-ref.complog", void (string scratchPath) =>
+        {
+            RunDotnetCommand("new sln -n ConsoleWithMultiTargetProjectRef", scratchPath);
+
+            var classLibPath = Directory.CreateDirectory(Path.Combine(scratchPath, "classlib")).FullName;
+            File.WriteAllText(Path.Combine(classLibPath, "util.csproj"), $"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFrameworks>net6.0;{TestUtil.TestTargetFramework}</TargetFrameworks>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                  </PropertyGroup>
+                </Project>
+                """, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(classLibPath, "Class1.cs"), """
+                namespace Util;
+                public static class NameInfo
+                {
+                    public static string GetName() => "Hello World";
+                }
+                """, TestBase.DefaultEncoding);
+            RunDotnetCommand($@"sln add ""{classLibPath}""", scratchPath);
+
+            var consolePath = Directory.CreateDirectory(Path.Combine(scratchPath, "console")).FullName;
+            File.WriteAllText(Path.Combine(consolePath, "console-with-reference.csproj"), $"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <OutputType>Exe</OutputType>
+                    <TargetFramework>{TestUtil.TestTargetFramework}</TargetFramework>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                  </PropertyGroup>
+                  <ItemGroup>
+                    <ProjectReference Include="..\classlib\util.csproj" />
+                  </ItemGroup>
+                </Project>
+                """, TestBase.DefaultEncoding);
+            File.WriteAllText(Path.Combine(consolePath, "Program.cs"), """
+                using Util;
+                Console.WriteLine(NameInfo.GetName());
+                """, TestBase.DefaultEncoding);
             RunDotnetCommand($@"sln add ""{consolePath}""", scratchPath);
 
             RunDotnetCommand("build -bl -nr:false", scratchPath);
@@ -896,6 +955,7 @@ public sealed class CompilerLogFixture : FixtureBase, IDisposable
         yield return nameof(Console);
         yield return nameof(ConsoleNoGenerator);
         yield return nameof(ConsoleWithReference);
+        yield return nameof(ConsoleWithMultiTargetReference);
         yield return nameof(ConsoleWithAliasReference);
         yield return nameof(ConsoleComplex);
         yield return nameof(ClassLib);

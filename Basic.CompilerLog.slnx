@@ -3,5 +3,6 @@
   <Project Path="src/Basic.CompilerLog.Util/Basic.CompilerLog.Util.csproj" />
   <Project Path="src/Basic.CompilerLog.App/Basic.CompilerLog.App.csproj" />
   <Project Path="src/Basic.CompilerLog/Basic.CompilerLog.csproj" />
+  <Project Path="src/Basic.CompilerLog.WorkspaceComparer/Basic.CompilerLog.WorkspaceComparer.csproj" />
   <Project Path="src/Scratch/Scratch.csproj" />
 </Solution>

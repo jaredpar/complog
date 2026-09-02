@@ -208,7 +208,7 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             pack.TargetFramework,
             pack.IsCSharp,
             NormalizeAndMapPath(pack.CompilerFilePath, PathMapKind.CompilerExecutableFile),
-            new CompilerCallState(this, index));
+            ownerState: new CompilerCallState(this, index));
     }
 
     public CompilerCallData ReadCompilerCallData(CompilerCall compilerCall)

@@ -999,16 +999,7 @@ public sealed class CompilerLogApp(
     {
         var compilerCalls = ReadAllCompilerCalls(reader, predicate);
 
-        // Set used to determine if the projects are single or multi-targeted.
-        var isMultiTargetedMap = new Dictionary<string, bool>(PathUtil.Comparer);
-        foreach (var compilerCall in compilerCalls)
-        {
-            if (compilerCall.Kind == CompilerCallKind.Regular)
-            {
-                ref bool isMultiTargeted = ref CollectionsMarshal.GetValueRefOrAddDefault(isMultiTargetedMap, compilerCall.ProjectFilePath, out var exists);
-                isMultiTargeted = exists;
-            }
-        }
+        var multiTargetedProjectFilePaths = reader.GetMultiTargetedProjectFilePaths(predicate);
 
         // Generate unique names for each compiler call
         var hashSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1030,7 +1021,7 @@ public sealed class CompilerLogApp(
                 name = newName;
             }
 
-            result.Add(new NamedCompilerCall(name, compilerCall, isMultiTargetedMap.GetValueOrDefault(compilerCall.ProjectFilePath)));
+            result.Add(new NamedCompilerCall(name, compilerCall, multiTargetedProjectFilePaths.Contains(compilerCall.ProjectFilePath)));
         }
 
         return result;
@@ -1040,7 +1031,7 @@ public sealed class CompilerLogApp(
             var name = Path.GetFileNameWithoutExtension(compilerCall.ProjectFileName);
             return compilerCall.Kind switch
             {
-                CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || !isMultiTargetedMap.GetValueOrDefault(compilerCall.ProjectFilePath)
+                CompilerCallKind.Regular => string.IsNullOrEmpty(compilerCall.TargetFramework) || !multiTargetedProjectFilePaths.Contains(compilerCall.ProjectFilePath)
                     ? name
                     : $"{name}-{compilerCall.TargetFramework}",
                 _ => $"{name}-{compilerCall.Kind.ToString().ToLowerInvariant()}",
