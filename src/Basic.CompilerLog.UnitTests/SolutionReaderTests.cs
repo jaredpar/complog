@@ -270,7 +270,7 @@ public sealed class SolutionReaderTests : TestBase
         var compilerCallData = reader.Reader.ReadCompilerCallData(compilerCall);
         using var workspace = new AdhocWorkspace();
         var project = workspace.AddSolution(reader.ReadSolutionInfo()).Projects.Single();
-        var expectedPath = Path.Combine(compilerCallData.OutputDirectory!, compilerCallData.AssemblyFileName);
+        var expectedPath = Path.Combine(compilerCallData.OutputDirectory!, compilerCallData.OutputFileName);
 
         Assert.Equal(expectedPath, project.OutputFilePath);
         Assert.True(Path.IsPathRooted(project.OutputFilePath));

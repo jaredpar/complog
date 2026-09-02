@@ -141,10 +141,12 @@ public sealed class BinaryLogReader : ICompilerCallReader, IBasicAnalyzerHostDat
     private (CompilerCallData CompilerCallData, CommandLineArguments Arguments) ReadCompilerCallDataCore(CompilerCall compilerCall)
     {
         var args = ReadCommandLineArguments(compilerCall);
-        var assemblyFileName = RoslynUtil.GetAssemblyFileName(args);
+        var outputFileName = RoslynUtil.GetAssemblyFileName(args);
+        var assemblyFileName = Path.GetFileNameWithoutExtension(outputFileName);
         var data = new CompilerCallData(
             compilerCall,
             assemblyFileName,
+            outputFileName,
             args.OutputDirectory,
             args.ParseOptions,
             args.CompilationOptions,

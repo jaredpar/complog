@@ -113,7 +113,7 @@ public sealed class SolutionReader : IDisposable
             assemblyName: Path.GetFileNameWithoutExtension(compilerCallData.AssemblyFileName),
             language: compilerCall.IsCSharp ? LanguageNames.CSharp : LanguageNames.VisualBasic,
             filePath: compilerCall.ProjectFilePath,
-            outputFilePath: Path.Combine(compilerCallData.OutputDirectory ?? "", compilerCallData.AssemblyFileName),
+            outputFilePath: Path.Combine(compilerCallData.OutputDirectory ?? "", compilerCallData.OutputFileName),
             compilationOptions: compilerCallData.CompilationOptions,
             parseOptions: compilerCallData.ParseOptions,
             documents,

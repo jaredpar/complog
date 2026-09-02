@@ -13,6 +13,21 @@ public sealed class CompilerCallData(
     CompilationOptions compilationOptions,
     EmitOptions emitOptions)
 {
+    internal string OutputFileName { get; private set; } = assemblyFileName;
+
+    internal CompilerCallData(
+        CompilerCall compilerCall,
+        string assemblyFileName,
+        string outputFileName,
+        string? outputDirectory,
+        ParseOptions parseOptions,
+        CompilationOptions compilationOptions,
+        EmitOptions emitOptions)
+        : this(compilerCall, assemblyFileName, outputDirectory, parseOptions, compilationOptions, emitOptions)
+    {
+        OutputFileName = outputFileName;
+    }
+
     public CompilerCall CompilerCall { get; } = compilerCall;
     public string AssemblyFileName { get; } = assemblyFileName;
     public string? OutputDirectory { get; } = outputDirectory;
