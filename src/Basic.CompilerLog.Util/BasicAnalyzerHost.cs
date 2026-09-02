@@ -130,7 +130,8 @@ public abstract class BasicAnalyzerHost : IDisposable
         {
             if (analyzers.Count == 0)
             {
-                return new BasicAnalyzerHostNone();
+                var storedSourceTexts = dataProvider.ReadAllGeneratedSourceTexts(compilerCall);
+                return new BasicAnalyzerHostNone(storedSourceTexts);
             }
 
             if (!dataProvider.HasAllGeneratedFileContent(compilerCall))

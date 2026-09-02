@@ -261,6 +261,14 @@ public class CompilationInfoPack
     public string? CompilerAssemblyName { get; set; }
     [Key(11)]
     public string? CompilerCommitHash { get; set; }
+    /// <summary>
+    /// True when this compilation was created from a Roslyn
+    /// <see cref="Microsoft.CodeAnalysis.Workspace"/> rather than an actual build. Workspace
+    /// compilations don't include emit-time inputs so replaying them has fidelity limits.
+    /// Absent (false) on logs from older versions, which predate workspace support.
+    /// </summary>
+    [Key(12)]
+    public bool IsWorkspace { get; set; }
 }
 
 [MessagePackObject]

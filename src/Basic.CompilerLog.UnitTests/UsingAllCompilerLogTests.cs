@@ -491,6 +491,48 @@ public sealed class UsingAllCompilerLogTests : TestBase
         }
     }
 
+    /// <summary>
+    /// Round trip every log through the workspace layer: load it with <see cref="SolutionReader"/>,
+    /// serialize the resulting workspace back to a new compiler log and verify the compilations
+    /// read out of that log have no errors. This covers the workspace-to-complog path for all of
+    /// the core scenarios and automatically picks up future ones.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(GetAllLogDataNames))]
+    public async Task WorkspaceRoundTrip(string logDataName)
+    {
+        var logData = await Fixture.GetLogDataByNameAsync(logDataName, TestOutputHelper);
+        if (!logData.SupportsNoneHost)
+        {
+            return;
+        }
+
+        using var solutionReader = SolutionReader.Create(logData.CompilerLogPath, BasicAnalyzerKind.None);
+        using var workspace = new AdhocWorkspace();
+        workspace.AddSolution(solutionReader.ReadSolutionInfo());
+
+        var complogStream = new MemoryStream();
+        var result = await CompilerLogUtil.TryCreateFromWorkspaceAsync(workspace, complogStream, cancellationToken: CancellationToken);
+        Assert.True(result.Succeeded, $"Diagnostics: {string.Join("; ", result.Diagnostics)}");
+        complogStream.Position = 0;
+
+        using var reader = CompilerLogReader.Create(complogStream, basicAnalyzerKind: BasicAnalyzerKind.None, leaveOpen: false);
+        var dataList = reader.ReadAllCompilationData();
+        Assert.Equal(workspace.CurrentSolution.Projects.Count(), dataList.Count);
+        foreach (var data in dataList)
+        {
+            TestOutputHelper.WriteLine($"\t{data.CompilerCall.ProjectFileName} ({data.CompilerCall.TargetFramework})");
+            var errors = data.GetDiagnostics(CancellationToken)
+                .Where(x => x.Severity == DiagnosticSeverity.Error)
+                .ToList();
+            foreach (var error in errors)
+            {
+                TestOutputHelper.WriteLine($"\t\t{error}");
+            }
+            Assert.Empty(errors);
+        }
+    }
+
     [Fact]
     public async Task ReadMSBuildDataAllBinaryLogs()
     {

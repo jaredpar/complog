@@ -208,7 +208,8 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
             pack.TargetFramework,
             pack.IsCSharp,
             NormalizeAndMapPath(pack.CompilerFilePath, PathMapKind.CompilerExecutableFile),
-            new CompilerCallState(this, index));
+            new CompilerCallState(this, index),
+            isWorkspace: pack.IsWorkspace);
     }
 
     public CompilerCallData ReadCompilerCallData(CompilerCall compilerCall)
@@ -849,25 +850,18 @@ public sealed class CompilerLogReader : ICompilerCallReader, IBasicAnalyzerHostD
 
         MetadataReference CreateMetadataReference(Guid mvid, MetadataImageKind kind, ImmutableArray<Guid> netModuleMvids)
         {
-            var bytes = GetAssemblyBytes(mvid);
             var tuple = _mvidToRefInfoMap[mvid];
-            if (netModuleMvids.Length == 0)
+            var modules = ImmutableArray.CreateBuilder<(Guid Mvid, byte[] Image)>(1 + netModuleMvids.Length);
+            modules.Add((mvid, GetAssemblyBytes(mvid)));
+            foreach (var netModuleMvid in netModuleMvids)
             {
-                return MetadataReference.CreateFromStream(
-                    new MemoryStream(bytes),
-                    new MetadataReferenceProperties(kind),
-                    filePath: tuple.FileName);
+                modules.Add((netModuleMvid, GetAssemblyBytes(netModuleMvid)));
             }
 
-            var modules = new ModuleMetadata[1 + netModuleMvids.Length];
-            modules[0] = ModuleMetadata.CreateFromImage(bytes);
-            for (int i = 0; i < netModuleMvids.Length; i++)
-            {
-                modules[i + 1] = ModuleMetadata.CreateFromImage(GetAssemblyBytes(netModuleMvids[i]));
-            }
-
-            var assemblyMetadata = AssemblyMetadata.Create(modules);
-            return assemblyMetadata.GetReference(filePath: tuple.FileName);
+            return BasicMetadataReference.Create(
+                modules.MoveToImmutable(),
+                new MetadataReferenceProperties(kind),
+                filePath: tuple.FileName);
         }
     }
 

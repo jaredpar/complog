@@ -653,6 +653,31 @@ public sealed class CompilerLogAppTests : TestBase, IClassFixture<CompilerLogApp
         Assert.Contains("complog ref [OPTIONS]", output);
     }
 
+    /// <summary>
+    /// Logs created from a Roslyn workspace lack emit-time inputs, so the rsp / replay / export
+    /// commands warn about the fidelity limits. Build-derived logs must not warn.
+    /// </summary>
+    [Fact]
+    public void ResponseWorkspaceLogWarns()
+    {
+        var complogPath = Path.Combine(RootDirectory, "workspace.complog");
+        using (var solutionReader = SolutionReader.Create(Fixture.Console.Value.CompilerLogPath, BasicAnalyzerKind.None))
+        using (var workspace = new AdhocWorkspace())
+        {
+            workspace.AddSolution(solutionReader.ReadSolutionInfo());
+            var result = CompilerLogUtil.TryCreateFromWorkspace(workspace, complogPath, cancellationToken: CancellationToken);
+            Assert.True(result.Succeeded);
+        }
+
+        var (exitCode, output) = RunCompLogEx($@"rsp ""{complogPath}""");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.Contains("created from a Roslyn workspace", output);
+
+        (exitCode, output) = RunCompLogEx($@"rsp ""{Fixture.Console.Value.CompilerLogPath}""");
+        Assert.Equal(Constants.ExitSuccess, exitCode);
+        Assert.DoesNotContain("created from a Roslyn workspace", output);
+    }
+
     [Fact]
     public void ResponseSingleLine()
     {
