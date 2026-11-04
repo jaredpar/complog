@@ -163,21 +163,23 @@ public static class BinaryLogUtil
         string? msbuildPath = null;
         string? commandLine = null;
         string? msbuildVersion = null;
-        // MSBuild info messages appear before any project events so we only need to check until
-        // the first project event has been seen.
+        // Stop inspecting invocation messages once all fields are found or the first project starts.
         var msbuildInfoComplete = false;
 
         foreach (var record in records)
         {
-            // Capture MSBuild invocation info from the early high-importance messages that appear
-            // before any project events begin.
-            if (!msbuildInfoComplete && record.Args is BuildMessageEventArgs { Importance: MessageImportance.High } bme)
+            // Invocation messages can have low importance; do not filter them by importance.
+            if (!msbuildInfoComplete && record.Args is BuildMessageEventArgs bme)
             {
                 var msg = bme.Message ?? "";
                 processPath ??= TryExtractValue(msg, "Process = ");
                 msbuildPath ??= TryExtractValue(msg, "MSBuild executable path = ");
                 commandLine ??= TryExtractValue(msg, "Command line arguments = ");
                 msbuildVersion ??= TryExtractValue(msg, "MSBuild version = ");
+                msbuildInfoComplete = processPath is not null &&
+                    msbuildPath is not null &&
+                    commandLine is not null &&
+                    msbuildVersion is not null;
             }
 
             if (record.Args is not { BuildEventContext: { } context })

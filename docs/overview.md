@@ -29,6 +29,14 @@ with `src/Basic.CompilerLog/` as the thin `complog` global-tool entry point.
   `CustomCompilerLoadContext.cs`).
 - **Streaming serialization**: MessagePack-based format for efficient `.complog` storage.
 
+### MSBuild invocation metadata
+
+`BinaryLogUtil` captures the MSBuild process path, executable path, command line, and version
+from startup messages regardless of their importance. Metadata inspection stops once all four
+values are found or the first project starts; compiler-call processing continues in the same
+pass. Conversion preserves this metadata in `.complog` files for `complog print -m`. Older logs
+that lack invocation metadata continue to return no data.
+
 ### Path normalization
 
 Compiler logs are meant to be portable across different operating systems and environments. To
