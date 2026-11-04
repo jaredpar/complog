@@ -550,6 +550,14 @@ public sealed class UsingAllCompilerLogTests : TestBase
             Assert.NotNull(data.MSBuildPath);
             Assert.NotNull(data.CommandLine);
             Assert.NotNull(data.MSBuildVersion);
+
+            using var compilerLogReader = CompilerLogReader.Create(logData.CompilerLogPath);
+            var roundTripData = compilerLogReader.ReadMSBuildData();
+            Assert.NotNull(roundTripData);
+            Assert.Equal(data.ProcessPath, roundTripData.ProcessPath);
+            Assert.Equal(data.MSBuildPath, roundTripData.MSBuildPath);
+            Assert.Equal(data.CommandLine, roundTripData.CommandLine);
+            Assert.Equal(data.MSBuildVersion, roundTripData.MSBuildVersion);
         }
     }
 }

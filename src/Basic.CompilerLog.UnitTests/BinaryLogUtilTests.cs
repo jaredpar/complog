@@ -1,5 +1,6 @@
 using Basic.CompilerLog.Util;
 using Basic.CompilerLog.Util.Impl;
+using Microsoft.Build.Framework;
 using Microsoft.Build.Logging.StructuredLogger;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
@@ -107,6 +108,92 @@ public sealed class BinaryLogUtilTests : TestBase
     {
         using var stream = File.OpenRead(Fixture.Console.Value.BinaryLogPath!);
         Assert.Single(BinaryLogUtil.ReadAllCompilerCalls(stream));
+    }
+
+    [Theory]
+    [InlineData(MessageImportance.Low, false)]
+    [InlineData(MessageImportance.Normal, false)]
+    [InlineData(MessageImportance.High, false)]
+    [InlineData(MessageImportance.Low, true)]
+    [InlineData(MessageImportance.Normal, true)]
+    [InlineData(MessageImportance.High, true)]
+    public void ReadMSBuildData(MessageImportance importance, bool quoted)
+    {
+        var quote = quoted ? "\"" : "";
+        var data = ReadMSBuildDataFromEvents(
+            Message("process = ignored"),
+            Message(" Process = ignored"),
+            Message("Unrelated message"),
+            Message($"Process = {quote}dotnet host{quote}"),
+            Message($"MSBuild executable path = {quote}MSBuild.dll{quote}"),
+            Message($"Command line arguments = {quote}dotnet build \"project file.csproj\"{quote}"),
+            Message($"MSBuild version = {quote}18.0.0{quote}"),
+            Message("Process = replacement"),
+            Message("MSBuild executable path = replacement"),
+            Message("Command line arguments = replacement"),
+            Message("MSBuild version = replacement"));
+
+        Assert.NotNull(data);
+        Assert.Equal("dotnet host", data.ProcessPath);
+        Assert.Equal("MSBuild.dll", data.MSBuildPath);
+        Assert.Equal("dotnet build \"project file.csproj\"", data.CommandLine);
+        Assert.Equal("18.0.0", data.MSBuildVersion);
+
+        BuildMessageEventArgs Message(string text) => new(text, null, "MSBuild", importance);
+    }
+
+    [Fact]
+    public void ReadMSBuildDataStopsAtProject()
+    {
+        var data = ReadMSBuildDataFromEvents(
+            new BuildMessageEventArgs("Process = dotnet", null, "MSBuild", MessageImportance.Low),
+            new ProjectStartedEventArgs("", "", "example.csproj", "", Array.Empty<object>(), Array.Empty<object>())
+            {
+                BuildEventContext = new BuildEventContext(1, 1, 1, 1)
+            },
+            new BuildMessageEventArgs("Process = replacement", null, "MSBuild", MessageImportance.Low),
+            new BuildMessageEventArgs("MSBuild executable path = late", null, "MSBuild", MessageImportance.Low),
+            new BuildMessageEventArgs("Command line arguments = late", null, "MSBuild", MessageImportance.Low),
+            new BuildMessageEventArgs("MSBuild version = late", null, "MSBuild", MessageImportance.Low));
+
+        Assert.NotNull(data);
+        Assert.Equal("dotnet", data.ProcessPath);
+        Assert.Null(data.MSBuildPath);
+        Assert.Null(data.CommandLine);
+        Assert.Null(data.MSBuildVersion);
+    }
+
+    [Fact]
+    public void ReadMSBuildDataMissing()
+    {
+        Assert.Null(ReadMSBuildDataFromEvents(
+            new BuildMessageEventArgs(null, null, "MSBuild", MessageImportance.Low),
+            new BuildMessageEventArgs("Unrelated message", null, "MSBuild", MessageImportance.High)));
+    }
+
+    /// <summary>
+    /// Exercise the metadata parser through the binlog wire format, including omitted importance.
+    /// </summary>
+    private MSBuildData? ReadMSBuildDataFromEvents(params BuildEventArgs[] events)
+    {
+        var filePath = Path.Combine(RootDirectory, "metadata.binlog");
+        var source = new EventArgsDispatcher();
+        var logger = new BinaryLogger { Parameters = $"{filePath};ProjectImports=None" };
+        logger.Initialize(source);
+        try
+        {
+            foreach (var e in events)
+            {
+                source.Dispatch(e);
+            }
+        }
+        finally
+        {
+            logger.Shutdown();
+        }
+
+        using var stream = File.OpenRead(filePath);
+        return BinaryLogUtil.ReadAllData(stream).MSBuildData;
     }
 }
 
