@@ -51,9 +51,9 @@ Solution file: `Basic.CompilerLog.slnx`
 
 | Project | Purpose | Target Frameworks |
 |---------|---------|-------------------|
-| `src/Basic.CompilerLog/` | CLI entry point (`complog` global tool) | net9.0, net10.0 |
-| `src/Basic.CompilerLog.App/` | CLI application logic and command handling | net9.0, net10.0 |
-| `src/Basic.CompilerLog.Util/` | Core library (reading, writing, serialization) | net9.0, net10.0, net472, netstandard2.0 |
+| `src/Basic.CompilerLog/` | CLI entry point (`complog` global tool) | net10.0, net11.0 |
+| `src/Basic.CompilerLog.App/` | CLI application logic and command handling | net10.0, net11.0 |
+| `src/Basic.CompilerLog.Util/` | Core library (reading, writing, serialization) | net10.0, net11.0, net472, netstandard2.0 |
 | `src/Basic.CompilerLog.UnitTests/` | Test suite | net10.0, net472 |
 | `src/Scratch/` | Benchmarks and scratch development | - |
 | `src/Shared/` | Shared utility files (linked into projects) | - |
@@ -93,7 +93,7 @@ Solution file: `Basic.CompilerLog.slnx`
 GitHub Actions (`.github/workflows/dotnet.yml`):
 - Runs on push/PR to `main`.
 - Matrix: ubuntu-latest + windows-latest.
-- .NET SDKs: 8.0.x, 9.0.x, 10.0.x.
+- .NET SDKs: 8.0.x, 10.0.x, 11.0.x.
 - Linux tests: net10.0.
 - Windows tests: net10.0 + net472.
 - Uploads compiler logs, test results (.trx), and coverage to Codecov.

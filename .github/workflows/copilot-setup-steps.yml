@@ -20,12 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup .NET (8/9/10)
+      - name: Setup .NET (8/10/11)
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            9.0.x
+            8.0.x
             10.0.x
+            11.0.x
 
       # Speed / determinism knobs for the agent session
       - name: Configure .NET env
