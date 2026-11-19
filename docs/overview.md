@@ -21,7 +21,7 @@ with `src/Basic.CompilerLog/` as the thin `complog` global-tool entry point.
 
 ## Architecture Notes
 
-- **Multi-targeting**: The Util library targets net9.0/net10.0/net472/netstandard2.0 for broad
+- **Multi-targeting**: The Util library targets net10.0/net11.0/net472/netstandard2.0 for broad
   compatibility.
 - **Roslyn version split**: Reference assemblies use version 4.8.0 (`RoslynReferenceVersion`) while
   the build uses 5.0.0 — this is intentional for compatibility.

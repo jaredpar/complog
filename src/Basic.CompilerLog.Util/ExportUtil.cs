@@ -710,7 +710,7 @@ public sealed partial class ExportUtil
         else
         {
             // No target framework specified - use a default and disable standard lib
-            sb.AppendLine("    <TargetFramework>net9.0</TargetFramework>");
+            sb.AppendLine("    <TargetFramework>net10.0</TargetFramework>");
             sb.AppendLine("    <NoStdLib>true</NoStdLib>");
         }
 
